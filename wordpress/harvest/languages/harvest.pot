@@ -1,0 +1,128 @@
+# Copyright (C) 2024 HArvest Contributors
+# This file is distributed under the same license as the HArvest plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: HArvest 1.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/sfox38/harvest/issues\n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: harvest.php
+msgid "HArvest Settings"
+msgstr ""
+
+#: harvest.php
+msgid "HArvest"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Home Assistant URL"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "The external URL of your Home Assistant instance. Used by every widget on your site."
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Widget JS source"
+msgstr ""
+
+#. translators: %s: version number
+#: includes/class-harvest-settings.php
+msgid "Use bundled version (harvest.js v%s)"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Use CDN version (always latest)"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Bundled is recommended for stability. CDN always loads the latest widget version from jsDelivr."
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Default theme URL"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Optional. URL to a HArvest theme JSON file. Applied to all widgets that do not specify their own theme. Leave blank to use the built-in default."
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Shortcode usage"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Paste the shortcode below into any post or page using the Classic editor:"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Available shortcode parameters"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Parameter"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Required"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Description"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Your HArvest widget token ID."
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Yes"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Yes*"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "No"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Content Security Policy"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "HArvest automatically adds your Home Assistant URL to the Content-Security-Policy connect-src directive. This allows the widget to open a WebSocket connection to your Home Assistant instance."
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "If you use a security plugin that manages CSP headers separately (such as Wordfence or NinjaFirewall), you may need to manually add the following to your connect-src directive:"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "Backup note"
+msgstr ""
+
+#: includes/class-harvest-settings.php
+msgid "HArvest plugin settings are stored in the WordPress database and are included in standard WordPress backups. The widget token secrets you create in Home Assistant are stored in HA, not in WordPress."
+msgstr ""
+
+#: includes/class-harvest-shortcode.php
+msgid "HArvest: missing required \"token\" attribute."
+msgstr ""
+
+#: includes/class-harvest-shortcode.php
+msgid "HArvest: missing required \"entity\" or \"alias\" attribute."
+msgstr ""
+
+#: includes/class-harvest-shortcode.php
+msgid "HArvest: Home Assistant URL is not configured. Go to Settings > HArvest to set it up."
+msgstr ""

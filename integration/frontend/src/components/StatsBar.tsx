@@ -1,0 +1,106 @@
+/**
+ * StatsBar.tsx - Compact horizontal stats strip shown on non-dashboard screens.
+ *
+ * Displays live counts for active sessions, active tokens, commands today,
+ * and errors today. Refreshes every 30 seconds. Each stat is a clickable
+ * chip that navigates to the relevant screen.
+ */
+
+import { useState, useEffect, useCallback } from "react";
+import type { Screen, PanelStats } from "../types";
+import { api } from "../api";
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+interface StatsBarProps {
+  onNavigate: (screen: Screen) => void;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function StatsBar({ onNavigate }: StatsBarProps) {
+  const [stats, setStats] = useState<PanelStats | null>(null);
+
+  const refresh = useCallback(() => {
+    api.stats.get().then(setStats).catch(() => {/* silent - bar just stays stale */});
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 30_000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  if (!stats) return null;
+
+  const chips: { label: string; value: number; screen: Screen; warn?: boolean }[] = [
+    { label: "Sessions",       value: stats.active_sessions, screen: "tokens"   },
+    { label: "Active tokens",  value: stats.active_tokens,   screen: "tokens"   },
+    { label: "Commands today", value: stats.commands_today,  screen: "activity" },
+    { label: "Errors today",   value: stats.errors_today,    screen: "activity", warn: stats.errors_today > 0 },
+  ];
+
+  return (
+    <div
+      aria-label="Quick stats"
+      style={{
+        display: "flex",
+        gap: 8,
+        padding: "6px 16px",
+        background: "var(--app-header-background-color, var(--primary-color, #6200ea))",
+        borderBottom: "1px solid rgba(255,255,255,0.15)",
+        flexShrink: 0,
+        overflowX: "auto",
+      }}
+    >
+      {chips.map(({ label, value, screen, warn }) => (
+        <button
+          key={label}
+          onClick={() => onNavigate(screen)}
+          title={`Go to ${screen}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "3px 12px",
+            borderRadius: 12,
+            border: "none",
+            background: warn ? "rgba(255,200,0,0.25)" : "rgba(255,255,255,0.15)",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <strong style={{ fontWeight: 700, fontSize: 13 }}>{value}</strong>
+          {label}
+        </button>
+      ))}
+
+      {!stats.is_running && (
+        <span
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "3px 12px",
+            borderRadius: 12,
+            background: "rgba(255,60,60,0.35)",
+            color: "#fff",
+            fontSize: 12,
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Integration stopped
+        </span>
+      )}
+    </div>
+  );
+}

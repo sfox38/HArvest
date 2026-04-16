@@ -1,0 +1,336 @@
+"""Builds entity_definition messages for the HArvest WebSocket protocol.
+
+Reads HA entity state and registry data, translates supported_features
+bitmasks to string lists, and packages everything the widget needs to render
+a card - without exposing any HA internals the token owner has not approved.
+"""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import entity_registry as er
+
+from .entity_compatibility import get_renderer_name, get_support_tier
+
+if TYPE_CHECKING:
+    from .token_manager import EntityAccess
+
+
+# Maps (domain, bitmask_bit) -> feature string for translate_supported_features.
+FEATURE_FLAGS: dict[str, dict[int, str]] = {
+    "light": {
+        1: "brightness", 2: "color_temp", 4: "effect",
+        16: "flash", 64: "transition", 128: "rgb_color", 1024: "white_value",
+    },
+    "fan": {1: "set_speed", 2: "oscillate", 4: "direction"},
+    "cover": {4: "set_position", 128: "set_tilt_position", 8: "stop"},
+    "climate": {
+        1: "target_temperature", 2: "target_temperature_range",
+        4: "fan_mode", 8: "preset_mode", 16: "swing_mode", 32: "aux_heat",
+    },
+    "media_player": {
+        1: "play_pause", 2: "next_track", 4: "previous_track",
+        8: "volume_set", 16: "volume_step", 128: "turn_on", 256: "turn_off",
+    },
+    "remote": {1: "learn_command", 2: "delete_command"},
+}
+
+# Standard (card-level) attributes per domain. All other non-denied attributes
+# go to extended_attributes in state_update messages.
+STANDARD_ATTRIBUTES: dict[str, frozenset[str]] = {
+    "light": frozenset({
+        "brightness", "color_temp", "color_mode", "supported_color_modes",
+        "min_mireds", "max_mireds", "effect_list", "effect",
+    }),
+    "fan": frozenset({
+        "percentage", "percentage_step", "oscillating",
+        "direction", "preset_mode", "preset_modes",
+    }),
+    "cover": frozenset({"current_position", "current_tilt_position"}),
+    "climate": frozenset({
+        "current_temperature", "target_temp_high", "target_temp_low",
+        "temperature", "hvac_modes", "hvac_action", "fan_modes", "fan_mode",
+        "preset_modes", "preset_mode", "swing_modes", "swing_mode",
+        "min_temp", "max_temp", "target_temp_step",
+    }),
+    "sensor": frozenset({
+        "unit_of_measurement", "device_class", "state_class", "last_reset",
+    }),
+    "binary_sensor": frozenset({"device_class"}),
+    "media_player": frozenset({
+        "media_title", "media_artist", "media_album_name",
+        "media_duration", "media_position", "media_content_type",
+        "source", "source_list", "volume_level", "is_volume_muted",
+    }),
+    "remote": frozenset({"current_activity", "activity_list"}),
+    "input_number": frozenset({"min", "max", "step", "mode", "unit_of_measurement"}),
+    "input_select": frozenset({"options"}),
+}
+
+# Default icon per state for each domain. Used when the entity registry has no
+# custom icon set. State key "*" applies to all unlisted states.
+_DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
+    "light": {
+        "on": "mdi:lightbulb",
+        "*": "mdi:lightbulb-outline",
+    },
+    "switch": {
+        "on": "mdi:toggle-switch",
+        "*": "mdi:toggle-switch-off-outline",
+    },
+    "fan": {
+        "on": "mdi:fan",
+        "*": "mdi:fan-off",
+    },
+    "cover": {
+        "open":    "mdi:window-shutter-open",
+        "opening": "mdi:window-shutter-open",
+        "closing": "mdi:window-shutter",
+        "*":       "mdi:window-shutter",
+    },
+    "climate": {
+        "*": "mdi:thermostat",
+    },
+    "media_player": {
+        "playing": "mdi:cast-connected",
+        "idle":    "mdi:cast",
+        "off":     "mdi:cast-off",
+        "*":       "mdi:cast",
+    },
+    "remote": {
+        "on": "mdi:remote",
+        "*":  "mdi:remote-off",
+    },
+    "input_boolean": {
+        "on": "mdi:toggle-switch",
+        "*":  "mdi:toggle-switch-off-outline",
+    },
+    "input_number": {
+        "*": "mdi:numeric",
+    },
+    "input_select": {
+        "*": "mdi:format-list-bulleted",
+    },
+    "sensor": {
+        "*": "mdi:gauge",
+    },
+    "binary_sensor": {
+        "on":  "mdi:radiobox-marked",
+        "*":   "mdi:radiobox-blank",
+    },
+    "harvest_action": {
+        "triggered": "mdi:play-circle",
+        "*":         "mdi:play-circle-outline",
+    },
+}
+
+# Device-class icon overrides for binary_sensor and sensor.
+_BINARY_SENSOR_DC_ICONS: dict[str, dict[str, str]] = {
+    "motion":       {"on": "mdi:motion-sensor", "*": "mdi:motion-sensor-off"},
+    "door":         {"on": "mdi:door-open", "*": "mdi:door-closed"},
+    "window":       {"on": "mdi:window-open", "*": "mdi:window-closed"},
+    "lock":         {"on": "mdi:lock-open", "*": "mdi:lock"},
+    "connectivity": {"on": "mdi:wifi", "*": "mdi:wifi-off"},
+    "moisture":     {"on": "mdi:water", "*": "mdi:water-off"},
+    "smoke":        {"on": "mdi:smoke-detector-variant-alert", "*": "mdi:smoke-detector-variant"},
+    "presence":     {"on": "mdi:home", "*": "mdi:home-outline"},
+}
+
+_SENSOR_DC_ICONS: dict[str, str] = {
+    "temperature":    "mdi:thermometer",
+    "humidity":       "mdi:water-percent",
+    "battery":        "mdi:battery",
+    "illuminance":    "mdi:brightness-5",
+    "pressure":       "mdi:gauge",
+    "power":          "mdi:flash",
+    "energy":         "mdi:lightning-bolt",
+    "voltage":        "mdi:sine-wave",
+    "current":        "mdi:current-ac",
+    "carbon_dioxide": "mdi:molecule-co2",
+    "pm25":           "mdi:air-filter",
+}
+
+
+def build_entity_definition(
+    hass: HomeAssistant,
+    entity_id: str,
+    entity_access: "EntityAccess",
+) -> dict | None:
+    """Build a complete entity_definition message dict for a given entity.
+
+    Reads current state and entity registry entry from HA.
+    Translates supported_features bitmask to string list.
+    Builds icon and icon_state_map from entity registry and domain defaults.
+    Builds feature_config with domain-specific range values.
+    Returns None if the entity does not exist in HA's state machine.
+    """
+    state = hass.states.get(entity_id)
+    if state is None:
+        return None
+
+    domain = entity_id.split(".")[0]
+    attrs = state.attributes
+
+    # Entity registry - may be None for synthetic/virtual entities.
+    registry = er.async_get(hass)
+    entry = registry.async_get(entity_id)
+
+    # device_class: prefer registry override, fall back to state attribute.
+    device_class: str | None = None
+    if entry is not None:
+        device_class = entry.device_class or entry.original_device_class
+    if device_class is None:
+        device_class = attrs.get("device_class")
+
+    # friendly_name: prefer state attribute (HA keeps it current), fall back to
+    # registry original_name.
+    friendly_name: str = attrs.get("friendly_name") or ""
+    if not friendly_name and entry is not None:
+        friendly_name = entry.name or entry.original_name or entity_id
+
+    # supported_features bitmask -> string list.
+    supported_features = decode_supported_features(
+        domain, attrs.get("supported_features", 0)
+    )
+
+    # icon_state_map (includes the icon for the current state as default icon).
+    icon_state_map = build_icon_state_map(domain, state, entry, device_class)
+
+    # The entity's default icon is the one for its current state.
+    current_icon = icon_state_map.get(state.state) or icon_state_map.get("*", "mdi:help-circle")
+
+    # feature_config for domain-specific sliders / range controls.
+    feature_config = build_feature_config(domain, state)
+
+    # unit_of_measurement from state attributes.
+    unit_of_measurement: str | None = attrs.get("unit_of_measurement")
+
+    support_tier = int(get_support_tier(domain))
+    renderer = get_renderer_name(domain, device_class)
+
+    return {
+        "entity_id": entity_id,
+        "domain": domain,
+        "device_class": device_class,
+        "friendly_name": friendly_name,
+        "supported_features": supported_features,
+        "feature_config": feature_config,
+        "icon": current_icon,
+        "icon_state_map": icon_state_map,
+        "support_tier": support_tier,
+        "renderer": renderer,
+        "unit_of_measurement": unit_of_measurement,
+    }
+
+
+def decode_supported_features(domain: str, bitmask: int) -> list[str]:
+    """Translate a HA supported_features bitmask to a list of feature strings.
+
+    Uses FEATURE_FLAGS for the domain. Bits not in the map are ignored.
+    Returns an empty list for unknown domains or zero bitmask.
+    """
+    flags = FEATURE_FLAGS.get(domain, {})
+    return [name for bit, name in flags.items() if bitmask & bit]
+
+
+def split_attributes(domain: str, attributes: dict) -> tuple[dict, dict]:
+    """Split entity attributes into standard and extended dicts.
+
+    Standard attributes are those in STANDARD_ATTRIBUTES for the domain.
+    All others go to extended_attributes.
+    friendly_name is excluded from both (delivered in entity_definition separately).
+    """
+    standard_keys = STANDARD_ATTRIBUTES.get(domain, frozenset())
+    standard = {k: v for k, v in attributes.items()
+                if k in standard_keys and k != "friendly_name"}
+    extended = {k: v for k, v in attributes.items()
+                if k not in standard_keys and k != "friendly_name"}
+    return standard, extended
+
+
+def build_icon_state_map(
+    domain: str,
+    state: State,
+    entry: er.RegistryEntry | None,
+    device_class: str | None,
+) -> dict[str, str]:
+    """Build the icon_state_map for an entity.
+
+    Reads the entity's icon from the entity registry if set (user-customised).
+    Falls back to HA's built-in domain/device_class icon conventions.
+    Returns a dict of state strings to MDI icon names.
+
+    When the entity has a user-set icon in the registry, all states map to that
+    single icon (the user override applies universally). Domain defaults provide
+    per-state icons.
+    """
+    # User-customised icon from entity registry overrides everything.
+    user_icon: str | None = entry.icon if entry is not None else None
+    if user_icon:
+        # Apply user icon to all known states for this domain plus a "*" fallback.
+        known_states = list(_DOMAIN_ICON_DEFAULTS.get(domain, {}).keys())
+        return {s: user_icon for s in known_states} | {"*": user_icon}
+
+    # Device-class overrides for binary_sensor.
+    if domain == "binary_sensor" and device_class in _BINARY_SENSOR_DC_ICONS:
+        return dict(_BINARY_SENSOR_DC_ICONS[device_class])
+
+    # Device-class icon for sensor (single icon, no state split).
+    if domain == "sensor" and device_class in _SENSOR_DC_ICONS:
+        icon = _SENSOR_DC_ICONS[device_class]
+        return {"*": icon}
+
+    # Fall back to domain defaults.
+    defaults = _DOMAIN_ICON_DEFAULTS.get(domain)
+    if defaults:
+        return dict(defaults)
+
+    # Unknown domain - generic fallback.
+    return {"*": "mdi:help-circle"}
+
+
+def build_feature_config(domain: str, state: State) -> dict:
+    """Build the feature_config dict for domain-specific range values.
+
+    light:        min_brightness (0), max_brightness (255), min_color_temp,
+                  max_color_temp (from state attributes min_mireds/max_mireds)
+    fan:          speed_count (derived from percentage_step attribute: 100 / step)
+    input_number: min, max, step (from state attributes)
+    climate:      min_temp, max_temp, target_temp_step (from state attributes)
+    Returns an empty dict for domains with no configurable ranges.
+    """
+    attrs = state.attributes
+
+    if domain == "light":
+        config: dict = {
+            "min_brightness": 0,
+            "max_brightness": 255,
+        }
+        if "min_mireds" in attrs:
+            config["min_color_temp"] = attrs["min_mireds"]
+        if "max_mireds" in attrs:
+            config["max_color_temp"] = attrs["max_mireds"]
+        return config
+
+    if domain == "fan":
+        step = attrs.get("percentage_step")
+        if step and step > 0:
+            return {"speed_count": int(100 / step)}
+        return {}
+
+    if domain == "input_number":
+        config = {}
+        for key in ("min", "max", "step"):
+            if key in attrs:
+                config[key] = attrs[key]
+        return config
+
+    if domain == "climate":
+        config = {}
+        for key in ("min_temp", "max_temp", "target_temp_step"):
+            if key in attrs:
+                config[key] = attrs[key]
+        return config
+
+    return {}

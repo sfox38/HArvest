@@ -1,0 +1,21 @@
+{
+  "name": "@harvest/widget",
+  "version": "1.6.3",
+  "description": "HArvest widget - live Home Assistant entity cards for any webpage",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "build:watch": "node build.js --watch",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "jsdom": "^29.0.2",
+    "vitest": "^1.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sfox38/harvest"
+  }
+}
