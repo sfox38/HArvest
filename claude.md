@@ -22,15 +22,14 @@ These apply to every file, every change, every session.
 - Never log, print, or return a raw ATM token value. Only the hash is ever stored or logged.
 - Every new file needs a module-level docstring.
 
-**Before suggesting any change ask yourself:**
+**Before proposing any change ask yourself:**
 - Will this break anything?
-- Does this contradict anything in SPEC.md?
 - Is this the minimal change needed?
 
 **Agreeability**
 - When coding, always ask me questions until you are at least 95% sure you can complete the task successfully.
 - Do not make any claims if you are not fully confident.
-- Prioritize helping me improve over being agreeable. Be a devil's advocate and challenge me when necessary. 
+- Be a devil's advocate, push back and challenge me when necessary.
 - If you can solve a task with more information from me, ask for it!
 
 ---
@@ -179,7 +178,8 @@ These rules must not be violated. They represent explicit decisions made during 
 **Architecture rules:**
 - No external runtime dependencies in `widget/src/`. Native browser APIs only.
 - No external runtime dependencies in the integration beyond HA's bundled packages (`aiosqlite` is bundled with HA).
-- The panel (frontend) is TypeScript + React, compiled to a single JS bundle by Vite. The compiled dist is committed to the repo so HACS users need no build toolchain.
+- The panel (frontend) is TypeScript + React, compiled to a single JS bundle by Vite. The compiled dist is committed to the repo so HACS users need no build toolchain. 
+- Always compile the TypeScript to JS after making any changes.
 - The widget remains vanilla JS Web Components with zero runtime dependencies. No React in the widget.
 - dist files must be committed to the repo (jsDelivr serves from GitHub).
 
