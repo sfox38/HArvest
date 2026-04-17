@@ -4,6 +4,7 @@
  * Components exported:
  *   StatusBadge      - Coloured pill for token/session status
  *   CopyButton       - Clipboard copy with transient feedback
+ *   CopyablePre      - <pre> code block + copy button sharing copied state
  *   ConfirmDialog    - Modal confirmation prompt
  *   Spinner          - Loading indicator
  *   EmptyState       - Empty list placeholder
@@ -14,7 +15,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { TokenStatus } from "../types";
 
 // ---------------------------------------------------------------------------
-// Theme tokens (inline - no external CSS file)
+// Theme tokens - status badge colors (dynamic, cannot move to CSS)
 // ---------------------------------------------------------------------------
 
 const STATUS_COLORS: Record<TokenStatus, { bg: string; text: string }> = {
@@ -40,18 +41,8 @@ export function StatusBadge({ status, label }: StatusBadgeProps) {
   const displayLabel = label ?? status.replace(/_/g, " ");
   return (
     <span
-      style={{
-        display: "inline-block",
-        padding: "2px 10px",
-        borderRadius: 12,
-        fontSize: 12,
-        fontWeight: 600,
-        background: bg,
-        color: text,
-        textTransform: "capitalize",
-        letterSpacing: "0.02em",
-        whiteSpace: "nowrap",
-      }}
+      className="hrv-status-badge"
+      style={{ background: bg, color: text }}
     >
       {displayLabel}
     </span>
@@ -74,24 +65,33 @@ export function CopyButton({ text, label = "Copy", size = "md" }: CopyButtonProp
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(text).then(() => {
+    const markCopied = () => {
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {
-      // Fallback for browsers without clipboard API
+    };
+
+    // execCommand fallback - works even in HTTP (non-secure) contexts where
+    // navigator.clipboard is unavailable.
+    const fallback = () => {
       const ta = document.createElement("textarea");
       ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
+      ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
       document.body.appendChild(ta);
+      ta.focus();
       ta.select();
-      document.execCommand("copy");
+      try { document.execCommand("copy"); } catch { /* ignore */ }
       document.body.removeChild(ta);
-      setCopied(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), 2000);
-    });
+      markCopied();
+    };
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(markCopied).catch(fallback);
+    } else {
+      // navigator.clipboard is only available in secure contexts (HTTPS / localhost).
+      // HA accessed via a local IP on HTTP will land here.
+      fallback();
+    }
   }, [text]);
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
@@ -102,24 +102,86 @@ export function CopyButton({ text, label = "Copy", size = "md" }: CopyButtonProp
   return (
     <button
       onClick={handleCopy}
+      className="hrv-copy-btn"
       style={{
         padding: pad,
         fontSize: fs,
-        fontWeight: 500,
-        border: "1px solid var(--divider-color, #e0e0e0)",
-        borderRadius: 6,
-        background: copied
-          ? "var(--success-color, #43a047)"
-          : "var(--primary-background-color, #fff)",
+        background: copied ? "var(--success-color, #43a047)" : "var(--primary-background-color, #fff)",
         color: copied ? "#fff" : "var(--primary-text-color, #212121)",
-        cursor: "pointer",
-        transition: "background 200ms, color 200ms",
-        whiteSpace: "nowrap",
       }}
       aria-label={copied ? "Copied to clipboard" : `Copy ${label}`}
     >
       {copied ? "Copied!" : label}
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CopyablePre
+// ---------------------------------------------------------------------------
+
+interface CopyablePreProps {
+  text: string;
+  /** Label for the copy button. Default: "Copy". */
+  label?: string;
+}
+
+/**
+ * A <pre> code block paired with a copy button that share the same copied state.
+ * Clicking either the pre element or the button copies the text and shows "Copied!"
+ * on the button for 2 seconds.
+ */
+export function CopyablePre({ text, label = "Copy" }: CopyablePreProps) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const doCopy = useCallback(() => {
+    const markCopied = () => {
+      setCopied(true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 2000);
+    };
+    const fallback = () => {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand("copy"); } catch { /* ignore */ }
+      document.body.removeChild(ta);
+      markCopied();
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(markCopied).catch(fallback);
+    } else {
+      fallback();
+    }
+  }, [text]);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  return (
+    <>
+      <pre className="hrv-code" onClick={doCopy} title="Click to copy" style={{ cursor: "pointer" }}>
+        {text}
+      </pre>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
+        <button
+          onClick={doCopy}
+          className="hrv-copy-btn"
+          style={{
+            padding: "4px 10px",
+            fontSize: 12,
+            background: copied ? "var(--success-color, #43a047)" : "var(--primary-background-color, #fff)",
+            color: copied ? "#fff" : "var(--primary-text-color, #212121)",
+          }}
+          aria-label={copied ? "Copied to clipboard" : `Copy ${label}`}
+        >
+          {copied ? "Copied!" : label}
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -160,15 +222,7 @@ export function ConfirmDialog({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9000,
-      }}
+      className="hrv-overlay"
       onClick={onCancel}
       role="presentation"
     >
@@ -178,52 +232,23 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-msg"
+        className="hrv-dialog"
         onClick={e => e.stopPropagation()}
-        style={{
-          background: "var(--primary-background-color, #fff)",
-          borderRadius: 12,
-          padding: 24,
-          maxWidth: 400,
-          width: "90vw",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
-        }}
       >
         <h3
           id="confirm-title"
-          style={{
-            marginBottom: 12,
-            fontSize: 16,
-            fontWeight: 600,
-            color: "var(--primary-text-color, #212121)",
-          }}
+          style={{ marginBottom: 12, fontSize: 16, fontWeight: 600, color: "var(--primary-text-color, #212121)" }}
         >
           {title}
         </h3>
         <p
           id="confirm-msg"
-          style={{
-            marginBottom: 24,
-            fontSize: 14,
-            color: "var(--secondary-text-color, #616161)",
-            lineHeight: 1.5,
-          }}
+          style={{ marginBottom: 24, fontSize: 14, color: "var(--secondary-text-color, #616161)", lineHeight: 1.5 }}
         >
           {message}
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "8px 20px",
-              border: "1px solid var(--divider-color, #e0e0e0)",
-              borderRadius: 8,
-              background: "transparent",
-              color: "var(--primary-text-color, #212121)",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={onCancel} className="hrv-btn">
             Cancel
           </button>
           <button
@@ -306,17 +331,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon = "?", title, subtitle, action }: EmptyStateProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 48,
-        textAlign: "center",
-        gap: 12,
-      }}
-    >
+    <div className="hrv-empty-state">
       <div style={{ fontSize: 40, lineHeight: 1 }} aria-hidden="true">{icon}</div>
       <p style={{ fontSize: 16, fontWeight: 600, color: "var(--primary-text-color, #212121)", margin: 0 }}>
         {title}
@@ -329,17 +344,8 @@ export function EmptyState({ icon = "?", title, subtitle, action }: EmptyStatePr
       {action && (
         <button
           onClick={action.onClick}
-          style={{
-            marginTop: 8,
-            padding: "8px 20px",
-            border: "none",
-            borderRadius: 8,
-            background: "var(--primary-color, #6200ea)",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
+          className="hrv-btn-primary"
+          style={{ marginTop: 8 }}
         >
           {action.label}
         </button>
@@ -359,20 +365,7 @@ interface ErrorBannerProps {
 
 export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
   return (
-    <div
-      role="alert"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "10px 16px",
-        background: "#fce4ec",
-        color: "#b71c1c",
-        fontSize: 13,
-        fontWeight: 500,
-        borderBottom: "1px solid #ef9a9a",
-      }}
-    >
+    <div role="alert" className="hrv-error-banner">
       <span style={{ flex: 1 }}>{message}</span>
       {onDismiss && (
         <button

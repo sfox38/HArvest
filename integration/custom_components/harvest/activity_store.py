@@ -33,6 +33,14 @@ class AuthEvent(NamedTuple):
     result: str                             # "ok", "failed", "rate_limited"
     error_code: str | None
     timestamp: datetime
+    referer: str | None = None
+
+
+class TokenLifecycleEvent(NamedTuple):
+    token_id: str
+    display_type: str                       # "TOKEN_REVOKED", "TOKEN_DELETED"
+    reason: str | None
+    timestamp: datetime
 
 
 class CommandEvent(NamedTuple):
@@ -51,6 +59,7 @@ class SessionEvent(NamedTuple):
     source_ip: str
     event_type: str                         # "connected", "disconnected", "terminated"
     timestamp: datetime
+    referer: str | None = None
 
 
 class ErrorEvent(NamedTuple):
@@ -150,6 +159,10 @@ class ActivityStore:
         """Enqueue an error event. Non-blocking."""
         self._write_queue.put_nowait(("error", event))
 
+    def record_token_lifecycle(self, event: TokenLifecycleEvent) -> None:
+        """Enqueue a token lifecycle event (revoked, deleted). Non-blocking."""
+        self._write_queue.put_nowait(("lifecycle", event))
+
     # ------------------------------------------------------------------
     # Query methods
     # ------------------------------------------------------------------
@@ -157,7 +170,7 @@ class ActivityStore:
     async def query_activity(
         self,
         token_id: str | None = None,
-        event_types: list[str] | None = None,
+        display_type_filter: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
         limit: int = 50,
@@ -168,60 +181,94 @@ class ActivityStore:
         Returns (events, total_count) for pagination support.
         total_count reflects the full matching set regardless of limit/offset.
 
-        Events are returned as dicts with a normalised schema matching the
-        CSV export column order: timestamp, event_type, token_id, origin,
-        source_ip, entity_id, action, result, error_code, session_id.
+        Events are returned as dicts matching the ActivityEvent interface:
+        id, type, timestamp, token_id, session_id, origin, entity_id, action,
+        code, message. Fields absent for a given event type are null.
         """
         if self._db is None:
             return [], 0
 
-        # Build a UNION ALL query across all four tables with a normalised schema.
-        # Each subquery maps its columns to the shared output columns using '' for
-        # absent fields so that filtering and ordering work uniformly.
+        # Determine which tables to include based on the display type filter.
+        # Each mapping entry: (include_table, extra_where_clause, extra_params)
+        include_auth    = display_type_filter in (None, "AUTH_OK", "AUTH_FAIL", "RATE_LIMITED")
+        include_command = display_type_filter in (None, "COMMAND")
+        include_session = display_type_filter in (None, "SESSION_END", "RENEWAL")
+        # errors table has no token_id column - exclude it when filtering by token.
+        include_error   = display_type_filter is None and token_id is None
+        include_lifecycle = display_type_filter in (None, "TOKEN_CREATED", "TOKEN_REVOKED", "TOKEN_DELETED")
+
+        # Extra WHERE for fine-grained auth result filtering.
+        auth_extra = ""
+        if display_type_filter == "AUTH_OK":
+            auth_extra = " AND result = 'ok'"
+        elif display_type_filter == "AUTH_FAIL":
+            auth_extra = " AND result = 'failed'"
+        elif display_type_filter == "RATE_LIMITED":
+            auth_extra = " AND result = 'rate_limited'"
+
+        # Extra WHERE for session event type filtering.
+        session_extra = ""
+        if display_type_filter == "SESSION_END":
+            session_extra = " AND event_type IN ('disconnected', 'terminated')"
+        elif display_type_filter == "RENEWAL":
+            session_extra = " AND event_type = 'renewal'"
+
+        # Extra WHERE for lifecycle type filtering.
+        lifecycle_extra = ""
+        if display_type_filter in ("TOKEN_CREATED", "TOKEN_REVOKED", "TOKEN_DELETED"):
+            lifecycle_extra = f" AND display_type = '{display_type_filter}'"
+
         union_parts: list[str] = []
         params: list = []
-
-        active_types = set(event_types) if event_types else {"auth", "command", "session", "error"}
 
         since_ts = since.isoformat() if since else None
         until_ts = until.isoformat() if until else None
 
-        if "auth" in active_types:
+        if include_auth:
             clause, p = _build_auth_clause(token_id, since_ts, until_ts)
             union_parts.append(
-                "SELECT 'auth' AS event_type, token_id, origin, source_ip, "
-                "'' AS entity_id, '' AS action, result, error_code, '' AS session_id, timestamp "
-                f"FROM auth_events{clause}"
+                "SELECT 'auth' AS raw_type, token_id, origin, source_ip, "
+                "NULL AS entity_id, NULL AS action, result, error_code, NULL AS session_id, timestamp, referer "
+                f"FROM auth_events{clause}{auth_extra}"
             )
             params.extend(p)
 
-        if "command" in active_types:
+        if include_command:
             clause, p = _build_command_clause(token_id, since_ts, until_ts)
             union_parts.append(
-                "SELECT 'command' AS event_type, token_id, '' AS origin, '' AS source_ip, "
-                "entity_id, action, CASE success WHEN 1 THEN 'ok' ELSE 'failed' END AS result, "
-                "'' AS error_code, session_id, timestamp "
+                "SELECT 'command' AS raw_type, token_id, NULL AS origin, NULL AS source_ip, "
+                "entity_id, action, NULL AS result, NULL AS error_code, session_id, timestamp, NULL AS referer "
                 f"FROM commands{clause}"
             )
             params.extend(p)
 
-        if "session" in active_types:
+        if include_session:
             clause, p = _build_session_clause(token_id, since_ts, until_ts)
             union_parts.append(
-                "SELECT 'session' AS event_type, token_id, origin, source_ip, "
-                "'' AS entity_id, '' AS action, event_type AS result, "
-                "'' AS error_code, session_id, timestamp "
-                f"FROM session_events{clause}"
+                "SELECT 'session' AS raw_type, token_id, origin, source_ip, "
+                "NULL AS entity_id, NULL AS action, event_type AS result, "
+                "NULL AS error_code, session_id, timestamp, referer "
+                f"FROM session_events{clause}{session_extra}"
             )
             params.extend(p)
 
-        if "error" in active_types:
+        if include_error:
             clause, p = _build_error_clause(since_ts, until_ts)
             union_parts.append(
-                "SELECT 'error' AS event_type, '' AS token_id, '' AS origin, '' AS source_ip, "
-                "'' AS entity_id, code AS action, message AS result, "
-                "'' AS error_code, COALESCE(session_id, '') AS session_id, timestamp "
+                "SELECT 'error' AS raw_type, NULL AS token_id, NULL AS origin, NULL AS source_ip, "
+                "NULL AS entity_id, code AS action, message AS result, "
+                "NULL AS error_code, session_id, timestamp, NULL AS referer "
                 f"FROM errors{clause}"
+            )
+            params.extend(p)
+
+        if include_lifecycle:
+            clause, p = _build_lifecycle_clause(token_id, since_ts, until_ts)
+            union_parts.append(
+                "SELECT 'lifecycle' AS raw_type, token_id, NULL AS origin, NULL AS source_ip, "
+                "NULL AS entity_id, NULL AS action, display_type AS result, "
+                "reason AS error_code, NULL AS session_id, timestamp, NULL AS referer "
+                f"FROM token_lifecycle{clause}{lifecycle_extra}"
             )
             params.extend(p)
 
@@ -244,18 +291,20 @@ class ActivityStore:
 
         events = [
             {
-                "event_type": r[0],
-                "token_id": r[1],
-                "origin": r[2],
-                "source_ip": r[3],
-                "entity_id": r[4],
-                "action": r[5],
-                "result": r[6],
-                "error_code": r[7],
-                "session_id": r[8],
+                "id": i,
+                "type": _map_display_type(r[0], r[6] or ""),
                 "timestamp": r[9],
+                "token_id":  r[1] or None,
+                "token_label": None,  # no join available; frontend shows token_id
+                "session_id": r[8] or None,
+                "origin":    r[2] or None,
+                "referer":   r[10] or None,
+                "entity_id": r[4] or None,
+                "action":    r[5] or None,
+                "code":      r[7] or None,
+                "message":   r[6] if r[0] == "error" else None,
             }
-            for r in rows
+            for i, r in enumerate(rows)
         ]
         return events, total
 
@@ -383,6 +432,7 @@ class ActivityStore:
             ("commands", "timestamp"),
             ("session_events", "timestamp"),
             ("errors", "timestamp"),
+            ("token_lifecycle", "timestamp"),
         ]:
             cursor = await self._db.execute(
                 f"DELETE FROM {table} WHERE {col} < ?", [cutoff]
@@ -404,7 +454,7 @@ class ActivityStore:
     async def export_csv(
         self,
         token_id: str | None = None,
-        event_types: list[str] | None = None,
+        display_type_filter: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> str:
@@ -412,16 +462,11 @@ class ActivityStore:
 
         Accepts the same filter parameters as query_activity() but returns
         all matching rows (no pagination limit) formatted as CSV with a
-        header row. Column order: timestamp, event_type, token_id, origin,
-        source_ip, entity_id, action, result, error_code.
-
-        Empty columns are represented as empty strings, not NULL.
-        Called by the HTTP views layer when the panel requests a CSV download.
+        header row.
         """
-        # Get the total count first, then fetch all rows in one query.
         _, total = await self.query_activity(
             token_id=token_id,
-            event_types=event_types,
+            display_type_filter=display_type_filter,
             since=since,
             until=until,
             limit=1,
@@ -429,7 +474,7 @@ class ActivityStore:
         )
         events, _ = await self.query_activity(
             token_id=token_id,
-            event_types=event_types,
+            display_type_filter=display_type_filter,
             since=since,
             until=until,
             limit=max(total, 1),
@@ -439,20 +484,21 @@ class ActivityStore:
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow([
-            "timestamp", "event_type", "token_id", "origin",
-            "source_ip", "entity_id", "action", "result", "error_code",
+            "timestamp", "type", "token_id", "session_id",
+            "origin", "referer", "entity_id", "action", "code", "message",
         ])
         for e in events:
             writer.writerow([
                 e["timestamp"],
-                e["event_type"],
-                e["token_id"],
-                e["origin"],
-                e["source_ip"],
-                e["entity_id"],
-                e["action"],
-                e["result"],
-                e["error_code"],
+                e["type"],
+                e["token_id"] or "",
+                e["session_id"] or "",
+                e["origin"] or "",
+                e["referer"] or "",
+                e["entity_id"] or "",
+                e["action"] or "",
+                e["code"] or "",
+                e["message"] or "",
             ])
         return output.getvalue()
 
@@ -488,10 +534,10 @@ class ActivityStore:
             if event_type == "auth":
                 e: AuthEvent = event  # type: ignore[assignment]
                 await self._db.execute(
-                    "INSERT INTO auth_events (token_id, origin, source_ip, result, error_code, timestamp) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO auth_events (token_id, origin, source_ip, result, error_code, timestamp, referer) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
                     [e.token_id, e.origin, e.source_ip, e.result, e.error_code,
-                     _ts(e.timestamp)],
+                     _ts(e.timestamp), e.referer],
                 )
             elif event_type == "command":
                 e2: CommandEvent = event  # type: ignore[assignment]
@@ -504,10 +550,10 @@ class ActivityStore:
             elif event_type == "session":
                 e3: SessionEvent = event  # type: ignore[assignment]
                 await self._db.execute(
-                    "INSERT INTO session_events (session_id, token_id, origin, source_ip, event_type, timestamp) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO session_events (session_id, token_id, origin, source_ip, event_type, timestamp, referer) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
                     [e3.session_id, e3.token_id, e3.origin, e3.source_ip,
-                     e3.event_type, _ts(e3.timestamp)],
+                     e3.event_type, _ts(e3.timestamp), e3.referer],
                 )
             elif event_type == "error":
                 e4: ErrorEvent = event  # type: ignore[assignment]
@@ -515,11 +561,23 @@ class ActivityStore:
                     "INSERT INTO errors (session_id, code, message, timestamp) VALUES (?, ?, ?, ?)",
                     [e4.session_id, e4.code, e4.message, _ts(e4.timestamp)],
                 )
+            elif event_type == "lifecycle":
+                e5: TokenLifecycleEvent = event  # type: ignore[assignment]
+                await self._db.execute(
+                    "INSERT INTO token_lifecycle (token_id, display_type, reason, timestamp) "
+                    "VALUES (?, ?, ?, ?)",
+                    [e5.token_id, e5.display_type, e5.reason, _ts(e5.timestamp)],
+                )
 
         await self._db.commit()
 
     async def _apply_schema(self) -> None:
-        """Create tables and indexes if they do not exist. Idempotent."""
+        """Create tables and indexes if they do not exist. Idempotent.
+
+        Schema migrations are handled by attempting ALTER TABLE ADD COLUMN for
+        new columns. SQLite does not support ADD COLUMN IF NOT EXISTS, so the
+        attempt is wrapped in a try/except to silently skip existing columns.
+        """
         await self._db.executescript("""
             CREATE TABLE IF NOT EXISTS auth_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -528,7 +586,8 @@ class ActivityStore:
                 source_ip TEXT NOT NULL,
                 result TEXT NOT NULL,
                 error_code TEXT,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                referer TEXT
             );
             CREATE TABLE IF NOT EXISTS commands (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -546,7 +605,8 @@ class ActivityStore:
                 origin TEXT NOT NULL,
                 source_ip TEXT NOT NULL,
                 event_type TEXT NOT NULL,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                referer TEXT
             );
             CREATE TABLE IF NOT EXISTS errors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -560,7 +620,28 @@ class ActivityStore:
             CREATE INDEX IF NOT EXISTS idx_commands_token ON commands(token_id);
             CREATE INDEX IF NOT EXISTS idx_commands_timestamp ON commands(timestamp);
             CREATE INDEX IF NOT EXISTS idx_session_token ON session_events(token_id);
+            CREATE TABLE IF NOT EXISTS token_lifecycle (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token_id TEXT NOT NULL,
+                display_type TEXT NOT NULL,
+                reason TEXT,
+                timestamp TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_lifecycle_token ON token_lifecycle(token_id);
+            CREATE INDEX IF NOT EXISTS idx_lifecycle_timestamp ON token_lifecycle(timestamp);
         """)
+
+        # Migration: add referer column to existing databases (v1 -> v2).
+        # SQLite does not support ADD COLUMN IF NOT EXISTS; swallow OperationalError
+        # when the column already exists (fresh installs won't hit this).
+        for stmt in (
+            "ALTER TABLE auth_events ADD COLUMN referer TEXT",
+            "ALTER TABLE session_events ADD COLUMN referer TEXT",
+        ):
+            try:
+                await self._db.execute(stmt)
+            except Exception:
+                pass  # Column already exists on fresh installs or re-runs.
 
 
 # ------------------------------------------------------------------
@@ -631,3 +712,30 @@ def _build_session_clause(
 
 def _build_error_clause(since: str | None, until: str | None) -> tuple[str, list]:
     return _build_auth_clause(None, since, until)
+
+
+def _build_lifecycle_clause(
+    token_id: str | None, since: str | None, until: str | None
+) -> tuple[str, list]:
+    return _build_auth_clause(token_id, since, until)
+
+
+def _map_display_type(raw_type: str, result: str) -> str:
+    """Map internal table type + result value to a display event type for the panel."""
+    if raw_type == "auth":
+        if result == "ok":
+            return "AUTH_OK"
+        if result == "rate_limited":
+            return "RATE_LIMITED"
+        return "AUTH_FAIL"
+    if raw_type == "command":
+        return "COMMAND"
+    if raw_type == "session":
+        if result in ("disconnected", "terminated"):
+            return "SESSION_END"
+        if result == "renewal":
+            return "RENEWAL"
+        return "AUTH_OK"  # "connected" - session established after successful auth
+    if raw_type == "lifecycle":
+        return result   # display_type stored directly: TOKEN_REVOKED, TOKEN_DELETED
+    return "AUTH_FAIL"  # fallback for error table rows

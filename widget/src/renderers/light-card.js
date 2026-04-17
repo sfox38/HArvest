@@ -67,6 +67,42 @@ const LIGHT_CARD_STYLES = /* css */`
     margin-bottom: 2px;
   }
 
+  [part=color-slider] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 16px;
+    border-radius: 8px;
+    background: linear-gradient(
+      to right,
+      hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%),
+      hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%),
+      hsl(360,100%,50%)
+    );
+    cursor: pointer;
+    border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.1));
+    outline: none;
+  }
+  [part=color-slider]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid rgba(0,0,0,0.3);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  [part=color-slider]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid rgba(0,0,0,0.3);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
   [part=card-icon] svg {
     transition: color var(--hrv-transition-speed);
   }
@@ -80,28 +116,49 @@ const LIGHT_CARD_STYLES = /* css */`
   }
 `;
 
+// ---------------------------------------------------------------------------
+// Colour conversion helpers
+// ---------------------------------------------------------------------------
+
+function _rgbToHue(r, g, b) {
+  // Returns hue 0-360 from an RGB triplet (0-255 each).
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return 0;
+  let h;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return Math.round(((h * 60) + 360) % 360);
+}
+
 export class LightCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */   #toggleBtn         = null;
   /** @type {HTMLInputElement|null}  */   #brightnessSlider  = null;
   /** @type {HTMLInputElement|null}  */   #colorTempSlider   = null;
+  /** @type {HTMLInputElement|null}  */   #colorSlider       = null;
   /** @type {HTMLElement|null}       */   #stateLabel        = null;
   /** @type {HTMLElement|null}       */   #brightnessValue   = null;
   /** @type {HTMLElement|null}       */   #colorTempValue    = null;
   /** @type {Function}               */   #brightnessDebounce;
   /** @type {Function}               */   #colorTempDebounce;
+  /** @type {Function}               */   #colorDebounce;
 
   constructor(def, root, config, i18n) {
     super(def, root, config, i18n);
     this.#brightnessDebounce = this.debounce(this.#sendBrightness.bind(this), 300);
     this.#colorTempDebounce  = this.debounce(this.#sendColorTemp.bind(this), 300);
+    this.#colorDebounce      = this.debounce(this.#sendHue.bind(this), 300);
   }
 
   render() {
-    const isWritable     = this.def.capabilities === "read-write";
-    const hasBrightness  = this.def.supported_features?.includes("brightness");
-    const hasColorTemp   = this.def.supported_features?.includes("color_temp");
-    const minCt          = this.def.feature_config?.min_color_temp ?? 153;
-    const maxCt          = this.def.feature_config?.max_color_temp ?? 500;
+    const isWritable    = this.def.capabilities === "read-write";
+    const hasBrightness = this.def.supported_features?.includes("brightness");
+    const hasColorTemp  = this.def.supported_features?.includes("color_temp");
+    const hasColor      = this.def.supported_features?.includes("rgb_color");
+    // Kelvin range - HA 2022.5+ uses color_temp_kelvin; default 2000-6500K.
+    const minCt         = this.def.feature_config?.min_color_temp_kelvin ?? 2000;
+    const maxCt         = this.def.feature_config?.max_color_temp_kelvin ?? 6500;
 
     this.root.innerHTML = /* html */`
       <style>${this.getSharedStyles()}${LIGHT_CARD_STYLES}</style>
@@ -118,22 +175,31 @@ export class LightCard extends BaseCard {
           ${isWritable && hasBrightness ? /* html */`
             <div>
               <div class="hrv-slider-label">
-                <span>${_esc(this.i18n.t("action.increase"))} / ${_esc(this.i18n.t("action.decrease"))}</span>
+                <span>Brightness</span>
                 <span part="brightness-value">-</span>
               </div>
               <input part="brightness-slider" type="range" min="0" max="255"
                 aria-label="Brightness">
             </div>
           ` : ""}
-          ${isWritable && hasColorTemp ? /* html */`
-            <div>
+          ${isWritable && hasColor ? /* html */`
+            <div data-hrv-slider="color">
               <div class="hrv-slider-label">
-                <span>Color temp</span>
+                <span>Color</span>
+              </div>
+              <input part="color-slider" type="range" min="0" max="360"
+                aria-label="Color">
+            </div>
+          ` : ""}
+          ${isWritable && hasColorTemp ? /* html */`
+            <div data-hrv-slider="temp">
+              <div class="hrv-slider-label">
+                <span>Temperature</span>
                 <span part="color-temp-value">-</span>
               </div>
               <input part="color-temp-slider" type="range"
                 min="${minCt}" max="${maxCt}"
-                aria-label="Colour temperature">
+                aria-label="Color temperature">
             </div>
           ` : ""}
         </div>
@@ -146,12 +212,13 @@ export class LightCard extends BaseCard {
     this.#toggleBtn        = this.root.querySelector("[part=toggle-button]");
     this.#brightnessSlider = this.root.querySelector("[part=brightness-slider]");
     this.#colorTempSlider  = this.root.querySelector("[part=color-temp-slider]");
+    this.#colorSlider      = this.root.querySelector("[part=color-slider]");
     this.#stateLabel       = this.root.querySelector("[part=state-label]");
     this.#brightnessValue  = this.root.querySelector("[part=brightness-value]");
     this.#colorTempValue   = this.root.querySelector("[part=color-temp-value]");
 
     // Initial icon.
-    this.renderIcon(this.def.icon ?? "mdi:lightbulb", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lightbulb"), "card-icon");
 
     // Wire up events.
     if (this.#toggleBtn) {
@@ -169,6 +236,12 @@ export class LightCard extends BaseCard {
     if (this.#colorTempSlider) {
       this.#colorTempSlider.addEventListener("input", (e) => {
         this.#colorTempDebounce(parseInt(e.target.value, 10));
+      });
+    }
+
+    if (this.#colorSlider) {
+      this.#colorSlider.addEventListener("input", (e) => {
+        this.#colorDebounce(parseInt(e.target.value, 10));
       });
     }
 
@@ -208,28 +281,60 @@ export class LightCard extends BaseCard {
       }
     }
 
-    // Colour temperature slider.
-    if (this.#colorTempSlider && attributes.color_temp !== undefined) {
-      this.#colorTempSlider.value = String(attributes.color_temp);
-      if (this.#colorTempValue) {
-        this.#colorTempValue.textContent = `${attributes.color_temp} K`;
+    // Color slider - update hue from hs_color or rgb_color attribute.
+    if (this.#colorSlider) {
+      let hue = null;
+      if (attributes.hs_color) {
+        hue = Math.round(attributes.hs_color[0]);
+      } else if (attributes.rgb_color) {
+        hue = _rgbToHue(...attributes.rgb_color);
+      }
+      if (hue !== null) this.#colorSlider.value = String(hue);
+    }
+
+    // Colour temperature slider - use Kelvin (HA 2022.5+).
+    // Fall back to converting mireds if kelvin attribute absent.
+    if (this.#colorTempSlider) {
+      let ctK = null;
+      if (attributes.color_temp_kelvin !== undefined) {
+        ctK = attributes.color_temp_kelvin;
+      } else if (attributes.color_temp !== undefined && attributes.color_temp > 0) {
+        ctK = Math.round(1_000_000 / attributes.color_temp);
+      }
+      if (ctK !== null) {
+        this.#colorTempSlider.value = String(ctK);
+        if (this.#colorTempValue) {
+          this.#colorTempValue.textContent = `${ctK}K`;
+        }
       }
     }
 
-    // Icon: prefer icon_state_map, fall back to entity icon, then domain default.
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (isOn ? "mdi:lightbulb" : "mdi:lightbulb-outline");
-    this.renderIcon(iconName, "card-icon");
+    // Dim the inactive slider based on the light's current color_mode.
+    // Color temp modes: "color_temp". All others (hs, rgb, xy, etc.) are color modes.
+    const colorDiv = this.root.querySelector('[data-hrv-slider="color"]');
+    const tempDiv  = this.root.querySelector('[data-hrv-slider="temp"]');
+    if (colorDiv || tempDiv) {
+      const mode = attributes.color_mode;
+      const inTempMode = mode === "color_temp";
+      const inColorMode = mode && mode !== "color_temp";
+      if (colorDiv) colorDiv.style.opacity = inTempMode ? "0.45" : "1";
+      if (tempDiv)  tempDiv.style.opacity  = inColorMode ? "0.45" : "1";
+    }
 
-    // Colour the icon container for sighted feedback.
+    // Icon.
+    const domainDefault = isOn ? "mdi:lightbulb" : "mdi:lightbulb-outline";
+    const rawIcon = this.def.icon_state_map?.[state]
+      ?? this.def.icon_state_map?.["*"]
+      ?? this.def.icon
+      ?? domainDefault;
+    this.renderIcon(this.resolveIcon(rawIcon, domainDefault), "card-icon");
+
     const iconEl = this.root.querySelector("[part=card-icon]");
     if (iconEl) iconEl.setAttribute("data-on", String(isOn));
   }
 
   predictState(action, _data) {
     if (action !== "toggle") return null;
-
     const currentPressed = this.#toggleBtn?.getAttribute("aria-pressed");
     const currentlyOn    = currentPressed === "true";
     return { state: currentlyOn ? "off" : "on", attributes: {} };
@@ -244,7 +349,12 @@ export class LightCard extends BaseCard {
   }
 
   #sendColorTemp(value) {
-    this.config.card?.sendCommand("turn_on", { color_temp: value });
+    // Send Kelvin - color_temp (mireds) is deprecated in HA 2022.5+.
+    this.config.card?.sendCommand("turn_on", { color_temp_kelvin: value });
+  }
+
+  #sendHue(hue) {
+    this.config.card?.sendCommand("turn_on", { hs_color: [hue, 100] });
   }
 }
 

@@ -10,83 +10,10 @@ import type { Screen } from "./types";
 import { Dashboard }   from "./components/Dashboard";
 import { TokenList }   from "./components/TokenList";
 import { ActivityLog } from "./components/ActivityLog";
+import { Sessions }    from "./components/Sessions";
 import { Settings }    from "./components/Settings";
 import { StatsBar }    from "./components/StatsBar";
 import { Wizard }      from "./components/Wizard";
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
-
-const styles = {
-  shell: {
-    display: "flex",
-    flexDirection: "column" as const,
-    height: "100%",
-    overflow: "hidden",
-  },
-  nav: {
-    display: "flex",
-    alignItems: "center",
-    gap: 0,
-    background: "var(--app-header-background-color, var(--primary-color, #6200ea))",
-    color: "var(--app-header-text-color, #fff)",
-    height: 56,
-    paddingLeft: 16,
-    paddingRight: 16,
-    flexShrink: 0,
-    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
-  },
-  navBrand: {
-    fontWeight: 600,
-    fontSize: 18,
-    marginRight: 24,
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  navLinks: {
-    display: "flex",
-    gap: 4,
-    flex: 1,
-  },
-  navBtn: (active: boolean) => ({
-    padding: "8px 16px",
-    border: "none",
-    background: "transparent",
-    color: active ? "#fff" : "rgba(255,255,255,0.75)",
-    fontWeight: active ? 600 : 400,
-    fontSize: 14,
-    borderBottom: active ? "3px solid #fff" : "3px solid transparent",
-    cursor: "pointer",
-    whiteSpace: "nowrap" as const,
-    transition: "color 150ms",
-  }),
-  content: {
-    flex: 1,
-    overflow: "auto",
-    position: "relative" as const,
-  },
-  fab: {
-    position: "fixed" as const,
-    bottom: 24,
-    right: 24,
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "12px 20px",
-    background: "var(--primary-color, #6200ea)",
-    color: "#fff",
-    border: "none",
-    borderRadius: 28,
-    fontSize: 14,
-    fontWeight: 600,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-    cursor: "pointer",
-    zIndex: 100,
-    transition: "opacity 150ms",
-  },
-};
 
 // ---------------------------------------------------------------------------
 // Nav items
@@ -95,6 +22,7 @@ const styles = {
 const NAV_ITEMS: { id: Screen; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "tokens",    label: "Tokens"    },
+  { id: "sessions",  label: "Sessions"  },
   { id: "activity",  label: "Activity"  },
   { id: "settings",  label: "Settings"  },
   { id: "help",      label: "Help"      },
@@ -108,39 +36,62 @@ export function App() {
   const [screen, setScreen]         = useState<Screen>("dashboard");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [initialTokenId, setInitialTokenId] = useState<string | null>(null);
+  // Increment to reset (remount) the TokenList, e.g. when Tokens nav is clicked
+  // while already viewing a token detail.
+  const [tokenListKey, setTokenListKey] = useState(0);
+  // Activity screen filter preset (set when navigating from stats bar chips).
+  const [activityTypeFilter, setActivityTypeFilter] = useState<string | undefined>(undefined);
 
   const openWizard = useCallback(() => setWizardOpen(true),  []);
   const closeWizard = useCallback((newTokenId?: string) => {
     setWizardOpen(false);
     if (newTokenId) {
       setInitialTokenId(newTokenId);
+      setTokenListKey(k => k + 1);
       setScreen("tokens");
     }
   }, []);
 
+  // Navigate to a token's detail page from any screen (e.g. activity log link).
   const goToToken = useCallback((tokenId: string) => {
     setInitialTokenId(tokenId);
+    setTokenListKey(k => k + 1);
     setScreen("tokens");
+  }, []);
+
+  // Navigate to activity with an optional pre-set type filter (from stats bar chips).
+  const goToActivity = useCallback((typeFilter?: string) => {
+    setActivityTypeFilter(typeFilter);
+    setScreen("activity");
   }, []);
 
   const showDashboard = screen === "dashboard";
 
   return (
-    <div style={styles.shell}>
+    <div className="hrv-shell">
       {/* Top navigation bar */}
-      <nav style={styles.nav} aria-label="HArvest navigation">
-        <div style={styles.navBrand}>
+      <nav className="hrv-nav" aria-label="HArvest navigation">
+        <div className="hrv-nav-brand">
           <span aria-hidden="true">&#127807;</span>
           HArvest
         </div>
-        <div style={styles.navLinks} role="tablist">
+        <div className="hrv-nav-links" role="tablist">
           {NAV_ITEMS.map(({ id, label }) => (
             <button
               key={id}
               role="tab"
               aria-selected={screen === id}
-              style={styles.navBtn(screen === id)}
-              onClick={() => setScreen(id)}
+              className="hrv-nav-btn"
+              style={{
+                color:        screen === id ? "#fff" : "rgba(255,255,255,0.75)",
+                fontWeight:   screen === id ? 600 : 400,
+                borderBottom: screen === id ? "3px solid #fff" : "3px solid transparent",
+              }}
+              onClick={() => {
+                if (id === "tokens") setTokenListKey(k => k + 1);
+                if (id === "activity") setActivityTypeFilter(undefined);
+                setScreen(id);
+              }}
             >
               {label}
             </button>
@@ -150,23 +101,30 @@ export function App() {
 
       {/* Compact stats bar (hidden on Dashboard and wizard) */}
       {!showDashboard && !wizardOpen && (
-        <StatsBar onNavigate={setScreen} />
+        <StatsBar onNavigate={setScreen} onNavigateActivity={goToActivity} />
       )}
 
       {/* Screen content */}
-      <main style={styles.content}>
+      <main className="hrv-content">
         {screen === "dashboard" && (
           <Dashboard onOpenWizard={openWizard} onNavigate={setScreen} />
         )}
         {screen === "tokens" && (
           <TokenList
+            key={tokenListKey}
             onOpenWizard={openWizard}
             initialTokenId={initialTokenId}
             onInitialTokenConsumed={() => setInitialTokenId(null)}
           />
         )}
+        {screen === "sessions" && (
+          <Sessions onSelectToken={goToToken} />
+        )}
         {screen === "activity" && (
-          <ActivityLog />
+          <ActivityLog
+            onSelectToken={goToToken}
+            initialTypeFilter={activityTypeFilter}
+          />
         )}
         {screen === "settings" && (
           <Settings />
@@ -179,7 +137,7 @@ export function App() {
       {/* Floating action button - always visible */}
       {!wizardOpen && (
         <button
-          style={styles.fab}
+          className="hrv-fab"
           onClick={openWizard}
           aria-label="Create widget"
         >
@@ -190,7 +148,7 @@ export function App() {
 
       {/* Wizard modal overlay */}
       {wizardOpen && (
-        <Wizard onClose={closeWizard} onGoToToken={goToToken} />
+        <Wizard onClose={closeWizard} />
       )}
     </div>
   );

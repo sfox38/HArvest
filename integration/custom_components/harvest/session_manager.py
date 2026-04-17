@@ -34,6 +34,7 @@ class Session:
     renewal_count: int
     origin_validated: str
     referer_validated: str | None
+    source_ip: str | None
     allowed_entities: list["EntityAccess"]
     ws: "WebSocketResponse"
     subscribed_entity_ids: set[str]
@@ -61,6 +62,7 @@ class SessionManager:
         token: "Token",
         origin: str,
         referer: str | None,
+        source_ip: str | None,
         ws: "WebSocketResponse",
         entity_ids: list[str],
     ) -> Session:
@@ -101,6 +103,7 @@ class SessionManager:
             renewal_count=0,
             origin_validated=origin,
             referer_validated=referer,
+            source_ip=source_ip,
             allowed_entities=list(token.entities),
             ws=ws,
             subscribed_entity_ids=set(entity_ids),

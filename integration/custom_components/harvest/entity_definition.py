@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 FEATURE_FLAGS: dict[str, dict[int, str]] = {
     "light": {
         1: "brightness", 2: "color_temp", 4: "effect",
-        16: "flash", 64: "transition", 128: "rgb_color", 1024: "white_value",
+        16: "flash", 32: "transition", 128: "rgb_color", 1024: "white_value",
     },
     "fan": {1: "set_speed", 2: "oscillate", 4: "direction"},
     "cover": {4: "set_position", 128: "set_tilt_position", 8: "stop"},
@@ -40,8 +40,12 @@ FEATURE_FLAGS: dict[str, dict[int, str]] = {
 # go to extended_attributes in state_update messages.
 STANDARD_ATTRIBUTES: dict[str, frozenset[str]] = {
     "light": frozenset({
-        "brightness", "color_temp", "color_mode", "supported_color_modes",
-        "min_mireds", "max_mireds", "effect_list", "effect",
+        "brightness", "color_temp", "color_temp_kelvin", "color_mode",
+        "supported_color_modes",
+        "min_mireds", "max_mireds",
+        "min_color_temp_kelvin", "max_color_temp_kelvin",
+        "effect_list", "effect",
+        "rgb_color", "hs_color",
     }),
     "fan": frozenset({
         "percentage", "percentage_step", "oscillating",
@@ -95,12 +99,12 @@ _DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
     "media_player": {
         "playing": "mdi:cast-connected",
         "idle":    "mdi:cast",
-        "off":     "mdi:cast-off",
+        "off":     "mdi:cast",
         "*":       "mdi:cast",
     },
     "remote": {
         "on": "mdi:remote",
-        "*":  "mdi:remote-off",
+        "*":  "mdi:remote",
     },
     "input_boolean": {
         "on": "mdi:toggle-switch",
@@ -193,6 +197,20 @@ def build_entity_definition(
     supported_features = decode_supported_features(
         domain, attrs.get("supported_features", 0)
     )
+
+    # Modern HA lights report capabilities via supported_color_modes rather than
+    # the supported_features bitmask. Augment the decoded feature list so that
+    # RGBW/color_temp lights get their sliders without needing the old bitmask.
+    if domain == "light":
+        color_modes = set(attrs.get("supported_color_modes", []))
+        dimmable_modes = {"brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"}
+        if color_modes & dimmable_modes and "brightness" not in supported_features:
+            supported_features.append("brightness")
+        if "color_temp" in color_modes and "color_temp" not in supported_features:
+            supported_features.append("color_temp")
+        color_capable_modes = {"hs", "xy", "rgb", "rgbw", "rgbww"}
+        if color_modes & color_capable_modes and "rgb_color" not in supported_features:
+            supported_features.append("rgb_color")
 
     # icon_state_map (includes the icon for the current state as default icon).
     icon_state_map = build_icon_state_map(domain, state, entry, device_class)
@@ -307,10 +325,16 @@ def build_feature_config(domain: str, state: State) -> dict:
             "min_brightness": 0,
             "max_brightness": 255,
         }
-        if "min_mireds" in attrs:
-            config["min_color_temp"] = attrs["min_mireds"]
-        if "max_mireds" in attrs:
-            config["max_color_temp"] = attrs["max_mireds"]
+        # Prefer Kelvin range (HA 2022.5+); fall back to converting from mireds.
+        # min_mireds = hottest/warmest = lowest Kelvin; max_mireds = coolest = highest Kelvin.
+        if "min_color_temp_kelvin" in attrs:
+            config["min_color_temp_kelvin"] = attrs["min_color_temp_kelvin"]
+        elif "max_mireds" in attrs:
+            config["min_color_temp_kelvin"] = round(1_000_000 / attrs["max_mireds"])
+        if "max_color_temp_kelvin" in attrs:
+            config["max_color_temp_kelvin"] = attrs["max_color_temp_kelvin"]
+        elif "min_mireds" in attrs:
+            config["max_color_temp_kelvin"] = round(1_000_000 / attrs["min_mireds"])
         return config
 
     if domain == "fan":

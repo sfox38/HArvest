@@ -134,7 +134,7 @@ export class FanCard extends BaseCard {
     this.#speedValue  = this.root.querySelector("[part=speed-value]");
     this.#stateLabel  = this.root.querySelector("[part=state-label]");
 
-    this.renderIcon(this.def.icon ?? "mdi:fan-off", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:fan-off"), "card-icon");
 
     if (this.#toggleBtn) {
       this.#toggleBtn.addEventListener("click", () => {
@@ -176,11 +176,13 @@ export class FanCard extends BaseCard {
       if (this.#speedValue) this.#speedValue.textContent = `${attributes.percentage}%`;
     }
 
-    const iconEl  = this.root.querySelector("[part=card-icon]");
-    const iconName = this.def.icon_state_map?.[state]
+    const iconEl     = this.root.querySelector("[part=card-icon]");
+    const domainDefault = isOn ? "mdi:fan" : "mdi:fan-off";
+    const rawIcon    = this.def.icon_state_map?.[state]
+      ?? this.def.icon_state_map?.["*"]
       ?? this.def.icon
-      ?? (isOn ? "mdi:fan" : "mdi:fan-off");
-    this.renderIcon(iconName, "card-icon");
+      ?? domainDefault;
+    this.renderIcon(this.resolveIcon(rawIcon, domainDefault), "card-icon");
     if (iconEl) iconEl.setAttribute("data-on", String(isOn));
   }
 

@@ -192,6 +192,21 @@ export class HrvCard extends HTMLElement {
       this.#optimisticTimer = null;
     }
 
+    // Reflect unavailable/unknown state as a host attribute so CSS can grey
+    // out the card without requiring renderer cooperation.
+    if (state === "unavailable") {
+      this.setAttribute("data-harvest-avail", "unavailable");
+      // Set label for the ::after overlay via data attribute on the card div.
+      const card = this.shadowRoot?.querySelector("[part=card]");
+      if (card) card.setAttribute("data-avail-label", "Unavailable");
+    } else if (state === "unknown") {
+      this.setAttribute("data-harvest-avail", "unknown");
+      const card = this.shadowRoot?.querySelector("[part=card]");
+      if (card) card.setAttribute("data-avail-label", "Unknown");
+    } else {
+      this.removeAttribute("data-harvest-avail");
+    }
+
     if (this.#renderer) {
       requestAnimationFrame(() => {
         this.#renderer?.applyState(state, attributes);

@@ -5,41 +5,37 @@ appears in the HA sidebar.
 """
 from __future__ import annotations
 
-from homeassistant.components.frontend import async_register_built_in_panel
+from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, PANEL_PATH
-
-
-def _panel_js_url(hass: HomeAssistant) -> str:
-    """Return the js_url for the panel bundle, with a build-version query string.
-
-    The build number is written to panel_version.txt by the frontend build
-    script (scripts/increment-build.js) so each new build gets a distinct URL,
-    preventing the browser from serving a stale cached bundle.
-    """
-    version_file = hass.config.path("custom_components", DOMAIN, "panel", "panel_version.txt")
-    try:
-        build = open(version_file).read().strip()  # noqa: WPS515
-        return f"/{PANEL_PATH}/panel.js?v={build}"
-    except OSError:
-        return f"/{PANEL_PATH}/panel.js"
+from .const import DOMAIN, PANEL_PATH, PANEL_ASSETS_PATH
 
 
 async def register_panel(hass: HomeAssistant) -> None:
     """Register the HArvest sidebar panel.
 
-    Serves the panel/ directory as static files under /{PANEL_PATH}/.
-    Registers the panel in the HA sidebar as 'HArvest' with the mdi:leaf icon.
+    Serves the panel/ directory as static files under /{PANEL_ASSETS_PATH}/.
+    The panel UI is registered at /{PANEL_PATH}/ (sidebar URL).
+    Using a separate assets path avoids a 403 when the browser makes a direct
+    GET to /{PANEL_PATH} on full page reload (directory listing is forbidden).
     """
     await hass.http.async_register_static_paths([
         StaticPathConfig(
-            f"/{PANEL_PATH}",
+            f"/{PANEL_ASSETS_PATH}",
             hass.config.path("custom_components", DOMAIN, "panel"),
             cache_headers=False,
         )
     ])
+
+    # Remove any existing panel registration before re-registering.
+    # async_register_built_in_panel raises ValueError if the path is already
+    # taken, which happens when the integration is reloaded (e.g. after a
+    # settings save). Removing first makes re-registration idempotent.
+    try:
+        async_remove_panel(hass, PANEL_PATH)
+    except Exception:
+        pass
 
     async_register_built_in_panel(
         hass,
@@ -49,7 +45,7 @@ async def register_panel(hass: HomeAssistant) -> None:
         frontend_url_path=PANEL_PATH,
         config={"_panel_custom": {
             "name": "ha-panel-harvest",
-            "js_url": _panel_js_url(hass),
+            "js_url": f"/{PANEL_ASSETS_PATH}/panel.js",
             "embed_iframe": False,
             "trust_external": False,
         }},

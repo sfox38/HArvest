@@ -14,7 +14,7 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 
-from .activity_store import ActivityStore
+from .activity_store import ActivityStore, TokenLifecycleEvent
 from .diagnostic_sensors import DiagnosticSensors
 from .harvest_action import HarvestActionManager, ServiceCall
 from .session_manager import SessionManager
@@ -43,10 +43,11 @@ def register_views(
     All views are prefixed with /api/harvest/.
     All views require HA authentication (panel runs in authenticated context).
     """
-    hass.http.register_view(HarvestTokensView(token_manager, session_manager))
-    hass.http.register_view(HarvestTokenDetailView(token_manager, session_manager))
+    hass.http.register_view(HarvestTokensView(token_manager, session_manager, activity_store))
+    hass.http.register_view(HarvestTokenDetailView(hass, token_manager, session_manager, activity_store))
     hass.http.register_view(HarvestSessionsView(session_manager))
-    hass.http.register_view(HarvestActivityView(activity_store))
+    hass.http.register_view(HarvestSessionTerminateView(session_manager))
+    hass.http.register_view(HarvestActivityView(activity_store, token_manager))
     hass.http.register_view(HarvestActionsView(action_manager))
     hass.http.register_view(HarvestConfigView(hass))
     hass.http.register_view(HarvestStatsView(sensors, activity_store, session_manager, token_manager))
@@ -55,6 +56,7 @@ def register_views(
     hass.http.register_view(HarvestPreviewTokenView(token_manager))
     hass.http.register_view(HarvestActivityExportView(activity_store))
     hass.http.register_view(HarvestAggregatesView(activity_store))
+    hass.http.register_view(HarvestEntitiesView(hass))
 
 
 # ---------------------------------------------------------------------------
@@ -76,14 +78,15 @@ def _session_to_dict(session) -> dict:
     """Serialise a Session to a JSON-safe dict (no WebSocket reference)."""
     return {
         "session_id": session.session_id,
-        "token_id": session.token_id,
+        "widget_token_id": session.token_id,
         "token_version": session.token_version,
         "issued_at": session.issued_at.isoformat(),
         "expires_at": session.expires_at.isoformat(),
         "absolute_expires_at": session.absolute_expires_at.isoformat(),
         "renewal_count": session.renewal_count,
-        "origin_validated": session.origin_validated,
-        "referer_validated": session.referer_validated,
+        "origin": session.origin_validated,
+        "referer": session.referer_validated,
+        "ip_address": session.source_ip,
         "subscribed_entity_ids": list(session.subscribed_entity_ids),
         "last_message_at": session.last_message_at.isoformat(),
     }
@@ -139,6 +142,21 @@ def _parse_entities(raw_list: list) -> list[EntityAccess]:
     return entities
 
 
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into base, returning a new dict.
+
+    Nested dicts are merged rather than replaced, so partial updates to
+    objects like default_session preserve keys not present in override.
+    """
+    result = dict(base)
+    for k, v in override.items():
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = _deep_merge(result[k], v)
+        else:
+            result[k] = v
+    return result
+
+
 def _parse_schedule(raw: dict | None) -> ActiveSchedule | None:
     if not raw:
         return None
@@ -166,9 +184,10 @@ class HarvestTokensView(HomeAssistantView):
     name = "api:harvest:tokens"
     requires_auth = True
 
-    def __init__(self, token_manager: TokenManager, session_manager: SessionManager) -> None:
+    def __init__(self, token_manager: TokenManager, session_manager: SessionManager, activity_store: ActivityStore) -> None:
         self._token_manager = token_manager
         self._session_manager = session_manager
+        self._activity_store = activity_store
 
     async def get(self, request: web.Request) -> web.Response:
         """Return all tokens with their active session counts."""
@@ -218,6 +237,12 @@ class HarvestTokensView(HomeAssistantView):
         except ValueError as exc:
             raise web.HTTPBadRequest(reason=str(exc))
 
+        self._activity_store.record_token_lifecycle(TokenLifecycleEvent(
+            token_id=token.token_id,
+            display_type="TOKEN_CREATED",
+            reason=None,
+            timestamp=datetime.now(timezone.utc),
+        ))
         return self.json(_token_to_dict(token), status_code=201)
 
 
@@ -231,9 +256,11 @@ class HarvestTokenDetailView(HomeAssistantView):
     name = "api:harvest:token_detail"
     requires_auth = True
 
-    def __init__(self, token_manager: TokenManager, session_manager: SessionManager) -> None:
+    def __init__(self, hass: HomeAssistant, token_manager: TokenManager, session_manager: SessionManager, activity_store: ActivityStore) -> None:
+        self._hass = hass
         self._token_manager = token_manager
         self._session_manager = session_manager
+        self._activity_store = activity_store
 
     async def get(self, request: web.Request, token_id: str) -> web.Response:
         token = self._token_manager.get(token_id)
@@ -241,6 +268,12 @@ class HarvestTokenDetailView(HomeAssistantView):
             raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
         d = _token_to_dict(token)
         d["active_sessions"] = self._session_manager.count_for_token(token_id)
+        # Resolve the creator's display name from HA's user registry.
+        try:
+            user = await self._hass.auth.async_get_user(token.created_by)
+            d["created_by_name"] = user.name if user else None
+        except Exception:
+            d["created_by_name"] = None
         return self.json(d)
 
     async def patch(self, request: web.Request, token_id: str) -> web.Response:
@@ -299,12 +332,24 @@ class HarvestTokenDetailView(HomeAssistantView):
                     if not ws.closed:
                         import asyncio
                         asyncio.ensure_future(ws.close())
+                self._activity_store.record_token_lifecycle(TokenLifecycleEvent(
+                    token_id=token_id,
+                    display_type="TOKEN_REVOKED",
+                    reason=reason,
+                    timestamp=datetime.now(timezone.utc),
+                ))
             except KeyError:
                 raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
             return self.json(_token_to_dict(token))
 
-        # Permanent delete.
+        # Permanent delete - record before deleting so the token_id is still known.
         try:
+            self._activity_store.record_token_lifecycle(TokenLifecycleEvent(
+                token_id=token_id,
+                display_type="TOKEN_DELETED",
+                reason=None,
+                timestamp=datetime.now(timezone.utc),
+            ))
             await self._token_manager.delete(token_id)
         except KeyError:
             raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
@@ -318,7 +363,9 @@ class HarvestTokenDetailView(HomeAssistantView):
 # ---------------------------------------------------------------------------
 
 class HarvestSessionsView(HomeAssistantView):
-    """GET /api/harvest/sessions - list active sessions, optionally filtered by token_id."""
+    """GET /api/harvest/sessions - list active sessions, optionally filtered by token_id.
+    DELETE /api/harvest/sessions?token_id=X - terminate all sessions for a token.
+    """
 
     url = "/api/harvest/sessions"
     name = "api:harvest:sessions"
@@ -334,6 +381,46 @@ class HarvestSessionsView(HomeAssistantView):
         else:
             sessions = self._session_manager.get_all()
         return self.json([_session_to_dict(s) for s in sessions])
+
+    async def delete(self, request: web.Request) -> web.Response:
+        """Terminate all sessions, optionally filtered to one token."""
+        token_id = request.query.get("token_id")
+        if token_id:
+            ws_list = self._session_manager.terminate_all_for_token(token_id)
+        else:
+            # Terminate every active session.
+            all_sessions = self._session_manager.get_all()
+            ws_list = []
+            for s in all_sessions:
+                self._session_manager.terminate(s.session_id)
+                ws_list.append(s.ws)
+        import asyncio
+        for ws in ws_list:
+            if not ws.closed:
+                asyncio.ensure_future(ws.close())
+        return web.Response(status=204)
+
+
+class HarvestSessionTerminateView(HomeAssistantView):
+    """DELETE /api/harvest/sessions/{session_id} - terminate a single session."""
+
+    url = "/api/harvest/sessions/{session_id}"
+    name = "api:harvest:sessions:terminate"
+    requires_auth = True
+
+    def __init__(self, session_manager: SessionManager) -> None:
+        self._session_manager = session_manager
+
+    async def delete(self, _request: web.Request, session_id: str) -> web.Response:
+        session = self._session_manager.get(session_id)
+        if session is None:
+            raise web.HTTPNotFound(reason=f"Session not found: {session_id}")
+        ws = session.ws
+        self._session_manager.terminate(session_id)
+        import asyncio
+        if not ws.closed:
+            asyncio.ensure_future(ws.close())
+        return web.Response(status=204)
 
 
 # ---------------------------------------------------------------------------
@@ -351,13 +438,14 @@ class HarvestActivityView(HomeAssistantView):
     name = "api:harvest:activity"
     requires_auth = True
 
-    def __init__(self, activity_store: ActivityStore) -> None:
+    def __init__(self, activity_store: ActivityStore, token_manager: TokenManager) -> None:
         self._activity_store = activity_store
+        self._token_manager = token_manager
 
     async def get(self, request: web.Request) -> web.Response:
         token_id = request.query.get("token_id") or None
-        event_types_raw = request.query.get("event_types")
-        event_types = event_types_raw.split(",") if event_types_raw else None
+        # Accept both singular (frontend) and plural (legacy) param names.
+        display_type = request.query.get("event_type") or request.query.get("event_types") or None
         since = _parse_dt(request.query.get("since"))
         until = _parse_dt(request.query.get("until"))
         limit = int(request.query.get("limit", "50"))
@@ -365,12 +453,19 @@ class HarvestActivityView(HomeAssistantView):
 
         events, total = await self._activity_store.query_activity(
             token_id=token_id,
-            event_types=event_types,
+            display_type_filter=display_type,
             since=since,
             until=until,
             limit=limit,
             offset=offset,
         )
+
+        # Enrich events with token labels (friendly names).
+        label_map = {t.token_id: t.label for t in self._token_manager.get_all()}
+        for ev in events:
+            if ev["token_id"]:
+                ev["token_label"] = label_map.get(ev["token_id"])
+
         return self.json({"events": events, "total": total, "limit": limit, "offset": offset})
 
 
@@ -386,14 +481,13 @@ class HarvestActivityExportView(HomeAssistantView):
 
     async def get(self, request: web.Request) -> web.Response:
         token_id = request.query.get("token_id") or None
-        event_types_raw = request.query.get("event_types")
-        event_types = event_types_raw.split(",") if event_types_raw else None
+        display_type = request.query.get("event_type") or request.query.get("event_types") or None
         since = _parse_dt(request.query.get("since"))
         until = _parse_dt(request.query.get("until"))
 
         csv_data = await self._activity_store.export_csv(
             token_id=token_id,
-            event_types=event_types,
+            display_type_filter=display_type,
             since=since,
             until=until,
         )
@@ -513,14 +607,19 @@ class HarvestConfigView(HomeAssistantView):
         if not entries:
             return self.json(DEFAULTS)
         entry = entries[0]
-        # Merge stored values over defaults so a fresh install returns
-        # all fields the Settings screen expects, not a partial object.
-        merged = dict(DEFAULTS) | dict(entry.data) | dict(entry.options)
+        # Deep-merge stored values over defaults so nested objects like
+        # default_session are always fully populated even after partial saves.
+        merged = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
         return self.json(merged)
 
     async def patch(self, request: web.Request) -> web.Response:
-        """Update global config options. Triggers integration reload."""
-        from .const import DOMAIN
+        """Update global config options in-place without reloading the integration.
+
+        A full integration reload is intentionally avoided here because it
+        tears down the panel registration and leaves the Settings screen blank.
+        Settings take effect on the next relevant action (new connection, etc.).
+        """
+        from .const import DOMAIN, DEFAULTS
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
             raise web.HTTPNotFound(reason="HArvest integration not loaded.")
@@ -531,9 +630,11 @@ class HarvestConfigView(HomeAssistantView):
             raise web.HTTPBadRequest(reason="Invalid JSON body.")
 
         entry = entries[0]
-        self._hass.config_entries.async_update_entry(entry, options=body)
-        await self._hass.config_entries.async_reload(entry.entry_id)
-        return self.json({"status": "reloading"})
+        # Deep-merge the incoming partial update over the current full config.
+        current = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
+        updated = _deep_merge(current, body)
+        self._hass.config_entries.async_update_entry(entry, options=updated)
+        return self.json(updated)
 
 
 # ---------------------------------------------------------------------------
@@ -576,6 +677,36 @@ class HarvestStatsView(HomeAssistantView):
             "db_size_bytes": db_size,
             "is_running": True,
         })
+
+
+# ---------------------------------------------------------------------------
+# Entity picker view
+# ---------------------------------------------------------------------------
+
+class HarvestEntitiesView(HomeAssistantView):
+    """GET /api/harvest/entities - all HA entity states for the entity picker.
+
+    Returns a flat list of all entities known to HA, used by the panel wizard
+    to power the entity autocomplete dropdown in Step 1.
+    """
+
+    url = "/api/harvest/entities"
+    name = "api:harvest:entities"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
+
+    async def get(self, _request: web.Request) -> web.Response:
+        return self.json([
+            {
+                "entity_id": s.entity_id,
+                "friendly_name": s.attributes.get("friendly_name", s.entity_id),
+                "domain": s.domain,
+                "state": s.state,
+            }
+            for s in self._hass.states.async_all()
+        ])
 
 
 # ---------------------------------------------------------------------------

@@ -16,13 +16,14 @@ import { api } from "../api";
 
 interface StatsBarProps {
   onNavigate: (screen: Screen) => void;
+  onNavigateActivity: (typeFilter?: string) => void;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function StatsBar({ onNavigate }: StatsBarProps) {
+export function StatsBar({ onNavigate, onNavigateActivity }: StatsBarProps) {
   const [stats, setStats] = useState<PanelStats | null>(null);
 
   const refresh = useCallback(() => {
@@ -37,45 +38,40 @@ export function StatsBar({ onNavigate }: StatsBarProps) {
 
   if (!stats) return null;
 
-  const chips: { label: string; value: number; screen: Screen; warn?: boolean }[] = [
-    { label: "Sessions",       value: stats.active_sessions, screen: "tokens"   },
-    { label: "Active tokens",  value: stats.active_tokens,   screen: "tokens"   },
-    { label: "Commands today", value: stats.commands_today,  screen: "activity" },
-    { label: "Errors today",   value: stats.errors_today,    screen: "activity", warn: stats.errors_today > 0 },
+  type Chip = { label: string; value: number; onClick: () => void; warn?: boolean };
+  const chips: Chip[] = [
+    {
+      label: "Sessions",
+      value: stats.active_sessions,
+      onClick: () => onNavigate("sessions"),
+    },
+    {
+      label: "Active tokens",
+      value: stats.active_tokens,
+      onClick: () => onNavigate("tokens"),
+    },
+    {
+      label: "Commands today",
+      value: stats.commands_today,
+      onClick: () => onNavigateActivity("COMMAND"),
+    },
+    {
+      label: "Errors today",
+      value: stats.errors_today,
+      onClick: () => onNavigateActivity("AUTH_FAIL"),
+      warn: stats.errors_today > 0,
+    },
   ];
 
   return (
-    <div
-      aria-label="Quick stats"
-      style={{
-        display: "flex",
-        gap: 8,
-        padding: "6px 16px",
-        background: "var(--app-header-background-color, var(--primary-color, #6200ea))",
-        borderBottom: "1px solid rgba(255,255,255,0.15)",
-        flexShrink: 0,
-        overflowX: "auto",
-      }}
-    >
-      {chips.map(({ label, value, screen, warn }) => (
+    <div aria-label="Quick stats" className="hrv-stats-bar">
+      {chips.map(({ label, value, onClick, warn }) => (
         <button
           key={label}
-          onClick={() => onNavigate(screen)}
-          title={`Go to ${screen}`}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "3px 12px",
-            borderRadius: 12,
-            border: "none",
-            background: warn ? "rgba(255,200,0,0.25)" : "rgba(255,255,255,0.15)",
-            color: "#fff",
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
+          onClick={onClick}
+          title={label}
+          className="hrv-stats-chip"
+          style={{ background: warn ? "rgba(255,200,0,0.25)" : "rgba(255,255,255,0.15)" }}
         >
           <strong style={{ fontWeight: 700, fontSize: 13 }}>{value}</strong>
           {label}

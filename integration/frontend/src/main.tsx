@@ -10,7 +10,32 @@
 
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { setAuthToken } from "./api";
+import { setAuthToken, setTokenGetter } from "./api";
+import { loadEntityCache } from "./entityCache";
+import buildVersion from "./buildVersion.json";
+import panelCss from "./panel.css?inline";
+
+// Check panel_version.txt once at startup. If the deployed build number
+// differs from the one baked into this bundle, reload once to pick up the
+// new panel.js. No further polling - prevents reload loops in production.
+function startBuildWatcher(): void {
+  setTimeout(async () => {
+    try {
+      const res = await fetch("/harvest_assets/panel_version.txt", {
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (!res.ok) return;
+      const latest = parseInt(await res.text(), 10);
+      if (!isNaN(latest) && latest !== buildVersion.build) {
+        // Navigate with a cache-busting query param so the browser fetches
+        // a fresh copy of the page and panel.js rather than a cached version.
+        const url = new URL(window.location.href);
+        url.searchParams.set("_hrv", String(latest));
+        window.location.href = url.toString();
+      }
+    } catch { /* ignore network errors */ }
+  }, 2000);
+}
 
 // Shape of the hass object HA passes to custom panel elements.
 // Only the auth token field is needed here.
@@ -18,11 +43,17 @@ interface HassObject {
   auth: { data: { access_token: string } };
 }
 
+// Module-level hass reference so api.ts always reads the freshest token.
+let _latestHass: HassObject | null = null;
+
 class HaPanelHarvest extends HTMLElement {
   private _root: ReturnType<typeof createRoot> | null = null;
   private _mounted = false;
 
   connectedCallback(): void {
+    // Clear any stale 401-reload flag from a previous session in this tab.
+    sessionStorage.removeItem("hrv_401_reload");
+
     // Attach shadow DOM for style isolation.
     const shadow = this.attachShadow({ mode: "open" });
 
@@ -35,7 +66,7 @@ class HaPanelHarvest extends HTMLElement {
     // HA CSS custom properties are accessible inside shadow DOM via inheritance
     // from the host document's :root styles.
     const style = document.createElement("style");
-    style.textContent = BASE_STYLES;
+    style.textContent = BASE_STYLES + panelCss;
     shadow.insertBefore(style, container);
 
     this._root = createRoot(container);
@@ -45,9 +76,17 @@ class HaPanelHarvest extends HTMLElement {
   // HA calls this setter every time the hass state updates. The first call
   // provides the auth token we need before any API requests fire.
   set hass(h: HassObject) {
+    _latestHass = h;
+    // Keep the fallback token in sync for any call that happens
+    // in the brief window before setTokenGetter is registered.
     setAuthToken(h.auth.data.access_token);
     if (!this._mounted && this._root) {
       this._mounted = true;
+      // Register a live getter so every API call reads the freshest token
+      // directly from the hass object rather than a cached copy.
+      setTokenGetter(() => _latestHass?.auth.data.access_token ?? "");
+      loadEntityCache();
+      startBuildWatcher();
       this._root.render(<App />);
     }
   }

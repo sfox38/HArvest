@@ -18,7 +18,7 @@ import { Spinner, ErrorBanner } from "./Shared";
 // Types
 // ---------------------------------------------------------------------------
 
-type SaveState = "idle" | "saving" | "saved" | "error";
+type SaveState = "idle" | "saving" | "error";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,22 +30,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div style={{ marginBottom: 4 }}>
       <button
         onClick={() => setOpen(v => !v)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          width: "100%",
-          textAlign: "left",
-          padding: "10px 0",
-          background: "none",
-          border: "none",
-          borderBottom: "1px solid var(--divider-color,#e0e0e0)",
-          fontSize: 15,
-          fontWeight: 600,
-          color: "var(--primary-text-color,#212121)",
-          cursor: "pointer",
-          marginBottom: open ? 16 : 0,
-        }}
+        className="hrv-settings-section-btn"
+        style={{ marginBottom: open ? 16 : 0 }}
         aria-expanded={open}
       >
         <span style={{ fontSize: 12, color: "var(--secondary-text-color,#9e9e9e)" }}>{open ? "v" : ">"}</span>
@@ -87,8 +73,7 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
     setErrMsg("");
     try {
       await onChange(n);
-      setSaveState("saved");
-      setTimeout(() => setSaveState("idle"), 1500);
+      setSaveState("idle");
     } catch (e) {
       setSaveState("error");
       setErrMsg(String(e));
@@ -102,11 +87,11 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
     debounceRef.current = setTimeout(() => commit(v), 300);
   };
 
-  const borderColor = saveState === "error" ? "#c62828" : saveState === "saved" ? "#43a047" : "var(--divider-color,#e0e0e0)";
+  const borderColor = saveState === "error" ? "#c62828" : "var(--divider-color,#e0e0e0)";
 
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-      <label style={{ flex: "0 0 260px", fontSize: 14, color: "var(--primary-text-color,#212121)", paddingTop: 8 }}>
+    <div className="hrv-settings-field-row">
+      <label className="hrv-settings-field-label">
         {label}
         {hint && <div style={{ fontSize: 11, color: "var(--secondary-text-color,#9e9e9e)", marginTop: 2 }}>{hint}</div>}
       </label>
@@ -132,9 +117,6 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
           />
           {saveState === "saving" && (
             <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
-          )}
-          {saveState === "saved" && (
-            <span style={{ position: "absolute", right: 6, color: "#43a047", fontSize: 12 }}>check</span>
           )}
         </div>
         {suffix && <span style={{ fontSize: 13, color: "var(--secondary-text-color,#616161)" }}>{suffix}</span>}
@@ -301,7 +283,7 @@ export function Settings() {
       <Section title="Activity Log">
         <NumberField label="Retention" value={config.activity_log_retention_days} suffix="days" min={1} max={365}
           onChange={patchNum("activity_log_retention_days")} />
-        <div style={{ padding: "8px 10px", background: "#fff3e0", borderRadius: 6, fontSize: 13, color: "#e65100" }}>
+        <div className="hrv-alert-warn-plain">
           The activity database is not included in Home Assistant's default backup. Back it up manually if needed.
         </div>
       </Section>

@@ -40,8 +40,8 @@ export interface ActiveSchedule {
 export interface EntityAccess {
   entity_id: string;
   alias: string | null;
-  capability: "read" | "read-write";
-  excluded_attributes: string[];
+  capabilities: "read" | "read-write";
+  exclude_attributes: string[];
 }
 
 export type TokenStatus = "active" | "inactive" | "expiring_soon" | "expired" | "revoked";
@@ -51,6 +51,7 @@ export interface Token {
   token_version: number;
   created_at: string;
   created_by: string;
+  created_by_name?: string | null;
   label: string;
   expires: string | null;
   token_secret: boolean; // true when HMAC is enabled; plaintext never returned
@@ -76,6 +77,7 @@ export interface Session {
   expires_at: string;
   absolute_expires_at: string | null;
   origin: string;
+  referer: string | null;
   ip_address: string | null;
   renewal_count: number;
   subscribed_entity_ids: string[];
@@ -90,7 +92,9 @@ export type ActivityEventType =
   | "AUTH_FAIL"
   | "COMMAND"
   | "SESSION_END"
+  | "TOKEN_CREATED"
   | "TOKEN_REVOKED"
+  | "TOKEN_DELETED"
   | "RENEWAL"
   | "SUSPICIOUS_ORIGIN"
   | "FLOOD_PROTECTION"
@@ -104,6 +108,7 @@ export interface ActivityEvent {
   token_label: string | null;
   session_id: string | null;
   origin: string | null;
+  referer: string | null;
   entity_id: string | null;
   action: string | null;
   code: string | null;
@@ -183,7 +188,18 @@ export interface HourlyBucket {
 }
 
 // ---------------------------------------------------------------------------
+// HA entity (entity picker cache)
+// ---------------------------------------------------------------------------
+
+export interface HAEntity {
+  entity_id: string;
+  friendly_name: string;
+  domain: string;
+  state: string;
+}
+
+// ---------------------------------------------------------------------------
 // Panel navigation
 // ---------------------------------------------------------------------------
 
-export type Screen = "dashboard" | "tokens" | "activity" | "settings" | "help";
+export type Screen = "dashboard" | "tokens" | "activity" | "sessions" | "settings" | "help";

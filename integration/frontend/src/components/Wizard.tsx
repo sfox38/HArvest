@@ -16,11 +16,13 @@
  */
 
 import {
-  useState, useEffect, useCallback, useRef,
+  useState, useEffect, useCallback, useRef, useMemo,
 } from "react";
 import type { Token, EntityAccess } from "../types";
 import { api } from "../api";
-import { CopyButton, Spinner, ErrorBanner } from "./Shared";
+import { CopyablePre, Spinner, ErrorBanner } from "./Shared";
+import { getEntityCache, loadEntityCache } from "../entityCache";
+import type { HAEntity } from "../types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,6 +32,7 @@ interface WizardMemory {
   capability: "read" | "read-write";
   expiryOption: string;
   themeUrl: string;
+  selectedOriginUrl: string;
 }
 
 function loadMemory(): WizardMemory {
@@ -74,7 +77,6 @@ interface WizardState {
 
 interface WizardProps {
   onClose: (newTokenId?: string) => void;
-  onGoToToken: (tokenId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,12 +84,27 @@ interface WizardProps {
 // ---------------------------------------------------------------------------
 
 const TOTAL_STEPS = 6;
-const HA_URL = window.location.origin;
 const WIDGET_SCRIPT = `<script src="https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js"></script>`;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// Split a URL into { origin, path } for storage in OriginConfig.
+// The browser Origin header contains only scheme+host+port, never a path.
+// The path (if any) goes into allow_paths and is matched against the Referer header.
+// Examples:
+//   "https://oddtunes.com"              -> { origin: "https://oddtunes.com", path: null }
+//   "https://oddtunes.com/harvest.html" -> { origin: "https://oddtunes.com", path: "/harvest.html" }
+function splitOriginUrl(url: string): { origin: string; path: string | null } {
+  try {
+    const u = new URL(url);
+    const path = (u.pathname && u.pathname !== "/") ? u.pathname : null;
+    return { origin: u.origin, path };
+  } catch {
+    return { origin: url, path: null };
+  }
+}
 
 function expiresAt(option: string, customDate: string): string | null {
   if (option === "never") return null;
@@ -107,33 +124,36 @@ function fmtExpiry(option: string): string {
   return `until ${d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
-function buildInitScript(tokenId: string): string {
-  return `<script>
-HArvest.config({
-  haUrl: "${HA_URL}",
-  token: "${tokenId}",
-});
-</script>`;
-}
-
-function buildCardSnippet(token: Token, useAliases: boolean): string {
-  const isGroup = token.entities.length > 1;
+// Build the card/group snippet with ha-url and token embedded directly.
+// This makes each widget self-contained so multiple widgets with different
+// tokens can coexist on the same page without overwriting each other.
+function buildCardSnippet(token: Token, useAliases: boolean, haUrl: string): string {
+  const attrs = `ha-url="${haUrl}" token="${token.token_id}"`;
   const cards = token.entities.map((e: EntityAccess) => {
-    const attr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
-    return `  <hrv-card ${attr}></hrv-card>`;
+    const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
+    return `  <hrv-card ${entityAttr}></hrv-card>`;
   });
-  if (isGroup) return `<hrv-group>\n${cards.join("\n")}\n</hrv-group>`;
-  return cards[0]?.trimStart() ?? "";
+  const isGroup = token.entities.length > 1;
+  if (isGroup) return `<hrv-group ${attrs}>\n${cards.join("\n")}\n</hrv-group>`;
+  // Single card: inline the attrs on the card itself.
+  const entityAttr = useAliases && token.entities[0]?.alias
+    ? `alias="${token.entities[0].alias}"`
+    : `entity="${token.entities[0]?.entity_id ?? ""}"`;
+  return `<hrv-card ${attrs} ${entityAttr}></hrv-card>`;
 }
 
-function buildWordPressSnippet(token: Token, useAliases: boolean): string {
+function buildWordPressSnippet(token: Token, useAliases: boolean, haUrl: string): string {
+  const groupAttrs = `data-ha-url="${haUrl}" data-token="${token.token_id}"`;
   const cards = token.entities.map((e: EntityAccess) => {
     const attr = useAliases && e.alias ? `data-alias="${e.alias}"` : `data-entity="${e.entity_id}"`;
     return `  <div class="hrv-mount" ${attr}></div>`;
   });
   const isGroup = token.entities.length > 1;
-  if (isGroup) return `<div class="hrv-group">\n${cards.join("\n")}\n</div>`;
-  return cards[0] ?? "";
+  if (isGroup) return `<div class="hrv-group" ${groupAttrs}>\n${cards.join("\n")}\n</div>`;
+  const entityAttr = useAliases && token.entities[0]?.alias
+    ? `data-alias="${token.entities[0].alias}"`
+    : `data-entity="${token.entities[0]?.entity_id ?? ""}"`;
+  return `<div class="hrv-mount" ${groupAttrs} ${entityAttr}></div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +164,7 @@ const STEP_LABELS = ["Entities", "Permissions", "Origin", "Expiry", "Appearance"
 
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div style={{ display: "flex", gap: 0, alignItems: "center", padding: "0 24px", marginBottom: 24, flexWrap: "wrap", rowGap: 8 }}>
+    <div className="hrv-step-indicator">
       {STEP_LABELS.map((label, i) => {
         const stepNum = i + 1;
         const done    = stepNum < current;
@@ -168,11 +188,128 @@ function StepIndicator({ current }: { current: number }) {
               {label}
             </div>
             {i < STEP_LABELS.length - 1 && (
-              <div style={{ width: 20, height: 1, background: "var(--divider-color,#e0e0e0)", flexShrink: 0 }} />
+              <div className="hrv-step-connector" />
             )}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EntityAutocomplete - combobox for entity ID selection in Step 1
+// ---------------------------------------------------------------------------
+
+interface EntityAutocompleteProps {
+  value: string;
+  onChange: (v: string) => void;
+  onSelect: (entityId: string) => void;
+  disabled?: boolean;
+}
+
+function EntityAutocomplete({ value, onChange, onSelect, disabled }: EntityAutocompleteProps) {
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const matches = useMemo<HAEntity[]>(() => {
+    if (!value.trim()) return [];
+    const q = value.toLowerCase();
+    return getEntityCache()
+      .filter(e =>
+        e.entity_id.toLowerCase().includes(q) ||
+        e.friendly_name.toLowerCase().includes(q)
+      )
+      .slice(0, 8);
+  }, [value]);
+
+  useEffect(() => { setHighlighted(0); }, [matches.length]);
+
+  // Recalculate fixed position whenever the dropdown opens or matches change.
+  useEffect(() => {
+    if (open && matches.length > 0 && inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setDropdownRect({ top: r.bottom, left: r.left, width: r.width });
+    } else {
+      setDropdownRect(null);
+    }
+  }, [open, matches.length]);
+
+  const select = (entityId: string) => {
+    onSelect(entityId);
+    onChange("");
+    setOpen(false);
+  };
+
+  return (
+    <div style={{ flex: 1 }}>
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={e => {
+          if (!open || matches.length === 0) {
+            if (e.key === "Enter" && value.trim().includes(".")) {
+              select(value.trim());
+              e.preventDefault();
+            }
+            return;
+          }
+          if (e.key === "ArrowDown") { setHighlighted(h => Math.min(h + 1, matches.length - 1)); e.preventDefault(); }
+          else if (e.key === "ArrowUp") { setHighlighted(h => Math.max(h - 1, 0)); e.preventDefault(); }
+          else if (e.key === "Enter") { select(matches[highlighted].entity_id); e.preventDefault(); }
+          else if (e.key === "Escape") { setOpen(false); }
+        }}
+        disabled={disabled}
+        placeholder="Search entity ID or friendly name..."
+        className="hrv-input"
+        style={{ width: "100%", boxSizing: "border-box" }}
+      />
+      {dropdownRect && (
+        <div
+          className="hrv-autocomplete-dropdown"
+          style={{
+            top: dropdownRect.top,
+            left: dropdownRect.left,
+            width: dropdownRect.width,
+          }}
+        >
+          {matches.map((e, i) => (
+            <div
+              key={e.entity_id}
+              onMouseDown={() => select(e.entity_id)}
+              onMouseEnter={() => setHighlighted(i)}
+              className="hrv-autocomplete-item"
+              style={{
+                background: i === highlighted ? "var(--secondary-background-color,#f5f5f5)" : "transparent",
+                borderBottom: i < matches.length - 1 ? "1px solid var(--divider-color,#f0f0f0)" : "none",
+              }}
+            >
+              <span className="hrv-domain-badge">{e.domain}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {e.entity_id}
+                </div>
+                {e.friendly_name !== e.entity_id && (
+                  <div style={{ fontSize: 11, color: "var(--secondary-text-color,#9e9e9e)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {e.friendly_name}
+                  </div>
+                )}
+              </div>
+              <span style={{
+                fontSize: 11, flexShrink: 0,
+                color: e.state === "on" || e.state === "open" ? "#43a047" : "var(--secondary-text-color,#9e9e9e)",
+              }}>
+                {e.state}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -189,6 +326,12 @@ interface Step1Props {
 function Step1({ state, onChange }: Step1Props) {
   const [entityInput, setEntityInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (getEntityCache().length === 0) {
+      loadEntityCache();
+    }
+  }, []);
 
   const selectEntity = async (entityId: string) => {
     if (state.entities.some(e => e.entity_id === entityId)) return;
@@ -212,8 +355,6 @@ function Step1({ state, onChange }: Step1Props) {
     onChange({ entities: state.entities.filter(e => e.entity_id !== entityId) });
   };
 
-  const canAdd = entityInput.trim().length > 0 && entityInput.trim().includes(".");
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Mode toggle */}
@@ -222,14 +363,10 @@ function Step1({ state, onChange }: Step1Props) {
           <button
             key={m}
             onClick={() => onChange({ mode: m, entities: [] })}
+            className={m === "single" ? "hrv-seg-left" : "hrv-seg-right"}
             style={{
-              padding: "7px 18px",
-              border: "1px solid var(--primary-color,#6200ea)",
-              borderRight: m === "single" ? "none" : undefined,
-              borderRadius: m === "single" ? "6px 0 0 6px" : "0 6px 6px 0",
               background: state.mode === m ? "var(--primary-color,#6200ea)" : "transparent",
               color: state.mode === m ? "#fff" : "var(--primary-color,#6200ea)",
-              fontSize: 13, fontWeight: 600, cursor: "pointer",
             }}
           >
             {m === "single" ? "Single card" : "Group of cards"}
@@ -242,32 +379,13 @@ function Step1({ state, onChange }: Step1Props) {
         {state.mode === "group" ? " You can add multiple entities." : ""}
       </p>
 
-      {/* Entity input */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          value={entityInput}
-          onChange={e => setEntityInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && canAdd) { selectEntity(entityInput.trim()); setEntityInput(""); } }}
-          placeholder="e.g. light.bedroom_main"
-          style={{
-            flex: 1, padding: "8px 12px", border: "1px solid var(--divider-color,#e0e0e0)",
-            borderRadius: 8, fontSize: 14,
-            background: "var(--primary-background-color,#fff)",
-            color: "var(--primary-text-color,#212121)",
-          }}
-        />
-        <button
-          onClick={() => { if (canAdd) { selectEntity(entityInput.trim()); setEntityInput(""); } }}
-          disabled={!canAdd || loadingAlias !== null}
-          style={{
-            padding: "8px 16px", border: "none", borderRadius: 8,
-            background: "var(--primary-color,#6200ea)", color: "#fff",
-            fontWeight: 600, fontSize: 13, cursor: "pointer",
-          }}
-        >
-          {loadingAlias ? "..." : "Add"}
-        </button>
-      </div>
+      {/* Entity input with autocomplete */}
+      <EntityAutocomplete
+        value={entityInput}
+        onChange={setEntityInput}
+        onSelect={id => { selectEntity(id); setEntityInput(""); }}
+        disabled={loadingAlias !== null}
+      />
 
       {/* Selected entities */}
       {state.entities.length > 0 && (
@@ -276,10 +394,7 @@ function Step1({ state, onChange }: Step1Props) {
             Selected ({state.entities.length}):
           </div>
           {state.entities.map(e => (
-            <div key={e.entity_id} style={{
-              display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
-              background: "var(--secondary-background-color,#f5f5f5)", borderRadius: 6, fontSize: 13,
-            }}>
+            <div key={e.entity_id} className="hrv-inset-sm" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
               <span style={{ flex: 1, fontWeight: 500 }}>{e.entity_id}</span>
               {e.alias && (
                 <span style={{ fontSize: 11, color: "var(--secondary-text-color,#9e9e9e)" }}>alias: {e.alias}</span>
@@ -310,8 +425,8 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
         What can visitors do with this widget?
       </p>
       {([
-        { value: "read"       as const, label: "View only",        desc: "Visitors can see the current state of your device but cannot control it." },
-        { value: "read-write" as const, label: "View and control",  desc: "Visitors can see the state and send commands, such as toggling a light or adjusting brightness." },
+        { value: "read"       as const, label: "View only",       desc: "Visitors can see the current state of your device but cannot control it." },
+        { value: "read-write" as const, label: "View and control", desc: "Visitors can see the state and send commands, such as toggling a light or adjusting brightness." },
       ]).map(({ value, label, desc }) => (
         <label key={value} style={{ display: "flex", gap: 12, cursor: "pointer", padding: "12px 14px", borderRadius: 8, border: `2px solid ${state.capability === value ? "var(--primary-color,#6200ea)" : "var(--divider-color,#e0e0e0)"}`, background: "var(--primary-background-color,#fff)" }}>
           <input type="radio" name="capability" value={value} checked={state.capability === value} onChange={() => { onChange({ capability: value }); saveMemory({ capability: value }); }} style={{ marginTop: 2, accentColor: "var(--primary-color,#6200ea)" }} />
@@ -329,11 +444,65 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
 // Step 3: Origin
 // ---------------------------------------------------------------------------
 
-function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<WizardState>) => void }) {
-  const [newOriginUrl,  setNewOriginUrl]  = useState("");
-  const [showNewForm,   setShowNewForm]   = useState(false);
+const ORIGIN_CUSTOM = "__custom__";
 
+const HIDDEN_ORIGINS_KEY = "hrv_hidden_origins";
+
+function loadHiddenOrigins(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_ORIGINS_KEY) ?? "[]")); }
+  catch { return new Set(); }
+}
+
+function saveHiddenOrigins(set: Set<string>) {
+  try { localStorage.setItem(HIDDEN_ORIGINS_KEY, JSON.stringify(Array.from(set))); }
+  catch { /* ignore */ }
+}
+
+function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<WizardState>) => void }) {
+  const [allOrigins,    setAllOrigins]    = useState<string[]>([]);
+  const [hiddenOrigins, setHiddenOrigins] = useState<Set<string>>(loadHiddenOrigins);
+  const [usingCustom,   setUsingCustom]   = useState(false);
   const showWarning = state.originMode === "any" && state.capability === "read-write";
+
+  useEffect(() => {
+    api.tokens.list().then(tokens => {
+      const seen = new Set<string>();
+      tokens.forEach(t => {
+        if (!t.origins.allow_any) {
+          t.origins.allowed.forEach(o => {
+            if (t.origins.allow_paths.length > 0) {
+              t.origins.allow_paths.forEach(p => seen.add(`${o}${p}`));
+            } else {
+              seen.add(o);
+            }
+          });
+        }
+      });
+      const list = Array.from(seen);
+      setAllOrigins(list);
+      if (state.selectedOriginUrl && !list.includes(state.selectedOriginUrl)) {
+        setUsingCustom(true);
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const existingOrigins = allOrigins.filter(o => !hiddenOrigins.has(o));
+  const hasExisting = existingOrigins.length > 0;
+  const showTextInput = !hasExisting || usingCustom;
+  const selectVal = usingCustom ? ORIGIN_CUSTOM : (state.selectedOriginUrl || "");
+
+  // The delete button is only active when a real existing origin is selected.
+  const canDelete = !usingCustom && !!state.selectedOriginUrl && state.selectedOriginUrl !== ORIGIN_CUSTOM;
+
+  const handleDeleteOrigin = () => {
+    const toHide = state.selectedOriginUrl;
+    if (!toHide) return;
+    const next = new Set(hiddenOrigins);
+    next.add(toHide);
+    setHiddenOrigins(next);
+    saveHiddenOrigins(next);
+    onChange({ selectedOriginUrl: "" });
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -341,37 +510,62 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
         Where will this widget appear?
       </p>
 
-      {/* Specific website */}
+      {/* Specific website or page */}
       <label style={{ display: "flex", gap: 12, cursor: "pointer" }}>
         <input type="radio" name="originMode" value="specific" checked={state.originMode === "specific"} onChange={() => onChange({ originMode: "specific" })} style={{ marginTop: 2, accentColor: "var(--primary-color,#6200ea)" }} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600, fontSize: 14 }}>A specific website</div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>A specific website or page</div>
           {state.originMode === "specific" && (
-            <div style={{ marginTop: 8 }}>
-              {!showNewForm ? (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    value={state.selectedOriginUrl}
-                    onChange={e => onChange({ selectedOriginUrl: e.target.value })}
-                    placeholder="https://example.com"
-                    style={{ flex: 1, padding: "7px 10px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 6, fontSize: 13, background: "var(--primary-background-color,#fff)", color: "var(--primary-text-color,#212121)" }}
-                  />
-                  <button onClick={() => setShowNewForm(true)} style={{ padding: "7px 12px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 6, background: "none", fontSize: 13, cursor: "pointer" }}>+ New</button>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <input value={newOriginUrl} onChange={e => setNewOriginUrl(e.target.value)} placeholder="https://mysite.com (or with port: https://local:8080)" style={{ padding: "7px 10px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 6, fontSize: 13, background: "var(--primary-background-color,#fff)", color: "var(--primary-text-color,#212121)" }} />
-                  <p style={{ fontSize: 11, color: "var(--secondary-text-color,#9e9e9e)", margin: 0 }}>Include the port if your site uses a non-standard one, e.g. https://office.local:8080. Standard ports (80, 443) do not need to be specified.</p>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={() => { onChange({ selectedOriginUrl: newOriginUrl }); setShowNewForm(false); }}
-                      disabled={!newOriginUrl.startsWith("http")}
-                      style={{ padding: "6px 14px", border: "none", borderRadius: 6, background: "var(--primary-color,#6200ea)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
-                    >Save</button>
-                    <button onClick={() => setShowNewForm(false)} style={{ padding: "6px 14px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 6, background: "none", fontSize: 13, cursor: "pointer" }}>Cancel</button>
-                  </div>
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+              {hasExisting && (
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <select
+                    value={selectVal}
+                    onChange={e => {
+                      if (e.target.value === ORIGIN_CUSTOM) {
+                        setUsingCustom(true);
+                        onChange({ selectedOriginUrl: "" });
+                      } else {
+                        setUsingCustom(false);
+                        onChange({ selectedOriginUrl: e.target.value });
+                      }
+                    }}
+                    className="hrv-select-sm"
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">-- Select an origin --</option>
+                    {existingOrigins.map(o => <option key={o} value={o}>{o}</option>)}
+                    <option value={ORIGIN_CUSTOM}>Enter a new URL...</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleDeleteOrigin}
+                    disabled={!canDelete}
+                    title="Remove this URL from the list"
+                    style={{
+                      padding: "4px 10px", border: "1px solid var(--divider-color,#e0e0e0)",
+                      borderRadius: 6, background: "var(--primary-background-color,#fff)",
+                      color: canDelete ? "#c62828" : "var(--secondary-text-color,#9e9e9e)",
+                      fontSize: 12, cursor: canDelete ? "pointer" : "default",
+                      whiteSpace: "nowrap", flexShrink: 0,
+                    }}
+                  >
+                    Delete URL
+                  </button>
                 </div>
               )}
+              {showTextInput && (
+                <input
+                  value={state.selectedOriginUrl}
+                  onChange={e => onChange({ selectedOriginUrl: e.target.value })}
+                  placeholder="https://example.com"
+                  autoFocus={hasExisting}
+                  className="hrv-input-sm"
+                />
+              )}
+              <p style={{ fontSize: 11, color: "var(--secondary-text-color,#9e9e9e)", margin: 0 }}>
+                Site only (e.g. https://example.com) or a specific page (e.g. https://example.com/page.html). A path restricts the widget to that page only.
+              </p>
             </div>
           )}
         </div>
@@ -387,7 +581,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
       </label>
 
       {showWarning && (
-        <div style={{ padding: "10px 14px", background: "#fff3e0", borderRadius: 8, border: "1px solid #ffcc02", fontSize: 13, color: "#e65100" }}>
+        <div className="hrv-alert-warn">
           <strong>Security Warning:</strong> This allows anyone on the internet to control your device from any website. Only proceed if you understand this risk.
         </div>
       )}
@@ -401,11 +595,11 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
 
 function Step4({ state, onChange }: { state: WizardState; onChange: (u: Partial<WizardState>) => void }) {
   const options: { value: WizardState["expiryOption"]; label: string }[] = [
-    { value: "never",  label: "Never expires"  },
-    { value: "30d",    label: "30 days"        },
-    { value: "90d",    label: "90 days"        },
-    { value: "1y",     label: "1 year"         },
-    { value: "custom", label: "Custom date"    },
+    { value: "never",  label: "Never expires" },
+    { value: "30d",    label: "30 days"       },
+    { value: "90d",    label: "90 days"       },
+    { value: "1y",     label: "1 year"        },
+    { value: "custom", label: "Custom date"   },
   ];
 
   return (
@@ -430,7 +624,9 @@ function Step4({ state, onChange }: { state: WizardState; onChange: (u: Partial<
               type="date"
               value={state.expiryCustomDate}
               onChange={e => onChange({ expiryCustomDate: e.target.value })}
-              style={{ padding: "4px 8px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 6, fontSize: 13 }}
+              min={new Date().toISOString().split("T")[0]}
+              className="hrv-input-sm"
+              style={{ padding: "4px 8px" }}
             />
           )}
         </label>
@@ -463,7 +659,8 @@ function Step5({ state, onChange }: { state: WizardState; onChange: (u: Partial<
         <select
           value={state.themeUrl}
           onChange={e => { onChange({ themeUrl: e.target.value }); saveMemory({ themeUrl: e.target.value }); }}
-          style={{ padding: "8px 12px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 8, fontSize: 14, width: "100%", background: "var(--primary-background-color,#fff)", color: "var(--primary-text-color,#212121)" }}
+          className="hrv-select"
+          style={{ width: "100%" }}
         >
           {BUNDLED_THEMES.map(t => (
             <option key={t.url} value={t.url}>{t.label}</option>
@@ -498,23 +695,32 @@ function Step5({ state, onChange }: { state: WizardState; onChange: (u: Partial<
 interface Step6Props {
   token: Token;
   tokenSecret: string | null;
+  originMode: "specific" | "any";
+  originUrl: string;
 }
 
-function Step6({ token, tokenSecret }: Step6Props) {
+function Step6({ token, tokenSecret, originMode, originUrl }: Step6Props) {
   const [useAliases,   setUseAliases]   = useState(false);
   const [tab,          setTab]          = useState<"web" | "wordpress">("web");
   const [acknowledged, setAcknowledged] = useState(!tokenSecret);
+  const [widgetName,   setWidgetName]   = useState(token.label);
+  const [nameSaving,   setNameSaving]   = useState(false);
 
-  const initScript  = buildInitScript(token.token_id);
+  const haUrl = window.location.origin;
+
   const cardSnippet = tab === "web"
-    ? buildCardSnippet(token, useAliases)
-    : buildWordPressSnippet(token, useAliases);
+    ? buildCardSnippet(token, useAliases, haUrl)
+    : buildWordPressSnippet(token, useAliases, haUrl);
 
-  const codeStyle: React.CSSProperties = {
-    fontFamily: "monospace", fontSize: 13,
-    background: "#1e1e2e", color: "#cdd6f4",
-    padding: "12px 14px", borderRadius: 8, margin: 0,
-    overflowX: "auto", whiteSpace: "pre", lineHeight: 1.6,
+  const hostDisplay = originMode === "any" ? "Anywhere" : (originUrl || haUrl);
+
+  const saveWidgetName = async (name: string) => {
+    if (!name.trim() || name === token.label) return;
+    setNameSaving(true);
+    try {
+      await api.tokens.update(token.token_id, { label: name.trim() });
+    } catch { /* non-fatal */ }
+    finally { setNameSaving(false); }
   };
 
   return (
@@ -525,7 +731,7 @@ function Step6({ token, tokenSecret }: Step6Props) {
 
       {/* HMAC secret acknowledgement */}
       {tokenSecret && (
-        <div style={{ padding: "14px 16px", background: "#fce4ec", border: "1px solid #ef9a9a", borderRadius: 8 }}>
+        <div className="hrv-alert-secret">
           <div style={{ fontWeight: 600, fontSize: 13, color: "#b71c1c", marginBottom: 8 }}>
             Save your token secret now
           </div>
@@ -545,7 +751,65 @@ function Step6({ token, tokenSecret }: Step6Props) {
 
       {acknowledged && (
         <>
-          {/* Alias toggle */}
+          {/* Host URL + Widget name */}
+          <div style={{ fontSize: 13, color: "var(--secondary-text-color,#616161)", lineHeight: 1.8 }}>
+            <div>
+              <span style={{ fontWeight: 600, color: "var(--primary-text-color,#212121)" }}>Host URL:</span>{" "}
+              {hostDisplay}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--secondary-text-color,#616161)", display: "block", marginBottom: 4 }}>
+              Widget name
+            </label>
+            <input
+              value={widgetName}
+              onChange={e => setWidgetName(e.target.value)}
+              onBlur={e => saveWidgetName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+              disabled={nameSaving}
+              className="hrv-input-sm"
+              style={{ width: "100%", boxSizing: "border-box" }}
+            />
+            <p style={{ fontSize: 11, color: "var(--secondary-text-color,#9e9e9e)", margin: "4px 0 0" }}>
+              A label to identify this widget in your token list. Edit and press Enter to save.
+            </p>
+          </div>
+
+          {/* Step 1: script tag */}
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--secondary-text-color,#616161)", marginBottom: 6 }}>
+              Step 1: Add to your page &lt;head&gt; once (click to copy)
+            </p>
+            <CopyablePre text={WIDGET_SCRIPT} label="Copy step 1" />
+          </div>
+
+          {/* Step 2: card snippet */}
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--secondary-text-color,#616161)", marginBottom: 6 }}>
+              Step 2: Paste where you want the widget (click to copy)
+            </p>
+            <div style={{ display: "flex", gap: 0, marginBottom: 8 }}>
+              {(["web", "wordpress"] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={t === "web" ? "hrv-tab-left" : "hrv-tab-right"}
+                  style={{
+                    background: tab === t ? "var(--primary-color,#6200ea)" : "var(--primary-background-color,#fff)",
+                    color: tab === t ? "#fff" : "var(--primary-text-color,#212121)",
+                    fontWeight: tab === t ? 600 : 400,
+                  }}
+                >
+                  {t === "web" ? "Web page" : "WordPress"}
+                </button>
+              ))}
+            </div>
+            <CopyablePre text={cardSnippet} label="Copy step 2" />
+          </div>
+
+          {/* Alias toggle - below Step 2 */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
             <input
               type="checkbox"
@@ -553,45 +817,9 @@ function Step6({ token, tokenSecret }: Step6Props) {
               onChange={e => setUseAliases(e.target.checked)}
               disabled={token.entities.every((e: EntityAccess) => !e.alias)}
             />
-            Show as aliases
+            Use alias
             <span title="Aliases hide your real entity IDs from the page source. Both formats work against the same token." style={{ fontSize: 11, color: "var(--primary-color,#6200ea)", cursor: "help" }}>[?]</span>
           </label>
-
-          {/* Step 1: script tag */}
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--secondary-text-color,#616161)", marginBottom: 6 }}>
-              Step 1: Add to your page &lt;head&gt; once
-            </p>
-            <pre style={codeStyle}>{WIDGET_SCRIPT + "\n" + initScript}</pre>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-              <CopyButton text={WIDGET_SCRIPT + "\n" + initScript} label="Copy step 1" size="sm" />
-            </div>
-          </div>
-
-          {/* Step 2: card snippet */}
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--secondary-text-color,#616161)", marginBottom: 6 }}>
-              Step 2: Paste where you want the widget
-            </p>
-            <div style={{ display: "flex", gap: 0, marginBottom: 8 }}>
-              {(["web", "wordpress"] as const).map(t => (
-                <button key={t} onClick={() => setTab(t)} style={{
-                  padding: "5px 14px", border: "1px solid var(--divider-color,#e0e0e0)",
-                  borderRight: t === "web" ? "none" : undefined,
-                  borderRadius: t === "web" ? "6px 0 0 6px" : "0 6px 6px 0",
-                  background: tab === t ? "var(--primary-color,#6200ea)" : "var(--primary-background-color,#fff)",
-                  color: tab === t ? "#fff" : "var(--primary-text-color,#212121)",
-                  fontSize: 13, fontWeight: tab === t ? 600 : 400, cursor: "pointer",
-                }}>
-                  {t === "web" ? "Web page" : "WordPress"}
-                </button>
-              ))}
-            </div>
-            <pre style={codeStyle}>{cardSnippet}</pre>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 4 }}>
-              <CopyButton text={cardSnippet} label="Copy step 2" size="sm" />
-            </div>
-          </div>
         </>
       )}
     </div>
@@ -602,14 +830,14 @@ function Step6({ token, tokenSecret }: Step6Props) {
 // Wizard
 // ---------------------------------------------------------------------------
 
-const DEFAULT_STATE: WizardState = (() => {
+function freshState(): WizardState {
   const mem = loadMemory();
   return {
     mode: "single",
     entities: [],
     capability: mem.capability ?? "read",
     originMode: "specific",
-    selectedOriginUrl: "",
+    selectedOriginUrl: mem.selectedOriginUrl ?? "",
     expiryOption: (mem.expiryOption as WizardState["expiryOption"]) ?? "never",
     expiryCustomDate: "",
     themeUrl: mem.themeUrl ?? "",
@@ -618,11 +846,12 @@ const DEFAULT_STATE: WizardState = (() => {
     generatedToken: null,
     previewTokenId: null,
   };
-})();
+}
 
-export function Wizard({ onClose, onGoToToken }: WizardProps) {
+export function Wizard({ onClose }: WizardProps) {
   const [step,    setStep]    = useState(1);
-  const [wState,  setWState]  = useState<WizardState>(DEFAULT_STATE);
+  // Lazy initializer: called fresh on every mount so it reads the latest localStorage.
+  const [wState,  setWState]  = useState<WizardState>(freshState);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -644,17 +873,28 @@ export function Wizard({ onClose, onGoToToken }: WizardProps) {
 
   const canProceed = (): boolean => {
     if (step === 1) return wState.entities.length > 0;
-    if (step === 3 && wState.originMode === "specific") return wState.selectedOriginUrl.length > 0;
+    if (step === 3 && wState.originMode === "specific") {
+      try {
+        const u = new URL(wState.selectedOriginUrl);
+        return (u.protocol === "http:" || u.protocol === "https:") && u.host.length > 0;
+      } catch {
+        return false;
+      }
+    }
     return true;
   };
 
   const handleNext = async () => {
+    if (step === 3 && wState.originMode === "specific" && wState.selectedOriginUrl) {
+      saveMemory({ selectedOriginUrl: wState.selectedOriginUrl });
+    }
+
     if (step === 5 && !wState.previewTokenId) {
       // Create preview token
       try {
         const preview = await api.tokens.createPreview({
           entity_ids: wState.entities.map(e => e.entity_id),
-          capability: wState.capability,
+          capabilities: wState.capability,
         });
         patchState({ previewTokenId: preview.token_id });
       } catch { /* non-fatal */ }
@@ -668,12 +908,13 @@ export function Wizard({ onClose, onGoToToken }: WizardProps) {
         const entityPayload = wState.entities.map(e => ({
           entity_id: e.entity_id,
           alias: e.alias,
-          capability: wState.capability,
-          excluded_attributes: [],
+          capabilities: wState.capability,
+          exclude_attributes: [],
         }));
+        const { origin: originHost, path: originPath } = splitOriginUrl(wState.selectedOriginUrl);
         const origins = wState.originMode === "any"
           ? { allow_any: true, allowed: [], allow_paths: [] }
-          : { allow_any: false, allowed: [wState.selectedOriginUrl], allow_paths: [] };
+          : { allow_any: false, allowed: [originHost], allow_paths: originPath ? [originPath] : [] };
         const expires = expiresAt(wState.expiryOption, wState.expiryCustomDate);
 
         const token = await api.tokens.create({
@@ -713,26 +954,15 @@ export function Wizard({ onClose, onGoToToken }: WizardProps) {
   };
 
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 5000, display: "flex", alignItems: "center", justifyContent: "center" }}
-      role="presentation"
-    >
+    <div className="hrv-wizard-overlay" role="presentation">
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Create Widget"
-        style={{
-          background: "var(--primary-background-color,#fff)",
-          borderRadius: 16,
-          width: "min(680px, 95vw)",
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
-        }}
+        className="hrv-wizard-dialog"
       >
         {/* Modal header */}
-        <div style={{ display: "flex", alignItems: "center", padding: "18px 24px 0", flexShrink: 0 }}>
+        <div className="hrv-wizard-header">
           <h2 style={{ flex: 1, fontSize: 18, fontWeight: 700, color: "var(--primary-text-color,#212121)", margin: 0 }}>
             {step === 6 && wState.generatedToken ? "Your widget is ready" : "Create Widget"}
           </h2>
@@ -754,45 +984,38 @@ export function Wizard({ onClose, onGoToToken }: WizardProps) {
         {error && <div style={{ margin: "0 24px" }}><ErrorBanner message={error} onDismiss={() => setError(null)} /></div>}
 
         {/* Step content */}
-        <div style={{ flex: 1, overflow: "auto", padding: "0 24px 16px" }}>
+        <div className="hrv-wizard-body">
           {step === 1 && <Step1 state={wState} onChange={patchState} />}
           {step === 2 && <Step2 state={wState} onChange={patchState} />}
           {step === 3 && <Step3 state={wState} onChange={patchState} />}
           {step === 4 && <Step4 state={wState} onChange={patchState} />}
           {step === 5 && <Step5 state={wState} onChange={patchState} />}
           {step === 6 && wState.generatedToken && (
-            <Step6 token={wState.generatedToken} tokenSecret={wState.tokenSecret} />
+            <Step6
+              token={wState.generatedToken}
+              tokenSecret={wState.tokenSecret}
+              originMode={wState.originMode}
+              originUrl={wState.selectedOriginUrl}
+            />
           )}
         </div>
 
         {/* Navigation footer */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 12,
-          padding: "14px 24px",
-          borderTop: "1px solid var(--divider-color,#e0e0e0)",
-          flexShrink: 0,
-        }}>
+        <div className="hrv-wizard-footer">
           {step === 6 && wState.generatedToken ? (
-            <>
-              <button
-                onClick={() => onGoToToken(wState.generatedToken!.token_id)}
-                style={{ flex: 1, padding: "10px 0", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 8, background: "none", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-              >
-                View token details
-              </button>
-              <button
-                onClick={() => { setWState({ ...DEFAULT_STATE }); setStep(1); }}
-                style={{ flex: 1, padding: "10px 0", border: "none", borderRadius: 8, background: "var(--primary-color,#6200ea)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-              >
-                Create another widget
-              </button>
-            </>
+            <button
+              onClick={() => onClose(wState.generatedToken!.token_id)}
+              style={{ flex: 1, padding: "10px 0", border: "none", borderRadius: 8, background: "var(--primary-color,#6200ea)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+            >
+              Close
+            </button>
           ) : (
             <>
               <button
                 onClick={handleBack}
                 disabled={step === 1}
-                style={{ padding: "9px 20px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 8, background: "none", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                className="hrv-btn"
+                style={{ padding: "9px 20px" }}
               >
                 Back
               </button>
@@ -819,7 +1042,7 @@ export function Wizard({ onClose, onGoToToken }: WizardProps) {
       {/* Confirm close */}
       {confirmClose && (
         <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 6000, display: "flex", alignItems: "center", justifyContent: "center" }}
+          className="hrv-wizard-confirm-overlay"
           onClick={() => setConfirmClose(false)}
           role="presentation"
         >
@@ -827,14 +1050,15 @@ export function Wizard({ onClose, onGoToToken }: WizardProps) {
             role="alertdialog"
             aria-modal="true"
             onClick={e => e.stopPropagation()}
-            style={{ background: "var(--primary-background-color,#fff)", borderRadius: 12, padding: 24, maxWidth: 360, width: "90vw", boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}
+            className="hrv-dialog"
+            style={{ maxWidth: 360 }}
           >
             <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Discard and close?</h3>
             <p style={{ fontSize: 14, color: "var(--secondary-text-color,#616161)", marginBottom: 24 }}>
               Your progress will be lost. No token has been created yet.
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
-              <button onClick={() => setConfirmClose(false)} style={{ padding: "8px 18px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 8, background: "none", fontSize: 14, fontWeight: 500, cursor: "pointer" }}>
+              <button onClick={() => setConfirmClose(false)} className="hrv-btn" style={{ padding: "8px 18px" }}>
                 Keep editing
               </button>
               <button onClick={() => { setConfirmClose(false); onClose(); }} style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: "#c62828", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>

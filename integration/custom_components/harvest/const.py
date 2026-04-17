@@ -18,8 +18,12 @@ BASE62_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345678
 # WebSocket endpoint path registered with HA's HTTP server
 WS_PATH = "/api/harvest/ws"
 
-# Panel UI path
+# Panel UI path (sidebar URL)
 PANEL_PATH = "harvest"
+
+# Static assets path - separate from PANEL_PATH to avoid a direct GET to
+# /harvest returning 403 (directory listing) on full page reload.
+PANEL_ASSETS_PATH = "harvest_assets"
 
 # SQLite activity store filename
 ACTIVITY_DB_FILENAME = "harvest_activity.db"

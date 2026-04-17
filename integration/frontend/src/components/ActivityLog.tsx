@@ -2,11 +2,13 @@
  * ActivityLog.tsx - Global activity log screen.
  *
  * Displays all events across all tokens with filtering by date range,
- * token, and event type. Row expand shows full event details.
- * Pagination at 50 events per page. CSV export button.
+ * token, and event type. Rows are expandable via a [+] toggle. Column
+ * headers are clickable to sort the current page. Token IDs link to the
+ * token edit page. CSV export uses the authenticated API client.
+ * Pagination at 50 events per page.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import type { ActivityEvent, ActivityPage, Token, ActivityEventType } from "../types";
 import { api } from "../api";
 import { Spinner, ErrorBanner } from "./Shared";
@@ -16,6 +18,7 @@ import { Spinner, ErrorBanner } from "./Shared";
 // ---------------------------------------------------------------------------
 
 type DateRange = "1h" | "24h" | "7d" | "30d" | "custom";
+type SortCol = "time" | "type" | "token" | "origin" | "entity";
 
 const DATE_RANGE_OPTIONS: { value: DateRange; label: string }[] = [
   { value: "1h",     label: "Last 1 hour"  },
@@ -27,13 +30,22 @@ const DATE_RANGE_OPTIONS: { value: DateRange; label: string }[] = [
 
 const EVENT_TYPE_OPTIONS: (ActivityEventType | "all")[] = [
   "all", "AUTH_OK", "AUTH_FAIL", "COMMAND", "SESSION_END",
-  "TOKEN_REVOKED", "RENEWAL", "SUSPICIOUS_ORIGIN", "FLOOD_PROTECTION", "RATE_LIMITED",
+  "TOKEN_CREATED", "TOKEN_REVOKED", "TOKEN_DELETED", "RENEWAL",
+  "SUSPICIOUS_ORIGIN", "FLOOD_PROTECTION", "RATE_LIMITED",
 ];
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
-  AUTH_OK: "#43a047", AUTH_FAIL: "#e53935", COMMAND: "#1e88e5",
-  SESSION_END: "#757575", TOKEN_REVOKED: "#8e24aa", RENEWAL: "#00897b",
-  SUSPICIOUS_ORIGIN: "#fb8c00", FLOOD_PROTECTION: "#e53935", RATE_LIMITED: "#f4511e",
+  AUTH_OK:            "#43a047",
+  AUTH_FAIL:          "#e53935",
+  COMMAND:            "#1e88e5",
+  SESSION_END:        "#757575",
+  TOKEN_CREATED:      "#00acc1",
+  TOKEN_REVOKED:      "#8e24aa",
+  TOKEN_DELETED:      "#b71c1c",
+  RENEWAL:            "#00897b",
+  SUSPICIOUS_ORIGIN:  "#fb8c00",
+  FLOOD_PROTECTION:   "#e53935",
+  RATE_LIMITED:       "#f4511e",
 };
 
 const PAGE_LIMIT = 50;
@@ -46,9 +58,9 @@ function sinceForRange(range: DateRange): string | undefined {
   if (range === "custom") return undefined;
   const now = new Date();
   const map: Record<Exclude<DateRange, "custom">, number> = {
-    "1h": 60 * 60 * 1000,
+    "1h":  60 * 60 * 1000,
     "24h": 24 * 60 * 60 * 1000,
-    "7d": 7 * 24 * 60 * 60 * 1000,
+    "7d":  7  * 24 * 60 * 60 * 1000,
     "30d": 30 * 24 * 60 * 60 * 1000,
   };
   return new Date(now.getTime() - map[range as Exclude<DateRange, "custom">]).toISOString();
@@ -56,7 +68,8 @@ function sinceForRange(range: DateRange): string | undefined {
 
 function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
-    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
 }
 
@@ -68,46 +81,90 @@ interface EventRowProps {
   event: ActivityEvent;
   expanded: boolean;
   onToggle: () => void;
+  onSelectToken: (tokenId: string) => void;
+  tokenInfo?: import("../types").Token;
 }
 
-function EventRow({ event: ev, expanded, onToggle }: EventRowProps) {
+function EventRow({ event: ev, expanded, onToggle, onSelectToken, tokenInfo }: EventRowProps) {
+  const color = EVENT_TYPE_COLORS[ev.type] ?? "#9e9e9e";
+  const tokenDisplay = ev.token_label || ev.token_id;
+
+  // Build widget location string from tokenInfo origins.
+  function tokenLocation(t: import("../types").Token): string {
+    if (t.origins.allow_any) return "Anywhere";
+    if (t.origins.allowed.length === 0) return "No origin set";
+    const base = t.origins.allowed[0];
+    if (t.origins.allow_paths.length > 0) return `${base}${t.origins.allow_paths[0]}`;
+    return base;
+  }
+
+  // All entity aliases for this token.
+  const aliases = tokenInfo ? tokenInfo.entities.filter(e => e.alias).map(e => e.alias).join(", ") : null;
+
   return (
     <>
       <tr
         onClick={onToggle}
-        style={{ cursor: "pointer", borderBottom: "1px solid var(--divider-color,#f0f0f0)" }}
+        className="hrv-activity-row"
         aria-expanded={expanded}
       >
-        <td style={{ padding: "8px 10px", whiteSpace: "nowrap", fontSize: 12, color: "var(--secondary-text-color,#616161)" }}>
+        {/* Expand toggle */}
+        <td className="hrv-activity-expand-cell">
+          <span className="hrv-activity-expand-btn">{expanded ? "-" : "+"}</span>
+        </td>
+
+        {/* Time */}
+        <td className="hrv-activity-td hrv-activity-td-time">
           {fmtDateTime(ev.timestamp)}
         </td>
-        <td style={{ padding: "8px 6px" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: EVENT_TYPE_COLORS[ev.type] ?? "#9e9e9e" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: EVENT_TYPE_COLORS[ev.type] ?? "#9e9e9e", flexShrink: 0 }} />
+
+        {/* Type */}
+        <td className="hrv-activity-td">
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 600, color }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
             {ev.type}
           </span>
         </td>
-        <td style={{ padding: "8px 6px", fontSize: 12, color: "var(--secondary-text-color,#616161)", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {ev.token_label ?? (ev.token_id ? ev.token_id.slice(0, 12) + "..." : "-")}
+
+        {/* Token */}
+        <td className="hrv-activity-td hrv-activity-td-token">
+          {tokenDisplay ? (
+            <button
+              className="hrv-activity-token-link"
+              onClick={e => { e.stopPropagation(); onSelectToken(ev.token_id!); }}
+            >
+              {tokenDisplay}
+            </button>
+          ) : "-"}
         </td>
-        <td style={{ padding: "8px 6px", fontSize: 12, color: "var(--secondary-text-color,#616161)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {ev.origin ?? "-"}
+
+        {/* Origin / Referer */}
+        <td className="hrv-activity-td">
+          {ev.referer || ev.origin || "-"}
         </td>
-        <td style={{ padding: "8px 6px", fontSize: 12, color: "var(--secondary-text-color,#616161)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {ev.entity_id ?? "-"}
+
+        {/* Entity */}
+        <td className="hrv-activity-td">
+          {ev.entity_id || "-"}
         </td>
       </tr>
+
       {expanded && (
         <tr>
-          <td colSpan={5} style={{ padding: "0 10px 10px" }}>
-            <div style={{ background: "var(--secondary-background-color,#f5f5f5)", borderRadius: 6, padding: "10px 14px", fontSize: 12, color: "var(--secondary-text-color,#616161)", lineHeight: 1.8 }}>
-              {ev.token_id    && <div><strong>Token:</strong> {ev.token_id}</div>}
-              {ev.session_id  && <div><strong>Session:</strong> {ev.session_id}</div>}
-              {ev.origin      && <div><strong>Origin:</strong> {ev.origin}</div>}
-              {ev.entity_id   && <div><strong>Entity:</strong> {ev.entity_id}</div>}
-              {ev.action      && <div><strong>Action:</strong> {ev.action}</div>}
-              {ev.code        && <div><strong>Code:</strong> {ev.code}</div>}
-              {ev.message     && <div><strong>Message:</strong> {ev.message}</div>}
+          <td colSpan={6} style={{ padding: "0 10px 10px" }}>
+            <div className="hrv-activity-row-detail">
+              {ev.token_id && <div><strong>Token name:</strong> {ev.token_label || "-"}</div>}
+              {ev.token_id && <div><strong>Token ID:</strong> {ev.token_id}</div>}
+              {aliases     && <div><strong>Aliases:</strong> {aliases}</div>}
+              {tokenInfo   && <div><strong>Expires:</strong> {tokenInfo.expires ? new Date(tokenInfo.expires).toLocaleDateString() : "Never"}</div>}
+              {tokenInfo   && <div><strong>Widget location:</strong> {tokenLocation(tokenInfo)}</div>}
+              {ev.session_id && <div><strong>Session:</strong> {ev.session_id}</div>}
+              {ev.referer    && <div><strong>Page:</strong> {ev.referer}</div>}
+              {ev.origin     && <div><strong>Origin:</strong> {ev.origin}</div>}
+              {ev.entity_id  && <div><strong>Entity:</strong> {ev.entity_id}</div>}
+              {ev.action     && <div><strong>Action:</strong> {ev.action}</div>}
+              {ev.code       && <div><strong>Code:</strong> {ev.code}</div>}
+              {ev.message    && <div><strong>Message:</strong> {ev.message}</div>}
               <div><strong>Time:</strong> {new Date(ev.timestamp).toLocaleString()}</div>
             </div>
           </td>
@@ -118,83 +175,182 @@ function EventRow({ event: ev, expanded, onToggle }: EventRowProps) {
 }
 
 // ---------------------------------------------------------------------------
+// SortableHeader
+// ---------------------------------------------------------------------------
+
+interface SortableThProps {
+  col: SortCol;
+  label: string;
+  sortCol: SortCol | null;
+  sortDir: "asc" | "desc";
+  onSort: (col: SortCol) => void;
+}
+
+function SortableTh({ col, label, sortCol, sortDir, onSort }: SortableThProps) {
+  const active = sortCol === col;
+  return (
+    <th
+      className={`hrv-activity-th-sort${active ? " hrv-activity-th-active" : ""}`}
+      onClick={() => onSort(col)}
+      aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      {label}
+      {active && <span className="hrv-activity-sort-indicator">{sortDir === "asc" ? " ^" : " v"}</span>}
+    </th>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ActivityLog
 // ---------------------------------------------------------------------------
 
-export function ActivityLog() {
+interface ActivityLogProps {
+  onSelectToken: (tokenId: string) => void;
+  initialTypeFilter?: string;
+}
+
+// datetime-local inputs produce "YYYY-MM-DDTHH:MM" without seconds.
+// new Date("YYYY-MM-DDTHH:MM") is ambiguous across browsers (Firefox may
+// return Invalid Date). Append ":00" to make it valid ISO 8601 everywhere.
+function normalizeDt(val: string): string {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(val) ? val + ":00" : val;
+}
+
+function isValidDatetime(val: string): boolean {
+  if (!val) return false;
+  return !isNaN(new Date(normalizeDt(val)).getTime());
+}
+
+export function ActivityLog({ onSelectToken, initialTypeFilter }: ActivityLogProps) {
   const [page,        setPage]        = useState<ActivityPage | null>(null);
   const [tokens,      setTokens]      = useState<Token[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState<string | null>(null);
+  const [exporting,   setExporting]   = useState(false);
   const [offset,      setOffset]      = useState(0);
   const [range,       setRange]       = useState<DateRange>("24h");
   const [customSince, setCustomSince] = useState("");
   const [customUntil, setCustomUntil] = useState("");
-  const [tokenFilter, setTokenFilter] = useState<string>("all");
-  const [typeFilter,  setTypeFilter]  = useState<ActivityEventType | "all">("all");
-  const [expanded,    setExpanded]    = useState<number | null>(null);
+  // appliedSince/Until hold the last values explicitly committed via Apply.
+  const [appliedSince, setAppliedSince] = useState("");
+  const [appliedUntil, setAppliedUntil] = useState("");
+  const [tokenFilter,  setTokenFilter]  = useState<string>("all");
+  const [typeFilter,   setTypeFilter]   = useState<ActivityEventType | "all">((initialTypeFilter as ActivityEventType) || "all");
+  const [expanded,     setExpanded]     = useState<number | null>(null);
+  const [sortCol,      setSortCol]      = useState<SortCol | null>(null);
+  const [sortDir,      setSortDir]      = useState<"asc" | "desc">("desc");
+  // loadTick increments on every explicit reload request (Refresh button, Apply).
+  const [loadTick, setLoadTick] = useState(0);
 
-  // Load token list for filter dropdown
+  // Custom range validation.
+  const sinceOk = isValidDatetime(customSince);
+  const untilOk = !customUntil || isValidDatetime(customUntil);
+  const untilBeforeSince = sinceOk && isValidDatetime(customUntil)
+    && new Date(normalizeDt(customUntil)) <= new Date(normalizeDt(customSince));
+  const canApplyCustom = sinceOk;
+
+  // On Apply: clear whichever field(s) fail validation, then load if both are ok.
+  const applyCustomRange = () => {
+    if (!sinceOk)        { setCustomSince(""); return; }
+    if (!untilOk)        { setCustomUntil(""); return; }
+    if (untilBeforeSince){ setCustomUntil(""); return; }
+    setAppliedSince(customSince);
+    setAppliedUntil(customUntil);
+    setOffset(0);
+    setLoadTick(t => t + 1);
+  };
+
+  // Sync type filter when navigated here from a stats bar chip.
+  useEffect(() => {
+    if (initialTypeFilter !== undefined) {
+      setTypeFilter((initialTypeFilter as ActivityEventType) || "all");
+      setOffset(0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTypeFilter]);
+
   useEffect(() => {
     api.tokens.list().then(setTokens).catch(() => {});
   }, []);
 
-  const load = useCallback(() => {
+  // Single load effect - all dependencies listed directly; no useCallback chain.
+  useEffect(() => {
     setLoading(true);
     setError(null);
-    const params: Parameters<typeof api.activity.list>[0] = {
-      offset,
-      limit: PAGE_LIMIT,
-    };
-    const since = range === "custom" ? customSince : sinceForRange(range);
-    if (since) params.since = since;
-    if (range === "custom" && customUntil) params.until = customUntil;
+    const params: Parameters<typeof api.activity.list>[0] = { offset, limit: PAGE_LIMIT };
+    if (range === "custom") {
+      if (appliedSince) {
+        params.since = new Date(normalizeDt(appliedSince)).toISOString();
+        if (appliedUntil) params.until = new Date(normalizeDt(appliedUntil)).toISOString();
+      }
+    } else {
+      const s = sinceForRange(range);
+      if (s) params.since = s;
+    }
     if (tokenFilter !== "all") params.token_id = tokenFilter;
     if (typeFilter  !== "all") params.event_type = typeFilter;
-
     api.activity.list(params)
-      .then(setPage)
+      .then(p => { setPage(p); setExpanded(null); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [offset, range, customSince, customUntil, tokenFilter, typeFilter]);
+  // loadTick ensures Apply and Refresh force a reload even when no other dep changed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offset, range, appliedSince, appliedUntil, tokenFilter, typeFilter, loadTick]);
 
-  useEffect(() => { load(); }, [load]);
-
-  // Reset offset when filters change
   const resetOffset = () => setOffset(0);
 
-  const exportUrl = (() => {
-    const p: Record<string, string> = {};
-    const since = range === "custom" ? customSince : sinceForRange(range);
-    if (since) p.since = since;
-    if (range === "custom" && customUntil) p.until = customUntil;
-    if (tokenFilter !== "all") p.token_id = tokenFilter;
-    if (typeFilter  !== "all") p.event_type = typeFilter;
-    return api.activity.exportCsvUrl(p);
-  })();
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const p: Record<string, string> = {};
+      const since = range === "custom" ? customSince : sinceForRange(range);
+      if (since) p.since = since;
+      if (range === "custom" && customUntil) p.until = customUntil;
+      if (tokenFilter !== "all") p.token_id = tokenFilter;
+      if (typeFilter  !== "all") p.event_type = typeFilter;
+      await api.activity.exportCsv(p);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Client-side sort of the current page
+  const sortedEvents: ActivityEvent[] = page ? [...page.events].sort((a, b) => {
+    if (!sortCol) return 0;
+    const factor = sortDir === "asc" ? 1 : -1;
+    let av = "", bv = "";
+    if (sortCol === "time")   { av = a.timestamp; bv = b.timestamp; }
+    if (sortCol === "type")   { av = a.type; bv = b.type; }
+    if (sortCol === "token")  { av = a.token_label || a.token_id || ""; bv = b.token_label || b.token_id || ""; }
+    if (sortCol === "origin") { av = a.origin || ""; bv = b.origin || ""; }
+    if (sortCol === "entity") { av = a.entity_id || ""; bv = b.entity_id || ""; }
+    return av < bv ? -factor : av > bv ? factor : 0;
+  }) : [];
 
   const totalPages = page ? Math.max(1, Math.ceil(page.total / PAGE_LIMIT)) : 1;
   const currentPage = Math.floor(offset / PAGE_LIMIT);
 
-  const inputStyle: React.CSSProperties = {
-    padding: "6px 10px",
-    border: "1px solid var(--divider-color,#e0e0e0)",
-    borderRadius: 6,
-    fontSize: 13,
-    background: "var(--primary-background-color,#fff)",
-    color: "var(--primary-text-color,#212121)",
-  };
-
   return (
-    <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12, height: "100%", boxSizing: "border-box" }}>
+    <div className="hrv-page-sm">
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+      <div className="hrv-activity-filters">
         <select
           value={range}
           onChange={e => { setRange(e.target.value as DateRange); resetOffset(); }}
-          style={inputStyle}
+          className="hrv-select-sm"
           aria-label="Date range"
         >
           {DATE_RANGE_OPTIONS.map(o => (
@@ -207,24 +363,50 @@ export function ActivityLog() {
             <input
               type="datetime-local"
               value={customSince}
-              onChange={e => { setCustomSince(e.target.value); resetOffset(); }}
-              style={inputStyle}
+              onChange={e => setCustomSince(e.target.value)}
+              className="hrv-input-sm"
+              style={{ borderColor: customSince && !sinceOk ? "#e53935" : undefined }}
               aria-label="From"
             />
             <input
               type="datetime-local"
               value={customUntil}
-              onChange={e => { setCustomUntil(e.target.value); resetOffset(); }}
-              style={inputStyle}
+              onChange={e => setCustomUntil(e.target.value)}
+              className="hrv-input-sm"
+              style={{ borderColor: (untilBeforeSince || (customUntil && !untilOk)) ? "#e53935" : undefined }}
               aria-label="To"
             />
+            <button
+              onClick={applyCustomRange}
+              disabled={!canApplyCustom}
+              className="hrv-btn-sm"
+            >
+              Apply
+            </button>
+            {untilBeforeSince && (
+              <span style={{ fontSize: 12, color: "#e53935", fontWeight: 500, alignSelf: "center" }}>
+                End must be after start.
+              </span>
+            )}
           </>
         )}
+
+        {/* TYPE filter before TOKEN filter */}
+        <select
+          value={typeFilter}
+          onChange={e => { setTypeFilter(e.target.value as ActivityEventType | "all"); resetOffset(); }}
+          className="hrv-select-sm"
+          aria-label="Filter by event type"
+        >
+          {EVENT_TYPE_OPTIONS.map(t => (
+            <option key={t} value={t}>{t === "all" ? "All types" : t}</option>
+          ))}
+        </select>
 
         <select
           value={tokenFilter}
           onChange={e => { setTokenFilter(e.target.value); resetOffset(); }}
-          style={inputStyle}
+          className="hrv-select-sm"
           aria-label="Filter by token"
         >
           <option value="all">All tokens</option>
@@ -233,34 +415,20 @@ export function ActivityLog() {
           ))}
         </select>
 
-        <select
-          value={typeFilter}
-          onChange={e => { setTypeFilter(e.target.value as ActivityEventType | "all"); resetOffset(); }}
-          style={inputStyle}
-          aria-label="Filter by event type"
+        <button
+          onClick={() => setLoadTick(t => t + 1)}
+          className="hrv-btn-sm"
+          title="Refresh"
         >
-          {EVENT_TYPE_OPTIONS.map(t => (
-            <option key={t} value={t}>{t === "all" ? "All types" : t}</option>
-          ))}
-        </select>
-
-        <a
-          href={exportUrl}
-          download="harvest_activity.csv"
-          style={{
-            padding: "6px 14px",
-            border: "1px solid var(--divider-color,#e0e0e0)",
-            borderRadius: 6,
-            fontSize: 13,
-            background: "var(--primary-background-color,#fff)",
-            color: "var(--primary-text-color,#212121)",
-            fontWeight: 500,
-            textDecoration: "none",
-            whiteSpace: "nowrap",
-          }}
+          Refresh
+        </button>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="hrv-btn-sm"
         >
-          Export CSV
-        </a>
+          {exporting ? "Exporting..." : "Export CSV"}
+        </button>
       </div>
 
       {/* Table */}
@@ -274,23 +442,26 @@ export function ActivityLog() {
             No events found for the selected filters.
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table className="hrv-activity-table">
             <thead>
-              <tr style={{ borderBottom: "2px solid var(--divider-color,#e0e0e0)" }}>
-                {["Time", "Type", "Token", "Origin", "Entity"].map(h => (
-                  <th key={h} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 600, fontSize: 12, color: "var(--secondary-text-color,#616161)", whiteSpace: "nowrap" }}>
-                    {h}
-                  </th>
-                ))}
+              <tr>
+                <th style={{ width: 32 }} />
+                <SortableTh col="time"   label="Time"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh col="type"   label="Type"   sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh col="token"  label="Token"  sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh col="origin" label="Origin" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh col="entity" label="Entity" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
               </tr>
             </thead>
             <tbody>
-              {page.events.map((ev: ActivityEvent) => (
+              {sortedEvents.map((ev: ActivityEvent) => (
                 <EventRow
                   key={ev.id}
                   event={ev}
                   expanded={expanded === ev.id}
                   onToggle={() => setExpanded(expanded === ev.id ? null : ev.id)}
+                  onSelectToken={onSelectToken}
+                  tokenInfo={ev.token_id ? tokens.find(t => t.token_id === ev.token_id) : undefined}
                 />
               ))}
             </tbody>
@@ -307,7 +478,7 @@ export function ActivityLog() {
           <button
             disabled={offset === 0}
             onClick={() => setOffset(Math.max(0, offset - PAGE_LIMIT))}
-            style={{ padding: "5px 12px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 6, background: "none", cursor: "pointer", fontSize: 13 }}
+            className="hrv-btn-sm"
           >
             Prev
           </button>
@@ -315,7 +486,7 @@ export function ActivityLog() {
           <button
             disabled={offset + PAGE_LIMIT >= page.total}
             onClick={() => setOffset(offset + PAGE_LIMIT)}
-            style={{ padding: "5px 12px", border: "1px solid var(--divider-color,#e0e0e0)", borderRadius: 6, background: "none", cursor: "pointer", fontSize: 13 }}
+            className="hrv-btn-sm"
           >
             Next
           </button>

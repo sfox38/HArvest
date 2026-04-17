@@ -200,6 +200,7 @@ class HarvestWsView(HomeAssistantView):
                 result="failed",
                 error_code=error_code,
                 timestamp=datetime.now(tz=timezone.utc),
+                referer=referer,
             ))
             self._event_bus.auth_failure(token_id or None, origin, error_code)
             if error_code == ERR_ENTITY_NOT_IN_TOKEN or error_code == ERR_ENTITY_INCOMPATIBLE:
@@ -228,6 +229,7 @@ class HarvestWsView(HomeAssistantView):
                 token=token,
                 origin=origin,
                 referer=referer,
+                source_ip=source_ip,
                 ws=ws,
                 entity_ids=real_entity_ids,
             )
@@ -260,6 +262,7 @@ class HarvestWsView(HomeAssistantView):
             result="ok",
             error_code=None,
             timestamp=datetime.now(tz=timezone.utc),
+            referer=referer,
         ))
         self._event_bus.session_connected(session.session_id, token.token_id, origin)
         self._activity_store.record_session(SessionEvent(
@@ -269,6 +272,7 @@ class HarvestWsView(HomeAssistantView):
             source_ip=source_ip,
             event_type="connected",
             timestamp=datetime.now(tz=timezone.utc),
+            referer=referer,
         ))
 
         # Send initial interleaved entity_definition + state_update.
@@ -300,6 +304,7 @@ class HarvestWsView(HomeAssistantView):
                 source_ip=source_ip,
                 event_type="disconnected",
                 timestamp=datetime.now(tz=timezone.utc),
+                referer=referer,
             ))
 
     async def _send_initial_state(
@@ -727,7 +732,12 @@ class HarvestWsView(HomeAssistantView):
         # Push rate limit per (session, entity).
         push_rate = token.rate_limits.max_push_per_second
         if not self._rate_limiter.check_push(session.session_id, entity_id, push_rate):
-            return  # drop this update; latest state will be sent when bucket refills
+            # Schedule a deferred push so the widget always converges to the
+            # latest state even when intermediate updates are rate-limited.
+            asyncio.ensure_future(
+                self._deferred_state_push(ws, entity_id, outgoing_ids.get(entity_id, entity_id), token, session)
+            )
+            return
 
         outgoing_id = outgoing_ids.get(entity_id, entity_id)
         update = self._build_state_update_message(
@@ -739,6 +749,38 @@ class HarvestWsView(HomeAssistantView):
             session=session,
         )
         asyncio.ensure_future(ws.send_json(update))
+
+    async def _deferred_state_push(
+        self,
+        ws: WebSocketResponse,
+        entity_id: str,
+        outgoing_id: str,
+        token: Token,
+        session: Session,
+    ) -> None:
+        """Push the current HA state for entity_id after a 1-second delay.
+
+        Called when a state update was rate-limited. Ensures the widget
+        converges to the final state even when intermediate updates are dropped.
+        """
+        await asyncio.sleep(1.0)
+        if ws.closed:
+            return
+        state = self._hass.states.get(entity_id)
+        if state is None:
+            return
+        update = self._build_state_update_message(
+            real_id=entity_id,
+            outgoing_id=outgoing_id,
+            state=state,
+            token=token,
+            is_initial=False,
+            session=session,
+        )
+        try:
+            await ws.send_json(update)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Message builders

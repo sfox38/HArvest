@@ -6,7 +6,7 @@
  * Clicking a token card opens the TokenDetail inline view.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Token, TokenStatus } from "../types";
 import { api } from "../api";
 import { StatusBadge, ConfirmDialog, EmptyState, Spinner, ErrorBanner } from "./Shared";
@@ -76,34 +76,16 @@ interface TokenCardProps {
 }
 
 function TokenCard({ token: t, onSelect, onRevoke, onDelete, onDuplicate, highlighted }: TokenCardProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpen]);
-
   const archived = isArchived(t);
 
   return (
     <div
+      className="hrv-token-card"
       style={{
-        background: "var(--primary-background-color,#fff)",
-        borderRadius: 10,
         boxShadow: highlighted
           ? "0 0 0 2px var(--primary-color,#6200ea)"
           : "0 1px 3px rgba(0,0,0,0.1)",
-        padding: "14px 16px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
         opacity: archived ? 0.75 : 1,
-        transition: "box-shadow 200ms",
       }}
     >
       {/* Row 1: label + status */}
@@ -135,87 +117,17 @@ function TokenCard({ token: t, onSelect, onRevoke, onDelete, onDuplicate, highli
         </span>
 
         {!archived && (
-          <button
-            onClick={onSelect}
-            style={btnStyle()}
-          >
-            Edit
-          </button>
+          <button onClick={onSelect} className="hrv-btn-sm">Edit</button>
         )}
-        <button onClick={() => onDuplicate(t)} style={btnStyle()}>
-          Duplicate
-        </button>
+        <button onClick={() => onDuplicate(t)} className="hrv-btn-sm">Duplicate</button>
         {archived ? (
-          <button onClick={() => onDelete(t)} style={btnStyle(true)}>
-            Delete
-          </button>
+          <button onClick={() => onDelete(t)} className="hrv-btn-sm-danger">Delete</button>
         ) : (
-          <div style={{ position: "relative" }} ref={menuRef}>
-            <button
-              onClick={() => setMenuOpen(v => !v)}
-              aria-label="More actions"
-              aria-expanded={menuOpen}
-              style={{ ...btnStyle(), padding: "4px 10px" }}
-            >
-              ...
-            </button>
-            {menuOpen && (
-              <div
-                style={{
-                  position: "absolute",
-                  right: 0,
-                  bottom: "calc(100% + 4px)",
-                  background: "var(--primary-background-color,#fff)",
-                  border: "1px solid var(--divider-color,#e0e0e0)",
-                  borderRadius: 8,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  zIndex: 200,
-                  overflow: "hidden",
-                  minWidth: 160,
-                }}
-              >
-                {[
-                  { label: "Revoke", onClick: () => { onRevoke(t); setMenuOpen(false); }, danger: true },
-                ].map(({ label, onClick, danger }) => (
-                  <button
-                    key={label}
-                    onClick={onClick}
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "10px 16px",
-                      border: "none",
-                      background: "none",
-                      fontSize: 14,
-                      color: danger ? "#c62828" : "var(--primary-text-color,#212121)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <button onClick={() => onRevoke(t)} className="hrv-btn-sm-danger">Revoke</button>
         )}
       </div>
     </div>
   );
-}
-
-function btnStyle(danger = false): React.CSSProperties {
-  return {
-    padding: "4px 12px",
-    border: "1px solid var(--divider-color,#e0e0e0)",
-    borderRadius: 6,
-    background: "none",
-    color: danger ? "#c62828" : "var(--primary-text-color,#212121)",
-    fontSize: 12,
-    fontWeight: 500,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -238,9 +150,9 @@ function Paging({ total, page, pageSize, onPage, label }: PagingProps) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", fontSize: 13, color: "var(--secondary-text-color,#616161)" }}>
       <span style={{ flex: 1 }}>Showing {start}-{end} of {total} {label}</span>
-      <button onClick={() => onPage(page - 1)} disabled={page === 0} style={btnStyle()}>Prev</button>
+      <button onClick={() => onPage(page - 1)} disabled={page === 0} className="hrv-btn-sm">Prev</button>
       <span>Page {page + 1} of {totalPages}</span>
-      <button onClick={() => onPage(page + 1)} disabled={page >= totalPages - 1} style={btnStyle()}>Next</button>
+      <button onClick={() => onPage(page + 1)} disabled={page >= totalPages - 1} className="hrv-btn-sm">Next</button>
     </div>
   );
 }
@@ -268,16 +180,20 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
 
   useEffect(() => { load(); }, [load]);
 
-  // Handle initialTokenId prop from wizard close
+  // Handle initialTokenId prop - open the token detail and refresh the list
+  // so a newly-created token appears without requiring a manual browser reload.
   useEffect(() => {
     if (initialTokenId) {
+      load();
       setSelectedId(initialTokenId);
       onInitialTokenConsumed();
     }
-  }, [initialTokenId, onInitialTokenConsumed]);
+  }, [initialTokenId, onInitialTokenConsumed, load]);
 
   const filtered = tokens.filter(t => {
-    const matchSearch = !search || t.label.toLowerCase().includes(search.toLowerCase()) || t.token_id.includes(search);
+    // Search on label only. Token IDs are random base62 and would produce
+    // false positives for single-character queries.
+    const matchSearch = !search || t.label.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === "all" || t.status === filter;
     return matchSearch && matchFilter;
   });
@@ -307,11 +223,18 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
     } catch (e) { setError(String(e)); }
   }, [confirmDelete, load, selectedId]);
 
-  const handleDuplicate = useCallback((_t: Token) => {
-    // Duplicate opens the wizard; full pre-fill is a future improvement.
-    // For v1, just open the wizard.
-    onOpenWizard();
-  }, [onOpenWizard]);
+  const handleDuplicate = useCallback(async (t: Token) => {
+    try {
+      const newToken = await api.tokens.create({
+        label: `${t.label} (copy)`,
+        entities: t.entities,
+        origins: t.origins,
+        expires: t.expires ?? null,
+      });
+      load();
+      setSelectedId(newToken.token_id);
+    } catch (e) { setError(String(e)); }
+  }, [load]);
 
   if (selectedId) {
     return (
@@ -325,7 +248,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
   }
 
   return (
-    <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12, height: "100%", boxSizing: "border-box" }}>
+    <div className="hrv-page-sm">
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {/* Search + filter toolbar */}
@@ -335,50 +258,20 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           placeholder="Search tokens..."
           value={search}
           onChange={e => { setSearch(e.target.value); setActivePage(0); }}
-          style={{
-            flex: "1 1 200px",
-            padding: "8px 12px",
-            border: "1px solid var(--divider-color,#e0e0e0)",
-            borderRadius: 8,
-            fontSize: 14,
-            background: "var(--primary-background-color,#fff)",
-            color: "var(--primary-text-color,#212121)",
-          }}
+          className="hrv-input"
+          style={{ flex: "1 1 200px" }}
           aria-label="Search tokens"
         />
         <select
           value={filter}
           onChange={e => { setFilter(e.target.value as FilterOption); setActivePage(0); }}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid var(--divider-color,#e0e0e0)",
-            borderRadius: 8,
-            fontSize: 14,
-            background: "var(--primary-background-color,#fff)",
-            color: "var(--primary-text-color,#212121)",
-          }}
+          className="hrv-select"
           aria-label="Filter by status"
         >
           {FILTER_OPTIONS.map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        <button
-          onClick={onOpenWizard}
-          style={{
-            padding: "8px 18px",
-            border: "none",
-            borderRadius: 8,
-            background: "var(--primary-color,#6200ea)",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}
-        >
-          + Create
-        </button>
       </div>
 
       {loading ? (
@@ -392,7 +285,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           action={{ label: "+ Create Widget", onClick: onOpenWizard }}
         />
       ) : (
-        <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 8, paddingBottom: 80 }}>
           {/* Active tokens */}
           {activePaged.map(t => (
             <TokenCard

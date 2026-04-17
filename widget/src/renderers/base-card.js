@@ -18,7 +18,7 @@
  *   setAriaLabel()         - Set aria-label on an element.
  */
 
-import { renderIconSVG } from "../icons.js";
+import { renderIconSVG, resolveIcon as _resolveIcon, MDI_ICONS } from "../icons.js";
 import { getErrorStateStyles } from "../error-states.js";
 
 // ---------------------------------------------------------------------------
@@ -174,6 +174,27 @@ const CARD_BASE_CSS = /* css */`
   [part=stale-indicator] {
     display: none;
   }
+
+  /* Unavailable / unknown state overlay */
+  :host([data-harvest-avail=unavailable]) [part=card],
+  :host([data-harvest-avail=unknown]) [part=card] {
+    opacity: 0.5;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  :host([data-harvest-avail=unavailable]) [part=card]::after,
+  :host([data-harvest-avail=unknown]) [part=card]::after {
+    content: attr(data-avail-label);
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--hrv-font-size-xs);
+    color: var(--hrv-color-text-secondary);
+    pointer-events: none;
+  }
 `;
 
 // ---------------------------------------------------------------------------
@@ -255,6 +276,19 @@ export class BaseCard {
     const container = this.root.querySelector(`[part=${partName}]`);
     if (!container) return;
     container.innerHTML = renderIconSVG(iconName, `${partName}-svg`);
+  }
+
+  /**
+   * Return name if it exists in the MDI bundle, otherwise return fallback.
+   * Prevents the generic help-circle from showing when a custom HA icon name
+   * is not bundled.
+   *
+   * @param {string} name     - MDI icon name, e.g. "mdi:lightbulb-on-outline"
+   * @param {string} fallback - bundled fallback, e.g. "mdi:lightbulb"
+   * @returns {string}
+   */
+  resolveIcon(name, fallback) {
+    return _resolveIcon(name, fallback);
   }
 
   /**

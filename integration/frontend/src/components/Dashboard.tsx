@@ -76,15 +76,10 @@ function StatCard({ title, value, sub, accent = "var(--primary-color,#6200ea)", 
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(); } : undefined}
+      className="hrv-stat-card"
       style={{
-        background: "var(--primary-background-color,#fff)",
-        borderRadius: 12,
-        padding: "20px 24px",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
         cursor: onClick ? "pointer" : "default",
         borderTop: `3px solid ${accent}`,
-        minWidth: 140,
-        flex: "1 1 140px",
       }}
     >
       <div style={{ fontSize: 12, color: "var(--secondary-text-color,#616161)", marginBottom: 6, fontWeight: 500 }}>
@@ -253,19 +248,7 @@ function RecentActivity({ events, onViewAll }: RecentActivityProps) {
           </li>
         ))}
       </ul>
-      <button
-        onClick={onViewAll}
-        style={{
-          marginTop: 12,
-          background: "none",
-          border: "none",
-          color: "var(--primary-color,#6200ea)",
-          fontSize: 13,
-          fontWeight: 500,
-          cursor: "pointer",
-          padding: 0,
-        }}
-      >
+      <button onClick={onViewAll} className="hrv-btn-link" style={{ marginTop: 12 }}>
         View all activity
       </button>
     </div>
@@ -313,42 +296,23 @@ export function Dashboard({ onOpenWizard, onNavigate }: DashboardProps) {
   }
 
   return (
-    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="hrv-page">
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {/* Stat cards row */}
       {stats && (
         <section aria-label="Statistics">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-            <StatCard
-              title="Active sessions"
-              value={stats.active_sessions}
-              accent="#1e88e5"
-              onClick={() => onNavigate("tokens")}
-            />
-            <StatCard
-              title="Active tokens"
-              value={stats.active_tokens}
-              accent="#43a047"
-              onClick={() => onNavigate("tokens")}
-            />
-            <StatCard
-              title="Commands today"
-              value={stats.commands_today}
-              accent="#fb8c00"
-              onClick={() => onNavigate("activity")}
-            />
+          <div className="hrv-stat-row">
+            <StatCard title="Active sessions" value={stats.active_sessions} accent="#1e88e5" onClick={() => onNavigate("tokens")} />
+            <StatCard title="Active tokens"   value={stats.active_tokens}   accent="#43a047" onClick={() => onNavigate("tokens")} />
+            <StatCard title="Commands today"  value={stats.commands_today}  accent="#fb8c00" onClick={() => onNavigate("activity")} />
             <StatCard
               title="Errors today"
               value={stats.errors_today}
               accent={stats.errors_today > 0 ? "#e53935" : "#9e9e9e"}
               onClick={() => onNavigate("activity")}
             />
-            <StatCard
-              title="Database size"
-              value={fmtBytes(stats.db_size_bytes)}
-              accent="#8e24aa"
-            />
+            <StatCard title="Database size" value={fmtBytes(stats.db_size_bytes)} accent="#8e24aa" />
             <StatCard
               title="Status"
               value={stats.is_running ? "Running" : "Stopped"}
@@ -359,15 +323,7 @@ export function Dashboard({ onOpenWizard, onNavigate }: DashboardProps) {
       )}
 
       {/* 24-hour graph */}
-      <section
-        aria-label="24-hour activity"
-        style={{
-          background: "var(--primary-background-color,#fff)",
-          borderRadius: 12,
-          padding: 20,
-          boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-        }}
-      >
+      <section aria-label="24-hour activity" className="hrv-section-card">
         <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--primary-text-color,#212121)", marginBottom: 16 }}>
           Activity - last 24 hours
         </h2>
@@ -377,16 +333,7 @@ export function Dashboard({ onOpenWizard, onNavigate }: DashboardProps) {
       {/* Recent activity + quick actions */}
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
         {/* Recent activity */}
-        <section
-          aria-label="Recent activity"
-          style={{
-            flex: "2 1 320px",
-            background: "var(--primary-background-color,#fff)",
-            borderRadius: 12,
-            padding: 20,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-          }}
-        >
+        <section aria-label="Recent activity" className="hrv-section-card" style={{ flex: "2 1 320px" }}>
           <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--primary-text-color,#212121)", marginBottom: 12 }}>
             Recent activity
           </h2>
@@ -396,21 +343,16 @@ export function Dashboard({ onOpenWizard, onNavigate }: DashboardProps) {
         {/* Quick actions */}
         <section
           aria-label="Quick actions"
-          style={{
-            flex: "1 1 200px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
+          style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 12 }}
         >
           <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--primary-text-color,#212121)" }}>
             Quick actions
           </h2>
           {[
-            { label: "Create Widget", onClick: onOpenWizard, primary: true },
-            { label: "Manage Tokens", onClick: () => onNavigate("tokens"), primary: false },
-            { label: "View Activity",  onClick: () => onNavigate("activity"), primary: false },
-            { label: "Settings",       onClick: () => onNavigate("settings"), primary: false },
+            { label: "Create Widget", onClick: onOpenWizard,                      primary: true  },
+            { label: "Manage Tokens", onClick: () => onNavigate("tokens"),        primary: false },
+            { label: "View Activity", onClick: () => onNavigate("activity"),      primary: false },
+            { label: "Settings",      onClick: () => onNavigate("settings"),      primary: false },
           ].map(({ label, onClick, primary }) => (
             <button
               key={label}

@@ -37,7 +37,6 @@ const buildOptions = {
   bundle:      true,
   minify:      true,
   format:      "iife",
-  globalName:  "HArvest",
   target:      ["es2020"],
   charset:     "utf8",
   // Tree-shake unused renderer exports.
