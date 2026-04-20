@@ -45,6 +45,7 @@ CONF_TRUSTED_PROXIES = "trusted_proxies"
 CONF_DEFAULT_RATE_LIMITS = "default_rate_limits"
 CONF_DEFAULT_SESSION = "default_session"
 CONF_HA_EVENT_BUS = "ha_event_bus"
+CONF_OVERRIDE_HOST = "override_host"
 
 # Default values matching SPEC.md Section 19
 DEFAULTS: dict[str, object] = {
@@ -83,6 +84,8 @@ DEFAULTS: dict[str, object] = {
         "harvest_session_connected": False,
         "harvest_auth_failure": False,
     },
+    # Empty string means no override; wizard uses window.location.origin.
+    CONF_OVERRIDE_HOST: "",
 }
 
 # Attribute denylist - keys containing these strings are stripped from state_updates.

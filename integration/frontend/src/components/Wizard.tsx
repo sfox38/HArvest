@@ -673,11 +673,12 @@ function validateLabelWiz(label: string, otherLabels: string[]): string | null {
   return null;
 }
 
-function Step6({ token, tokenSecret, originMode, originUrl }: {
+function Step6({ token, tokenSecret, originMode, originUrl, overrideHost }: {
   token: Token;
   tokenSecret: string | null;
   originMode: "specific" | "any";
   originUrl: string;
+  overrideHost: string;
 }) {
   const [useAliases,   setUseAliases]   = useState(false);
   const [tab,          setTab]          = useState<"web" | "wordpress">("web");
@@ -693,7 +694,7 @@ function Step6({ token, tokenSecret, originMode, originUrl }: {
     }).catch(() => {});
   }, [token.token_id]);
 
-  const haUrl = window.location.origin;
+  const haUrl = overrideHost || window.location.origin;
   const cardSnippet = tab === "web"
     ? buildCardSnippet(token, useAliases, haUrl)
     : buildWordPressSnippet(token, useAliases, haUrl);
@@ -827,12 +828,17 @@ function freshState(): WizardState {
 }
 
 export function Wizard({ onClose }: WizardProps) {
-  const [step,    setStep]    = useState(1);
-  const [wState,  setWState]  = useState<WizardState>(freshState);
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+  const [step,         setStep]         = useState(1);
+  const [wState,       setWState]       = useState<WizardState>(freshState);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [overrideHost, setOverrideHost] = useState("");
   const previewRevoked = useRef(false);
+
+  useEffect(() => {
+    api.config.get().then(c => setOverrideHost(c.override_host || "")).catch(() => {});
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -983,6 +989,7 @@ export function Wizard({ onClose }: WizardProps) {
               tokenSecret={wState.tokenSecret}
               originMode={wState.originMode}
               originUrl={wState.originUrls[0] ?? ""}
+              overrideHost={overrideHost}
             />
           )}
         </div>

@@ -98,6 +98,89 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
 }
 
 // ---------------------------------------------------------------------------
+// TextField
+// ---------------------------------------------------------------------------
+
+interface TextFieldProps {
+  label: string;
+  value: string;
+  placeholder?: string;
+  hint?: string;
+  validate?: (v: string) => string | null;
+  onChange: (v: string) => Promise<void>;
+}
+
+function TextField({ label, value: initial, placeholder, hint, validate, onChange }: TextFieldProps) {
+  const [localVal,  setLocalVal]  = useState(initial);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [errMsg,    setErrMsg]    = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { setLocalVal(initial); }, [initial]);
+
+  const commit = useCallback(async (raw: string) => {
+    const err = validate?.(raw.trim()) ?? null;
+    if (err) { setSaveState("error"); setErrMsg(err); return; }
+    setSaveState("saving");
+    setErrMsg("");
+    try {
+      await onChange(raw.trim());
+      setSaveState("idle");
+    } catch (e) {
+      setSaveState("error");
+      setErrMsg(String(e));
+    }
+  }, [onChange, validate]);
+
+  const handleChange = (v: string) => {
+    setLocalVal(v);
+    setSaveState("idle");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => commit(v), 500);
+  };
+
+  return (
+    <div className="kv" style={{ paddingBottom: 8 }}>
+      <dt>
+        {label}
+        {hint && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{hint}</div>}
+      </dt>
+      <dd>
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <input
+            type="text"
+            value={localVal}
+            placeholder={placeholder}
+            onChange={e => handleChange(e.target.value)}
+            onBlur={() => commit(localVal)}
+            className="input"
+            style={{ width: "100%", borderColor: saveState === "error" ? "var(--danger)" : undefined }}
+          />
+          {saveState === "saving" && (
+            <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
+          )}
+        </div>
+        {saveState === "error" && errMsg && (
+          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+        )}
+      </dd>
+    </div>
+  );
+}
+
+function validateOverrideHost(v: string): string | null {
+  if (!v) return null;
+  try {
+    const u = new URL(v);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "Must use http:// or https://";
+    if (u.pathname !== "/" || u.search || u.hash) return "Must be a bare origin with no path (e.g. https://ha.example.com)";
+    return null;
+  } catch {
+    return "Must be a valid URL (e.g. https://ha.example.com)";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // ToggleField
 // ---------------------------------------------------------------------------
 
@@ -250,6 +333,14 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
             onChange={patchNum("max_auth_attempts_per_token_per_minute")} />
           <NumberField label="Max auth attempts per IP / min" value={config.max_auth_attempts_per_ip_per_minute} suffix="/ min" min={1}
             onChange={patchNum("max_auth_attempts_per_ip_per_minute")} />
+          <TextField
+            label="Override host"
+            value={config.override_host}
+            placeholder="https://ha.example.com"
+            hint="When set, the widget wizard uses this URL instead of the current browser host when generating code snippets."
+            validate={validateOverrideHost}
+            onChange={v => patch({ override_host: v })}
+          />
         </dl>
       </Card>
 

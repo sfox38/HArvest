@@ -731,6 +731,24 @@ class HarvestConfigView(HomeAssistantView):
         filtered = {k: v for k, v in body.items() if k in allowed_keys}
         if not filtered:
             raise web.HTTPBadRequest(reason="No valid config keys in body.")
+        # Validate override_host when present: must be empty or a bare http(s) origin.
+        if "override_host" in filtered:
+            val = str(filtered.get("override_host", "") or "")
+            if val:
+                from urllib.parse import urlparse
+                try:
+                    parsed = urlparse(val)
+                except Exception:
+                    raise web.HTTPBadRequest(reason="override_host: invalid URL.")
+                if parsed.scheme not in ("http", "https"):
+                    raise web.HTTPBadRequest(reason="override_host: must use http or https scheme.")
+                if not parsed.netloc:
+                    raise web.HTTPBadRequest(reason="override_host: must include a host.")
+                if parsed.path not in ("", "/"):
+                    raise web.HTTPBadRequest(reason="override_host: must be a bare origin with no path.")
+                if parsed.query or parsed.fragment:
+                    raise web.HTTPBadRequest(reason="override_host: must be a bare origin with no query or fragment.")
+                filtered["override_host"] = f"{parsed.scheme}://{parsed.netloc}"
         # Deep-merge the incoming partial update over the current full config.
         current = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
         updated = _deep_merge(current, filtered)
