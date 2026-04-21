@@ -180,6 +180,18 @@ function validateOverrideHost(v: string): string | null {
   }
 }
 
+function validateWidgetScriptUrl(v: string): string | null {
+  if (!v) return null;
+  if (v.startsWith("/")) return null;
+  try {
+    const u = new URL(v);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "Must be a path (e.g. /harvest.min.js) or a full https:// URL";
+    return null;
+  } catch {
+    return "Must be a path (e.g. /harvest.min.js) or a full https:// URL";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // ToggleField
 // ---------------------------------------------------------------------------
@@ -326,7 +338,7 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
       <Card
         title={<span className="row" style={{ gap: 8 }}><Icon name="shield" size={14} /> Security</span>}
       >
-        <dl className="kv">
+        <dl>
           <NumberField label="Max entities per widget" value={config.max_entities_per_token} min={1} max={250}
             onChange={patchNum("max_entities_per_token")} />
           <NumberField label="Max auth attempts per widget / min" value={config.max_auth_attempts_per_token_per_minute} suffix="/ min" min={1}
@@ -341,6 +353,14 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
             validate={validateOverrideHost}
             onChange={v => patch({ override_host: v })}
           />
+          <TextField
+            label="Widget script URL"
+            value={config.widget_script_url}
+            placeholder="https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js"
+            hint="Custom URL for the widget JS. Accepts a full URL or a path (e.g. /js/harvest.min.js). Leave blank to use the default CDN."
+            validate={validateWidgetScriptUrl}
+            onChange={v => patch({ widget_script_url: v })}
+          />
         </dl>
       </Card>
 
@@ -348,7 +368,7 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
       <Card
         title={<span className="row" style={{ gap: 8 }}><Icon name="plug" size={14} /> Sessions</span>}
       >
-        <dl className="kv">
+        <dl>
           <NumberField label="Default session lifetime" value={config.default_session.lifetime_minutes} suffix="minutes" min={1}
             onChange={patchDefaultSession("lifetime_minutes")} />
           <NumberField label="Max session lifetime" value={config.default_session.max_lifetime_minutes} suffix="minutes" min={1}
@@ -363,7 +383,7 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
       <Card
         title={<span className="row" style={{ gap: 8 }}><Icon name="bolt" size={14} /> Performance</span>}
       >
-        <dl className="kv">
+        <dl>
           <NumberField label="Auth timeout" value={config.auth_timeout_seconds} suffix="seconds" min={1} max={60}
             onChange={patchNum("auth_timeout_seconds")} />
           <NumberField label="Keepalive interval" value={config.keepalive_interval_seconds} suffix="seconds" min={5} max={300}
@@ -379,7 +399,7 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
       <Card
         title={<span className="row" style={{ gap: 8 }}><Icon name="database" size={14} /> Activity log</span>}
       >
-        <dl className="kv">
+        <dl>
           <NumberField label="Retention" value={config.activity_log_retention_days} suffix="days" min={1} max={365}
             onChange={patchNum("activity_log_retention_days")} />
         </dl>

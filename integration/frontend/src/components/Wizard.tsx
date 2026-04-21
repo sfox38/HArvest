@@ -68,7 +68,7 @@ interface WizardProps {
 // ---------------------------------------------------------------------------
 
 const TOTAL_STEPS = 6;
-const WIDGET_SCRIPT = `<script src="https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js"></script>`;
+const DEFAULT_WIDGET_SCRIPT_URL = "https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js";
 const STEP_LABELS = ["Entities", "Permissions", "Origin", "Expiry", "Appearance", "Done"];
 
 // ---------------------------------------------------------------------------
@@ -768,7 +768,7 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost }: {
                 <div className="muted" style={{ fontSize: 12 }}>Add once to your page's &lt;head&gt;.</div>
               </div>
             </div>
-            <CopyablePre text={WIDGET_SCRIPT} label="Copy script" />
+            <CopyablePre text={`<script src="${widgetScriptUrl.trim() || DEFAULT_WIDGET_SCRIPT_URL}"></script>`} label="Copy script" />
           </div>
 
           {/* Step 2: card snippet */}
@@ -833,11 +833,15 @@ export function Wizard({ onClose }: WizardProps) {
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
-  const [overrideHost, setOverrideHost] = useState("");
+  const [overrideHost,    setOverrideHost]    = useState("");
+  const [widgetScriptUrl, setWidgetScriptUrl] = useState("");
   const previewRevoked = useRef(false);
 
   useEffect(() => {
-    api.config.get().then(c => setOverrideHost(c.override_host || "")).catch(() => {});
+    api.config.get().then(c => {
+      setOverrideHost(c.override_host || "");
+      setWidgetScriptUrl(c.widget_script_url || "");
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

@@ -40,7 +40,7 @@ def register_views(
     activity_store: ActivityStore,
     action_manager: HarvestActionManager,
     sensors: DiagnosticSensors,
-    event_bus: EventBus,
+    event_bus: EventBus | None = None,
 ) -> None:
     """Register all HTTP API views with HA's HTTP server.
 
@@ -83,7 +83,7 @@ def _session_to_dict(session) -> dict:
     """Serialise a Session to a JSON-safe dict (no WebSocket reference)."""
     return {
         "session_id": session.session_id,
-        "widget_token_id": session.token_id,
+        "token_id": session.token_id,
         "token_version": session.token_version,
         "issued_at": session.issued_at.isoformat(),
         "expires_at": session.expires_at.isoformat(),
@@ -98,16 +98,13 @@ def _session_to_dict(session) -> dict:
 
 
 def _parse_dt(value: Any) -> datetime | None:
-    """Parse an ISO 8601 datetime string to a timezone-aware datetime, or None if empty.
-
-    Raises ValueError on non-empty values that cannot be parsed.
-    """
+    """Parse an ISO 8601 datetime string to a timezone-aware datetime, or None if empty/invalid."""
     if not value:
         return None
     try:
         dt = datetime.fromisoformat(str(value))
     except (ValueError, TypeError):
-        raise ValueError(f"Invalid datetime: {value!r}")
+        return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
@@ -516,7 +513,7 @@ class HarvestActivityView(HomeAssistantView):
     name = "api:harvest:activity"
     requires_auth = True
 
-    def __init__(self, activity_store: ActivityStore, token_manager: TokenManager) -> None:
+    def __init__(self, activity_store: ActivityStore, token_manager: TokenManager | None = None) -> None:
         self._activity_store = activity_store
         self._token_manager = token_manager
 
@@ -545,9 +542,9 @@ class HarvestActivityView(HomeAssistantView):
         )
 
         # Enrich events with token labels (friendly names).
-        label_map = {t.token_id: t.label for t in self._token_manager.get_all()}
+        label_map = {t.token_id: t.label for t in self._token_manager.get_all()} if self._token_manager else {}
         for ev in events:
-            if ev["token_id"]:
+            if ev.get("token_id"):
                 ev["token_label"] = label_map.get(ev["token_id"])
 
         return self.json({"events": events, "total": total, "limit": limit, "offset": offset})
@@ -701,7 +698,7 @@ class HarvestConfigView(HomeAssistantView):
         from .const import DOMAIN, DEFAULTS
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
-            return self.json(DEFAULTS)
+            return self.json({})
         entry = entries[0]
         # Deep-merge stored values over defaults so nested objects like
         # default_session are always fully populated even after partial saves.
@@ -749,6 +746,19 @@ class HarvestConfigView(HomeAssistantView):
                 if parsed.query or parsed.fragment:
                     raise web.HTTPBadRequest(reason="override_host: must be a bare origin with no query or fragment.")
                 filtered["override_host"] = f"{parsed.scheme}://{parsed.netloc}"
+        # Validate widget_script_url: empty, a path, or a full http(s) URL.
+        if "widget_script_url" in filtered:
+            val = str(filtered.get("widget_script_url", "") or "")
+            if val and not val.startswith("/"):
+                from urllib.parse import urlparse as _urlparse2
+                try:
+                    p2 = _urlparse2(val)
+                    if p2.scheme not in ("http", "https") or not p2.netloc:
+                        raise web.HTTPBadRequest(reason="widget_script_url: must be a path (e.g. /harvest.min.js) or full http(s) URL.")
+                except web.HTTPBadRequest:
+                    raise
+                except Exception:
+                    raise web.HTTPBadRequest(reason="widget_script_url: invalid value.")
         # Deep-merge the incoming partial update over the current full config.
         current = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
         updated = _deep_merge(current, filtered)

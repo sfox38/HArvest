@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 FEATURE_FLAGS: dict[str, dict[int, str]] = {
     "light": {
         1: "brightness", 2: "color_temp", 4: "effect",
-        16: "flash", 32: "transition", 128: "rgb_color", 1024: "white_value",
+        16: "flash", 32: "transition", 64: "transition", 128: "rgb_color", 1024: "white_value",
     },
     "fan": {1: "set_speed", 2: "oscillate", 4: "direction"},
     "cover": {4: "set_position", 128: "set_tilt_position", 8: "stop"},
@@ -325,16 +325,10 @@ def build_feature_config(domain: str, state: State) -> dict:
             "min_brightness": 0,
             "max_brightness": 255,
         }
-        # Prefer Kelvin range (HA 2022.5+); fall back to converting from mireds.
-        # min_mireds = hottest/warmest = lowest Kelvin; max_mireds = coolest = highest Kelvin.
-        if "min_color_temp_kelvin" in attrs:
-            config["min_color_temp_kelvin"] = attrs["min_color_temp_kelvin"]
-        elif "max_mireds" in attrs:
-            config["min_color_temp_kelvin"] = round(1_000_000 / attrs["max_mireds"])
-        if "max_color_temp_kelvin" in attrs:
-            config["max_color_temp_kelvin"] = attrs["max_color_temp_kelvin"]
-        elif "min_mireds" in attrs:
-            config["max_color_temp_kelvin"] = round(1_000_000 / attrs["min_mireds"])
+        if "min_mireds" in attrs:
+            config["min_color_temp"] = attrs["min_mireds"]
+        if "max_mireds" in attrs:
+            config["max_color_temp"] = attrs["max_mireds"]
         return config
 
     if domain == "fan":

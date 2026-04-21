@@ -27,7 +27,12 @@ interface TokenDetailProps {
 // Code snippet builders (preserved from original)
 // ---------------------------------------------------------------------------
 
-const WIDGET_SCRIPT = `<script src="https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js"></script>`;
+const DEFAULT_WIDGET_SCRIPT_URL = "https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js";
+
+function buildWidgetScript(customUrl: string): string {
+  const url = customUrl.trim() || DEFAULT_WIDGET_SCRIPT_URL;
+  return `<script src="${url}"></script>`;
+}
 
 function buildCardSnippet(token: Token, useAliases: boolean, haUrl: string): string {
   const attrs = `ha-url="${haUrl}" token="${token.token_id}"`;
@@ -79,9 +84,19 @@ function validateLabel(label: string, otherLabels: string[]): string | null {
 // ---------------------------------------------------------------------------
 
 function CodeSection({ token }: { token: Token }) {
-  const [useAliases, setUseAliases] = useState(false);
-  const [tab, setTab] = useState<"web" | "wordpress">("web");
-  const haUrl = window.location.origin;
+  const [useAliases,      setUseAliases]      = useState(false);
+  const [tab,             setTab]             = useState<"web" | "wordpress">("web");
+  const [overrideHost,    setOverrideHost]    = useState("");
+  const [widgetScriptUrl, setWidgetScriptUrl] = useState("");
+
+  useEffect(() => {
+    api.config.get().then(c => {
+      setOverrideHost(c.override_host || "");
+      setWidgetScriptUrl(c.widget_script_url || "");
+    }).catch(() => {});
+  }, []);
+
+  const haUrl = overrideHost || window.location.origin;
 
   const cardSnippet = tab === "web"
     ? buildCardSnippet(token, useAliases, haUrl)
@@ -108,7 +123,7 @@ function CodeSection({ token }: { token: Token }) {
             </div>
           </div>
         </div>
-        <CopyablePre text={WIDGET_SCRIPT} label="Copy script" />
+        <CopyablePre text={buildWidgetScript(widgetScriptUrl)} label="Copy script" />
       </div>
 
       {/* Step 2 */}

@@ -780,9 +780,6 @@ class HarvestWsView(HomeAssistantView):
         # Push rate limit per (session, entity).
         push_rate = token.rate_limits.max_push_per_second
         if not self._rate_limiter.check_push(session.session_id, entity_id, push_rate):
-            # Schedule a deferred push so the widget always converges to the
-            # latest state even when intermediate updates are rate-limited.
-            _fire(self._deferred_state_push(ws, entity_id, outgoing_ids.get(entity_id, entity_id), token, session))
             return
 
         outgoing_id = outgoing_ids.get(entity_id, entity_id)

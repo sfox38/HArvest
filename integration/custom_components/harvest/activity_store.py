@@ -205,23 +205,21 @@ class ActivityStore:
             error_codes = [display_type_filter]
         include_lifecycle = display_type_filter in (None, "TOKEN_CREATED", "TOKEN_REVOKED", "TOKEN_DELETED")
 
-        # Extra WHERE for fine-grained auth result filtering.
-        auth_extra = ""
+        # Extra conditions for fine-grained auth result filtering.
+        auth_conds: list[str] = []
         if display_type_filter == "AUTH_OK":
-            auth_extra = " AND result = 'ok'"
+            auth_conds = ["result = 'ok'"]
         elif display_type_filter == "AUTH_FAIL":
-            auth_extra = " AND result = 'failed'"
-        elif display_type_filter == "RATE_LIMITED":
-            auth_extra = " AND result = 'rate_limited'"
-        elif display_type_filter == "SUSPICIOUS":
-            auth_extra = " AND result = 'rate_limited'"
+            auth_conds = ["result = 'failed'"]
+        elif display_type_filter in ("RATE_LIMITED", "SUSPICIOUS"):
+            auth_conds = ["result = 'rate_limited'"]
 
-        # Extra WHERE for session event type filtering.
-        session_extra = ""
+        # Extra conditions for session event type filtering.
+        sess_conds: list[str] = []
         if display_type_filter == "SESSION_END":
-            session_extra = " AND event_type IN ('disconnected', 'terminated')"
+            sess_conds = ["event_type IN ('disconnected', 'terminated')"]
         elif display_type_filter == "RENEWAL":
-            session_extra = " AND event_type = 'renewal'"
+            sess_conds = ["event_type = 'renewal'"]
 
         union_parts: list[str] = []
         params: list = []
@@ -230,11 +228,11 @@ class ActivityStore:
         until_ts = until.isoformat() if until else None
 
         if include_auth:
-            clause, p = _build_auth_clause(token_id, since_ts, until_ts)
+            clause, p = _build_auth_clause(token_id, since_ts, until_ts, auth_conds)
             union_parts.append(
                 "SELECT 'auth' AS raw_type, token_id, origin, source_ip, "
                 "NULL AS entity_id, NULL AS action, result, error_code, NULL AS session_id, timestamp, referer "
-                f"FROM auth_events{clause}{auth_extra}"
+                f"FROM auth_events{clause}"
             )
             params.extend(p)
 
@@ -248,12 +246,12 @@ class ActivityStore:
             params.extend(p)
 
         if include_session:
-            clause, p = _build_session_clause(token_id, since_ts, until_ts)
+            clause, p = _build_session_clause(token_id, since_ts, until_ts, sess_conds)
             union_parts.append(
                 "SELECT 'session' AS raw_type, token_id, origin, source_ip, "
                 "NULL AS entity_id, NULL AS action, event_type AS result, "
                 "NULL AS error_code, session_id, timestamp, referer "
-                f"FROM session_events{clause}{session_extra}"
+                f"FROM session_events{clause}"
             )
             params.extend(p)
 
@@ -326,7 +324,7 @@ class ActivityStore:
         (used as a proxy for peak sessions per hour).
         """
         if self._db is None:
-            return []
+            return {"hours": []}
 
         since = _hours_ago_iso(hours)
         token_filter = "AND token_id = ?" if token_id else ""
@@ -363,17 +361,18 @@ class ActivityStore:
 
         # Build all hour buckets in the requested window.
         all_hours = _hour_buckets(hours)
-        result = []
+        buckets = []
         for hour_str in all_hours:
             auth_ok, auth_fail = auth_rows.get(hour_str, (0, 0))
-            result.append({
+            buckets.append({
                 "hour": hour_str,
-                "commands": cmd_rows.get(hour_str, 0),
-                "sessions": sess_rows.get(hour_str, 0),
-                "auth_failures": auth_fail or 0,
+                "auth_ok_count": auth_ok or 0,
+                "auth_fail_count": auth_fail or 0,
+                "command_count": cmd_rows.get(hour_str, 0),
+                "peak_sessions": sess_rows.get(hour_str, 0),
             })
 
-        return result
+        return {"hours": buckets}
 
     async def count_today(self) -> dict[str, int]:
         """Return today's totals for diagnostic sensors.
@@ -682,7 +681,8 @@ def _where(conditions: list[str]) -> str:
 
 
 def _build_auth_clause(
-    token_id: str | None, since: str | None, until: str | None
+    token_id: str | None, since: str | None, until: str | None,
+    extra_conds: list[str] | None = None,
 ) -> tuple[str, list]:
     conds, params = [], []
     if token_id:
@@ -694,19 +694,22 @@ def _build_auth_clause(
     if until:
         conds.append("timestamp <= ?")
         params.append(until)
+    if extra_conds:
+        conds.extend(extra_conds)
     return _where(conds), params
 
 
 def _build_command_clause(
-    token_id: str | None, since: str | None, until: str | None
+    token_id: str | None, since: str | None, until: str | None,
 ) -> tuple[str, list]:
     return _build_auth_clause(token_id, since, until)
 
 
 def _build_session_clause(
-    token_id: str | None, since: str | None, until: str | None
+    token_id: str | None, since: str | None, until: str | None,
+    extra_conds: list[str] | None = None,
 ) -> tuple[str, list]:
-    return _build_auth_clause(token_id, since, until)
+    return _build_auth_clause(token_id, since, until, extra_conds)
 
 
 def _build_error_clause(
