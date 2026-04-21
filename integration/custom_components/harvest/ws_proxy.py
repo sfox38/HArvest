@@ -22,7 +22,6 @@ from .activity_store import ActivityStore, AuthEvent, CommandEvent, ErrorEvent, 
 from .const import (
     CONF_AUTH_TIMEOUT,
     CONF_KEEPALIVE_INTERVAL,
-    CONF_KEEPALIVE_TIMEOUT,
     CONF_MAX_INBOUND_BYTES,
     DEFAULTS,
     ERR_ENTITY_NOT_IN_TOKEN,
@@ -131,9 +130,12 @@ class HarvestWsView(HomeAssistantView):
             )
 
         keepalive = self._config.get(CONF_KEEPALIVE_INTERVAL, DEFAULTS[CONF_KEEPALIVE_INTERVAL])
-        keepalive_timeout = self._config.get(CONF_KEEPALIVE_TIMEOUT, DEFAULTS[CONF_KEEPALIVE_TIMEOUT])
 
-        ws = WebSocketResponse(heartbeat=keepalive, receive_timeout=keepalive_timeout)
+        # heartbeat handles ping/pong liveness at the WS protocol level.
+        # Do NOT set receive_timeout here; it would close the connection when
+        # no application-level message arrives within the timeout, even though
+        # the client is still alive (pong frames do not count as messages).
+        ws = WebSocketResponse(heartbeat=keepalive)
         await ws.prepare(request)
         await self._handle_connection(ws, request)
         return ws
@@ -550,7 +552,7 @@ class HarvestWsView(HomeAssistantView):
                 await self._hass.services.async_call(
                     domain, action, clean_data,
                     target={"entity_id": real_id},
-                    blocking=False,
+                    blocking=True,
                 )
         except Exception:
             _LOGGER.exception(
@@ -780,6 +782,10 @@ class HarvestWsView(HomeAssistantView):
         # Push rate limit per (session, entity).
         push_rate = token.rate_limits.max_push_per_second
         if not self._rate_limiter.check_push(session.session_id, entity_id, push_rate):
+            outgoing_id = outgoing_ids.get(entity_id, entity_id)
+            self._hass.async_create_task(
+                self._deferred_state_push(ws, entity_id, outgoing_id, token, session)
+            )
             return
 
         outgoing_id = outgoing_ids.get(entity_id, entity_id)

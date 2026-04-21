@@ -84,7 +84,7 @@ function validateLabel(label: string, otherLabels: string[]): string | null {
 // ---------------------------------------------------------------------------
 
 function CodeSection({ token }: { token: Token }) {
-  const [useAliases,      setUseAliases]      = useState(false);
+  const [useAliases,      setUseAliases]      = useState(() => localStorage.getItem("hrv_use_aliases") === "true");
   const [tab,             setTab]             = useState<"web" | "wordpress">("web");
   const [overrideHost,    setOverrideHost]    = useState("");
   const [widgetScriptUrl, setWidgetScriptUrl] = useState("");
@@ -145,7 +145,7 @@ function CodeSection({ token }: { token: Token }) {
         <input
           type="checkbox"
           checked={useAliases}
-          onChange={e => setUseAliases(e.target.checked)}
+          onChange={e => { setUseAliases(e.target.checked); localStorage.setItem("hrv_use_aliases", String(e.target.checked)); }}
           disabled={token.entities.every(e => !e.alias)}
         />
         Show as aliases

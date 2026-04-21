@@ -47,6 +47,8 @@ interface SelectedEntity {
 interface WizardState {
   mode: "single" | "group";
   entities: SelectedEntity[];
+  label: string;
+  labelAutoset: boolean;
   capability: "read" | "read-write";
   originMode: "specific" | "any";
   originUrls: string[];
@@ -370,16 +372,26 @@ function Step1({ state, onChange }: { state: WizardState; onChange: (u: Partial<
     finally { setLoadingAlias(null); }
 
     const entry: SelectedEntity = { entity_id: entityId, alias, companions: [] };
-    if (state.mode === "single") {
-      onChange({ entities: [entry] });
-    } else {
-      onChange({ entities: [...state.entities, entry] });
+    const isFirst = state.entities.length === 0;
+    const newEntities = state.mode === "single" ? [entry] : [...state.entities, entry];
+    const updates: Partial<WizardState> = { entities: newEntities };
+
+    if (state.labelAutoset && isFirst) {
+      const cached = getEntityCache().find(e => e.entity_id === entityId);
+      const name = cached?.friendly_name ?? entityId;
+      const autoName = state.mode === "group" ? `${name} group` : name;
+      updates.label = autoName.slice(0, 100);
     }
+
+    onChange(updates);
   };
 
   const removeEntity = (entityId: string) => {
     setExpandedCompanions(prev => { const n = new Set(prev); n.delete(entityId); return n; });
-    onChange({ entities: state.entities.filter(e => e.entity_id !== entityId) });
+    const remaining = state.entities.filter(e => e.entity_id !== entityId);
+    const updates: Partial<WizardState> = { entities: remaining };
+    if (state.labelAutoset && remaining.length === 0) updates.label = "";
+    onChange(updates);
   };
 
   const updateCompanions = (entityId: string, companions: { entity_id: string; alias: string | null }[]) => {
@@ -401,7 +413,7 @@ function Step1({ state, onChange }: { state: WizardState; onChange: (u: Partial<
     <div className="col" style={{ gap: 16 }}>
       <div className="segmented" role="group">
         {(["single", "group"] as const).map(m => (
-          <button key={m} aria-pressed={state.mode === m} onClick={() => onChange({ mode: m, entities: [] })}>
+          <button key={m} aria-pressed={state.mode === m} onClick={() => onChange({ mode: m, entities: [], ...(state.labelAutoset ? { label: "" } : {}) })}>
             {m === "single" ? "Single card" : "Group of cards"}
           </button>
         ))}
@@ -482,6 +494,26 @@ function Step1({ state, onChange }: { state: WizardState; onChange: (u: Partial<
           No entities selected yet. Add at least one to continue.
         </p>
       )}
+
+      {/* Widget name - shown once at least one entity is selected */}
+      {state.entities.length > 0 && (() => {
+        const nameErr = validateLabelWiz(state.label, []);
+        return (
+          <div className="col" style={{ gap: 4, paddingTop: 4 }}>
+            <label style={{ fontSize: 12, fontWeight: 600 }}>Widget name</label>
+            <input
+              value={state.label}
+              maxLength={100}
+              onChange={e => onChange({ label: e.target.value, labelAutoset: false })}
+              placeholder="Enter a name for this widget..."
+              className="input"
+              style={{ borderColor: nameErr ? "var(--danger)" : undefined }}
+            />
+            {nameErr && <div style={{ fontSize: 12, color: "var(--danger)" }}>{nameErr}</div>}
+            <div className="muted" style={{ fontSize: 11 }}>This name appears in the HArvest panel. Max 100 characters.</div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -811,15 +843,16 @@ function validateLabelWiz(label: string, otherLabels: string[]): string | null {
   return null;
 }
 
-function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, selectedEntities }: {
+function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, selectedEntities, widgetScriptUrl }: {
   token: Token;
   tokenSecret: string | null;
   originMode: "specific" | "any";
   originUrl: string;
   overrideHost: string;
   selectedEntities: SelectedEntity[];
+  widgetScriptUrl: string;
 }) {
-  const [useAliases,   setUseAliases]   = useState(false);
+  const [useAliases,   setUseAliases]   = useState(() => localStorage.getItem("hrv_use_aliases") === "true");
   const [tab,          setTab]          = useState<"web" | "wordpress">("web");
   const [acknowledged, setAcknowledged] = useState(!tokenSecret);
   const [widgetName,   setWidgetName]   = useState(token.label);
@@ -931,7 +964,7 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
             <input
               type="checkbox"
               checked={useAliases}
-              onChange={e => setUseAliases(e.target.checked)}
+              onChange={e => { setUseAliases(e.target.checked); localStorage.setItem("hrv_use_aliases", String(e.target.checked)); }}
               disabled={selectedEntities.every(e => !e.alias && e.companions.every(c => !c.alias))}
             />
             Show as aliases
@@ -953,6 +986,8 @@ function freshState(): WizardState {
   return {
     mode: "single",
     entities: [],
+    label: "",
+    labelAutoset: true,
     capability: mem.capability ?? "read",
     originMode: "specific",
     originUrls: mem.originUrls ?? [],
@@ -996,7 +1031,7 @@ export function Wizard({ onClose }: WizardProps) {
   }, []);
 
   const canProceed = (): boolean => {
-    if (step === 1) return wState.entities.length > 0;
+    if (step === 1) return wState.entities.length > 0 && validateLabelWiz(wState.label, []) === null;
     if (step === 3 && wState.originMode === "specific") {
       return wState.originUrls.length > 0;
     }
@@ -1015,12 +1050,8 @@ export function Wizard({ onClose }: WizardProps) {
 
     if (step === 5 && !wState.previewTokenId) {
       try {
-        const allEntityIds = [
-          ...wState.entities.map(e => e.entity_id),
-          ...Array.from(new Set(wState.entities.flatMap(e => e.companions.map(c => c.entity_id)))),
-        ];
         const preview = await api.tokens.createPreview({
-          entity_ids: allEntityIds,
+          entity_id: wState.entities[0]?.entity_id ?? "",
           capabilities: wState.capability,
         });
         patchState({ previewTokenId: preview.token_id });
@@ -1061,7 +1092,7 @@ export function Wizard({ onClose }: WizardProps) {
           : { allow_any: false, allowed: originHost ? [originHost] : [], allow_paths: originPaths };
         const expires = expiresAt(wState.expiryOption, wState.expiryCustomDate);
         const token = await api.tokens.create({
-          label: wState.entities.map(e => e.entity_id).join(", "),
+          label: wState.label.trim(),
           entities: entityPayload as Token["entities"],
           origins,
           expires,
@@ -1094,7 +1125,7 @@ export function Wizard({ onClose }: WizardProps) {
   const isDone = step === 6 && !!wState.generatedToken;
 
   return (
-    <div className="overlay" role="presentation" onClick={handleCloseRequest}>
+    <div className="overlay" role="presentation">
       <div
         role="dialog"
         aria-modal="true"
@@ -1153,6 +1184,7 @@ export function Wizard({ onClose }: WizardProps) {
               originUrl={wState.originUrls[0] ?? ""}
               overrideHost={overrideHost}
               selectedEntities={wState.entities}
+              widgetScriptUrl={widgetScriptUrl}
             />
           )}
         </div>

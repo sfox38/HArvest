@@ -346,9 +346,14 @@ def build_feature_config(domain: str, state: State) -> dict:
 
     if domain == "climate":
         config = {}
-        for key in ("min_temp", "max_temp", "target_temp_step"):
+        for key in ("min_temp", "max_temp"):
             if key in attrs:
                 config[key] = attrs[key]
+        if "target_temp_step" in attrs:
+            config["temp_step"] = attrs["target_temp_step"]
+        for list_key in ("hvac_modes", "fan_modes", "preset_modes", "swing_modes"):
+            if list_key in attrs:
+                config[list_key] = attrs[list_key]
         return config
 
     return {}

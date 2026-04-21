@@ -244,7 +244,7 @@ export class MediaPlayerCard extends BaseCard {
       this.#playBtn.innerHTML = renderIconSVG(iconName, "play-icon");
     }
 
-    if (this.#volumeSlider && attributes.volume_level !== undefined) {
+    if (this.#volumeSlider && !this.isFocused(this.#volumeSlider) && attributes.volume_level !== undefined) {
       this.#volumeSlider.value = String(Math.round(attributes.volume_level * 100));
     }
 
@@ -269,7 +269,7 @@ export class MediaPlayerCard extends BaseCard {
           this.#sourceSelect.appendChild(opt);
         }
       }
-      this.#sourceSelect.value = current;
+      if (!this.isFocused(this.#sourceSelect)) this.#sourceSelect.value = current;
     }
 
     const iconName = this.def.icon_state_map?.[state]

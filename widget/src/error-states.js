@@ -159,7 +159,7 @@ function _removeOverlay(shadowRoot) {
 function _showStaleIndicator(shadowRoot, i18n) {
   const indicator = shadowRoot.querySelector("[part=stale-indicator]");
   if (!indicator) return;
-  indicator.removeAttribute("style");
+  indicator.style.display = "block";
   indicator.setAttribute("aria-label", i18n.t("indicator.stale"));
 }
 
@@ -169,7 +169,7 @@ function _showStaleIndicator(shadowRoot, i18n) {
  */
 function _hideStaleIndicator(shadowRoot) {
   const indicator = shadowRoot.querySelector("[part=stale-indicator]");
-  if (indicator) indicator.style.display = "none";
+  if (indicator) indicator.style.removeProperty("display");
 }
 
 // ---------------------------------------------------------------------------

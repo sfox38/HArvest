@@ -37,7 +37,10 @@ const CLIMATE_STYLES = /* css */`
     color: var(--hrv-color-text);
   }
 
-  [part=mode-select] {
+  [part=mode-select],
+  [part=fan-mode-select],
+  [part=preset-select],
+  [part=swing-select] {
     flex: 1;
     padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
     border: 1px solid var(--hrv-color-border);
@@ -81,6 +84,12 @@ function _esc(str) {
 
 export class ClimateCard extends BaseCard {
   /** @type {HTMLSelectElement|null}  */ #modeSelect      = null;
+  /** @type {HTMLSelectElement|null}  */ #fanModeSelect   = null;
+  /** @type {HTMLSelectElement|null}  */ #presetSelect    = null;
+  /** @type {HTMLSelectElement|null}  */ #swingSelect     = null;
+  /** @type {HTMLElement|null}        */ #fanModeLabel    = null;
+  /** @type {HTMLElement|null}        */ #presetLabel     = null;
+  /** @type {HTMLElement|null}        */ #swingLabel      = null;
   /** @type {HTMLInputElement|null}   */ #targetTempInput = null;
   /** @type {HTMLInputElement|null}   */ #tempLowInput    = null;
   /** @type {HTMLInputElement|null}   */ #tempHighInput   = null;
@@ -89,6 +98,13 @@ export class ClimateCard extends BaseCard {
   /** @type {Function}                */ #tempDebounce;
   /** @type {Function}                */ #tempLowDebounce;
   /** @type {Function}                */ #tempHighDebounce;
+  // Tracks the value we sent to HA. applyState skips overwriting a control
+  // until HA echoes back the expected value, confirming the command was applied.
+  // null = no pending command for that control.
+  /** @type {object}                  */ #pending = {
+    mode: null, targetTemp: null, tempLow: null, tempHigh: null,
+    fanMode: null, presetMode: null, swingMode: null,
+  };
 
   constructor(def, root, config, i18n) {
     super(def, root, config, i18n);
@@ -101,13 +117,26 @@ export class ClimateCard extends BaseCard {
     const isWritable  = this.def.capabilities === "read-write";
     const hasTarget   = this.def.supported_features?.includes("target_temperature");
     const hasRange    = this.def.supported_features?.includes("target_temperature_range");
+    const hasFanMode  = this.def.supported_features?.includes("fan_mode")
+                     || (this.def.feature_config?.fan_modes?.length > 0);
+    const hasPreset   = this.def.supported_features?.includes("preset_mode")
+                     || (this.def.feature_config?.preset_modes?.length > 0);
+    const hasSwing    = this.def.supported_features?.includes("swing_mode")
+                     || (this.def.feature_config?.swing_modes?.length > 0);
     const minTemp     = this.def.feature_config?.min_temp ?? 7;
     const maxTemp     = this.def.feature_config?.max_temp ?? 35;
     const step        = this.def.feature_config?.temp_step ?? 0.5;
+    const hvacModes   = this.def.feature_config?.hvac_modes ?? HVAC_MODES;
+    const fanModes    = this.def.feature_config?.fan_modes ?? [];
+    const presetModes = this.def.feature_config?.preset_modes ?? [];
+    const swingModes  = this.def.feature_config?.swing_modes ?? [];
 
-    const modeOptions = HVAC_MODES
+    const modeOptions = hvacModes
       .map((m) => `<option value="${m}">${_esc(this.i18n.t(`climate.${m}`) || m)}</option>`)
       .join("");
+    const fanOptions    = fanModes.map((m) => `<option value="${_esc(m)}">${_esc(m)}</option>`).join("");
+    const presetOptions = presetModes.map((m) => `<option value="${_esc(m)}">${_esc(m)}</option>`).join("");
+    const swingOptions  = swingModes.map((m) => `<option value="${_esc(m)}">${_esc(m)}</option>`).join("");
 
     this.root.innerHTML = /* html */`
       <style>${this.getSharedStyles()}${CLIMATE_STYLES}</style>
@@ -152,6 +181,30 @@ export class ClimateCard extends BaseCard {
                 aria-label="Target temperature high">
             </div>
           ` : ""}
+          ${hasFanMode ? /* html */`
+            <div class="hrv-climate-row">
+              <span class="hrv-climate-label">Fan</span>
+              ${isWritable && fanOptions
+                ? `<select part="fan-mode-select" aria-label="Fan mode">${fanOptions}</select>`
+                : `<span part="fan-mode-label" class="hrv-climate-label"></span>`}
+            </div>
+          ` : ""}
+          ${hasPreset ? /* html */`
+            <div class="hrv-climate-row">
+              <span class="hrv-climate-label">Preset</span>
+              ${isWritable && presetOptions
+                ? `<select part="preset-select" aria-label="Preset mode">${presetOptions}</select>`
+                : `<span part="preset-label" class="hrv-climate-label"></span>`}
+            </div>
+          ` : ""}
+          ${hasSwing ? /* html */`
+            <div class="hrv-climate-row">
+              <span class="hrv-climate-label">Swing</span>
+              ${isWritable && swingOptions
+                ? `<select part="swing-select" aria-label="Swing mode">${swingOptions}</select>`
+                : `<span part="swing-label" class="hrv-climate-label"></span>`}
+            </div>
+          ` : ""}
         </div>
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
@@ -159,6 +212,12 @@ export class ClimateCard extends BaseCard {
     `;
 
     this.#modeSelect      = this.root.querySelector("[part=mode-select]");
+    this.#fanModeSelect   = this.root.querySelector("[part=fan-mode-select]");
+    this.#presetSelect    = this.root.querySelector("[part=preset-select]");
+    this.#swingSelect     = this.root.querySelector("[part=swing-select]");
+    this.#fanModeLabel    = this.root.querySelector("[part=fan-mode-label]");
+    this.#presetLabel     = this.root.querySelector("[part=preset-label]");
+    this.#swingLabel      = this.root.querySelector("[part=swing-label]");
     this.#targetTempInput = this.root.querySelector("[part=target-temp-input]");
     this.#tempLowInput    = this.root.querySelector("[part=target-temp-low-input]");
     this.#tempHighInput   = this.root.querySelector("[part=target-temp-high-input]");
@@ -168,53 +227,123 @@ export class ClimateCard extends BaseCard {
     this.renderIcon(this.def.icon ?? "mdi:thermostat", "card-icon");
 
     this.#modeSelect?.addEventListener("change", (e) => {
+      this.#pending.mode = e.target.value;
       this.config.card?.sendCommand("set_hvac_mode", { hvac_mode: e.target.value });
     });
 
+    this.#fanModeSelect?.addEventListener("change", (e) => {
+      this.#pending.fanMode = e.target.value;
+      this.config.card?.sendCommand("set_fan_mode", { fan_mode: e.target.value });
+    });
+
+    this.#presetSelect?.addEventListener("change", (e) => {
+      this.#pending.presetMode = e.target.value;
+      this.config.card?.sendCommand("set_preset_mode", { preset_mode: e.target.value });
+    });
+
+    this.#swingSelect?.addEventListener("change", (e) => {
+      this.#pending.swingMode = e.target.value;
+      this.config.card?.sendCommand("set_swing_mode", { swing_mode: e.target.value });
+    });
+
     this.#targetTempInput?.addEventListener("input", (e) => {
-      this.#tempDebounce(parseFloat(e.target.value));
+      this.#pending.targetTemp = parseFloat(e.target.value);
+      this.#tempDebounce(this.#pending.targetTemp);
     });
 
     this.#tempLowInput?.addEventListener("input", (e) => {
-      this.#tempLowDebounce(parseFloat(e.target.value));
+      this.#pending.tempLow = parseFloat(e.target.value);
+      this.#tempLowDebounce(this.#pending.tempLow);
     });
 
     this.#tempHighInput?.addEventListener("input", (e) => {
-      this.#tempHighDebounce(parseFloat(e.target.value));
+      this.#pending.tempHigh = parseFloat(e.target.value);
+      this.#tempHighDebounce(this.#pending.tempHigh);
     });
 
     this.renderCompanions();
   }
 
   applyState(state, attributes) {
+    const unit = this.def.unit_of_measurement ?? "°";
+
     if (this.#currentTempEl && attributes.current_temperature !== undefined) {
-      this.#currentTempEl.textContent =
-        `${attributes.current_temperature}${attributes.unit_of_measurement ?? ""}`;
+      this.#currentTempEl.textContent = `${attributes.current_temperature}${unit}`;
     }
 
     if (this.#stateLabel) {
       const hvacAction = attributes.hvac_action;
-      this.#stateLabel.textContent = hvacAction
-        ? (this.i18n.t(`state.${hvacAction}`) !== `state.${hvacAction}`
-            ? this.i18n.t(`state.${hvacAction}`)
-            : hvacAction)
-        : state;
+      const displayState = hvacAction ?? state;
+      this.#stateLabel.textContent =
+        this.i18n.t(`state.${displayState}`) !== `state.${displayState}`
+          ? this.i18n.t(`state.${displayState}`)
+          : displayState;
     }
 
-    if (this.#modeSelect && attributes.hvac_mode !== undefined) {
-      this.#modeSelect.value = attributes.hvac_mode;
+    // For each control, skip the DOM update if a command is pending confirmation.
+    // Clear pending once HA echoes back the value we sent.
+    if (this.#modeSelect && !this.isFocused(this.#modeSelect)) {
+      if (this.#pending.mode === null || state === this.#pending.mode) {
+        this.#modeSelect.value = state;
+        this.#pending.mode = null;
+      }
     }
 
-    if (this.#targetTempInput && attributes.temperature !== undefined) {
-      this.#targetTempInput.value = String(attributes.temperature);
+    if (this.#targetTempInput && !this.isFocused(this.#targetTempInput) && attributes.temperature !== undefined) {
+      const t = attributes.temperature;
+      if (this.#pending.targetTemp === null || Math.abs(t - this.#pending.targetTemp) < 0.05) {
+        this.#targetTempInput.value = String(t);
+        this.#pending.targetTemp = null;
+      }
     }
 
-    if (this.#tempLowInput && attributes.target_temp_low !== undefined) {
-      this.#tempLowInput.value = String(attributes.target_temp_low);
+    if (this.#tempLowInput && !this.isFocused(this.#tempLowInput) && attributes.target_temp_low !== undefined) {
+      const t = attributes.target_temp_low;
+      if (this.#pending.tempLow === null || Math.abs(t - this.#pending.tempLow) < 0.05) {
+        this.#tempLowInput.value = String(t);
+        this.#pending.tempLow = null;
+      }
     }
 
-    if (this.#tempHighInput && attributes.target_temp_high !== undefined) {
-      this.#tempHighInput.value = String(attributes.target_temp_high);
+    if (this.#tempHighInput && !this.isFocused(this.#tempHighInput) && attributes.target_temp_high !== undefined) {
+      const t = attributes.target_temp_high;
+      if (this.#pending.tempHigh === null || Math.abs(t - this.#pending.tempHigh) < 0.05) {
+        this.#tempHighInput.value = String(t);
+        this.#pending.tempHigh = null;
+      }
+    }
+
+    if (attributes.fan_mode !== undefined) {
+      const fm = attributes.fan_mode;
+      if (this.#fanModeSelect && !this.isFocused(this.#fanModeSelect)) {
+        if (this.#pending.fanMode === null || fm === this.#pending.fanMode) {
+          this.#fanModeSelect.value = fm;
+          this.#pending.fanMode = null;
+        }
+      }
+      if (this.#fanModeLabel) this.#fanModeLabel.textContent = fm;
+    }
+
+    if (attributes.preset_mode !== undefined) {
+      const pm = attributes.preset_mode;
+      if (this.#presetSelect && !this.isFocused(this.#presetSelect)) {
+        if (this.#pending.presetMode === null || pm === this.#pending.presetMode) {
+          this.#presetSelect.value = pm;
+          this.#pending.presetMode = null;
+        }
+      }
+      if (this.#presetLabel) this.#presetLabel.textContent = pm;
+    }
+
+    if (attributes.swing_mode !== undefined) {
+      const sm = attributes.swing_mode;
+      if (this.#swingSelect && !this.isFocused(this.#swingSelect)) {
+        if (this.#pending.swingMode === null || sm === this.#pending.swingMode) {
+          this.#swingSelect.value = sm;
+          this.#pending.swingMode = null;
+        }
+      }
+      if (this.#swingLabel) this.#swingLabel.textContent = sm;
     }
 
     // Icon reflects HVAC action.

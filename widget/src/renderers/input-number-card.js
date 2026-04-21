@@ -125,8 +125,8 @@ export class InputNumberCard extends BaseCard {
   applyState(state, _attributes) {
     const value = parseFloat(state);
     if (!isNaN(value)) {
-      if (this.#slider)      this.#slider.value      = String(value);
-      if (this.#numberInput) this.#numberInput.value = String(value);
+      if (this.#slider      && !this.isFocused(this.#slider))      this.#slider.value      = String(value);
+      if (this.#numberInput && !this.isFocused(this.#numberInput)) this.#numberInput.value = String(value);
     }
     if (this.#stateLabel && this.def.capabilities !== "read-write") {
       this.#stateLabel.textContent = state;

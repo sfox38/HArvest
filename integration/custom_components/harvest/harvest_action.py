@@ -12,7 +12,6 @@ not alongside tokens or in the config entry data.
 """
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 import logging
 import re
@@ -30,10 +29,6 @@ _LOGGER = logging.getLogger(__name__)
 
 ACTIONS_STORAGE_KEY = "harvest_actions"
 ACTIONS_STORAGE_VERSION = 1
-
-# Duration in seconds that the entity state holds "triggered" before reverting to "idle".
-_TRIGGERED_DURATION = 0.2
-
 
 @dataclasses.dataclass
 class ServiceCall:
@@ -179,16 +174,13 @@ class HarvestActionManager:
             )
             try:
                 await self._hass.services.async_call(
-                    sc.domain, sc.service, sc.data, blocking=False
+                    sc.domain, sc.service, sc.data, blocking=True
                 )
             except Exception:
                 _LOGGER.exception(
                     "HArvest: service call %s.%s failed for harvest_action %s.",
                     sc.domain, sc.service, action.action_id,
                 )
-
-        # Hold "triggered" briefly so HA automations can react via state_changed.
-        await asyncio.sleep(_TRIGGERED_DURATION)
 
         # Revert to "idle".
         self._hass.states.async_set(

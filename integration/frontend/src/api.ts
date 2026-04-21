@@ -14,6 +14,7 @@ import type {
   Session,
   ActivityPage,
   HarvestAction,
+  ServiceCallDef,
   IntegrationConfig,
   PanelStats,
   HourlyBucket,
@@ -83,7 +84,10 @@ async function _post<T>(path: string, body?: unknown): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   _check401(res, path);
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+  if (!res.ok) {
+    const reason = await res.text().catch(() => "");
+    throw new Error(`POST ${path} failed: ${res.status}${reason ? ` - ${reason}` : ""}`);
+  }
   sessionStorage.removeItem(_RELOAD_FLAG);
   return res.json() as Promise<T>;
 }
@@ -213,7 +217,7 @@ export const api = {
     list: (): Promise<HarvestAction[]> =>
       _get<HarvestAction[]>("/actions"),
 
-    create: (data: Partial<HarvestAction>): Promise<HarvestAction> =>
+    create: (data: { label: string; icon: string; service_calls: ServiceCallDef[] }): Promise<HarvestAction> =>
       _post<HarvestAction>("/actions", data),
 
     delete: (actionId: string): Promise<void> =>
@@ -248,5 +252,25 @@ export const api = {
   entities: {
     list: (): Promise<HAEntity[]> =>
       _get<HAEntity[]>("/entities"),
+  },
+
+  // ---------------------------------------------------------------------------
+  // HA native states (for picking entities outside the harvest tier filter)
+  // ---------------------------------------------------------------------------
+
+  ha: {
+    statesByDomain: async (domain: string): Promise<HAEntity[]> => {
+      const res = await fetch("/api/states", { headers: _authHeader() });
+      if (!res.ok) throw new Error(`GET /api/states failed: ${res.status}`);
+      const states = await res.json() as { entity_id: string; state: string; attributes: Record<string, unknown> }[];
+      return states
+        .filter(s => s.entity_id.startsWith(domain + "."))
+        .map(s => ({
+          entity_id: s.entity_id,
+          friendly_name: (s.attributes.friendly_name as string) ?? s.entity_id,
+          domain,
+          state: s.state,
+        }));
+    },
   },
 };

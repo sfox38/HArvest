@@ -107,6 +107,6 @@ export class InputSelectCard extends BaseCard {
       if (!newValues.has(el.value)) el.remove();
     }
 
-    this.#select.value = state;
+    if (!this.isFocused(this.#select)) this.#select.value = state;
   }
 }

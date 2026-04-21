@@ -153,7 +153,7 @@ export class CoverCard extends BaseCard {
     const isMoving = state === "opening" || state === "closing";
     if (this.#stopBtn) this.#stopBtn.disabled = !isMoving;
 
-    if (this.#positionSlider && attributes.current_position !== undefined) {
+    if (this.#positionSlider && !this.isFocused(this.#positionSlider) && attributes.current_position !== undefined) {
       this.#positionSlider.value = String(attributes.current_position);
       if (this.#positionValue) this.#positionValue.textContent = `${attributes.current_position}%`;
     }

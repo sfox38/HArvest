@@ -206,6 +206,7 @@ export class BaseCard {
   /** @type {ShadowRoot} */ root;
   /** @type {object} */ config;
   /** @type {object} */ i18n;
+  /** @type {Map<string,string>} */ #iconCache = new Map();
 
   /**
    * @param {object}     def    - EntityDefinition from server
@@ -273,9 +274,23 @@ export class BaseCard {
    * @param {string} partName  - value of the part="" attribute on the container
    */
   renderIcon(iconName, partName) {
+    if (this.#iconCache.get(partName) === iconName) return;
+    this.#iconCache.set(partName, iconName);
     const container = this.root.querySelector(`[part=${partName}]`);
     if (!container) return;
     container.innerHTML = renderIconSVG(iconName, `${partName}-svg`);
+  }
+
+  /**
+   * Return true if element currently has focus within this card's shadow root.
+   * Use this guard before programmatically updating interactive controls in
+   * applyState() to avoid dismissing open dropdowns or cancelling user input.
+   *
+   * @param {HTMLElement|null} element
+   * @returns {boolean}
+   */
+  isFocused(element) {
+    return !!element && this.root.activeElement === element;
   }
 
   /**

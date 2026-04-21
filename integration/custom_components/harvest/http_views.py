@@ -177,6 +177,8 @@ def _validate_label(label: str, token_manager: TokenManager, exclude_token_id: s
     for t in token_manager.get_all():
         if t.token_id == exclude_token_id:
             continue
+        if t.status in ("revoked", "expired"):
+            continue
         if t.label.strip().lower() == stripped.lower():
             return "A widget with this name already exists."
     return None

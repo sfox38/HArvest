@@ -171,7 +171,7 @@ export class FanCard extends BaseCard {
       this.#toggleBtn.disabled = isUnavailable;
     }
 
-    if (this.#speedSlider && attributes.percentage !== undefined) {
+    if (this.#speedSlider && !this.isFocused(this.#speedSlider) && attributes.percentage !== undefined) {
       this.#speedSlider.value = String(attributes.percentage);
       if (this.#speedValue) this.#speedValue.textContent = `${attributes.percentage}%`;
     }

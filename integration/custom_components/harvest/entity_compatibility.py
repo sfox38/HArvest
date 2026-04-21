@@ -58,7 +58,7 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
                        "oscillate", "set_direction"},
     "cover":          {"open_cover", "close_cover", "stop_cover", "set_cover_position"},
     "climate":        {"turn_on", "turn_off", "set_temperature", "set_hvac_mode",
-                       "set_fan_mode", "set_preset_mode"},
+                       "set_fan_mode", "set_preset_mode", "set_swing_mode"},
     "input_boolean":  {"turn_on", "turn_off", "toggle"},
     "input_number":   {"set_value"},
     "input_select":   {"select_option"},

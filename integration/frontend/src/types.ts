@@ -127,11 +127,19 @@ export interface ActivityPage {
 // Harvest action
 // ---------------------------------------------------------------------------
 
+export interface ServiceCallDef {
+  domain: string;
+  service: string;
+  data: Record<string, unknown>;
+}
+
 export interface HarvestAction {
   action_id: string;
   label: string;
-  entity_id: string;
-  icon: string | null;
+  icon: string;
+  service_calls: ServiceCallDef[];
+  created_by: string;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,4 +213,4 @@ export interface HAEntity {
 // Panel navigation
 // ---------------------------------------------------------------------------
 
-export type Screen = "dashboard" | "widgets" | "activity" | "sessions" | "settings";
+export type Screen = "dashboard" | "widgets" | "actions" | "activity" | "sessions" | "settings";
