@@ -105,12 +105,23 @@ export class ClimateCard extends BaseCard {
     mode: null, targetTemp: null, tempLow: null, tempHigh: null,
     fanMode: null, presetMode: null, swingMode: null,
   };
+  /** @type {ReturnType<typeof setTimeout>|null} */ #pendingTimer = null;
 
   constructor(def, root, config, i18n) {
     super(def, root, config, i18n);
     this.#tempDebounce     = this.debounce(this.#sendTargetTemp.bind(this), 500);
     this.#tempLowDebounce  = this.debounce(this.#sendTempLow.bind(this), 500);
     this.#tempHighDebounce = this.debounce(this.#sendTempHigh.bind(this), 500);
+  }
+
+  #resetPendingTimer() {
+    clearTimeout(this.#pendingTimer);
+    this.#pendingTimer = setTimeout(() => {
+      this.#pending = {
+        mode: null, targetTemp: null, tempLow: null, tempHigh: null,
+        fanMode: null, presetMode: null, swingMode: null,
+      };
+    }, 10_000);
   }
 
   render() {
@@ -227,37 +238,45 @@ export class ClimateCard extends BaseCard {
     this.renderIcon(this.def.icon ?? "mdi:thermostat", "card-icon");
 
     this.#modeSelect?.addEventListener("change", (e) => {
+      console.warn("[HArvest] climate: mode change ->", e.target.value);
       this.#pending.mode = e.target.value;
+      this.#resetPendingTimer();
       this.config.card?.sendCommand("set_hvac_mode", { hvac_mode: e.target.value });
     });
 
     this.#fanModeSelect?.addEventListener("change", (e) => {
       this.#pending.fanMode = e.target.value;
+      this.#resetPendingTimer();
       this.config.card?.sendCommand("set_fan_mode", { fan_mode: e.target.value });
     });
 
     this.#presetSelect?.addEventListener("change", (e) => {
       this.#pending.presetMode = e.target.value;
+      this.#resetPendingTimer();
       this.config.card?.sendCommand("set_preset_mode", { preset_mode: e.target.value });
     });
 
     this.#swingSelect?.addEventListener("change", (e) => {
       this.#pending.swingMode = e.target.value;
+      this.#resetPendingTimer();
       this.config.card?.sendCommand("set_swing_mode", { swing_mode: e.target.value });
     });
 
     this.#targetTempInput?.addEventListener("input", (e) => {
       this.#pending.targetTemp = parseFloat(e.target.value);
+      this.#resetPendingTimer();
       this.#tempDebounce(this.#pending.targetTemp);
     });
 
     this.#tempLowInput?.addEventListener("input", (e) => {
       this.#pending.tempLow = parseFloat(e.target.value);
+      this.#resetPendingTimer();
       this.#tempLowDebounce(this.#pending.tempLow);
     });
 
     this.#tempHighInput?.addEventListener("input", (e) => {
       this.#pending.tempHigh = parseFloat(e.target.value);
+      this.#resetPendingTimer();
       this.#tempHighDebounce(this.#pending.tempHigh);
     });
 

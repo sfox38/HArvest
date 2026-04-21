@@ -49,6 +49,26 @@ _LOGGER = logging.getLogger(__name__)
 FLOOD_LIMIT = 10
 FLOOD_WINDOW_SECONDS = 5
 
+
+def _safe_json_value(val: object) -> object:
+    """Convert a value to a JSON-safe type.
+
+    HA entity attributes may contain datetime objects, sets, or other
+    non-serializable types. This recursively converts them so
+    ws.send_json (which uses stdlib json.dumps) does not raise TypeError.
+    """
+    if isinstance(val, datetime):
+        return val.isoformat()
+    if isinstance(val, dict):
+        return {k: _safe_json_value(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_safe_json_value(v) for v in val]
+    if isinstance(val, (set, frozenset)):
+        return [_safe_json_value(v) for v in sorted(val, key=str)]
+    if isinstance(val, (str, int, float, bool)) or val is None:
+        return val
+    return str(val)
+
 # Warn the client this many seconds before session expiry.
 _SESSION_EXPIRING_WARN_BEFORE = 600  # 10 minutes
 
@@ -313,6 +333,16 @@ class HarvestWsView(HomeAssistantView):
             self._send_session_expiring(ws, session)
         )
 
+        # Send application-level keepalive messages so the JS client's
+        # heartbeat watchdog stays satisfied (WS ping/pong frames do not
+        # trigger the browser's onmessage event).
+        keepalive_interval = self._config.get(
+            CONF_KEEPALIVE_INTERVAL, DEFAULTS[CONF_KEEPALIVE_INTERVAL]
+        )
+        keepalive_task = asyncio.create_task(
+            self._send_keepalive(ws, keepalive_interval)
+        )
+
         # --- Steps 4b/6/7: Initial state, message loop, and cleanup ---
         # _send_initial_state and _register_listeners are inside the try block so
         # that a dropped connection during initial state push still triggers cleanup.
@@ -323,6 +353,7 @@ class HarvestWsView(HomeAssistantView):
         finally:
             # --- Step 7: Cleanup ---
             expiry_warning_task.cancel()
+            keepalive_task.cancel()
             for unsub in listener_unsubs.values():
                 unsub()
             self._session_manager.terminate(session.session_id)
@@ -859,8 +890,10 @@ class HarvestWsView(HomeAssistantView):
         # Filter via token denylist and per-entity exclusions.
         filtered_attrs = self._token_manager.filter_attributes(real_id, token, raw_attrs)
 
-        # Split into standard and extended.
+        # Split into standard and extended, then sanitize for JSON.
         standard, extended = split_attributes(domain, filtered_attrs)
+        standard = _safe_json_value(standard)
+        extended = _safe_json_value(extended)
 
         last_changed = state.last_changed.isoformat() if hasattr(state, "last_changed") else None
         last_updated = state.last_updated.isoformat() if hasattr(state, "last_updated") else None
@@ -909,6 +942,18 @@ class HarvestWsView(HomeAssistantView):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    async def _send_keepalive(self, ws: WebSocketResponse, interval: int) -> None:
+        """Send periodic keepalive data messages to the client."""
+        try:
+            while not ws.closed:
+                await asyncio.sleep(interval)
+                if not ws.closed:
+                    await ws.send_json({"type": "keepalive", "msg_id": None})
+        except (asyncio.CancelledError, ConnectionResetError):
+            pass
+        except Exception:
+            pass
 
     async def _send_session_expiring(self, ws: WebSocketResponse, session: Session) -> None:
         """Send session_expiring warning 10 minutes before expiry."""

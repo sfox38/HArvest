@@ -344,7 +344,10 @@ export class BaseCard {
       pill.setAttribute("part", "companion");
       pill.setAttribute("data-entity", companion.entityId);
 
-      // Icon placeholder - filled when the companion card receives its definition.
+      if (companion.capabilities === "read-write") {
+        this.#makeCompanionInteractive(pill, companion.entityId);
+      }
+
       const iconWrap = document.createElement("span");
       iconWrap.setAttribute("part", "companion-icon");
       iconWrap.innerHTML = renderIconSVG("mdi:help-circle", "companion-icon-svg");
@@ -357,6 +360,48 @@ export class BaseCard {
       pill.appendChild(stateEl);
       zone.appendChild(pill);
     }
+  }
+
+  /**
+   * Called when a companion's entity_definition arrives. Updates the pill's
+   * icon and marks it interactive if the companion is read-write.
+   *
+   * @param {string} entityId
+   * @param {object} def
+   */
+  updateCompanionDefinition(entityId, def) {
+    const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
+    if (!pill) return;
+
+    if (def.icon) {
+      const iconWrap = pill.querySelector("[part=companion-icon]");
+      if (iconWrap) iconWrap.innerHTML = renderIconSVG(def.icon, "companion-icon-svg");
+    }
+
+    if ((def.capabilities ?? "read") === "read-write" && !pill.hasAttribute("data-interactive")) {
+      this.#makeCompanionInteractive(pill, entityId);
+    }
+  }
+
+  /**
+   * Mark a companion pill as interactive and attach a toggle click handler.
+   *
+   * @param {HTMLElement} pill
+   * @param {string} entityId
+   */
+  #makeCompanionInteractive(pill, entityId) {
+    pill.setAttribute("data-interactive", "true");
+    pill.setAttribute("role", "button");
+    pill.setAttribute("tabindex", "0");
+    pill.addEventListener("click", () => {
+      this.config.card?._sendCompanionCommand(entityId, "toggle", {});
+    });
+    pill.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        this.config.card?._sendCompanionCommand(entityId, "toggle", {});
+      }
+    });
   }
 
   /**

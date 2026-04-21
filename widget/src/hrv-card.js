@@ -158,6 +158,9 @@ export class HrvCard extends HTMLElement {
    * @param {object} def - EntityDefinition from server
    */
   receiveDefinition(def) {
+    console.warn(
+      `[HArvest] receiveDefinition: ${def.entity_id} domain=${def.domain} capabilities=${def.capabilities}`,
+    );
     const RendererClass = lookupRenderer(def.domain, def.device_class ?? null);
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
@@ -186,6 +189,7 @@ export class HrvCard extends HTMLElement {
    * @param {string} _lastUpdated - ISO 8601 timestamp (used by client for ordering)
    */
   receiveStateUpdate(state, attributes, _lastUpdated) {
+    console.warn(`[HArvest] stateUpdate: ${this.#entityId || this.#alias} state="${state}"`, attributes);
     // Cancel any pending optimistic revert.
     if (this.#optimisticTimer) {
       clearTimeout(this.#optimisticTimer);
@@ -248,8 +252,11 @@ export class HrvCard extends HTMLElement {
    * Called when an ack message is routed to this card.
    * @param {object} _msg
    */
-  receiveAck(_msg) {
-    // No-op for now; renderers may hook into this in future.
+  receiveAck(msg) {
+    console.warn(
+      `[HArvest] ack: ${msg?.entity_id} success=${msg?.success}`,
+      msg?.success ? "" : `${msg?.error_code} ${msg?.error_message ?? ""}`,
+    );
   }
 
   /**
@@ -270,6 +277,23 @@ export class HrvCard extends HTMLElement {
   // -------------------------------------------------------------------------
 
   /**
+   * Called by a companion proxy when the companion's entity_definition arrives.
+   * Stores capabilities/domain on the companion config and forwards to the
+   * renderer so it can mark the pill as interactive.
+   *
+   * @param {string} entityId
+   * @param {object} def
+   */
+  _receiveCompanionDefinition(entityId, def) {
+    const comp = this.#companions.find((c) => c.entityId === entityId);
+    if (comp) {
+      comp.capabilities = def.capabilities ?? "read";
+      comp.domain = def.domain ?? entityId.split(".")[0];
+    }
+    this.#renderer?.updateCompanionDefinition?.(entityId, def);
+  }
+
+  /**
    * Called by a companion proxy to forward a companion state update to the
    * renderer. The renderer's updateCompanionState() method handles the DOM
    * update inside the companion zone.
@@ -283,6 +307,19 @@ export class HrvCard extends HTMLElement {
   }
 
   /**
+   * Send a command for a companion entity via the shared client.
+   *
+   * @param {string} entityId
+   * @param {string} action
+   * @param {object} data
+   */
+  _sendCompanionCommand(entityId, action, data) {
+    if (!this.#client) return;
+    const msgId = this.#client.nextMsgId();
+    this.#client.sendCommand(entityId, action, data ?? {}, msgId);
+  }
+
+  /**
    * Send a command to the integration via the client.
    * Applies an optimistic visual state if the renderer supports prediction.
    * Reverts after 5 seconds if no server confirmation arrives.
@@ -291,7 +328,11 @@ export class HrvCard extends HTMLElement {
    * @param {object} data
    */
   sendCommand(action, data) {
-    if (!this.#client) return;
+    console.warn(`[HArvest] sendCommand: ${this.#entityId || this.#alias} ${action}`, data);
+    if (!this.#client) {
+      console.warn("[HArvest] sendCommand: no client");
+      return;
+    }
     const msgId = this.#client.nextMsgId();
 
     // Optimistic UI.
@@ -382,6 +423,7 @@ export class HrvCard extends HTMLElement {
       if (ancestor.tagName?.toLowerCase() === "hrv-group") {
         if (!this.#config.tokenId) this.#config.tokenId = ancestor.getAttribute("token") ?? "";
         if (!this.#config.haUrl)   this.#config.haUrl   = ancestor.getAttribute("ha-url") ?? "";
+        if (!this.#config.tokenSecret) this.#config.tokenSecret = ancestor.getAttribute("token-secret") ?? null;
         if (!this.#config.themeUrl) this.#config.themeUrl = ancestor.getAttribute("theme-url") ?? null;
         if (this.#config.lang === "auto") this.#config.lang = ancestor.getAttribute("lang") ?? "auto";
         break;
@@ -414,7 +456,7 @@ export class HrvCard extends HTMLElement {
       // Create a minimal proxy card to receive definition and state updates
       // for the companion entity. It shares this card's renderer via callbacks.
       const proxyCard = _makeCompanionProxy(ref, this);
-      this.#companions.push({ entityId: ref, proxyCard });
+      this.#companions.push({ entityId: ref, proxyCard, capabilities: null, domain: null });
     }
 
     // Update config.companions reference.
@@ -448,9 +490,8 @@ export class HrvCard extends HTMLElement {
  */
 function _makeCompanionProxy(entityId, parentCard) {
   return {
-    receiveDefinition(_def) {
-      // Companion definitions are not currently used to instantiate a renderer;
-      // the parent renderer's renderCompanions() handles companion display.
+    receiveDefinition(def) {
+      parentCard._receiveCompanionDefinition(entityId, def);
     },
     receiveStateUpdate(state, attributes, _lastUpdated) {
       parentCard._receiveCompanionState(entityId, state, attributes);

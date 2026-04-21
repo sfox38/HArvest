@@ -21,6 +21,7 @@ import type { HAEntity } from "../types";
 
 interface WizardMemory {
   capability: "read" | "read-write";
+  originMode: "specific" | "any";
   expiryOption: string;
   themeUrl: string;
   originUrls: string[];
@@ -195,11 +196,12 @@ function EntityAutocomplete({ value, onChange, onSelect, disabled, filterDomains
 
   const matches = useMemo<HAEntity[]>(() => {
     if (!value.trim()) return [];
-    const q = value.toLowerCase();
+    const words = value.toLowerCase().split(/\s+/).filter(Boolean);
     return getEntityCache()
       .filter(e => {
         if (filterDomains && !filterDomains.has(e.domain)) return false;
-        return e.entity_id.toLowerCase().includes(q) || e.friendly_name.toLowerCase().includes(q);
+        const hay = `${e.entity_id} ${e.friendly_name}`.toLowerCase();
+        return words.every(w => hay.includes(w));
       })
       .slice(0, 8);
   }, [value, filterDomains]);
@@ -352,7 +354,7 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
 // Step 1: Pick entities
 // ---------------------------------------------------------------------------
 
-function Step1({ state, onChange }: { state: WizardState; onChange: (u: Partial<WizardState>) => void }) {
+function Step1({ state, onChange, existingLabels }: { state: WizardState; onChange: (u: Partial<WizardState>) => void; existingLabels: string[] }) {
   const [entityInput, setEntityInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
   const [expandedCompanions, setExpandedCompanions] = useState<Set<string>>(new Set());
@@ -497,7 +499,7 @@ function Step1({ state, onChange }: { state: WizardState; onChange: (u: Partial<
 
       {/* Widget name - shown once at least one entity is selected */}
       {state.entities.length > 0 && (() => {
-        const nameErr = validateLabelWiz(state.label, []);
+        const nameErr = validateLabelWiz(state.label, existingLabels);
         return (
           <div className="col" style={{ gap: 4, paddingTop: 4 }}>
             <label style={{ fontSize: 12, fontWeight: 600 }}>Widget name</label>
@@ -626,7 +628,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
         <input
           type="radio" name="originMode" value="specific"
           checked={state.originMode === "specific"}
-          onChange={() => onChange({ originMode: "specific" })}
+          onChange={() => { onChange({ originMode: "specific" }); saveMemory({ originMode: "specific" }); }}
         />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>A specific website or page</div>
@@ -697,7 +699,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
         <input
           type="radio" name="originMode" value="any"
           checked={state.originMode === "any"}
-          onChange={() => onChange({ originMode: "any" })}
+          onChange={() => { onChange({ originMode: "any" }); saveMemory({ originMode: "any" }); }}
         />
         <div>
           <div style={{ fontWeight: 600, fontSize: 14 }}>Any website</div>
@@ -989,7 +991,7 @@ function freshState(): WizardState {
     label: "",
     labelAutoset: true,
     capability: mem.capability ?? "read",
-    originMode: "specific",
+    originMode: mem.originMode === "any" ? "any" : "specific",
     originUrls: mem.originUrls ?? [],
     expiryOption: (mem.expiryOption as WizardState["expiryOption"]) ?? "never",
     expiryCustomDate: "",
@@ -1009,12 +1011,16 @@ export function Wizard({ onClose }: WizardProps) {
   const [confirmClose, setConfirmClose] = useState(false);
   const [overrideHost,    setOverrideHost]    = useState("");
   const [widgetScriptUrl, setWidgetScriptUrl] = useState("");
+  const [existingLabels,  setExistingLabels]  = useState<string[]>([]);
   const previewRevoked = useRef(false);
 
   useEffect(() => {
     api.config.get().then(c => {
       setOverrideHost(c.override_host || "");
       setWidgetScriptUrl(c.widget_script_url || "");
+    }).catch(() => {});
+    api.tokens.list().then(ts => {
+      setExistingLabels(ts.map(t => t.label));
     }).catch(() => {});
   }, []);
 
@@ -1031,7 +1037,7 @@ export function Wizard({ onClose }: WizardProps) {
   }, []);
 
   const canProceed = (): boolean => {
-    if (step === 1) return wState.entities.length > 0 && validateLabelWiz(wState.label, []) === null;
+    if (step === 1) return wState.entities.length > 0 && validateLabelWiz(wState.label, existingLabels) === null;
     if (step === 3 && wState.originMode === "specific") {
       return wState.originUrls.length > 0;
     }
@@ -1104,7 +1110,10 @@ export function Wizard({ onClose }: WizardProps) {
         patchState({ generatedToken: token });
         setStep(6);
       } catch (e) {
-        setError(String(e));
+        const raw = String(e);
+        const dashIdx = raw.lastIndexOf(" - ");
+        const body = dashIdx !== -1 ? raw.slice(dashIdx + 3) : raw;
+        setError(body.replace(/^\d{3}:\s*/, "").replace(/^Error:\s*/, "") || raw);
       } finally {
         setLoading(false);
       }
@@ -1171,7 +1180,7 @@ export function Wizard({ onClose }: WizardProps) {
 
         {/* Body */}
         <div className="wizard-body">
-          {step === 1 && <Step1 state={wState} onChange={patchState} />}
+          {step === 1 && <Step1 state={wState} onChange={patchState} existingLabels={existingLabels} />}
           {step === 2 && <Step2 state={wState} onChange={patchState} />}
           {step === 3 && <Step3 state={wState} onChange={patchState} />}
           {step === 4 && <Step4 state={wState} onChange={patchState} />}

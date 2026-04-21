@@ -192,7 +192,13 @@ export class HarvestClient {
    */
   sendCommand(entityId, action, data, msgId) {
     if (!this.#sessionId || !this.#ws || this.#ws.readyState !== WebSocket.OPEN) {
-      console.warn("[HArvest] sendCommand called with no active session");
+      console.warn(
+        "[HArvest] sendCommand blocked:",
+        !this.#sessionId ? "no sessionId" : "",
+        !this.#ws ? "no ws" : "",
+        this.#ws && this.#ws.readyState !== WebSocket.OPEN ? `ws state=${this.#ws.readyState}` : "",
+        "permanent=" + this.#permanentFailure,
+      );
       return;
     }
     this.#sendJson({
@@ -335,7 +341,7 @@ export class HarvestClient {
 
     if (this.#permanentFailure) return;
 
-    console.debug(`[HArvest] WS closed (code ${event.code}) - scheduling reconnect`);
+    console.warn(`[HArvest] WS closed (code ${event.code}) - scheduling reconnect`);
     this.#scheduleReconnect();
   }
 
@@ -432,6 +438,7 @@ export class HarvestClient {
       case "session_expiring": return this.#handleSessionExpiring(msg);
       case "ack":              return this.#handleAck(msg);
       case "error":            return this.#handleError(msg);
+      case "keepalive":        return; // heartbeat reset already done in #onMessage
       default:
         console.debug("[HArvest] Unknown message type:", msg.type);
     }
@@ -448,8 +455,7 @@ export class HarvestClient {
     this.#absoluteExpiresAt = msg.absolute_expires_at ? new Date(msg.absolute_expires_at) : null;
     this.#renewalCount = 0;
     this.#maxRenewals = msg.max_renewals ?? null;
-
-    // entity_definition and state_update messages follow immediately.
+    console.warn("[HArvest] auth_ok: session=" + msg.session_id);
   }
 
   #handleAuthFailed(msg) {

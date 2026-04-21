@@ -82,8 +82,15 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
+    const id = setInterval(() => {
+      if (!document.hidden) load();
+    }, 60_000);
+    const onVisible = () => { if (!document.hidden) load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [load]);
 
   const needsAttention = tokens.filter(t =>
