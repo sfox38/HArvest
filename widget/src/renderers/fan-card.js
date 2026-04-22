@@ -144,7 +144,9 @@ export class FanCard extends BaseCard {
 
     if (this.#speedSlider) {
       this.#speedSlider.addEventListener("input", (e) => {
-        this.#speedDebounce(parseInt(e.target.value, 10));
+        const val = parseInt(e.target.value, 10);
+        if (this.#speedValue) this.#speedValue.textContent = `${val}%`;
+        this.#speedDebounce(val);
       });
     }
 

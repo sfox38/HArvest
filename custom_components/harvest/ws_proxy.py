@@ -36,7 +36,7 @@ from .const import (
     WS_PATH,
 )
 from .entity_compatibility import validate_action
-from .entity_definition import build_entity_definition, split_attributes
+from .entity_definition import build_entity_definition, get_blocked_data_keys, split_attributes
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager
 from .rate_limiter import RateLimiter
@@ -578,9 +578,10 @@ class HarvestWsView(HomeAssistantView):
             })
             return
 
-        # Strip unknown data keys.
+        # Strip unknown data keys, then strip keys blocked by exclude_attributes.
         allowed_keys = _ALLOWED_DATA_KEYS.get(domain, set())
-        clean_data = {k: v for k, v in data.items() if k in allowed_keys}
+        blocked_keys = get_blocked_data_keys(ea.exclude_attributes) if ea.exclude_attributes else set()
+        clean_data = {k: v for k, v in data.items() if k in allowed_keys and k not in blocked_keys}
 
         # Execute.
         success = True

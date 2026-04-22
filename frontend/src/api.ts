@@ -2,11 +2,10 @@
  * api.ts - HTTP API client for the HArvest panel.
  *
  * All calls go to the HA HTTP API endpoints registered by http_views.py.
- * HA's cookie-based session authentication is used - the browser's session
- * cookie is sent automatically with every fetch (credentials: "include").
- *
- * All functions throw on non-2xx responses. The caller is responsible for
- * error handling and displaying messages to the user.
+ * Auth uses the bearer token from the hass object HA passes to the panel
+ * custom element. Before each request, the token expiry is checked and
+ * refreshed proactively if within 60s of expiry; on 401, the token is
+ * refreshed and the request retried once.
  */
 
 import type {
@@ -24,112 +23,85 @@ import type {
 const BASE = "/api/harvest";
 
 // ---------------------------------------------------------------------------
-// Auth token - set by main.tsx from the hass property before first render
+// Hass instance - set by main.tsx, used for auth token + refresh
 // ---------------------------------------------------------------------------
 
-let _authToken = "";
-let _lastToken = "";
-let _tokenGetter: (() => string) | null = null;
-let _authBroken = false;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _hass: any = null;
 
-export function setAuthToken(token: string): void {
-  _authToken = token;
-  if (token && token !== _lastToken) {
-    _lastToken = token;
-    _authBroken = false;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function setHass(hass: any): void {
+  _hass = hass;
+}
+
+// ---------------------------------------------------------------------------
+// Core request helper with proactive token refresh and 401 retry
+// ---------------------------------------------------------------------------
+
+async function _doReq<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  retried = false,
+  responseType: "json" | "text" = "json",
+): Promise<T> {
+  if (!retried && _hass?.auth) {
+    const expires: number | undefined = _hass.auth.data?.expires;
+    if (expires !== undefined && Date.now() > expires - 60_000) {
+      await _hass.auth.refreshAccessToken();
+    }
   }
-}
 
-// When registered, _tokenGetter is called on every request so the panel
-// always uses the freshest token from the live hass object rather than a
-// snapshot that may have expired between hass setter calls.
-export function setTokenGetter(fn: () => string): void {
-  _tokenGetter = fn;
-}
+  const token: string | undefined = _hass?.auth?.data?.access_token;
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (body !== undefined) headers["Content-Type"] = "application/json";
 
-function _authHeader(): Record<string, string> {
-  const token = _tokenGetter?.() || _authToken;
-  return token ? { "Authorization": `Bearer ${token}` } : {};
-}
+  const opts: RequestInit = { method, headers };
+  if (body !== undefined) opts.body = JSON.stringify(body);
 
-// ---------------------------------------------------------------------------
-// 401 handling - circuit breaker. On first 401, stop all outbound requests
-// until HA pushes a fresh token via the hass setter (which calls
-// setAuthToken, clearing the flag). This prevents cascading 401s that
-// trigger HA's IP ban.
-// ---------------------------------------------------------------------------
+  const url = path.startsWith("/api/") ? path : `${BASE}${path}`;
+  const res = await fetch(url, opts);
 
-function _check401(res: Response, path: string): void {
-  if (res.status !== 401) return;
-  _authBroken = true;
-  throw new Error(`${path}: auth expired`);
-}
+  if (res.status === 401 && !retried && _hass?.auth) {
+    await _hass.auth.refreshAccessToken();
+    return _doReq<T>(method, path, body, true, responseType);
+  }
 
-function _guardAuth(path: string): void {
-  if (_authBroken) throw new Error(`${path}: auth expired - waiting for token refresh`);
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-async function _get<T>(path: string, params?: Record<string, string>): Promise<T> {
-  _guardAuth(path);
-  const url = params
-    ? `${BASE}${path}?${new URLSearchParams(params)}`
-    : `${BASE}${path}`;
-  const res = await fetch(url, { headers: _authHeader() });
-  _check401(res, path);
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-  return res.json() as Promise<T>;
-}
-
-async function _post<T>(path: string, body?: unknown): Promise<T> {
-  _guardAuth(path);
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ..._authHeader() },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  _check401(res, path);
   if (!res.ok) {
     const reason = await res.text().catch(() => "");
-    throw new Error(`POST ${path} failed: ${res.status}${reason ? ` - ${reason}` : ""}`);
+    throw new Error(`${method} ${path} failed: ${res.status}${reason ? ` - ${reason}` : ""}`);
   }
+
+  if (responseType === "text") return res.text() as Promise<T>;
   return res.json() as Promise<T>;
 }
 
-async function _patch<T>(path: string, body: unknown): Promise<T> {
-  _guardAuth(path);
-  const res = await fetch(`${BASE}${path}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ..._authHeader() },
-    body: JSON.stringify(body),
-  });
-  _check401(res, path);
-  if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
-  return res.json() as Promise<T>;
+// ---------------------------------------------------------------------------
+// Convenience wrappers
+// ---------------------------------------------------------------------------
+
+function _get<T>(path: string, params?: Record<string, string>): Promise<T> {
+  const url = params ? `${path}?${new URLSearchParams(params)}` : path;
+  return _doReq<T>("GET", url);
 }
 
-async function _getText(path: string, params?: Record<string, string>): Promise<string> {
-  _guardAuth(path);
-  const url = params
-    ? `${BASE}${path}?${new URLSearchParams(params)}`
-    : `${BASE}${path}`;
-  const res = await fetch(url, { headers: _authHeader() });
-  _check401(res, path);
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-  return res.text();
+function _post<T>(path: string, body?: unknown): Promise<T> {
+  return _doReq<T>("POST", path, body);
 }
 
-async function _delete(path: string, params?: Record<string, string>): Promise<void> {
-  _guardAuth(path);
-  const url = params
-    ? `${BASE}${path}?${new URLSearchParams(params)}`
-    : `${BASE}${path}`;
-  const res = await fetch(url, { method: "DELETE", headers: _authHeader() });
-  _check401(res, path);
-  if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`);
+function _patch<T>(path: string, body: unknown): Promise<T> {
+  return _doReq<T>("PATCH", path, body);
+}
+
+function _getText(path: string, params?: Record<string, string>): Promise<string> {
+  const url = params ? `${path}?${new URLSearchParams(params)}` : path;
+  return _doReq<string>("GET", url, undefined, false, "text");
+}
+
+function _delete(path: string, params?: Record<string, string>): Promise<void> {
+  const url = params ? `${path}?${new URLSearchParams(params)}` : path;
+  return _doReq<void>("DELETE", url);
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +159,7 @@ export const api = {
       offset?: number;
       limit?: number;
       token_id?: string;
-      event_type?: string;  // display type filter, e.g. "AUTH_OK"
+      event_type?: string;
       since?: string;
       until?: string;
     }): Promise<ActivityPage> => {
@@ -267,9 +239,9 @@ export const api = {
 
   ha: {
     statesByDomain: async (domain: string): Promise<HAEntity[]> => {
-      const res = await fetch("/api/states", { headers: _authHeader() });
-      if (!res.ok) throw new Error(`GET /api/states failed: ${res.status}`);
-      const states = await res.json() as { entity_id: string; state: string; attributes: Record<string, unknown> }[];
+      const states = await _doReq<{ entity_id: string; state: string; attributes: Record<string, unknown> }[]>(
+        "GET", `/api/states`,
+      );
       return states
         .filter(s => s.entity_id.startsWith(domain + "."))
         .map(s => ({
@@ -281,9 +253,9 @@ export const api = {
     },
 
     entityAttributes: async (entityId: string): Promise<string[]> => {
-      const res = await fetch(`/api/states/${entityId}`, { headers: _authHeader() });
-      if (!res.ok) throw new Error(`GET /api/states/${entityId} failed: ${res.status}`);
-      const state = await res.json() as { attributes: Record<string, unknown> };
+      const state = await _doReq<{ attributes: Record<string, unknown> }>(
+        "GET", `/api/states/${entityId}`,
+      );
       return Object.keys(state.attributes).filter(k => k !== "friendly_name").sort();
     },
   },

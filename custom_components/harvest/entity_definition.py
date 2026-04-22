@@ -17,6 +17,101 @@ if TYPE_CHECKING:
     from .token_manager import EntityAccess
 
 
+# ---------------------------------------------------------------------------
+# Attribute exclusion helpers
+# ---------------------------------------------------------------------------
+# When exclude_attributes is set on a token entity, the widget should not see
+# features, config ranges, or accept commands for those attributes.
+#
+# Most feature/data key names match the HA attribute name directly.  The maps
+# below cover the known cases where they differ.
+
+# state attribute -> feature name it belongs to (only where names differ).
+# When any of these attributes is excluded, the mapped feature is suppressed.
+_ATTR_TO_FEATURE: dict[str, str] = {
+    "color_temp_kelvin": "color_temp",
+    "min_mireds": "color_temp",
+    "max_mireds": "color_temp",
+    "min_color_temp_kelvin": "color_temp",
+    "max_color_temp_kelvin": "color_temp",
+    "hs_color": "rgb_color",
+    "xy_color": "rgb_color",
+    "effect_list": "effect",
+    "percentage": "set_speed",
+    "percentage_step": "set_speed",
+    "oscillating": "oscillate",
+    "current_position": "set_position",
+    "current_tilt_position": "set_tilt_position",
+    "temperature": "target_temperature",
+    "volume_level": "volume_set",
+}
+
+# command data key -> state attribute it controls (only where names differ)
+_DATA_KEY_ATTR_NAME: dict[str, str] = {
+    "brightness_pct": "brightness",
+    "color_temp_kelvin": "color_temp",
+    "rgbw_color": "rgb_color",
+    "rgbww_color": "rgb_color",
+    "hs_color": "rgb_color",
+    "xy_color": "rgb_color",
+    "target_temp_low": "temperature",
+    "target_temp_high": "temperature",
+    "position": "current_position",
+    "tilt_position": "current_tilt_position",
+}
+
+# attribute -> extra feature_config keys to remove (only where the attribute
+# name does not appear as a substring of the config key)
+_ATTR_EXTRA_CONFIG_KEYS: dict[str, set[str]] = {
+    "temperature": {"min_temp", "max_temp", "temp_step"},
+    "percentage": {"speed_count"},
+}
+
+
+def _features_to_suppress(exclude_attributes: list[str]) -> set[str]:
+    """Compute the set of feature names to remove from supported_features.
+
+    Direct match: attribute name = feature name (covers most cases).
+    Reverse lookup: attribute maps to a differently-named feature via _ATTR_TO_FEATURE.
+    """
+    result: set[str] = set()
+    for attr in exclude_attributes:
+        result.add(attr)
+        mapped = _ATTR_TO_FEATURE.get(attr)
+        if mapped:
+            result.add(mapped)
+    return result
+
+
+def _is_config_key_excluded(key: str, exclude_attrs: list[str]) -> bool:
+    """Check if a feature_config key should be removed."""
+    for attr in exclude_attrs:
+        if attr in key:
+            return True
+        extra = _ATTR_EXTRA_CONFIG_KEYS.get(attr)
+        if extra and key in extra:
+            return True
+    return False
+
+
+def get_blocked_data_keys(exclude_attributes: list[str]) -> set[str]:
+    """Return the set of command data keys that should be stripped.
+
+    Direct match: data key name in excluded attributes.
+    Forward lookup: data key maps to an excluded attribute via _DATA_KEY_ATTR_NAME.
+    Reverse lookup: excluded attribute maps to a feature, and data keys sharing
+    that feature name are also blocked.
+    """
+    exclude_set = set(exclude_attributes)
+    blocked: set[str] = set(exclude_attributes)
+    suppressed = _features_to_suppress(exclude_attributes)
+    for data_key, attr in _DATA_KEY_ATTR_NAME.items():
+        if attr in exclude_set or attr in suppressed:
+            blocked.add(data_key)
+    blocked |= suppressed
+    return blocked
+
+
 # Maps (domain, bitmask_bit) -> feature string for translate_supported_features.
 FEATURE_FLAGS: dict[str, dict[int, str]] = {
     "light": {
@@ -223,6 +318,15 @@ def build_entity_definition(
 
     # unit_of_measurement from state attributes.
     unit_of_measurement: str | None = attrs.get("unit_of_measurement")
+
+    # Apply exclude_attributes: remove suppressed features and config keys.
+    if entity_access.exclude_attributes:
+        suppressed = _features_to_suppress(entity_access.exclude_attributes)
+        supported_features = [f for f in supported_features if f not in suppressed]
+        feature_config = {
+            k: v for k, v in feature_config.items()
+            if not _is_config_key_excluded(k, entity_access.exclude_attributes)
+        }
 
     support_tier = int(get_support_tier(domain))
     renderer = get_renderer_name(domain, device_class)

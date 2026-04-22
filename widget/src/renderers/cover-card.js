@@ -137,7 +137,9 @@ export class CoverCard extends BaseCard {
     this.#closeBtn?.addEventListener("click", () => this.config.card?.sendCommand("close_cover", {}));
 
     this.#positionSlider?.addEventListener("input", (e) => {
-      this.#positionDebounce(parseInt(e.target.value, 10));
+      const val = parseInt(e.target.value, 10);
+      if (this.#positionValue) this.#positionValue.textContent = `${val}%`;
+      this.#positionDebounce(val);
     });
 
     this.renderCompanions();

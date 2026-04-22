@@ -10,7 +10,7 @@
 
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { setAuthToken, setTokenGetter } from "./api";
+import { setHass } from "./api";
 import { loadEntityCache } from "./entityCache";
 import buildVersion from "./buildVersion.json";
 import panelCss from "./panel.css?inline";
@@ -38,13 +38,12 @@ function startBuildWatcher(): void {
 }
 
 // Shape of the hass object HA passes to custom panel elements.
-// Only the auth token field is needed here.
 interface HassObject {
-  auth: { data: { access_token: string } };
+  auth: {
+    data: { access_token: string; expires?: number };
+    refreshAccessToken: () => Promise<void>;
+  };
 }
-
-// Module-level hass reference so api.ts always reads the freshest token.
-let _latestHass: HassObject | null = null;
 
 class HaPanelHarvest extends HTMLElement {
   private _root: ReturnType<typeof createRoot> | null = null;
@@ -76,15 +75,9 @@ class HaPanelHarvest extends HTMLElement {
   // HA calls this setter every time the hass state updates. The first call
   // provides the auth token we need before any API requests fire.
   set hass(h: HassObject) {
-    _latestHass = h;
-    // Keep the fallback token in sync for any call that happens
-    // in the brief window before setTokenGetter is registered.
-    setAuthToken(h.auth.data.access_token);
+    setHass(h);
     if (!this._mounted && this._root) {
       this._mounted = true;
-      // Register a live getter so every API call reads the freshest token
-      // directly from the hass object rather than a cached copy.
-      setTokenGetter(() => _latestHass?.auth.data.access_token ?? "");
       loadEntityCache();
       startBuildWatcher();
       this._root.render(<App />);

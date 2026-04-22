@@ -229,13 +229,22 @@ export class LightCard extends BaseCard {
 
     if (this.#brightnessSlider) {
       this.#brightnessSlider.addEventListener("input", (e) => {
-        this.#brightnessDebounce(parseInt(e.target.value, 10));
+        const val = parseInt(e.target.value, 10);
+        if (this.#brightnessValue) {
+          this.#brightnessValue.textContent =
+            `${Math.round((val / 255) * 100)}%`;
+        }
+        this.#brightnessDebounce(val);
       });
     }
 
     if (this.#colorTempSlider) {
       this.#colorTempSlider.addEventListener("input", (e) => {
-        this.#colorTempDebounce(parseInt(e.target.value, 10));
+        const val = parseInt(e.target.value, 10);
+        if (this.#colorTempValue) {
+          this.#colorTempValue.textContent = `${val}K`;
+        }
+        this.#colorTempDebounce(val);
       });
     }
 
