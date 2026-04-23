@@ -21,6 +21,9 @@ class Harvest_Shortcode {
     /** Token inherited from a wrapping [harvest_group]. */
     private static string $group_token = '';
 
+    /** Token secret inherited from a wrapping [harvest_group]. */
+    private static string $group_token_secret = '';
+
     public static function init(): void {
         add_shortcode( 'harvest',       [ self::class, 'render'       ] );
         add_shortcode( 'harvest_group', [ self::class, 'render_group' ] );
@@ -34,6 +37,7 @@ class Harvest_Shortcode {
         $atts = shortcode_atts(
             [
                 'token'        => '',
+                'token-secret' => '',
                 'entity'       => '',
                 'alias'        => '',
                 'companion'    => '',
@@ -94,6 +98,12 @@ class Harvest_Shortcode {
             'data-ha-url' => $ha_url,
         ];
 
+        if ( ! empty( $atts['token-secret'] ) ) {
+            $data_attrs['data-token-secret'] = $atts['token-secret'];
+        } elseif ( ! empty( self::$group_token_secret ) ) {
+            $data_attrs['data-token-secret'] = self::$group_token_secret;
+        }
+
         if ( ! empty( $atts['entity'] ) ) {
             $data_attrs['data-entity'] = $atts['entity'];
         } else {
@@ -140,9 +150,10 @@ class Harvest_Shortcode {
     public static function render_group( array $atts, string $content = '' ): string {
         $atts = shortcode_atts(
             [
-                'token' => '',
-                'theme' => '',
-                'lang'  => 'auto',
+                'token'        => '',
+                'token-secret' => '',
+                'theme'        => '',
+                'lang'         => 'auto',
             ],
             $atts,
             'harvest_group'
@@ -155,6 +166,10 @@ class Harvest_Shortcode {
             'data-ha-url' => $ha_url,
         ];
 
+        if ( ! empty( $atts['token-secret'] ) ) {
+            $data_attrs['data-token-secret'] = $atts['token-secret'];
+        }
+
         if ( ! empty( $atts['theme'] ) ) {
             $data_attrs['data-theme-url'] = $atts['theme'];
         }
@@ -165,10 +180,12 @@ class Harvest_Shortcode {
 
         $attr_string = self::build_attr_string( $data_attrs );
 
-        // Set group token so nested [harvest] shortcodes can inherit it.
+        // Set group token/secret so nested [harvest] shortcodes can inherit.
         self::$group_token = $atts['token'];
+        self::$group_token_secret = $atts['token-secret'];
         $inner = do_shortcode( $content );
         self::$group_token = '';
+        self::$group_token_secret = '';
 
         Harvest_Assets::enqueue();
 

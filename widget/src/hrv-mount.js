@@ -20,6 +20,7 @@
  *   data-alias        -> alias
  *   data-token        -> token
  *   data-ha-url       -> ha-url
+ *   data-token-secret -> token-secret
  *   data-companion    -> companion
  *   data-theme-url    -> theme-url
  *   data-lang         -> lang
@@ -103,10 +104,11 @@ function mountElement(el) {
 function mountGroup(el) {
   const group = document.createElement("hrv-group");
 
-  if (el.dataset.token)    group.setAttribute("token",     el.dataset.token);
-  if (el.dataset.haUrl)    group.setAttribute("ha-url",    el.dataset.haUrl);
-  if (el.dataset.themeUrl) group.setAttribute("theme-url", el.dataset.themeUrl);
-  if (el.dataset.lang)     group.setAttribute("lang",      el.dataset.lang);
+  if (el.dataset.token)       group.setAttribute("token",        el.dataset.token);
+  if (el.dataset.haUrl)       group.setAttribute("ha-url",       el.dataset.haUrl);
+  if (el.dataset.tokenSecret) group.setAttribute("token-secret", el.dataset.tokenSecret);
+  if (el.dataset.themeUrl)    group.setAttribute("theme-url",    el.dataset.themeUrl);
+  if (el.dataset.lang)        group.setAttribute("lang",         el.dataset.lang);
 
   // Move existing children into the group element.
   while (el.firstChild) group.appendChild(el.firstChild);
@@ -138,9 +140,11 @@ function mountCard(el) {
 
   const token = el.dataset.token || inherited.token;
   const haUrl = el.dataset.haUrl || inherited.haUrl;
+  const tokenSecret = el.dataset.tokenSecret || inherited.tokenSecret;
 
   if (token)               card.setAttribute("token",        token);
   if (haUrl)               card.setAttribute("ha-url",       haUrl);
+  if (tokenSecret)         card.setAttribute("token-secret", tokenSecret);
 
   // entity takes priority over alias.
   if (el.dataset.entity)           card.setAttribute("entity",       el.dataset.entity);
@@ -183,7 +187,7 @@ function unmountElement(el) {
  * Returns empty strings if no ancestor group is found.
  *
  * @param {HTMLElement} el
- * @returns {{ token: string, haUrl: string }}
+ * @returns {{ token: string, haUrl: string, tokenSecret: string }}
  */
 function _inheritFromParentGroup(el) {
   let ancestor = el.parentElement;
@@ -192,11 +196,12 @@ function _inheritFromParentGroup(el) {
       return {
         token: ancestor.dataset.token ?? "",
         haUrl: ancestor.dataset.haUrl ?? "",
+        tokenSecret: ancestor.dataset.tokenSecret ?? "",
       };
     }
     ancestor = ancestor.parentElement;
   }
-  return { token: "", haUrl: "" };
+  return { token: "", haUrl: "", tokenSecret: "" };
 }
 
 // ---------------------------------------------------------------------------

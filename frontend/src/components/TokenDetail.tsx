@@ -120,8 +120,9 @@ function extraAttrs(e: Token["entities"][0], format: "html" | "shortcode"): stri
   return s;
 }
 
-function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string): string {
+function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null): string {
   const groups = groupEntities(token.entities);
+  const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
 
   function cardLine(g: PrimaryWithCompanions, indent = ""): string {
     const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
@@ -136,7 +137,7 @@ function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haU
     return groups.map(g => cardLine(g)).join("\n");
   }
 
-  const groupAttrs = `ha-url="${haUrl}" token="${token.token_id}"`;
+  const groupAttrs = `ha-url="${haUrl}" token="${token.token_id}"${secretAttr}`;
   if (mode === "group") {
     return `<hrv-group ${groupAttrs}>\n${groups.map(g => cardLine(g, "  ")).join("\n")}\n</hrv-group>`;
   }
@@ -150,8 +151,9 @@ function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haU
   return `<hrv-card ${groupAttrs} ${entityAttr}${companionAttr}${hist}${extra}></hrv-card>`;
 }
 
-function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode): string {
+function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null): string {
   const groups = groupEntities(token.entities);
+  const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
 
   function shortcodeLine(g: PrimaryWithCompanions, indent = ""): string {
     const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
@@ -169,12 +171,12 @@ function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode
       const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
       const hist = graphAttrs(g.primary, "shortcode");
       const extra = extraAttrs(g.primary, "shortcode");
-      return `[harvest token="${token.token_id}" ${attr}${companionAttr}${hist}${extra}]`;
+      return `[harvest token="${token.token_id}"${secretAttr} ${attr}${companionAttr}${hist}${extra}]`;
     }).join("\n");
   }
 
   if (mode === "group") {
-    return `[harvest_group token="${token.token_id}"]\n${groups.map(g => shortcodeLine(g, "  ")).join("\n")}\n[/harvest_group]`;
+    return `[harvest_group token="${token.token_id}"${secretAttr}]\n${groups.map(g => shortcodeLine(g, "  ")).join("\n")}\n[/harvest_group]`;
   }
 
   const g = groups[0];
@@ -184,7 +186,7 @@ function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode
   const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
   const hist = graphAttrs(g.primary, "shortcode");
   const extra = extraAttrs(g.primary, "shortcode");
-  return `[harvest token="${token.token_id}" ${entityAttr}${companionAttr}${hist}${extra}]`;
+  return `[harvest token="${token.token_id}"${secretAttr} ${entityAttr}${companionAttr}${hist}${extra}]`;
 }
 
 function fmtDateLong(iso: string): string {
@@ -208,7 +210,7 @@ function validateLabel(label: string, otherLabels: string[]): string | null {
 // Code section
 // ---------------------------------------------------------------------------
 
-function CodeSection({ token, setToken, setError }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void }) {
+function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void; hmacSecret: string | null }) {
   const [useAliases,      setUseAliases]      = useState(() => localStorage.getItem("hrv_use_aliases") === "true");
   const [tab,             setTab]             = useState<"web" | "wordpress">(() => localStorage.getItem("hrv_code_tab") === "wordpress" ? "wordpress" : "web");
   const primaryCount = token.entities.filter(e => !e.companion_of).length;
@@ -235,13 +237,15 @@ function CodeSection({ token, setToken, setError }: { token: Token; setToken: (t
   const isPage = cardMode === "page";
   const scriptUrl = widgetScriptUrl.trim() || DEFAULT_WIDGET_SCRIPT_URL;
   const scriptTag = `<script src="${scriptUrl}"></script>`;
+  const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
+  if (isPage && hmacSecret) pageConfigParts.push(`tokenSecret: "${hmacSecret}"`);
   const setupSnippet = isPage
-    ? `${scriptTag}\n<script>HArvest.config({ haUrl: "${haUrl}", token: "${token.token_id}" });</script>`
+    ? `${scriptTag}\n<script>HArvest.config({ ${pageConfigParts.join(", ")} });</script>`
     : scriptTag;
 
   const cardSnippet = tab === "web"
-    ? buildCardSnippet(token, useAliases, cardMode, haUrl)
-    : buildWordPressSnippet(token, useAliases, cardMode);
+    ? buildCardSnippet(token, useAliases, cardMode, haUrl, hmacSecret)
+    : buildWordPressSnippet(token, useAliases, cardMode, hmacSecret);
 
   const setupCopy = useCopy(setupSnippet);
   const cardCopy = useCopy(cardSnippet);
@@ -1211,9 +1215,11 @@ interface SecurityEditorProps {
   setSaving: (v: boolean) => void;
   setToken: (t: Token & { created_by_name?: string | null }) => void;
   setError: (e: string) => void;
+  generatedSecret: string | null;
+  setGeneratedSecret: (s: string | null) => void;
 }
 
-function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError }: SecurityEditorProps) {
+function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError, generatedSecret, setGeneratedSecret }: SecurityEditorProps) {
   const canEdit = !readonly && !saving;
   const prevName = token.created_by_name;
   const patchToken = async (data: Record<string, unknown>) => {
@@ -1280,7 +1286,6 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
   };
 
   // -- HMAC --
-  const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
   const [confirmDisableHmac, setConfirmDisableHmac] = useState(false);
   const secretCopy = useCopy(generatedSecret ?? "");
 
@@ -1494,6 +1499,7 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmPause,  setConfirmPause]  = useState(false);
+  const [hmacSecret,    setHmacSecret]    = useState<string | null>(null);
 
   const load = useCallback(() => {
     api.tokens.get(tokenId)
@@ -1670,7 +1676,7 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
         <div className="col" style={{ gap: 18 }}>
 
           {/* Code section */}
-          {!readonly && <CodeSection token={token} setToken={t => setToken({ ...t, created_by_name: token.created_by_name })} setError={setError} />}
+          {!readonly && <CodeSection token={token} setToken={t => setToken({ ...t, created_by_name: token.created_by_name })} setError={setError} hmacSecret={hmacSecret} />}
 
           {/* Entities */}
           <EntitiesEditor
@@ -1726,6 +1732,8 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
             setSaving={setSaving}
             setToken={t => setToken({ ...t, created_by_name: token.created_by_name })}
             setError={setError}
+            generatedSecret={hmacSecret}
+            setGeneratedSecret={setHmacSecret}
           />
         </div>
 

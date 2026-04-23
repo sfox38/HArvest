@@ -446,10 +446,11 @@ export class HrvCard extends HTMLElement {
    * Fill remaining gaps from HArvest.config() page-level defaults.
    */
   #applyPageConfigFallbacks() {
-    if (!this.#config.tokenId  && _pageConfig.token)    this.#config.tokenId  = _pageConfig.token;
-    if (!this.#config.haUrl    && _pageConfig.haUrl)    this.#config.haUrl    = _pageConfig.haUrl;
-    if (!this.#config.themeUrl && _pageConfig.themeUrl) this.#config.themeUrl = _pageConfig.themeUrl;
-    if (this.#config.lang === "auto" && _pageConfig.lang) this.#config.lang   = _pageConfig.lang;
+    if (!this.#config.tokenId    && _pageConfig.token)       this.#config.tokenId    = _pageConfig.token;
+    if (!this.#config.haUrl      && _pageConfig.haUrl)       this.#config.haUrl      = _pageConfig.haUrl;
+    if (!this.#config.tokenSecret && _pageConfig.tokenSecret) this.#config.tokenSecret = _pageConfig.tokenSecret;
+    if (!this.#config.themeUrl   && _pageConfig.themeUrl)     this.#config.themeUrl   = _pageConfig.themeUrl;
+    if (this.#config.lang === "auto" && _pageConfig.lang)     this.#config.lang       = _pageConfig.lang;
   }
 
   /**
