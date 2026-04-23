@@ -5,13 +5,60 @@
  * + activity (right). Code blocks use step-pill labels.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Token, Session, ActivityPage } from "../types";
 import { api } from "../api";
-import { StatusBadge, CopyablePre, ConfirmDialog, Spinner, ErrorBanner, Card, EventRow, fmtRel, EntityAutocomplete } from "./Shared";
+import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, EventRow, fmtRel, EntityAutocomplete } from "./Shared";
 import { Icon } from "./Icon";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 import { loadEntityCache, getEntityCache } from "../entityCache";
+
+// ---------------------------------------------------------------------------
+// Clipboard hook (works in non-secure contexts)
+// ---------------------------------------------------------------------------
+
+function doCopy(text: string) {
+  const fallback = () => {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch { /* ignore */ }
+    document.body.removeChild(ta);
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).catch(fallback);
+  } else {
+    fallback();
+  }
+}
+
+function useCopy(text: string) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const copy = useCallback(() => {
+    doCopy(text);
+    setCopied(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 2000);
+  }, [text]);
+  return { copied, copy };
+}
+
+function CopyBtn({ copied, copy, label }: { copied: boolean; copy: () => void; label: string }) {
+  return (
+    <button
+      onClick={copy}
+      className={`copy-btn copy-btn-sm${copied ? " copied" : ""}`}
+      aria-label={copied ? "Copied to clipboard" : label}
+    >
+      {copied ? "Copied!" : label}
+    </button>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Props
@@ -196,6 +243,9 @@ function CodeSection({ token, setToken, setError }: { token: Token; setToken: (t
     ? buildCardSnippet(token, useAliases, cardMode, haUrl)
     : buildWordPressSnippet(token, useAliases, cardMode);
 
+  const setupCopy = useCopy(setupSnippet);
+  const cardCopy = useCopy(cardSnippet);
+
   return (
     <Card
       title="Embed code"
@@ -223,7 +273,7 @@ function CodeSection({ token, setToken, setError }: { token: Token; setToken: (t
         <div className="code-block-group">
           <div className="code-block-label">
             <span className="step-pill">1</span>
-            <div>
+            <div style={{ flex: 1 }}>
               <div className="code-block-title">{isPage ? "Page setup" : "Widget script"}</div>
               <div className="muted" style={{ fontSize: 12 }}>
                 {isPage
@@ -231,8 +281,9 @@ function CodeSection({ token, setToken, setError }: { token: Token; setToken: (t
                   : <>Add once to your site's <code>&lt;head&gt;</code>.</>}
               </div>
             </div>
+            <CopyBtn copied={setupCopy.copied} copy={setupCopy.copy} label={isPage ? "Copy setup" : "Copy script"} />
           </div>
-          <CopyablePre text={setupSnippet} label={isPage ? "Copy setup" : "Copy script"} />
+          <pre className="code code-full" onClick={setupCopy.copy} title="Click to copy">{setupSnippet}</pre>
         </div>
       )}
 
@@ -240,7 +291,7 @@ function CodeSection({ token, setToken, setError }: { token: Token; setToken: (t
       <div className="code-block-group">
         <div className="code-block-label">
           <span className="step-pill">{tab === "web" ? "2" : "1"}</span>
-          <div>
+          <div style={{ flex: 1 }}>
             <div className="code-block-title">{tab === "wordpress" ? "Shortcode" : "Widget markup"}</div>
             <div className="muted" style={{ fontSize: 12 }}>
               {tab === "wordpress"
@@ -250,8 +301,9 @@ function CodeSection({ token, setToken, setError }: { token: Token; setToken: (t
                   : "Drop wherever this widget should render."}
             </div>
           </div>
+          <CopyBtn copied={cardCopy.copied} copy={cardCopy.copy} label={tab === "wordpress" ? "Copy shortcode" : "Copy markup"} />
         </div>
-        <CopyablePre text={cardSnippet} label={tab === "wordpress" ? "Copy shortcode" : "Copy markup"} />
+        <pre className="code code-full" onClick={cardCopy.copy} title="Click to copy">{cardSnippet}</pre>
       </div>
 
       {/* Alias toggle */}
@@ -1108,6 +1160,325 @@ function OriginsEditor({ token, saving, setSaving, setToken, setError }: Origins
 }
 
 // ---------------------------------------------------------------------------
+// IANA timezone list (common subset)
+// ---------------------------------------------------------------------------
+
+const COMMON_TIMEZONES = [
+  "UTC",
+  "Pacific/Auckland", "Pacific/Fiji",
+  "Australia/Sydney", "Australia/Adelaide", "Australia/Perth",
+  "Asia/Tokyo", "Asia/Seoul", "Asia/Shanghai", "Asia/Hong_Kong",
+  "Asia/Singapore", "Asia/Bangkok", "Asia/Kolkata", "Asia/Dubai",
+  "Europe/Moscow", "Europe/Istanbul", "Europe/Athens", "Europe/Helsinki",
+  "Europe/Berlin", "Europe/Paris", "Europe/Amsterdam", "Europe/London",
+  "Atlantic/Reykjavik",
+  "America/Sao_Paulo", "America/Argentina/Buenos_Aires",
+  "America/New_York", "America/Chicago", "America/Denver",
+  "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu",
+];
+
+function detectTimezone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz && COMMON_TIMEZONES.includes(tz)) return tz;
+    if (tz) return tz;
+  } catch { /* ignore */ }
+  return "UTC";
+}
+
+function tzOffsetLabel(tz: string): string {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" });
+    const parts = fmt.formatToParts(new Date());
+    const offset = parts.find(p => p.type === "timeZoneName")?.value ?? "";
+    return offset.replace("GMT", "UTC");
+  } catch { return ""; }
+}
+
+const DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+const DAY_LABELS: Record<string, string> = {
+  mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun",
+};
+
+// ---------------------------------------------------------------------------
+// SecurityEditor
+// ---------------------------------------------------------------------------
+
+interface SecurityEditorProps {
+  token: Token & { created_by_name?: string | null };
+  readonly: boolean;
+  saving: boolean;
+  setSaving: (v: boolean) => void;
+  setToken: (t: Token & { created_by_name?: string | null }) => void;
+  setError: (e: string) => void;
+}
+
+function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError }: SecurityEditorProps) {
+  const canEdit = !readonly && !saving;
+  const prevName = token.created_by_name;
+  const patchToken = async (data: Record<string, unknown>) => {
+    setSaving(true);
+    try {
+      const updated = await api.tokens.update(token.token_id, data as Partial<Token>);
+      setToken({ ...updated, created_by_name: prevName });
+    } catch (e) { setError(String(e)); }
+    finally { setSaving(false); }
+  };
+
+  // -- Active Schedule --
+  const hasSchedule = token.active_schedule !== null;
+  const [schedExpand, setSchedExpand] = useState(hasSchedule);
+  const [schedTz, setSchedTz] = useState(token.active_schedule?.timezone ?? detectTimezone());
+  const [schedDays, setSchedDays] = useState<string[]>(
+    token.active_schedule?.windows[0]?.days ?? ["mon", "tue", "wed", "thu", "fri"],
+  );
+  const [schedStart, setSchedStart] = useState(token.active_schedule?.windows[0]?.start ?? "09:00");
+  const [schedEnd, setSchedEnd] = useState(token.active_schedule?.windows[0]?.end ?? "18:00");
+  const [schedDirty, setSchedDirty] = useState(false);
+
+  const saveSchedule = async () => {
+    if (!canEdit) return;
+    await patchToken({
+      active_schedule: {
+        timezone: schedTz,
+        windows: [{ days: schedDays, start: schedStart, end: schedEnd }],
+      },
+    });
+    setSchedDirty(false);
+  };
+
+  const clearSchedule = async () => {
+    if (!canEdit) return;
+    await patchToken({ active_schedule: null });
+    setSchedExpand(false);
+    setSchedDirty(false);
+  };
+
+  const markSchedDirty = () => setSchedDirty(true);
+
+  // -- Allowed IPs --
+  const [ipText, setIpText] = useState(token.allowed_ips.join("\n"));
+
+  const saveIps = async (raw: string) => {
+    if (!canEdit) return;
+    const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+    const current = token.allowed_ips;
+    if (lines.length === current.length && lines.every((l, i) => l === current[i])) return;
+    await patchToken({ allowed_ips: lines });
+  };
+
+  // -- Max Sessions --
+  const [maxSess, setMaxSess] = useState(token.max_sessions !== null ? String(token.max_sessions) : "");
+
+  const saveMaxSess = async (raw: string) => {
+    if (!canEdit) return;
+    const val = raw.trim() === "" ? null : parseInt(raw, 10);
+    if (val !== null && (isNaN(val) || val < 1 || val > 1000)) return;
+    const current = token.max_sessions;
+    if (val === current) return;
+    await patchToken({ max_sessions: val });
+  };
+
+  // -- HMAC --
+  const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
+  const [confirmDisableHmac, setConfirmDisableHmac] = useState(false);
+  const secretCopy = useCopy(generatedSecret ?? "");
+
+  const enableHmac = async () => {
+    if (!canEdit) return;
+    setSaving(true);
+    try {
+      const data = await api.tokens.update(token.token_id, { token_secret: "generate" } as unknown as Partial<Token>);
+      setGeneratedSecret((data as Token & { generated_secret?: string }).generated_secret ?? null);
+      setToken({ ...data, created_by_name: prevName });
+    } catch (e) { setError(String(e)); }
+    finally { setSaving(false); }
+  };
+
+  const disableHmac = async () => {
+    setConfirmDisableHmac(false);
+    await patchToken({ token_secret: null } as Record<string, unknown>);
+    setGeneratedSecret(null);
+  };
+
+  return (
+    <Card title="Security">
+      <div className="col" style={{ gap: 16 }}>
+
+        {/* HMAC */}
+        <div>
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Enhanced security (HMAC)</div>
+              <div className="muted" style={{ fontSize: 11.5 }}>
+                Signs auth messages with a shared secret to prevent token reuse.
+              </div>
+            </div>
+            {!readonly && (
+              <div className="row" style={{ gap: 6 }}>
+                {generatedSecret && <CopyBtn copied={secretCopy.copied} copy={secretCopy.copy} label="Copy secret" />}
+                <button
+                  className={`btn btn-sm ${token.token_secret ? "btn-danger" : "btn-primary"}`}
+                  disabled={saving}
+                  onClick={() => token.token_secret ? setConfirmDisableHmac(true) : enableHmac()}
+                >
+                  {token.token_secret ? "Disable" : "Enable"}
+                </button>
+              </div>
+            )}
+          </div>
+          {token.token_secret && !generatedSecret && (
+            <div className="badge badge-ok" style={{ fontSize: 12, marginTop: 6 }}>HMAC enabled</div>
+          )}
+          {generatedSecret && (
+            <div style={{ marginTop: 8 }}>
+              <div className="badge badge-warn" style={{ fontSize: 12, marginBottom: 6 }}>
+                Copy this secret now. It will not be shown again.
+              </div>
+              <pre className="code code-full" onClick={secretCopy.copy} title="Click to copy">{generatedSecret}</pre>
+            </div>
+          )}
+        </div>
+
+        <div style={{ height: 1, background: "var(--divider)" }} />
+
+        {/* Active Schedule */}
+        <div>
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Active schedule</div>
+              <div className="muted" style={{ fontSize: 11.5 }}>
+                Restrict this widget to specific days and times.
+              </div>
+            </div>
+            {!readonly && !hasSchedule && !schedExpand && (
+              <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => setSchedExpand(true)}>
+                Configure
+              </button>
+            )}
+          </div>
+          {(hasSchedule || schedExpand) && (
+            <div className="col" style={{ gap: 8, marginTop: 10 }}>
+              <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <label style={{ fontSize: 12, fontWeight: 500 }}>Timezone</label>
+                <select
+                  value={schedTz}
+                  onChange={e => { setSchedTz(e.target.value); markSchedDirty(); }}
+                  disabled={!canEdit}
+                  className="input"
+                  style={{ fontSize: 12, flex: 1, minWidth: 160 }}
+                >
+                  {(!COMMON_TIMEZONES.includes(schedTz)) && <option key={schedTz} value={schedTz}>{schedTz} ({tzOffsetLabel(schedTz)})</option>}
+                  {COMMON_TIMEZONES.map(tz => <option key={tz} value={tz}>{tz} ({tzOffsetLabel(tz)})</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {DAY_KEYS.map(d => (
+                  <button
+                    key={d}
+                    className={`btn btn-sm ${schedDays.includes(d) ? "btn-primary" : "btn-ghost"}`}
+                    disabled={!canEdit}
+                    onClick={() => {
+                      setSchedDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+                      markSchedDirty();
+                    }}
+                    style={{ minWidth: 38, fontSize: 11.5, padding: "3px 6px" }}
+                  >
+                    {DAY_LABELS[d]}
+                  </button>
+                ))}
+              </div>
+              <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                <label style={{ fontSize: 12, fontWeight: 500 }}>From</label>
+                <input
+                  type="time" value={schedStart}
+                  onChange={e => { setSchedStart(e.target.value); markSchedDirty(); }}
+                  disabled={!canEdit} className="input" style={{ fontSize: 12 }}
+                />
+                <label style={{ fontSize: 12, fontWeight: 500 }}>to</label>
+                <input
+                  type="time" value={schedEnd}
+                  onChange={e => { setSchedEnd(e.target.value); markSchedDirty(); }}
+                  disabled={!canEdit} className="input" style={{ fontSize: 12 }}
+                />
+              </div>
+              {!readonly && (
+                <div className="row" style={{ gap: 8, marginTop: 4 }}>
+                  <button className="btn btn-sm btn-primary" disabled={saving || (hasSchedule && !schedDirty) || schedDays.length === 0} onClick={saveSchedule}>
+                    {hasSchedule ? "Update" : "Apply"}
+                  </button>
+                  {hasSchedule && (
+                    <button className="btn btn-sm btn-ghost" disabled={saving} onClick={clearSchedule}>Remove</button>
+                  )}
+                  {!hasSchedule && (
+                    <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => { setSchedExpand(false); setSchedDirty(false); }}>Cancel</button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={{ height: 1, background: "var(--divider)" }} />
+
+        {/* IP Restrictions */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>IP restrictions</div>
+          <div className="muted" style={{ fontSize: 11.5, marginBottom: 6 }}>
+            CIDR ranges that may connect (one per line). Empty means all IPs allowed.
+          </div>
+          <textarea
+            value={ipText}
+            placeholder={"203.0.113.0/24\n10.0.0.0/8"}
+            rows={3}
+            onChange={e => setIpText(e.target.value)}
+            onBlur={() => saveIps(ipText)}
+            disabled={!canEdit}
+            className="input"
+            style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 12, resize: "vertical" }}
+          />
+        </div>
+
+        <div style={{ height: 1, background: "var(--divider)" }} />
+
+        {/* Max Sessions */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Max concurrent sessions</div>
+          <div className="muted" style={{ fontSize: 11.5, marginBottom: 6 }}>
+            Limit simultaneous connections for this widget. Leave blank for unlimited.
+          </div>
+          <input
+            type="number"
+            value={maxSess}
+            placeholder="unlimited"
+            min={1}
+            max={1000}
+            onChange={e => setMaxSess(e.target.value)}
+            onBlur={() => saveMaxSess(maxSess)}
+            onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+            disabled={!canEdit}
+            className="input"
+            style={{ width: 100, fontSize: 13 }}
+          />
+        </div>
+
+      </div>
+
+      {confirmDisableHmac && (
+        <ConfirmDialog
+          title="Disable HMAC?"
+          message="Disabling HMAC removes the shared secret. Any pages using this token with HMAC signing will stop working."
+          confirmLabel="Disable"
+          confirmDestructive
+          onConfirm={disableHmac}
+          onCancel={() => setConfirmDisableHmac(false)}
+        />
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TokenDetail
 // ---------------------------------------------------------------------------
 
@@ -1231,9 +1602,6 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
   const expiryInvalid = editExpiry !== "" && (
     !/^\d{4}-\d{2}-\d{2}$/.test(editExpiry) || editExpiry <= today
   );
-  const savedValue = token.expires ? token.expires.slice(0, 10) : "";
-  const expiryDirty = editExpiry !== savedValue;
-
   return (
     <div className="content-narrow col" style={{ gap: 18 }}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
@@ -1331,34 +1699,15 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
               </div>
             ) : (
               <div className="col" style={{ gap: 6 }}>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-                  <input
-                    type="date"
-                    value={editExpiry}
-                    min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
-                    onChange={e => setEditExpiry(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") saveExpiry(editExpiry); }}
-                    disabled={saving}
-                    className="input"
-                    style={{ fontSize: 13, borderColor: expiryInvalid ? "var(--danger)" : undefined }}
-                  />
-                  <button
-                    onClick={() => saveExpiry(editExpiry)}
-                    disabled={saving || expiryInvalid || !expiryDirty}
-                    className="btn btn-sm btn-primary"
-                  >
-                    Apply
-                  </button>
-                  {editExpiry && (
-                    <button
-                      onClick={() => saveExpiry("")}
-                      disabled={saving}
-                      className="btn btn-sm btn-ghost"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
+                <input
+                  type="date"
+                  value={editExpiry}
+                  min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                  onChange={e => { setEditExpiry(e.target.value); saveExpiry(e.target.value); }}
+                  disabled={saving}
+                  className="input"
+                  style={{ fontSize: 13, borderColor: expiryInvalid ? "var(--danger)" : undefined }}
+                />
                 {expiryInvalid && (
                   <div style={{ fontSize: 12, color: "var(--danger)" }}>Date must be in the future.</div>
                 )}
@@ -1367,12 +1716,17 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
                 )}
               </div>
             )}
-            {token.active_schedule && (
-              <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
-                Schedule: {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].filter((_, i) => token.active_schedule!.days.includes(i)).join(", ")}
-              </div>
-            )}
           </Card>
+
+          {/* Security */}
+          <SecurityEditor
+            token={token}
+            readonly={readonly}
+            saving={saving}
+            setSaving={setSaving}
+            setToken={t => setToken({ ...t, created_by_name: token.created_by_name })}
+            setError={setError}
+          />
         </div>
 
         {/* Right column */}
@@ -1382,7 +1736,6 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
               <dt>Live sessions</dt><dd>{token.active_sessions}</dd>
               <dt>Token ID</dt><dd className="mono" style={{ fontSize: 11 }}>{token.token_id}</dd>
               <dt>Version</dt><dd>{token.token_version}</dd>
-              <dt>Max sessions</dt><dd>{token.max_sessions ?? "unlimited"}</dd>
             </dl>
           </Card>
 

@@ -1123,6 +1123,12 @@
   margin: 0;
 }
 
+.code-full {
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
 /* Syntax hint classes */
 .code .k { color: #8ee6b0; }
 .code .s { color: #f0c674; }
@@ -1145,10 +1151,7 @@
 }
 
 .code-wrap > .copy-btn {
-  position: static;
-  flex-shrink: 0;
   align-self: flex-start;
-  margin-top: 0;
 }
 
 .code-block-group {
@@ -1164,6 +1167,10 @@
   gap: 10px;
   align-items: flex-start;
   margin-bottom: 8px;
+}
+
+.code-block-label > .copy-btn {
+  align-self: center;
 }
 
 .code-block-title {
@@ -1188,9 +1195,7 @@
 }
 
 .copy-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  position: relative;
   padding: 4px 10px;
   font-size: 11.5px;
   background: rgba(255, 255, 255, 0.08);
@@ -1200,10 +1205,12 @@
   cursor: pointer;
   font-family: inherit;
   transition: background 120ms;
+  flex-shrink: 0;
 }
 
 .copy-btn:hover { background: rgba(255, 255, 255, 0.14); }
 .copy-btn.copied { background: rgba(47, 125, 77, 0.6); color: #fff; }
+.copy-btn-sm { padding: 3px 8px; font-size: 10.5px; }
 
 /* ============================================================
    Activity graph
@@ -2074,7 +2081,7 @@
   .segmented button { flex: 1; }
 
   .code { font-size: 11.5px; padding: 12px 14px; }
-  .copy-btn { top: 6px; right: 6px; padding: 3px 8px; font-size: 10.5px; }
+  .copy-btn { padding: 3px 8px; font-size: 10.5px; }
 
   .kv { grid-template-columns: 100px 1fr !important; }
 

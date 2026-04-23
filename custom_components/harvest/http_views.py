@@ -396,6 +396,20 @@ class HarvestTokenDetailView(HomeAssistantView):
                 raise web.HTTPBadRequest(reason="embed_mode must be single, group, or page.")
             updates["embed_mode"] = body["embed_mode"]
 
+        generated_secret: str | None = None
+        if "token_secret" in body:
+            raw_secret = body["token_secret"]
+            if raw_secret == "generate":
+                import secrets as _secrets
+                generated_secret = _secrets.token_hex(32)
+                updates["token_secret"] = generated_secret
+            elif raw_secret is None:
+                updates["token_secret"] = None
+            else:
+                raise web.HTTPBadRequest(
+                    reason='token_secret must be "generate" or null.'
+                )
+
         try:
             token = await self._token_manager.update(token_id, updates)
         except (ValueError, KeyError) as exc:
@@ -407,7 +421,10 @@ class HarvestTokenDetailView(HomeAssistantView):
                 if not ws.closed:
                     asyncio.create_task(ws.close())
 
-        return self.json(_token_to_dict(token))
+        result = _token_to_dict(token)
+        if generated_secret is not None:
+            result["generated_secret"] = generated_secret
+        return self.json(result)
 
     async def delete(self, request: web.Request, token_id: str) -> web.Response:
         """Revoke a token (POST ?action=revoke) or delete it (DELETE when revoked).
