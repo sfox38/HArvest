@@ -23,6 +23,10 @@ const AUTH_DEBOUNCE_MS = 50;
 // Maximum consecutive re-auth failures before entering permanent HRV_AUTH_FAILED.
 const MAX_REAUTH_ATTEMPTS = 3;
 
+// Set by beforeunload so WS close during page teardown skips stale UI flash.
+let _pageUnloading = false;
+window.addEventListener("beforeunload", () => { _pageUnloading = true; });
+
 // ---------------------------------------------------------------------------
 // Singleton registry
 // ---------------------------------------------------------------------------
@@ -359,6 +363,7 @@ export class HarvestClient {
     this.#sessionId = null;
 
     if (this.#permanentFailure) return;
+    if (_pageUnloading) return;
 
     console.warn(`[HArvest] WS closed (code ${event.code}) - scheduling reconnect`);
     this.#scheduleReconnect();
@@ -482,23 +487,36 @@ export class HarvestClient {
     const code = msg.code ?? "HRV_AUTH_FAILED";
     console.warn("[HArvest] Auth failed:", code);
 
-    this.#reauthAttempts++;
-
     const permanentCodes = [
       "HRV_TOKEN_INVALID", "HRV_TOKEN_EXPIRED",
-      "HRV_TOKEN_REVOKED", "HRV_TOKEN_INACTIVE",
+      "HRV_TOKEN_REVOKED",
       "HRV_IP_DENIED", "HRV_ORIGIN_DENIED", "HRV_SIGNATURE_INVALID",
     ];
 
-    const isPermanent = permanentCodes.includes(code) || this.#reauthAttempts >= MAX_REAUTH_ATTEMPTS;
+    if (permanentCodes.includes(code)) {
+      this.#permanentFailure = true;
+      for (const card of this.#cards.values()) {
+        card.setErrorState?.("HRV_AUTH_FAILED");
+      }
+      return;
+    }
 
-    if (isPermanent) {
+    // Recoverable failures (e.g. HRV_TOKEN_INACTIVE from kill switch)
+    // skip the reauth counter so the client keeps retrying via backoff.
+    if (code === "HRV_TOKEN_INACTIVE") {
+      for (const card of this.#cards.values()) {
+        card.setErrorState?.("HRV_AUTH_FAILED");
+      }
+      return;
+    }
+
+    this.#reauthAttempts++;
+    if (this.#reauthAttempts >= MAX_REAUTH_ATTEMPTS) {
       this.#permanentFailure = true;
       for (const card of this.#cards.values()) {
         card.setErrorState?.("HRV_AUTH_FAILED");
       }
     }
-    // Non-permanent failures: reconnect backoff handles retry.
   }
 
   #handleEntityDefinition(msg) {

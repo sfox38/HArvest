@@ -54,6 +54,7 @@ export function applyErrorState(cardEl, shadowRoot, code, config, i18n) {
     _hideStaleIndicator(shadowRoot);
     cardEl.style.removeProperty("display");
     cardEl.style.removeProperty("opacity");
+    cardEl.style.removeProperty("position");
     return;
   }
 
@@ -72,6 +73,13 @@ export function applyErrorState(cardEl, shadowRoot, code, config, i18n) {
   // ------- All other states: consult on-offline / on-error config ------
   const isOffline = OFFLINE_STATES.has(code);
   const isAuthError = AUTH_ERROR_STATES.has(code);
+
+  // Auth errors before the card ever connected: hide entirely so the page
+  // looks clean (no empty error cards for blocked tokens/IPs/schedules).
+  if (isAuthError && !cardEl.hasAttribute("data-harvest-was-live")) {
+    cardEl.style.display = "none";
+    return;
+  }
 
   const treatment = isOffline
     ? (config.onOffline ?? "last-state")
@@ -92,7 +100,7 @@ export function applyErrorState(cardEl, shadowRoot, code, config, i18n) {
     ? i18n.t("error.auth_failed")
     : i18n.t("error.offline");
 
-  _applyMessageOverlay(shadowRoot, config.errorText ?? defaultMsg);
+  _applyMessageOverlay(shadowRoot, config.errorText || defaultMsg);
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +138,9 @@ function _applySkeletonState(shadowRoot, i18n) {
 function _applyMessageOverlay(shadowRoot, message) {
   _removeOverlay(shadowRoot);
 
+  // Ensure the host establishes a positioning context for the overlay.
+  shadowRoot.host.style.position = "relative";
+
   const overlay = document.createElement("div");
   overlay.className = "hrv-message-overlay hrv-error-overlay";
   overlay.setAttribute("role", "status");
@@ -151,6 +162,7 @@ function _removeOverlay(shadowRoot) {
   shadowRoot.querySelectorAll(".hrv-error-overlay").forEach((el) => el.remove());
 }
 
+
 /**
  * Show the [part=stale-indicator] element if present.
  * @param {ShadowRoot} shadowRoot
@@ -159,7 +171,8 @@ function _removeOverlay(shadowRoot) {
 function _showStaleIndicator(shadowRoot, i18n) {
   const indicator = shadowRoot.querySelector("[part=stale-indicator]");
   if (!indicator) return;
-  indicator.style.display = "block";
+  indicator.textContent = i18n.t("indicator.stale");
+  indicator.style.display = "flex";
   indicator.setAttribute("aria-label", i18n.t("indicator.stale"));
 }
 
@@ -213,33 +226,39 @@ export function getErrorStateStyles() {
       .hrv-skeleton__line { animation: none; opacity: 0.6; }
     }
 
-    /* Stale indicator banner */
+    /* Stale indicator - full card overlay matching the error overlay style */
     [part=stale-indicator] {
-      display: block;
+      display: none;
       position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 2px var(--hrv-spacing-s, 8px);
-      font-size: var(--hrv-font-size-xs, 11px);
-      color: var(--hrv-color-text-inverse, #ffffff);
-      background: var(--hrv-color-warning, #f59e0b);
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      padding: var(--hrv-spacing-m, 16px);
+      background: var(--hrv-color-overlay, rgba(0, 0, 0, 0.7));
+      z-index: 10;
+      border-radius: inherit;
+      font-size: var(--hrv-font-size-s, 13px);
+      color: var(--hrv-color-overlay-text, #ffffff);
       text-align: center;
       pointer-events: none;
     }
 
-    /* Message overlay */
+    /* Message overlay - covers the card content with a semi-transparent backdrop */
     .hrv-message-overlay {
+      position: absolute;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: var(--hrv-spacing-m, 16px);
-      min-height: 60px;
+      background: var(--hrv-color-overlay, rgba(0, 0, 0, 0.7));
+      z-index: 10;
+      border-radius: inherit;
     }
 
     .hrv-message-overlay__text {
       font-size: var(--hrv-font-size-s, 13px);
-      color: var(--hrv-color-text-secondary, #6b7280);
+      color: var(--hrv-color-overlay-text, #ffffff);
       text-align: center;
     }
   `;

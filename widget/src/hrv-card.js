@@ -176,7 +176,6 @@ export class HrvCard extends HTMLElement {
         this.#optimisticState.state,
         this.#optimisticState.attributes,
       );
-      this.setErrorState("HRV_STALE");
       this.#optimisticState = null;
     }
 
@@ -247,7 +246,7 @@ export class HrvCard extends HTMLElement {
   receiveError(code) {
     const permanentCodes = new Set([
       "HRV_TOKEN_INVALID", "HRV_TOKEN_EXPIRED",
-      "HRV_TOKEN_REVOKED",  "HRV_TOKEN_INACTIVE",
+      "HRV_TOKEN_REVOKED",
       "HRV_AUTH_FAILED",
     ]);
     const visibleCode = permanentCodes.has(code)
@@ -276,6 +275,7 @@ export class HrvCard extends HTMLElement {
    */
   setErrorState(code) {
     this.#currentState = code;
+    if (code === "live") this.setAttribute("data-harvest-was-live", "");
     if (this.shadowRoot) {
       applyErrorState(this, this.shadowRoot, code, this.#config, this.#i18n);
     }

@@ -1057,12 +1057,22 @@ class HarvestWsView(HomeAssistantView):
     # ------------------------------------------------------------------
 
     async def _send_keepalive(self, ws: WebSocketResponse, interval: int) -> None:
-        """Send periodic keepalive data messages to the client."""
+        """Send periodic keepalive data messages to the client.
+
+        Also checks the kill switch each tick; if active, sends auth_failed
+        and closes the WebSocket from within the handler context so the
+        message loop exits cleanly.
+        """
         try:
             while not ws.closed:
                 await asyncio.sleep(interval)
-                if not ws.closed:
-                    await ws.send_json({"type": "keepalive", "msg_id": None})
+                if ws.closed:
+                    break
+                if self._is_kill_switch_active():
+                    await ws.send_json({"type": "auth_failed", "code": ERR_TOKEN_INACTIVE, "msg_id": None})
+                    await ws.close()
+                    break
+                await ws.send_json({"type": "keepalive", "msg_id": None})
         except (asyncio.CancelledError, ConnectionResetError):
             pass
         except Exception:

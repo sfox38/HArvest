@@ -415,7 +415,8 @@ class HarvestTokenDetailView(HomeAssistantView):
         except (ValueError, KeyError) as exc:
             raise web.HTTPBadRequest(reason=str(exc))
 
-        if token.paused and updates.get("paused"):
+        security_fields = {"paused", "active_schedule", "allowed_ips", "token_secret", "origins"}
+        if security_fields & updates.keys():
             ws_list = self._session_manager.terminate_all_for_token(token_id)
             for ws in ws_list:
                 if not ws.closed:

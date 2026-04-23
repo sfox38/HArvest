@@ -178,7 +178,6 @@ const CARD_BASE_CSS = /* css */`
   /* Unavailable / unknown state overlay */
   :host([data-harvest-avail=unavailable]) [part=card],
   :host([data-harvest-avail=unknown]) [part=card] {
-    opacity: 0.5;
     pointer-events: none;
     user-select: none;
   }
@@ -191,8 +190,11 @@ const CARD_BASE_CSS = /* css */`
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: var(--hrv-font-size-xs);
-    color: var(--hrv-color-text-secondary);
+    font-size: var(--hrv-font-size-s, 13px);
+    color: var(--hrv-color-overlay-text, #ffffff);
+    background: var(--hrv-color-overlay, rgba(0, 0, 0, 0.7));
+    border-radius: inherit;
+    z-index: 10;
     pointer-events: none;
   }
 `;
