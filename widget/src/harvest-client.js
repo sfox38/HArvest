@@ -24,8 +24,10 @@ const AUTH_DEBOUNCE_MS = 50;
 const MAX_REAUTH_ATTEMPTS = 3;
 
 // Set by beforeunload so WS close during page teardown skips stale UI flash.
+// Reset by pageshow in case the user cancels navigation (e.g. "Leave site?" dialog).
 let _pageUnloading = false;
 window.addEventListener("beforeunload", () => { _pageUnloading = true; });
+window.addEventListener("pageshow", () => { _pageUnloading = false; });
 
 // ---------------------------------------------------------------------------
 // Singleton registry
@@ -477,6 +479,7 @@ export class HarvestClient {
     this.#sessionId = msg.session_id;
     this.#reconnectAttempt = 0;
     this.#reauthAttempts = 0;
+    this.#malformedTimestamps = [];
     this.#absoluteExpiresAt = msg.absolute_expires_at ? new Date(msg.absolute_expires_at) : null;
     this.#renewalCount = 0;
     this.#maxRenewals = msg.max_renewals ?? null;

@@ -435,8 +435,13 @@ class TokenManager:
                     f"Entity count {len(new_entities)} exceeds the configured limit {soft_limit}."
                 )
 
+        _UPDATABLE_FIELDS = {
+            "label", "origins", "entities", "expires", "token_secret",
+            "rate_limits", "session", "max_sessions", "allowed_ips",
+            "active_schedule", "paused", "embed_mode",
+        }
         for field_name, value in updates.items():
-            if hasattr(token, field_name):
+            if field_name in _UPDATABLE_FIELDS:
                 setattr(token, field_name, value)
 
         token.token_version += 1
@@ -573,10 +578,20 @@ class TokenManager:
         current_time = now_local.strftime("%H:%M")
 
         for window in token.active_schedule.windows:
-            if day_abbr not in window.days:
-                continue
-            if window.start <= current_time <= window.end:
-                return True
+            if window.start <= window.end:
+                # Same-day window (e.g. 09:00-17:00).
+                if day_abbr in window.days and window.start <= current_time <= window.end:
+                    return True
+            else:
+                # Midnight-crossing window (e.g. 22:00-06:00).
+                # The start day owns the window. Check if we are in the
+                # late portion (start..23:59) on the start day, or the
+                # early portion (00:00..end) on the following day.
+                if day_abbr in window.days and current_time >= window.start:
+                    return True
+                prev_day = _prev_day_abbr(day_abbr)
+                if prev_day in window.days and current_time <= window.end:
+                    return True
 
         return False
 
@@ -798,6 +813,15 @@ class TokenManager:
 # ------------------------------------------------------------------
 # Module-level helpers
 # ------------------------------------------------------------------
+
+_DAY_ORDER = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+_PREV_DAY = {_DAY_ORDER[i]: _DAY_ORDER[i - 1] for i in range(7)}
+
+
+def _prev_day_abbr(day: str) -> str:
+    """Return the previous day abbreviation (e.g. 'tue' -> 'mon', 'mon' -> 'sun')."""
+    return _PREV_DAY.get(day, day)
+
 
 def _normalise_page_path(page_path: str) -> str:
     """Normalise a page path sent by the widget (window.location.pathname).

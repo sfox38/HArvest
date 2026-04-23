@@ -27,7 +27,7 @@
  * @returns {number}
  */
 function _djb2(str) {
-  let hash = 0;
+  let hash = 5381;
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) - hash) + str.charCodeAt(i);
     hash |= 0; // keep as 32-bit integer

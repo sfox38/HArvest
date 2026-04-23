@@ -258,6 +258,14 @@ export class MediaPlayerCard extends BaseCard {
 
     if (this.#sourceSelect && attributes.source_list) {
       const current = attributes.source ?? "";
+      const wanted = new Set(attributes.source_list);
+      // Remove stale options no longer in source_list.
+      for (const opt of [...this.#sourceSelect.options]) {
+        if (opt.value && !wanted.has(opt.value)) {
+          opt.remove();
+        }
+      }
+      // Add any new sources.
       const existing = new Set(
         [...this.#sourceSelect.options].map((o) => o.value).filter(Boolean),
       );

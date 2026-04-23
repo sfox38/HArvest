@@ -215,6 +215,30 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
+_MIN_SECRET_LENGTH = 16
+
+
+def _validate_token_secret(raw: Any) -> str | None:
+    """Validate and return a token_secret value, or None if empty."""
+    if not raw:
+        return None
+    secret = str(raw)
+    if len(secret) < _MIN_SECRET_LENGTH:
+        raise ValueError(
+            f"token_secret must be at least {_MIN_SECRET_LENGTH} characters."
+        )
+    return secret
+
+
+def _validate_max_sessions(raw: Any) -> int | None:
+    """Validate and return a max_sessions value, or None if unset."""
+    if raw is None:
+        return None
+    if not isinstance(raw, int) or isinstance(raw, bool) or raw < 1:
+        raise ValueError("max_sessions must be a positive integer or null.")
+    return raw
+
+
 _VALID_DAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 _HH_MM_RE = re.compile(r"^\d{2}:\d{2}$")
 
@@ -264,6 +288,9 @@ class HarvestTokensView(HomeAssistantView):
 
     async def get(self, request: web.Request) -> web.Response:
         """Return all tokens with their active session counts."""
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         tokens = self._token_manager.get_all()
         result = []
         for t in tokens:
@@ -307,10 +334,10 @@ class HarvestTokensView(HomeAssistantView):
                 origins=origins,
                 entities=entities,
                 expires=expires,
-                token_secret=body.get("token_secret") or None,
+                token_secret=_validate_token_secret(body.get("token_secret")),
                 rate_limits=rate_limits,
                 session=session_cfg,
-                max_sessions=body.get("max_sessions"),
+                max_sessions=_validate_max_sessions(body.get("max_sessions")),
                 active_schedule=schedule,
                 allowed_ips=list(body.get("allowed_ips", [])),
                 embed_mode=str(body.get("embed_mode", "single")),
@@ -346,6 +373,9 @@ class HarvestTokenDetailView(HomeAssistantView):
         self._event_bus = event_bus
 
     async def get(self, request: web.Request, token_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         token = self._token_manager.get(token_id)
         if token is None:
             raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
@@ -361,6 +391,9 @@ class HarvestTokenDetailView(HomeAssistantView):
 
     async def patch(self, request: web.Request, token_id: str) -> web.Response:
         """Partially update a token. Accepts any subset of token fields."""
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         token = self._token_manager.get(token_id)
         if token is None:
             raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
@@ -388,10 +421,10 @@ class HarvestTokenDetailView(HomeAssistantView):
         if "expires" in body:
             updates["expires"] = _parse_dt(body["expires"])
         if "max_sessions" in body:
-            ms = body["max_sessions"]
-            if ms is not None and not isinstance(ms, int):
-                raise web.HTTPBadRequest(reason="max_sessions must be an integer or null.")
-            updates["max_sessions"] = ms
+            try:
+                updates["max_sessions"] = _validate_max_sessions(body["max_sessions"])
+            except ValueError as exc:
+                raise web.HTTPBadRequest(reason=str(exc))
         if "allowed_ips" in body:
             if not isinstance(body["allowed_ips"], list):
                 raise web.HTTPBadRequest(reason="allowed_ips must be a list.")
@@ -524,6 +557,9 @@ class HarvestSessionsView(HomeAssistantView):
 
     async def delete(self, request: web.Request) -> web.Response:
         """Terminate all sessions, optionally filtered to one token."""
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         token_id = request.query.get("token_id")
         if token_id:
             ws_list = self._session_manager.terminate_all_for_token(token_id)
@@ -551,6 +587,9 @@ class HarvestSessionTerminateView(HomeAssistantView):
         self._session_manager = session_manager
 
     async def delete(self, _request: web.Request, session_id: str) -> web.Response:
+        user = _request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         session = self._session_manager.get(session_id)
         if session is None:
             raise web.HTTPNotFound(reason=f"Session not found: {session_id}")
@@ -785,6 +824,9 @@ class HarvestActionDetailView(HomeAssistantView):
         return self.json(dataclasses.asdict(action))
 
     async def delete(self, request: web.Request, action_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         try:
             await self._action_manager.delete(action_id)
         except KeyError:
@@ -827,6 +869,9 @@ class HarvestConfigView(HomeAssistantView):
         tears down the panel registration and leaves the Settings screen blank.
         Settings take effect on the next relevant action (new connection, etc.).
         """
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         from .const import DOMAIN, DEFAULTS
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:

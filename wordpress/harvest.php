@@ -71,7 +71,9 @@ function harvest_deactivate(): void {
 // ---------------------------------------------------------------------------
 
 add_filter( 'upload_mimes', function ( array $mimes ): array {
-    $mimes['json'] = 'application/json';
+    if ( current_user_can( 'manage_options' ) ) {
+        $mimes['json'] = 'application/json';
+    }
     return $mimes;
 } );
 
@@ -80,7 +82,7 @@ add_filter( 'upload_mimes', function ( array $mimes ): array {
 add_filter(
     'wp_check_filetype_and_ext',
     function ( array $data, string $file, string $filename, array $mimes ): array {
-        if ( empty( $data['ext'] ) ) {
+        if ( empty( $data['ext'] ) && current_user_can( 'manage_options' ) ) {
             $ext = pathinfo( $filename, PATHINFO_EXTENSION );
             if ( $ext === 'json' ) {
                 $data['ext']  = 'json';

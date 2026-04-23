@@ -33,7 +33,8 @@ class Harvest_Shortcode {
     // [harvest] shortcode
     // ---------------------------------------------------------------------------
 
-    public static function render( array $atts ): string {
+    public static function render( array|string $atts = [] ): string {
+        $atts = (array) $atts;
         $atts = shortcode_atts(
             [
                 'token'        => '',
@@ -147,7 +148,8 @@ class Harvest_Shortcode {
     // [harvest_group] shortcode
     // ---------------------------------------------------------------------------
 
-    public static function render_group( array $atts, string $content = '' ): string {
+    public static function render_group( array|string $atts = [], string $content = '' ): string {
+        $atts = (array) $atts;
         $atts = shortcode_atts(
             [
                 'token'        => '',
@@ -158,6 +160,12 @@ class Harvest_Shortcode {
             $atts,
             'harvest_group'
         );
+
+        if ( empty( $atts['token'] ) ) {
+            return self::render_error(
+                __( 'HArvest: [harvest_group] missing required "token" attribute.', 'harvest' )
+            );
+        }
 
         $ha_url = Harvest_Settings::get_ha_url();
 
@@ -180,12 +188,14 @@ class Harvest_Shortcode {
 
         $attr_string = self::build_attr_string( $data_attrs );
 
-        // Set group token/secret so nested [harvest] shortcodes can inherit.
+        // Save and restore group context so nested [harvest_group] works correctly.
+        $prev_token  = self::$group_token;
+        $prev_secret = self::$group_token_secret;
         self::$group_token = $atts['token'];
         self::$group_token_secret = $atts['token-secret'];
         $inner = do_shortcode( $content );
-        self::$group_token = '';
-        self::$group_token_secret = '';
+        self::$group_token = $prev_token;
+        self::$group_token_secret = $prev_secret;
 
         Harvest_Assets::enqueue();
 

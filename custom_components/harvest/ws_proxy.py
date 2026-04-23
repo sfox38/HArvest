@@ -32,6 +32,7 @@ from .const import (
     ERR_PERMISSION_DENIED,
     ERR_RATE_LIMITED,
     ERR_SERVER_ERROR,
+    ERR_SESSION_EXPIRED,
     ERR_SESSION_LIMIT_REACHED,
     ERR_TOKEN_INACTIVE,
     WS_PATH,
@@ -76,6 +77,8 @@ def _safe_json_value(val: object) -> object:
 # Warn the client this many seconds before session expiry.
 _SESSION_EXPIRING_WARN_BEFORE = 600  # 10 minutes
 
+_background_tasks: set[asyncio.Task] = set()  # prevent GC of fire-and-forget tasks
+
 def _fire(coro: object) -> None:
     """Schedule a coroutine as a fire-and-forget task, logging any exception."""
     async def _wrap(c: object) -> None:
@@ -83,7 +86,9 @@ def _fire(coro: object) -> None:
             await c  # type: ignore[misc]
         except Exception:
             _LOGGER.warning("Fire-and-forget task raised an exception", exc_info=True)
-    asyncio.create_task(_wrap(coro))
+    task = asyncio.create_task(_wrap(coro))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 # Allowed data keys per domain for command forwarding.
@@ -350,7 +355,7 @@ class HarvestWsView(HomeAssistantView):
             CONF_KEEPALIVE_INTERVAL, DEFAULTS[CONF_KEEPALIVE_INTERVAL]
         )
         keepalive_task = asyncio.create_task(
-            self._send_keepalive(ws, keepalive_interval)
+            self._send_keepalive(ws, keepalive_interval, session)
         )
 
         # Track which entities have already had history sent (debounce per session).
@@ -1056,12 +1061,12 @@ class HarvestWsView(HomeAssistantView):
     # Helpers
     # ------------------------------------------------------------------
 
-    async def _send_keepalive(self, ws: WebSocketResponse, interval: int) -> None:
+    async def _send_keepalive(self, ws: WebSocketResponse, interval: int, session: Session | None = None) -> None:
         """Send periodic keepalive data messages to the client.
 
-        Also checks the kill switch each tick; if active, sends auth_failed
-        and closes the WebSocket from within the handler context so the
-        message loop exits cleanly.
+        Also checks the kill switch and session expiry each tick; if either
+        condition is met, sends auth_failed and closes the WebSocket from
+        within the handler context so the message loop exits cleanly.
         """
         try:
             while not ws.closed:
@@ -1070,6 +1075,10 @@ class HarvestWsView(HomeAssistantView):
                     break
                 if self._is_kill_switch_active():
                     await ws.send_json({"type": "auth_failed", "code": ERR_TOKEN_INACTIVE, "msg_id": None})
+                    await ws.close()
+                    break
+                if session is not None and self._session_manager.is_expired(session):
+                    await ws.send_json({"type": "auth_failed", "code": ERR_SESSION_EXPIRED, "msg_id": None})
                     await ws.close()
                     break
                 await ws.send_json({"type": "keepalive", "msg_id": None})

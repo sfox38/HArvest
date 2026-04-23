@@ -72,18 +72,25 @@ class Harvest_Csp {
      * @return string Updated policy string.
      */
     private static function add_to_connect_src( string $policy, string $url ): string {
-        // Fast path: URL is already in the policy.
-        if ( strpos( $policy, $url ) !== false ) {
+        // Reject URLs containing characters that could break the CSP header.
+        if ( preg_match( '/[\s;,]/', $url ) ) {
+            return $policy;
+        }
+
+        // Check whether the URL is already in the connect-src directive specifically.
+        if ( preg_match( '/connect-src[^;]*' . preg_quote( $url, '/' ) . '/', $policy ) ) {
             return $policy;
         }
 
         if ( strpos( $policy, 'connect-src' ) !== false ) {
             // connect-src directive exists - append the HA URL to its value.
             // The regex matches "connect-src" followed by all non-semicolon chars.
+            // Limit to 1 replacement in case of malformed duplicate directives.
             $policy = preg_replace(
                 '/connect-src([^;]*)/',
                 "connect-src$1 {$url}",
-                $policy
+                $policy,
+                1
             );
         } else {
             // No connect-src directive - append a new one to the end of the policy.

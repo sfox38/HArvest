@@ -60,5 +60,5 @@ async def register_panel(hass: HomeAssistant) -> None:
             "embed_iframe": False,
             "trust_external": False,
         }},
-        require_admin=False,
+        require_admin=True,
     )

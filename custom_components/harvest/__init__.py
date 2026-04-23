@@ -117,13 +117,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _purge_old_records(_now: object) -> None:
         await activity_store.purge_old_records()
 
-    async_track_time_interval(hass, _purge_old_records, timedelta(hours=24))
+    unsub_purge = async_track_time_interval(hass, _purge_old_records, timedelta(hours=24))
 
     # Periodic preview token cleanup (every 60 seconds per spec).
     async def _cleanup_expired_previews(_now: object) -> None:
         await token_manager.cleanup_expired_previews()
 
-    async_track_time_interval(hass, _cleanup_expired_previews, timedelta(seconds=60))
+    unsub_preview = async_track_time_interval(hass, _cleanup_expired_previews, timedelta(seconds=60))
 
     # --- Store all managers for access by other parts of the integration ---
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
@@ -135,6 +135,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "event_bus":       event_bus,
         "action_manager":  action_manager,
         "sensors":         sensors,
+        "unsub_purge":     unsub_purge,
+        "unsub_preview":   unsub_preview,
     }
 
     _LOGGER.info("HArvest integration set up successfully.")
@@ -151,6 +153,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Removes hass.data entry.
     """
     data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, {})
+
+    # Cancel periodic timers.
+    for key in ("unsub_purge", "unsub_preview"):
+        if unsub := data.get(key):
+            unsub()
 
     # Signal the running sensor to go offline before teardown.
     if sensors := data.get("sensors"):
