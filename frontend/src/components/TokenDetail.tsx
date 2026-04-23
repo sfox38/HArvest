@@ -1256,10 +1256,29 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
 
   // -- Allowed IPs --
   const [ipText, setIpText] = useState(token.allowed_ips.join("\n"));
+  const [ipError, setIpError] = useState<string | null>(null);
+
+  const isValidCidr = (s: string): boolean => {
+    const cidrV4 = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+    const cidrV6 = /^[0-9a-fA-F:.]+(\/\d{1,3})?$/;
+    if (!cidrV4.test(s) && !cidrV6.test(s)) return false;
+    const parts = s.split("/");
+    if (parts[0].includes(":")) return true;
+    const octets = parts[0].split(".");
+    if (octets.some(o => parseInt(o, 10) > 255)) return false;
+    if (parts[1] !== undefined && parseInt(parts[1], 10) > 32) return false;
+    return true;
+  };
 
   const saveIps = async (raw: string) => {
     if (!canEdit) return;
     const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+    const invalid = lines.filter(l => !isValidCidr(l));
+    if (invalid.length > 0) {
+      setIpError(`Invalid: ${invalid.join(", ")}`);
+      return;
+    }
+    setIpError(null);
     const current = token.allowed_ips;
     if (lines.length === current.length && lines.every((l, i) => l === current[i])) return;
     await patchToken({ allowed_ips: lines });
@@ -1428,12 +1447,13 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
             value={ipText}
             placeholder={"203.0.113.0/24\n10.0.0.0/8"}
             rows={3}
-            onChange={e => setIpText(e.target.value)}
+            onChange={e => { setIpText(e.target.value); setIpError(null); }}
             onBlur={() => saveIps(ipText)}
             disabled={!canEdit}
             className="input"
             style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 12, resize: "vertical" }}
           />
+          {ipError && <div style={{ color: "var(--color-danger)", fontSize: 11.5, marginTop: 4 }}>{ipError}</div>}
         </div>
 
         <div style={{ height: 1, background: "var(--divider)" }} />

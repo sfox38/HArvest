@@ -21,6 +21,7 @@ from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager, ServiceCall
 from .session_manager import SessionManager
+from .const import ERR_TOKEN_INACTIVE
 from .token_manager import (
     ActiveSchedule,
     ActiveScheduleWindow,
@@ -31,6 +32,16 @@ from .token_manager import (
     Token,
     TokenManager,
 )
+
+
+async def _close_ws_with_auth_failed(ws) -> None:
+    """Send auth_failed before closing so the client knows it is an auth
+    rejection, not a connectivity issue."""
+    try:
+        await ws.send_json({"type": "auth_failed", "code": ERR_TOKEN_INACTIVE, "msg_id": None})
+        await ws.close()
+    except Exception:
+        pass
 
 
 def register_views(
@@ -384,6 +395,14 @@ class HarvestTokenDetailView(HomeAssistantView):
         if "allowed_ips" in body:
             if not isinstance(body["allowed_ips"], list):
                 raise web.HTTPBadRequest(reason="allowed_ips must be a list.")
+            from ipaddress import ip_network
+            for entry in body["allowed_ips"]:
+                try:
+                    ip_network(str(entry), strict=False)
+                except ValueError:
+                    raise web.HTTPBadRequest(
+                        reason=f"Invalid IP address or CIDR: {entry}"
+                    )
             updates["allowed_ips"] = list(body["allowed_ips"])
         if "active_schedule" in body:
             updates["active_schedule"] = _parse_schedule(body["active_schedule"])
@@ -420,7 +439,7 @@ class HarvestTokenDetailView(HomeAssistantView):
             ws_list = self._session_manager.terminate_all_for_token(token_id)
             for ws in ws_list:
                 if not ws.closed:
-                    asyncio.create_task(ws.close())
+                    asyncio.create_task(_close_ws_with_auth_failed(ws))
 
         result = _token_to_dict(token)
         if generated_secret is not None:
@@ -863,7 +882,7 @@ class HarvestConfigView(HomeAssistantView):
         if filtered.get("kill_switch"):
             for session in self._session_manager.get_all():
                 if not session.ws.closed:
-                    asyncio.create_task(session.ws.close())
+                    asyncio.create_task(_close_ws_with_auth_failed(session.ws))
 
         return self.json(updated)
 
