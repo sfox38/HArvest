@@ -6,7 +6,7 @@ HA state machine, enabling dashboards, automations, and alerts.
 from __future__ import annotations
 
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.binary_sensor import (
@@ -325,7 +325,10 @@ class HarvestTokenLastSeenSensor(_TokenSensorBase):
             offset=0,
         )
         if events:
-            self._attr_native_value = events[0].get("timestamp")
+            ts = events[0].get("timestamp")
+            if isinstance(ts, str):
+                ts = datetime.fromisoformat(ts)
+            self._attr_native_value = ts
         else:
             self._attr_native_value = None
 

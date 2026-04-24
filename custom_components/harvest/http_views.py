@@ -72,8 +72,9 @@ def register_views(
     hass.http.register_view(HarvestActionDetailView(action_manager))
     if theme_manager is not None:
         hass.http.register_view(HarvestThemesView(theme_manager, token_manager))
+        hass.http.register_view(HarvestThemeReloadView(theme_manager))
         hass.http.register_view(HarvestThemeDetailView(theme_manager, token_manager))
-        hass.http.register_view(HarvestThemeThumbnailView(theme_manager))
+        hass.http.register_view(HarvestThemeThumbnailView(hass, theme_manager))
         _LOGGER.debug("HArvest: registered theme views")
     hass.http.register_view(HarvestConfigView(hass, session_manager))
     hass.http.register_view(HarvestStatsView(sensors, activity_store, session_manager, token_manager))
@@ -939,6 +940,24 @@ class HarvestThemesView(HomeAssistantView):
         return self.json(theme_to_api_dict(theme), status_code=201)
 
 
+class HarvestThemeReloadView(HomeAssistantView):
+    """POST /api/harvest/themes/reload - reload all themes from disk."""
+
+    url = "/api/harvest/themes/reload"
+    name = "api:harvest:themes:reload"
+    requires_auth = True
+
+    def __init__(self, theme_manager: ThemeManager) -> None:
+        self._theme_manager = theme_manager
+
+    async def post(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        await self._theme_manager.load()
+        return self.json({"status": "ok"})
+
+
 class HarvestThemeDetailView(HomeAssistantView):
     """GET /api/harvest/themes/{theme_id}    - get one theme.
     PATCH /api/harvest/themes/{theme_id}  - update a custom theme.
@@ -1029,7 +1048,8 @@ class HarvestThemeThumbnailView(HomeAssistantView):
     name = "api:harvest:theme_thumbnail"
     requires_auth = True
 
-    def __init__(self, theme_manager: ThemeManager) -> None:
+    def __init__(self, hass: HomeAssistant, theme_manager: ThemeManager) -> None:
+        self._hass = hass
         self._theme_manager = theme_manager
 
     async def get(self, request: web.Request, theme_id: str) -> web.Response:
@@ -1040,8 +1060,9 @@ class HarvestThemeThumbnailView(HomeAssistantView):
             raise web.HTTPNotFound()
         suffix = path.suffix.lower()
         ct = "image/png" if suffix == ".png" else "image/jpeg"
+        data = await self._hass.async_add_executor_job(path.read_bytes)
         return web.Response(
-            body=path.read_bytes(),
+            body=data,
             content_type=ct,
             headers={"Cache-Control": "public, max-age=300"},
         )

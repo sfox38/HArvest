@@ -165,6 +165,7 @@ STANDARD_ATTRIBUTES: dict[str, frozenset[str]] = {
     "remote": frozenset({"current_activity", "activity_list"}),
     "input_number": frozenset({"min", "max", "step", "mode", "unit_of_measurement"}),
     "input_select": frozenset({"options"}),
+    "timer": frozenset({"duration", "remaining", "finishes_at"}),
 }
 
 # Default icon per state for each domain. Used when the entity registry has no

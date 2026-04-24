@@ -148,6 +148,21 @@ class HarvestWsView(HomeAssistantView):
         self._sensors = sensors
         self._theme_manager = theme_manager
 
+    def _resolve_theme_manager(self) -> ThemeManager | None:
+        """Resolve the theme manager, falling back to hass.data lookup.
+
+        HA's register_view silently skips re-registration when a route with
+        the same name already exists. If the WS view was first registered
+        before ThemeManager was wired in, self._theme_manager is None while
+        hass.data holds the live instance. This getter bridges the gap.
+        """
+        if self._theme_manager is not None:
+            return self._theme_manager
+        for entry_data in self._hass.data.get(DOMAIN, {}).values():
+            if isinstance(entry_data, dict) and "theme_manager" in entry_data:
+                return entry_data["theme_manager"]
+        return None
+
     async def get(self, request: Request) -> WebSocketResponse:
         """Handle incoming WebSocket upgrade.
 
@@ -365,9 +380,10 @@ class HarvestWsView(HomeAssistantView):
         history_sent: set[str] = set()
 
         # --- Step 4a: Send theme data if token has a theme ---
-        if self._theme_manager and token.theme_url:
+        theme_mgr = self._resolve_theme_manager()
+        if theme_mgr and token.theme_url:
             theme_id = theme_url_to_id(token.theme_url)
-            theme_def = self._theme_manager.get(theme_id)
+            theme_def = theme_mgr.get(theme_id)
             if theme_def:
                 await ws.send_json({
                     "type": "theme",

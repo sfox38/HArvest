@@ -183,6 +183,9 @@ export class TimerCard extends BaseCard {
       return { state: "active", attributes: attrs };
     }
     if (action === "pause") {
+      if (this.#finishesAt) {
+        attrs.remaining = Math.max(0, (new Date(this.#finishesAt).getTime() - Date.now()) / 1000);
+      }
       return { state: "paused", attributes: attrs };
     }
     if (action === "cancel" || action === "finish") {

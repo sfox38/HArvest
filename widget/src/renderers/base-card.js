@@ -83,6 +83,10 @@ const SHARED_CSS_VARS = /* css */`
     /* Transition */
     --hrv-transition-speed:    150ms;
 
+    /* Glass effects (defaults: off) */
+    --hrv-card-backdrop-filter: none;
+    --hrv-card-border:         none;
+
     display: block;
     position: relative;
     font-family: var(--hrv-font-family);
@@ -119,6 +123,9 @@ const CARD_BASE_CSS = /* css */`
     box-sizing: border-box;
     overflow: hidden;
     position: relative;
+    -webkit-backdrop-filter: var(--hrv-card-backdrop-filter);
+    backdrop-filter: var(--hrv-card-backdrop-filter);
+    border: var(--hrv-card-border);
   }
 
   [part=card-header] {

@@ -194,6 +194,20 @@ export function Themes({ onSelectToken }: ThemesProps) {
     URL.revokeObjectURL(url);
   };
 
+  const [reloading, setReloading] = useState(false);
+
+  const handleReload = async () => {
+    setReloading(true);
+    const t0 = Date.now();
+    try {
+      await api.themes.reload();
+      await reload();
+    } catch (e) { setError(String(e)); }
+    const elapsed = Date.now() - t0;
+    if (elapsed < 500) await new Promise(r => setTimeout(r, 500 - elapsed));
+    setReloading(false);
+  };
+
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -337,6 +351,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
           <button className="theme-strip-item theme-strip-add" onClick={() => fileRef.current?.click()}>
             <Icon name="upload" size={18} />
             <span style={{ fontSize: 12 }}>Import</span>
+          </button>
+          <button className="theme-strip-item theme-strip-add" onClick={handleReload} disabled={reloading}>
+            {reloading ? <Spinner size={18} /> : <Icon name="refresh" size={18} />}
+            <span style={{ fontSize: 12 }}>{reloading ? "Reloading..." : "Reload"}</span>
           </button>
           <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
           <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />

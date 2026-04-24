@@ -62,7 +62,10 @@ class ThemeManager:
             path = _THEMES_DIR / filename
             theme_id = filename.removesuffix(".json")
             try:
-                raw = json.loads(path.read_text(encoding="utf-8"))
+                text = await self._hass.async_add_executor_job(
+                    path.read_text, "utf-8",
+                )
+                raw = json.loads(text)
                 self._bundled[theme_id] = ThemeDefinition(
                     theme_id=theme_id,
                     name=raw.get("name", theme_id.title()),
