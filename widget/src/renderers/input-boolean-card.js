@@ -73,6 +73,7 @@ export class InputBooleanCard extends BaseCard {
           <span part="state-label"></span>
           ${isWritable ? `<button part="toggle-button" type="button"></button>` : ""}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -117,6 +118,8 @@ export class InputBooleanCard extends BaseCard {
       ?? this.def.icon
       ?? (isOn ? "mdi:toggle-switch" : "mdi:toggle-switch-off");
     this.renderIcon(iconName, "card-icon");
+
+    this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 
   predictState(action, _data) {

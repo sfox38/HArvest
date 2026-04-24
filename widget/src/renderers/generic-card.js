@@ -55,6 +55,7 @@ export class GenericCard extends BaseCard {
         <div part="card-body">
           <span part="state-label" aria-live="polite">-</span>
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -66,10 +67,10 @@ export class GenericCard extends BaseCard {
   }
 
   applyState(state, _attributes) {
-    if (this.#stateLabel) {
-      this.#stateLabel.textContent = this.i18n.t(`state.${state}`) !== `state.${state}`
-        ? this.i18n.t(`state.${state}`)
-        : state;
-    }
+    const label = this.i18n.t(`state.${state}`) !== `state.${state}`
+      ? this.i18n.t(`state.${state}`)
+      : state;
+    if (this.#stateLabel) this.#stateLabel.textContent = label;
+    this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 }

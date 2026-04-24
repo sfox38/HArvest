@@ -171,6 +171,18 @@ const CARD_BASE_CSS = /* css */`
     display: none;
   }
 
+  .hrv-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   [part=stale-indicator] {
     display: none;
   }
@@ -349,6 +361,30 @@ export class BaseCard {
   }
 
   /**
+   * Return HTML for the aria-live announcement region. Only rendered when
+   * a11y="enhanced" is set. Include in render() template.
+   *
+   * @returns {string}
+   */
+  renderAriaLiveHTML() {
+    if (this.config.a11y !== "enhanced") return "";
+    return `<div part="a11y-announce" aria-live="polite" aria-atomic="true" class="hrv-sr-only"></div>`;
+  }
+
+  /**
+   * Announce a state change to screen readers via the aria-live region.
+   * No-op if a11y is not "enhanced" or the region does not exist.
+   *
+   * @param {string} text
+   */
+  announceState(text) {
+    const el = this.root.querySelector("[part=a11y-announce]");
+    if (!el) return;
+    el.textContent = "";
+    requestAnimationFrame(() => { el.textContent = text; });
+  }
+
+  /**
    * Return the HTML placeholder for the companion zone. Include this in the
    * template returned by render() so renderCompanions() has somewhere to write.
    *
@@ -371,13 +407,19 @@ export class BaseCard {
     zone.innerHTML = "";
 
     for (const companion of this.config.companions) {
-      const pill = document.createElement("div");
+      const isInteractive = companion.capabilities === "read-write";
+      const pill = document.createElement(isInteractive ? "button" : "div");
       pill.className = "hrv-companion";
       pill.setAttribute("part", "companion");
       pill.setAttribute("data-entity", companion.entityId);
+      pill.setAttribute("aria-label", companion.entityId);
 
-      if (companion.capabilities === "read-write") {
-        this.#makeCompanionInteractive(pill, companion.entityId);
+      if (isInteractive) {
+        pill.type = "button";
+        pill.setAttribute("data-interactive", "true");
+        pill.addEventListener("click", () => {
+          this.config.card?._sendCompanionCommand(companion.entityId, "toggle", {});
+        });
       }
 
       const iconWrap = document.createElement("span");
@@ -409,31 +451,9 @@ export class BaseCard {
       const iconWrap = pill.querySelector("[part=companion-icon]");
       if (iconWrap) iconWrap.innerHTML = renderIconSVG(def.icon, "companion-icon-svg");
     }
-
-    if ((def.capabilities ?? "read") === "read-write" && !pill.hasAttribute("data-interactive")) {
-      this.#makeCompanionInteractive(pill, entityId);
+    if (def.friendly_name) {
+      pill.setAttribute("aria-label", def.friendly_name);
     }
-  }
-
-  /**
-   * Mark a companion pill as interactive and attach a toggle click handler.
-   *
-   * @param {HTMLElement} pill
-   * @param {string} entityId
-   */
-  #makeCompanionInteractive(pill, entityId) {
-    pill.setAttribute("data-interactive", "true");
-    pill.setAttribute("role", "button");
-    pill.setAttribute("tabindex", "0");
-    pill.addEventListener("click", () => {
-      this.config.card?._sendCompanionCommand(entityId, "toggle", {});
-    });
-    pill.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        this.config.card?._sendCompanionCommand(entityId, "toggle", {});
-      }
-    });
   }
 
   /**
@@ -447,10 +467,13 @@ export class BaseCard {
   updateCompanionState(entityId, state, _attributes) {
     const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
     if (!pill) return;
-    const stateEl = pill.querySelector("[part=companion-state]");
-    if (stateEl) stateEl.textContent = this.i18n.t(`state.${state}`) !== `state.${state}`
+    const label = this.i18n.t(`state.${state}`) !== `state.${state}`
       ? this.i18n.t(`state.${state}`)
       : state;
+    const stateEl = pill.querySelector("[part=companion-state]");
+    if (stateEl) stateEl.textContent = label;
+    const name = pill.getAttribute("aria-label")?.replace(/ - .*$/, "") ?? entityId;
+    pill.setAttribute("aria-label", `${name} - ${label}`);
   }
 
   /**
@@ -666,6 +689,17 @@ const COMPANION_CSS = /* css */`
 
   .hrv-companion[data-interactive=true]:hover {
     background: var(--hrv-color-primary-dim);
+  }
+
+  .hrv-companion[data-interactive=true]:focus-visible {
+    outline: 2px solid var(--hrv-color-primary);
+    outline-offset: 1px;
+  }
+
+  button.hrv-companion {
+    border: none;
+    font: inherit;
+    color: inherit;
   }
 
   [part=companion-icon] {

@@ -97,6 +97,7 @@ export class InputNumberCard extends BaseCard {
           `}
         </div>
         ${this.renderHistoryZoneHTML()}
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -132,6 +133,9 @@ export class InputNumberCard extends BaseCard {
     if (this.#stateLabel && this.def.capabilities !== "read-write") {
       this.#stateLabel.textContent = state;
     }
+
+    const unit = this.def.unit_of_measurement ?? "";
+    this.announceState(`${this.def.friendly_name}, ${state}${unit ? ` ${unit}` : ""}`);
   }
 
   predictState(action, data) {

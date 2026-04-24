@@ -163,18 +163,19 @@ export class FanCard extends BaseCard {
                 <span part="speed-value">-</span>
               </div>
               <input part="speed-slider" type="range" min="0" max="100"
-                aria-label="Fan speed">
+                aria-label="${_esc(this.def.friendly_name)} - Speed">
             </div>
           ` : ""}
           ${isWritable && hasOscillate ? /* html */`
-            <button part="oscillate-button" type="button" aria-pressed="false">
+            <button part="oscillate-button" type="button" aria-pressed="false"
+              aria-label="${_esc(this.def.friendly_name)} - Oscillate">
               Oscillate
             </button>
           ` : ""}
           ${isWritable && hasDirection ? /* html */`
             <div>
               <div class="hrv-slider-label"><span>Direction</span></div>
-              <select part="direction-select" aria-label="Fan direction">
+              <select part="direction-select" aria-label="${_esc(this.def.friendly_name)} - Direction">
                 <option value="forward">Forward</option>
                 <option value="reverse">Reverse</option>
               </select>
@@ -183,12 +184,13 @@ export class FanCard extends BaseCard {
           ${isWritable && hasPreset && presetOptions ? /* html */`
             <div>
               <div class="hrv-slider-label"><span>Preset</span></div>
-              <select part="preset-select" aria-label="Fan preset mode">
+              <select part="preset-select" aria-label="${_esc(this.def.friendly_name)} - Preset mode">
                 ${presetOptions}
               </select>
             </div>
           ` : ""}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -270,6 +272,8 @@ export class FanCard extends BaseCard {
     if (this.#oscillateBtn) {
       const osc = !!attributes.oscillating;
       this.#oscillateBtn.setAttribute("aria-pressed", String(osc));
+      this.#oscillateBtn.setAttribute("aria-label",
+        `${this.def.friendly_name} - Oscillate, ${this.i18n.t("action.currently")} ${osc ? this.i18n.t("state.on") : this.i18n.t("state.off")}`);
       this.#oscillateBtn.disabled = isUnavailable;
     }
 
@@ -292,6 +296,8 @@ export class FanCard extends BaseCard {
       iconEl.setAttribute("data-on", String(isOn));
       iconEl.setAttribute("data-animate", String(!!this.config.animate));
     }
+
+    this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 
   predictState(action, data) {

@@ -109,13 +109,18 @@ export class TimerCard extends BaseCard {
           <span part="state-label"></span>
           ${isWritable ? /* html */`
             <div class="hrv-timer-controls">
-              <button part="start-button" class="hrv-timer-btn hrv-timer-btn-primary" type="button">Start</button>
-              <button part="pause-button" class="hrv-timer-btn" type="button">Pause</button>
-              <button part="cancel-button" class="hrv-timer-btn" type="button">Cancel</button>
-              <button part="finish-button" class="hrv-timer-btn" type="button">Finish</button>
+              <button part="start-button" class="hrv-timer-btn hrv-timer-btn-primary" type="button"
+                aria-label="${_esc(this.def.friendly_name)} - Start">Start</button>
+              <button part="pause-button" class="hrv-timer-btn" type="button"
+                aria-label="${_esc(this.def.friendly_name)} - Pause">Pause</button>
+              <button part="cancel-button" class="hrv-timer-btn" type="button"
+                aria-label="${_esc(this.def.friendly_name)} - Cancel">Cancel</button>
+              <button part="finish-button" class="hrv-timer-btn" type="button"
+                aria-label="${_esc(this.def.friendly_name)} - Finish">Finish</button>
             </div>
           ` : ""}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -197,8 +202,12 @@ export class TimerCard extends BaseCard {
     if (this.#finishBtn) this.#finishBtn.disabled = isIdle;
 
     if (this.#startBtn) {
-      this.#startBtn.textContent = isPaused ? "Resume" : "Start";
+      const btnLabel = isPaused ? "Resume" : "Start";
+      this.#startBtn.textContent = btnLabel;
+      this.#startBtn.setAttribute("aria-label", `${this.def.friendly_name} - ${btnLabel}`);
     }
+
+    this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 
   #updateDisplay(state) {

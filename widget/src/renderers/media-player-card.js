@@ -146,17 +146,18 @@ export class MediaPlayerCard extends BaseCard {
             <div class="hrv-media-controls">
               ${hasPrevNext ? /* html */`
                 <button part="prev-button" class="hrv-media-btn" type="button"
-                  aria-label="${_esc(this.i18n.t("action.previous"))}">
+                  aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.previous"))}">
                   ${renderIconSVG("mdi:skip-previous", "prev-icon")}
                 </button>
               ` : ""}
               <button part="play-button" class="hrv-media-btn" type="button"
-                aria-label="${_esc(this.i18n.t("action.play"))}">
+                aria-pressed="false"
+                aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.play"))}">
                 ${renderIconSVG("mdi:play", "play-icon")}
               </button>
               ${hasPrevNext ? /* html */`
                 <button part="next-button" class="hrv-media-btn" type="button"
-                  aria-label="${_esc(this.i18n.t("action.next"))}">
+                  aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.next"))}">
                   ${renderIconSVG("mdi:skip-next", "next-icon")}
                 </button>
               ` : ""}
@@ -165,21 +166,22 @@ export class MediaPlayerCard extends BaseCard {
               <div class="hrv-volume-row">
                 <button part="mute-button" class="hrv-media-btn" type="button"
                   style="width:28px;height:28px;border-radius:var(--hrv-radius-s)"
-                  aria-label="${_esc(this.i18n.t("action.mute"))}">
+                  aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.mute"))}">
                   ${renderIconSVG("mdi:volume-high", "mute-icon")}
                 </button>
                 <input part="volume-slider" type="range" min="0" max="100"
-                  aria-label="${_esc(this.i18n.t("media.volume"))}">
+                  aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("media.volume"))}">
               </div>
             ` : ""}
             ${hasSource ? /* html */`
               <select part="source-select"
-                aria-label="${_esc(this.i18n.t("media.source"))}">
+                aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("media.source"))}">
                 <option value="">- ${_esc(this.i18n.t("media.source"))} -</option>
               </select>
             ` : ""}
           ` : ""}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -197,7 +199,7 @@ export class MediaPlayerCard extends BaseCard {
     this.renderIcon(this.def.icon ?? "mdi:cast", "card-icon");
 
     this.#playBtn?.addEventListener("click", () => {
-      const isPlaying = this.#playBtn?.getAttribute("data-playing") === "true";
+      const isPlaying = this.#playBtn?.getAttribute("aria-pressed") === "true";
       this.config.card?.sendCommand(isPlaying ? "media_pause" : "media_play", {});
     });
 
@@ -237,9 +239,9 @@ export class MediaPlayerCard extends BaseCard {
     }
 
     if (this.#playBtn) {
-      this.#playBtn.setAttribute("data-playing", String(isPlaying));
+      this.#playBtn.setAttribute("aria-pressed", String(isPlaying));
       this.#playBtn.setAttribute("aria-label",
-        this.i18n.t(isPlaying ? "action.pause" : "action.play"));
+        `${this.def.friendly_name} - ${this.i18n.t(isPlaying ? "action.pause" : "action.play")}`);
       const iconName = isPlaying ? "mdi:pause" : "mdi:play";
       this.#playBtn.innerHTML = renderIconSVG(iconName, "play-icon");
     }
@@ -253,7 +255,7 @@ export class MediaPlayerCard extends BaseCard {
       const iconName = this.#isMuted ? "mdi:volume-off" : "mdi:volume-high";
       this.#muteBtn.innerHTML = renderIconSVG(iconName, "mute-icon");
       this.#muteBtn.setAttribute("aria-label",
-        this.i18n.t(this.#isMuted ? "action.unmute" : "action.mute"));
+        `${this.def.friendly_name} - ${this.i18n.t(this.#isMuted ? "action.unmute" : "action.mute")}`);
     }
 
     if (this.#sourceSelect && attributes.source_list) {
@@ -284,6 +286,13 @@ export class MediaPlayerCard extends BaseCard {
       ?? this.def.icon
       ?? (isPlaying ? "mdi:cast-connected" : "mdi:cast");
     this.renderIcon(iconName, "card-icon");
+
+    const stateLabel = this.i18n.t(`state.${state}`) !== `state.${state}`
+      ? this.i18n.t(`state.${state}`) : state;
+    const title = attributes.media_title ?? "";
+    this.announceState(
+      `${this.def.friendly_name}, ${stateLabel}${title ? ` - ${title}` : ""}`,
+    );
   }
 
   #sendVolume(fraction) {

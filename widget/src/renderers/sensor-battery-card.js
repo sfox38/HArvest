@@ -84,6 +84,7 @@ export class BatterySensorCard extends BaseCard {
           <span part="sensor-unit">${_esc(this.def.unit_of_measurement ?? "%")}</span>
         </div>
         ${this.renderHistoryZoneHTML()}
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -104,5 +105,8 @@ export class BatterySensorCard extends BaseCard {
       this.#currentIcon = icon;
       this.renderIcon(icon, "battery-icon-wrap");
     }
+
+    const unit = this.def.unit_of_measurement ?? "%";
+    this.announceState(`${this.def.friendly_name}, ${state} ${unit}`);
   }
 }

@@ -125,9 +125,10 @@ function extraAttrs(e: Token["entities"][0], format: "html" | "shortcode"): stri
   return s;
 }
 
-function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null): string {
+function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null, useA11y = false): string {
   const groups = groupEntities(token.entities);
   const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
+  const a11yAttr = useA11y ? ` a11y` : "";
 
   function cardLine(g: PrimaryWithCompanions, indent = ""): string {
     const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
@@ -135,7 +136,7 @@ function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haU
     const companionAttr = cl.length > 0 ? ` companion="${cl.join(", ")}"` : "";
     const hist = graphAttrs(g.primary, "html");
     const extra = extraAttrs(g.primary, "html");
-    return `${indent}<hrv-card ${attr}${companionAttr}${hist}${extra}></hrv-card>`;
+    return `${indent}<hrv-card ${attr}${companionAttr}${hist}${extra}${a11yAttr}></hrv-card>`;
   }
 
   if (mode === "page") {
@@ -153,12 +154,13 @@ function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haU
   const companionAttr = cl.length > 0 ? ` companion="${cl.join(", ")}"` : "";
   const hist = graphAttrs(g.primary, "html");
   const extra = extraAttrs(g.primary, "html");
-  return `<hrv-card ${groupAttrs} ${entityAttr}${companionAttr}${hist}${extra}></hrv-card>`;
+  return `<hrv-card ${groupAttrs} ${entityAttr}${companionAttr}${hist}${extra}${a11yAttr}></hrv-card>`;
 }
 
-function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null): string {
+function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null, useA11y = false): string {
   const groups = groupEntities(token.entities);
   const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
+  const a11yAttr = useA11y ? ` a11y="true"` : "";
 
   function shortcodeLine(g: PrimaryWithCompanions, indent = ""): string {
     const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
@@ -166,7 +168,7 @@ function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode
     const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
     const hist = graphAttrs(g.primary, "shortcode");
     const extra = extraAttrs(g.primary, "shortcode");
-    return `${indent}[harvest ${attr}${companionAttr}${hist}${extra}]`;
+    return `${indent}[harvest ${attr}${companionAttr}${hist}${extra}${a11yAttr}]`;
   }
 
   if (mode === "page") {
@@ -176,7 +178,7 @@ function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode
       const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
       const hist = graphAttrs(g.primary, "shortcode");
       const extra = extraAttrs(g.primary, "shortcode");
-      return `[harvest token="${token.token_id}"${secretAttr} ${attr}${companionAttr}${hist}${extra}]`;
+      return `[harvest token="${token.token_id}"${secretAttr} ${attr}${companionAttr}${hist}${extra}${a11yAttr}]`;
     }).join("\n");
   }
 
@@ -191,7 +193,7 @@ function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode
   const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
   const hist = graphAttrs(g.primary, "shortcode");
   const extra = extraAttrs(g.primary, "shortcode");
-  return `[harvest token="${token.token_id}"${secretAttr} ${entityAttr}${companionAttr}${hist}${extra}]`;
+  return `[harvest token="${token.token_id}"${secretAttr} ${entityAttr}${companionAttr}${hist}${extra}${a11yAttr}]`;
 }
 
 function fmtDateLong(iso: string): string {
@@ -205,6 +207,7 @@ function fmtDateLong(iso: string): string {
 
 function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void; hmacSecret: string | null }) {
   const [useAliases,      setUseAliases]      = useState(() => { try { return localStorage.getItem("hrv_use_aliases") === "true"; } catch { return false; } });
+  const [useA11y,         setUseA11y]         = useState(false);
   const [tab,             setTab]             = useState<"web" | "wordpress">(() => { try { return localStorage.getItem("hrv_code_tab") === "wordpress" ? "wordpress" : "web"; } catch { return "web"; } });
   const primaryCount = token.entities.filter(e => !e.companion_of).length;
   const [cardMode,        setCardMode]        = useState<CardMode>(token.embed_mode ?? "single");
@@ -237,8 +240,8 @@ function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; 
     : scriptTag;
 
   const cardSnippet = tab === "web"
-    ? buildCardSnippet(token, useAliases, cardMode, haUrl, hmacSecret)
-    : buildWordPressSnippet(token, useAliases, cardMode, hmacSecret);
+    ? buildCardSnippet(token, useAliases, cardMode, haUrl, hmacSecret, useA11y)
+    : buildWordPressSnippet(token, useAliases, cardMode, hmacSecret, useA11y);
 
   const setupCopy = useCopy(setupSnippet);
   const cardCopy = useCopy(cardSnippet);
@@ -314,6 +317,22 @@ function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; 
         Show as aliases
         <span
           title="Aliases hide your real entity IDs from the page source. Both formats work against the same token."
+          className="muted"
+          style={{ fontSize: 11, cursor: "help" }}
+        >
+          (?)
+        </span>
+      </label>
+      {/* Enhanced accessibility toggle */}
+      <label className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={useA11y}
+          onChange={e => setUseA11y(e.target.checked)}
+        />
+        Enhanced accessibility
+        <span
+          title="Adds aria-live announcements for screen readers. State changes are announced as they happen."
           className="muted"
           style={{ fontSize: 11, cursor: "help" }}
         >

@@ -506,7 +506,7 @@ export class HrvCard extends HTMLElement {
       hours:        parseInt(this.getAttribute("hours") ?? "", 10) || 24,
       period:       parseInt(this.getAttribute("period") ?? "", 10) || 10,
       animate:      this.hasAttribute("animate"),
-      a11y:         this.getAttribute("a11y") ?? "standard",
+      a11y:         this.hasAttribute("a11y") ? (this.getAttribute("a11y") || "enhanced") : "standard",
       companions:   this.#companions,
       card:         this,
     };

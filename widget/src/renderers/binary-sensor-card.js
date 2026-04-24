@@ -60,6 +60,7 @@ export class BinarySensorCard extends BaseCard {
           <span part="state-label" aria-live="polite">-</span>
         </div>
         ${this.renderHistoryZoneHTML()}
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -88,5 +89,7 @@ export class BinarySensorCard extends BaseCard {
       ?? this.def.icon
       ?? (isOn ? "mdi:checkbox-blank-circle" : "mdi:checkbox-blank-circle-outline");
     this.renderIcon(iconName, "card-icon");
+
+    this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 }

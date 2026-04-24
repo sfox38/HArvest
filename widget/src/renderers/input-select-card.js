@@ -60,6 +60,7 @@ export class InputSelectCard extends BaseCard {
             : `<span part="state-label">-</span>`
           }
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -108,5 +109,7 @@ export class InputSelectCard extends BaseCard {
     }
 
     if (!this.isFocused(this.#select)) this.#select.value = state;
+
+    this.announceState(`${this.def.friendly_name}, ${state}`);
   }
 }

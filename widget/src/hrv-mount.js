@@ -32,6 +32,7 @@
  *   data-hours        -> hours
  *   data-period       -> period
  *   data-animate      -> animate
+ *   data-a11y         -> a11y
  *
  * Per CLAUDE.md Open Question #3: mountCard() walks parentElement until
  * document.body to find a parent .hrv-group and inherit token/ha-url when
@@ -161,6 +162,7 @@ function mountCard(el) {
   if (el.dataset.hours)            card.setAttribute("hours",        el.dataset.hours);
   if (el.dataset.period)           card.setAttribute("period",       el.dataset.period);
   if (el.dataset.animate)          card.setAttribute("animate",      "");
+  if (el.dataset.a11y)             card.setAttribute("a11y",         el.dataset.a11y);
 
   el.appendChild(card);
 }

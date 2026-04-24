@@ -179,7 +179,7 @@ export class LightCard extends BaseCard {
                 <span part="brightness-value">-</span>
               </div>
               <input part="brightness-slider" type="range" min="0" max="255"
-                aria-label="Brightness">
+                aria-label="${_esc(this.def.friendly_name)} - Brightness">
             </div>
           ` : ""}
           ${isWritable && hasColor ? /* html */`
@@ -188,7 +188,7 @@ export class LightCard extends BaseCard {
                 <span>Color</span>
               </div>
               <input part="color-slider" type="range" min="0" max="360"
-                aria-label="Color">
+                aria-label="${_esc(this.def.friendly_name)} - Color">
             </div>
           ` : ""}
           ${isWritable && hasColorTemp ? /* html */`
@@ -199,10 +199,11 @@ export class LightCard extends BaseCard {
               </div>
               <input part="color-temp-slider" type="range"
                 min="${minCt}" max="${maxCt}"
-                aria-label="Color temperature">
+                aria-label="${_esc(this.def.friendly_name)} - Color temperature">
             </div>
           ` : ""}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -340,6 +341,9 @@ export class LightCard extends BaseCard {
 
     const iconEl = this.root.querySelector("[part=card-icon]");
     if (iconEl) iconEl.setAttribute("data-on", String(isOn));
+
+    const label = this.i18n.t(isOn ? "state.on" : "state.off");
+    this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 
   predictState(action, _data) {

@@ -51,6 +51,7 @@ export class HumiditySensorCard extends BaseCard {
           <span part="sensor-unit">${_esc(this.def.unit_of_measurement ?? "%")}</span>
         </div>
         ${this.renderHistoryZoneHTML()}
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -63,5 +64,7 @@ export class HumiditySensorCard extends BaseCard {
 
   applyState(state, _attributes) {
     if (this.#valueEl) this.#valueEl.textContent = state;
+    const unit = this.def.unit_of_measurement ?? "%";
+    this.announceState(`${this.def.friendly_name}, ${state} ${unit}`);
   }
 }

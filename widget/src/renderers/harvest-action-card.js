@@ -81,6 +81,7 @@ export class HarvestActionCard extends BaseCard {
             <span part="state-label">-</span>
           `}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -119,6 +120,10 @@ export class HarvestActionCard extends BaseCard {
       ?? this.def.icon
       ?? (isTriggered ? "mdi:play-circle" : "mdi:play-circle-outline");
     this.renderIcon(iconName, "card-icon");
+
+    if (isTriggered) {
+      this.announceState(`${this.def.friendly_name}, ${this.i18n.t("state.triggered")}`);
+    }
   }
 
   predictState(action, _data) {

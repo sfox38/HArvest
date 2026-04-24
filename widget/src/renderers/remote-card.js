@@ -68,11 +68,12 @@ export class RemoteCard extends BaseCard {
           <span part="state-label"></span>
           ${isWritable ? /* html */`
             <button part="command-button" type="button"
-              aria-label="Send command ${_esc(commandLabel)}">
+              aria-label="${_esc(this.def.friendly_name)} - Send ${_esc(commandLabel)}">
               ${_esc(commandLabel)}
             </button>
           ` : ""}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -102,5 +103,9 @@ export class RemoteCard extends BaseCard {
 
     const iconName = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:remote";
     this.renderIcon(iconName, "card-icon");
+
+    const label = this.i18n.t(`state.${state}`) !== `state.${state}`
+      ? this.i18n.t(`state.${state}`) : state;
+    this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 }

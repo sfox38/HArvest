@@ -48,6 +48,7 @@ class Harvest_Shortcode {
                 'hours'        => '24',
                 'period'       => '10',
                 'animate'      => 'false',
+                'a11y'         => 'false',
             ],
             $atts,
             'harvest'
@@ -132,6 +133,10 @@ class Harvest_Shortcode {
 
         if ( $atts['animate'] === 'true' ) {
             $data_attrs['data-animate'] = 'true';
+        }
+
+        if ( $atts['a11y'] === 'true' ) {
+            $data_attrs['data-a11y'] = 'enhanced';
         }
 
         $attr_string = self::build_attr_string( $data_attrs );

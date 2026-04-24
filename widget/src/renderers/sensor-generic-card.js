@@ -53,6 +53,7 @@ export class GenericSensorCard extends BaseCard {
           <span part="sensor-unit">${_esc(this.def.unit_of_measurement ?? "")}</span>
         </div>
         ${this.renderHistoryZoneHTML()}
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -70,5 +71,7 @@ export class GenericSensorCard extends BaseCard {
     if (this.#unitEl && attributes.unit_of_measurement !== undefined) {
       this.#unitEl.textContent = attributes.unit_of_measurement;
     }
+    const unit = attributes.unit_of_measurement ?? this.def.unit_of_measurement ?? "";
+    this.announceState(`${this.def.friendly_name}, ${state}${unit ? ` ${unit}` : ""}`);
   }
 }

@@ -107,13 +107,14 @@ function fmtExpiry(option: string): string {
 }
 
 function buildCardSnippetFromState(
-  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, haUrl: string,
+  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, haUrl: string, useA11y = false,
 ): string {
+  const a11yAttr = useA11y ? ` a11y` : "";
   function cardLine(e: SelectedEntity, indent = ""): string {
     const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
     const cl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
     const companionAttr = cl.length > 0 ? ` companion="${cl.join(", ")}"` : "";
-    return `${indent}<hrv-card ${entityAttr}${companionAttr}></hrv-card>`;
+    return `${indent}<hrv-card ${entityAttr}${companionAttr}${a11yAttr}></hrv-card>`;
   }
 
   if (mode === "page") {
@@ -130,17 +131,18 @@ function buildCardSnippetFromState(
   const sEntityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
   const sCl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
   const sCompanionAttr = sCl.length > 0 ? ` companion="${sCl.join(", ")}"` : "";
-  return `<hrv-card ${groupAttrs} ${sEntityAttr}${sCompanionAttr}></hrv-card>`;
+  return `<hrv-card ${groupAttrs} ${sEntityAttr}${sCompanionAttr}${a11yAttr}></hrv-card>`;
 }
 
 function buildWordPressSnippetFromState(
-  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string,
+  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, useA11y = false,
 ): string {
+  const a11yAttr = useA11y ? ` a11y="true"` : "";
   function shortcodeLine(e: SelectedEntity, indent = ""): string {
     const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
     const cl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
     const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-    return `${indent}[harvest ${entityAttr}${companionAttr}]`;
+    return `${indent}[harvest ${entityAttr}${companionAttr}${a11yAttr}]`;
   }
 
   if (mode === "page") {
@@ -148,7 +150,7 @@ function buildWordPressSnippetFromState(
       const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
       const cl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
       const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-      return `[harvest token="${tokenId}" ${entityAttr}${companionAttr}]`;
+      return `[harvest token="${tokenId}" ${entityAttr}${companionAttr}${a11yAttr}]`;
     }).join("\n");
   }
 
@@ -161,7 +163,7 @@ function buildWordPressSnippetFromState(
   const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
   const cl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
   const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-  return `[harvest token="${tokenId}" ${entityAttr}${companionAttr}]`;
+  return `[harvest token="${tokenId}" ${entityAttr}${companionAttr}${a11yAttr}]`;
 }
 
 // ---------------------------------------------------------------------------
@@ -790,6 +792,7 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
   onAcknowledgedChange?: (v: boolean) => void;
 }) {
   const [useAliases,   setUseAliases]   = useState(() => localStorage.getItem("hrv_use_aliases") === "true");
+  const [useA11y,      setUseA11y]      = useState(false);
   const [tab,          setTab]          = useState<"web" | "wordpress">(() => localStorage.getItem("hrv_code_tab") === "wordpress" ? "wordpress" : "web");
   const [acknowledged, setAcknowledged] = useState(!tokenSecret);
   const [widgetName,   setWidgetName]   = useState(token.label);
@@ -811,8 +814,8 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
     ? `${scriptTag}\n<script>HArvest.config({ haUrl: "${haUrl}", token: "${token.token_id}" });</script>`
     : scriptTag;
   const cardSnippet = tab === "web"
-    ? buildCardSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, haUrl)
-    : buildWordPressSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id);
+    ? buildCardSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, haUrl, useA11y)
+    : buildWordPressSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, useA11y);
   const hostDisplay = originMode === "any" ? "Anywhere" : (originUrl || haUrl);
 
   const saveWidgetName = async (name: string) => {
@@ -922,6 +925,17 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
             />
             Show as aliases
             <span className="muted" style={{ fontSize: 11, cursor: "help" }} title="Aliases hide your real entity IDs from the page source. Both formats work against the same token.">(?)
+            </span>
+          </label>
+          {/* Enhanced accessibility toggle */}
+          <label className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={useA11y}
+              onChange={e => setUseA11y(e.target.checked)}
+            />
+            Enhanced accessibility
+            <span className="muted" style={{ fontSize: 11, cursor: "help" }} title="Adds aria-live announcements for screen readers. State changes are announced as they happen.">(?)
             </span>
           </label>
         </>

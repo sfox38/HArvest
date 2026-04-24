@@ -167,7 +167,7 @@ export class ClimateCard extends BaseCard {
           ${isWritable && hvacModes.length > 0 ? /* html */`
             <div class="hrv-climate-row">
               <span class="hrv-climate-label">Mode</span>
-              <select part="mode-select" aria-label="HVAC mode">
+              <select part="mode-select" aria-label="${_esc(this.def.friendly_name)} - HVAC mode">
                 ${modeOptions}
               </select>
             </div>
@@ -177,7 +177,7 @@ export class ClimateCard extends BaseCard {
               <span class="hrv-climate-label">Target</span>
               <input part="target-temp-input" type="number"
                 min="${minTemp}" max="${maxTemp}" step="${step}"
-                aria-label="Target temperature">
+                aria-label="${_esc(this.def.friendly_name)} - Target temperature">
             </div>
           ` : ""}
           ${isWritable && hasRange ? /* html */`
@@ -185,20 +185,20 @@ export class ClimateCard extends BaseCard {
               <span class="hrv-climate-label">Low</span>
               <input part="target-temp-low-input" type="number"
                 min="${minTemp}" max="${maxTemp}" step="${step}"
-                aria-label="Target temperature low">
+                aria-label="${_esc(this.def.friendly_name)} - Target temperature low">
             </div>
             <div class="hrv-climate-row">
               <span class="hrv-climate-label">High</span>
               <input part="target-temp-high-input" type="number"
                 min="${minTemp}" max="${maxTemp}" step="${step}"
-                aria-label="Target temperature high">
+                aria-label="${_esc(this.def.friendly_name)} - Target temperature high">
             </div>
           ` : ""}
           ${hasFanMode ? /* html */`
             <div class="hrv-climate-row">
               <span class="hrv-climate-label">Fan</span>
               ${isWritable && fanOptions
-                ? `<select part="fan-mode-select" aria-label="Fan mode">${fanOptions}</select>`
+                ? `<select part="fan-mode-select" aria-label="${_esc(this.def.friendly_name)} - Fan mode">${fanOptions}</select>`
                 : `<span part="fan-mode-label" class="hrv-climate-label"></span>`}
             </div>
           ` : ""}
@@ -206,7 +206,7 @@ export class ClimateCard extends BaseCard {
             <div class="hrv-climate-row">
               <span class="hrv-climate-label">Preset</span>
               ${isWritable && presetOptions
-                ? `<select part="preset-select" aria-label="Preset mode">${presetOptions}</select>`
+                ? `<select part="preset-select" aria-label="${_esc(this.def.friendly_name)} - Preset mode">${presetOptions}</select>`
                 : `<span part="preset-label" class="hrv-climate-label"></span>`}
             </div>
           ` : ""}
@@ -214,11 +214,12 @@ export class ClimateCard extends BaseCard {
             <div class="hrv-climate-row">
               <span class="hrv-climate-label">Swing</span>
               ${isWritable && swingOptions
-                ? `<select part="swing-select" aria-label="Swing mode">${swingOptions}</select>`
+                ? `<select part="swing-select" aria-label="${_esc(this.def.friendly_name)} - Swing mode">${swingOptions}</select>`
                 : `<span part="swing-label" class="hrv-climate-label"></span>`}
             </div>
           ` : ""}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -369,12 +370,19 @@ export class ClimateCard extends BaseCard {
       if (this.#swingLabel) this.#swingLabel.textContent = sm;
     }
 
-    // Icon reflects HVAC action.
     const action   = attributes.hvac_action ?? state;
     const iconName = this.def.icon_state_map?.[action]
       ?? this.def.icon
       ?? _hvacIcon(action);
     this.renderIcon(iconName, "card-icon");
+
+    const temp = attributes.current_temperature;
+    const announceAction = attributes.hvac_action ?? state;
+    const stateText = this.i18n.t(`state.${announceAction}`) !== `state.${announceAction}`
+      ? this.i18n.t(`state.${announceAction}`) : announceAction;
+    this.announceState(
+      `${this.def.friendly_name}, ${stateText}${temp !== undefined ? `, ${temp}${unit}` : ""}`,
+    );
   }
 
   predictState(action, data) {

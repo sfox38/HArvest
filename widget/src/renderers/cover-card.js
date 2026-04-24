@@ -97,15 +97,15 @@ export class CoverCard extends BaseCard {
           ${isWritable && hasButtons ? /* html */`
             <div class="hrv-cover-controls">
               <button part="open-button" class="hrv-cover-btn" type="button"
-                aria-label="${_esc(this.i18n.t("cover.open"))}">
+                aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("cover.open"))}">
                 ${_esc(this.i18n.t("cover.open"))}
               </button>
               <button part="stop-button" class="hrv-cover-btn" type="button"
-                aria-label="${_esc(this.i18n.t("cover.stop"))}">
+                aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("cover.stop"))}">
                 ${_esc(this.i18n.t("cover.stop"))}
               </button>
               <button part="close-button" class="hrv-cover-btn" type="button"
-                aria-label="${_esc(this.i18n.t("cover.close"))}">
+                aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("cover.close"))}">
                 ${_esc(this.i18n.t("cover.close"))}
               </button>
             </div>
@@ -117,10 +117,11 @@ export class CoverCard extends BaseCard {
                 <span part="position-value">-</span>
               </div>
               <input part="position-slider" type="range" min="0" max="100"
-                aria-label="Cover position">
+                aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("cover.position"))}">
             </div>
           ` : ""}
         </div>
+        ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
         <div part="stale-indicator" aria-hidden="true"></div>
       </div>
@@ -169,6 +170,8 @@ export class CoverCard extends BaseCard {
       ?? this.def.icon
       ?? _coverIcon(state, attributes);
     this.renderIcon(iconName, "card-icon");
+
+    this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 
   predictState(action, data) {
