@@ -21,6 +21,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 
 from .activity_store import ActivityStore, TokenLifecycleEvent
+from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .entity_definition import build_entity_definition
 from .event_bus import EventBus
@@ -61,14 +62,15 @@ def register_views(
     event_bus: EventBus | None = None,
     theme_manager: ThemeManager | None = None,
     pack_manager: PackManager | None = None,
+    controls: ControlEntities | None = None,
 ) -> None:
     """Register all HTTP API views with HA's HTTP server.
 
     All views are prefixed with /api/harvest/.
     All views require HA authentication (panel runs in authenticated context).
     """
-    hass.http.register_view(HarvestTokensView(token_manager, session_manager, activity_store))
-    hass.http.register_view(HarvestTokenDetailView(hass, token_manager, session_manager, activity_store, event_bus, theme_manager, pack_manager))
+    hass.http.register_view(HarvestTokensView(token_manager, session_manager, activity_store, sensors=sensors, controls=controls))
+    hass.http.register_view(HarvestTokenDetailView(hass, token_manager, session_manager, activity_store, event_bus, theme_manager, pack_manager, sensors=sensors, controls=controls))
     hass.http.register_view(HarvestSessionsView(session_manager))
     hass.http.register_view(HarvestSessionTerminateView(session_manager))
     hass.http.register_view(HarvestActivityView(activity_store, token_manager))
@@ -304,10 +306,12 @@ class HarvestTokensView(HomeAssistantView):
     name = "api:harvest:tokens"
     requires_auth = True
 
-    def __init__(self, token_manager: TokenManager, session_manager: SessionManager, activity_store: ActivityStore) -> None:
+    def __init__(self, token_manager: TokenManager, session_manager: SessionManager, activity_store: ActivityStore, sensors: DiagnosticSensors | None = None, controls: ControlEntities | None = None) -> None:
         self._token_manager = token_manager
         self._session_manager = session_manager
         self._activity_store = activity_store
+        self._sensors = sensors
+        self._controls = controls
 
     async def get(self, request: web.Request) -> web.Response:
         """Return all tokens with their active session counts."""
@@ -376,6 +380,10 @@ class HarvestTokensView(HomeAssistantView):
             timestamp=datetime.now(timezone.utc),
             label=token.label,
         ))
+        if self._sensors:
+            await self._sensors.create_and_register_token_sensors(token.token_id, token.label)
+        if self._controls:
+            await self._controls.create_and_register_token_controls(token.token_id, token.label)
         return self.json(_token_to_dict(token), status_code=201)
 
 
@@ -389,7 +397,7 @@ class HarvestTokenDetailView(HomeAssistantView):
     name = "api:harvest:token_detail"
     requires_auth = True
 
-    def __init__(self, hass: HomeAssistant, token_manager: TokenManager, session_manager: SessionManager, activity_store: ActivityStore, event_bus: EventBus, theme_manager: ThemeManager | None = None, pack_manager: PackManager | None = None) -> None:
+    def __init__(self, hass: HomeAssistant, token_manager: TokenManager, session_manager: SessionManager, activity_store: ActivityStore, event_bus: EventBus, theme_manager: ThemeManager | None = None, pack_manager: PackManager | None = None, sensors: DiagnosticSensors | None = None, controls: ControlEntities | None = None) -> None:
         self._hass = hass
         self._token_manager = token_manager
         self._session_manager = session_manager
@@ -397,6 +405,8 @@ class HarvestTokenDetailView(HomeAssistantView):
         self._event_bus = event_bus
         self._theme_manager = theme_manager
         self._pack_manager = pack_manager
+        self._sensors = sensors
+        self._controls = controls
 
     async def _push_theme_to_sessions(self, token_id: str) -> None:
         """Push updated theme data to all active sessions for a token."""
@@ -637,6 +647,10 @@ class HarvestTokenDetailView(HomeAssistantView):
             raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
         except ValueError as exc:
             raise web.HTTPBadRequest(reason=str(exc))
+        if self._sensors:
+            self._sensors.remove_token_sensors(token_id)
+        if self._controls:
+            self._controls.remove_token_controls(token_id)
         return web.Response(status=204)
 
 

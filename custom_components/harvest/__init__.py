@@ -15,6 +15,7 @@ from homeassistant.helpers.event import async_track_time_interval
 
 from .activity_store import ActivityStore
 from .const import DEFAULTS, DOMAIN
+from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager
@@ -63,15 +64,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     theme_manager = ThemeManager(hass)
     await theme_manager.load()
-    _LOGGER.debug("HArvest theme manager loaded: %d themes", len(theme_manager.get_all()))
-
     pack_manager = PackManager(hass)
     await pack_manager.load()
-    _LOGGER.warning("HArvest pack manager loaded: %d packs, agreed=%s", len(pack_manager.get_all()), pack_manager.agreed)
 
     # DiagnosticSensors takes token_manager in addition to the spec's 3 args
     # because HarvestActiveTokensSensor needs to query get_active().
     sensors = DiagnosticSensors(hass, session_manager, activity_store, token_manager)
+    controls = ControlEntities(hass, entry, token_manager, session_manager)
 
     # --- Register WebSocket view ---
     ws_view = HarvestWsView(
@@ -88,7 +87,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     register_views(hass, token_manager, session_manager,
                    activity_store, action_manager, sensors, event_bus,
                    theme_manager=theme_manager,
-                   pack_manager=pack_manager)
+                   pack_manager=pack_manager,
+                   controls=controls)
 
     # --- Register sidebar panel ---
     await register_panel(hass)
@@ -111,6 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER, "sensor", hass, _SENSOR_SCAN_INTERVAL
         )
         await sensor_component.async_add_entities(sensor_entities)
+        sensors.set_sensor_add_fn(sensor_component.async_add_entities)
         hass.data.setdefault(DOMAIN, {}).setdefault(
             entry.entry_id, {}
         )["sensor_component"] = sensor_component
@@ -139,7 +140,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     unsub_preview = async_track_time_interval(hass, _cleanup_expired_previews, timedelta(seconds=60))
 
-    # --- Store all managers for access by other parts of the integration ---
+    # --- Store all managers - must happen before platform forwarding ---
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         **hass.data.get(DOMAIN, {}).get(entry.entry_id, {}),
         "token_manager":   token_manager,
@@ -151,9 +152,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "theme_manager":   theme_manager,
         "pack_manager":    pack_manager,
         "sensors":         sensors,
+        "controls":        controls,
         "unsub_purge":     unsub_purge,
         "unsub_preview":   unsub_preview,
     }
+
+    # --- Register switch and button platforms ---
+    # Platform files (switch.py, button.py) access hass.data, so they must be
+    # forwarded after the data dict above is populated.
+    await hass.config_entries.async_forward_entry_setups(entry, ["switch", "button"])
 
     _LOGGER.info("HArvest integration set up successfully.")
     return True
@@ -166,8 +173,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Closes all active WebSocket sessions.
     Marks the running sensor as off.
     Stops the sensor update timer.
+    Unloads switch and button platforms.
     Removes hass.data entry.
     """
+    await hass.config_entries.async_unload_platforms(entry, ["switch", "button"])
     data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, {})
 
     # Cancel periodic timers.

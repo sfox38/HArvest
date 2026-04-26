@@ -55,6 +55,7 @@ class DiagnosticSensors:
         # Per-token sensor registries keyed by token_id.
         self._token_entities: dict[str, list[SensorEntity]] = {}
         self._unsub_update: Any = None
+        self._sensor_add_fn: Any = None
 
     def create_global_sensors(self) -> list[SensorEntity | BinarySensorEntity]:
         """Return global diagnostic sensor entities to register with HA.
@@ -74,6 +75,13 @@ class DiagnosticSensors:
         self._entities.extend(sensors)
         return sensors
 
+    def set_sensor_add_fn(self, fn: Any) -> None:
+        """Register the async callable used to add new sensor entities to HA.
+
+        Called once from __init__.py after the sensor EntityComponent is ready.
+        """
+        self._sensor_add_fn = fn
+
     def create_token_sensors(self, token_id: str, label: str) -> list[SensorEntity]:
         """Create per-token sensor entities for a newly created token.
 
@@ -91,6 +99,12 @@ class DiagnosticSensors:
         self._token_entities[token_id] = sensors
         self._entities.extend(sensors)
         return sensors
+
+    async def create_and_register_token_sensors(self, token_id: str, label: str) -> None:
+        """Create per-token sensors and add them to HA if the component is ready."""
+        entities = self.create_token_sensors(token_id, label)
+        if self._sensor_add_fn is not None:
+            await self._sensor_add_fn(entities)
 
     def remove_token_sensors(self, token_id: str) -> None:
         """Unregister and remove per-token sensor entities when a token is deleted.
