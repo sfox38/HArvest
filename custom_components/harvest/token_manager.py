@@ -140,7 +140,7 @@ class Token:
     paused: bool = False
     embed_mode: str = "single"             # "single", "group", or "page"
     theme_url: str = ""                    # bundled theme URL or custom theme URL; empty means default
-    renderer_pack: str = ""                # "" = none, "examples" = bundled pack ID
+    renderer_pack: str = ""                # "" = none, "minimus" = bundled pack ID
 
 
 class TokenManager:

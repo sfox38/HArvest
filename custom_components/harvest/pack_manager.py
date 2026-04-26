@@ -1,7 +1,7 @@
 """Renderer pack management for the HArvest integration.
 
 Manages bundled and user-installed renderer packs. Packs are JS files that
-override built-in widget renderers. The bundled "examples" pack ships with
+override built-in widget renderers. The bundled "minimus" pack ships with
 the integration; custom packs are uploaded via the panel UI.
 
 Consent state (the AGREE gate) is stored separately from pack definitions
@@ -55,9 +55,9 @@ class PackManager:
 
     async def load(self) -> None:
         """Load bundled pack definitions, custom packs, and consent state."""
-        self._bundled["examples"] = PackDefinition(
-            pack_id="examples",
-            name="Examples",
+        self._bundled["minimus"] = PackDefinition(
+            pack_id="minimus",
+            name="Minimus",
             description="Alternative renderers: dial-based light control and more.",
             version="1.0",
             author="HArvest",

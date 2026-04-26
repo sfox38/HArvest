@@ -28,8 +28,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SRC_ENTRY = resolve(__dirname, "src/harvest-entry.js");
 const DIST_DIR  = resolve(__dirname, "dist");
-const PACK_ENTRY = resolve(__dirname, "src/packs/examples-pack.js");
-const PACK_OUT   = resolve(__dirname, "../custom_components/harvest/packs/examples.js");
+const PACK_ENTRY = resolve(__dirname, "src/packs/minimus-pack.js");
+const PACK_OUT   = resolve(__dirname, "../custom_components/harvest/packs/minimus.js");
 
 // Post-build copy destinations for the widget bundle.
 const WIDGET_COPIES = [
@@ -39,7 +39,7 @@ const WIDGET_COPIES = [
 
 // Post-build copy destinations for pack files.
 const PACK_COPIES = [
-  resolve(__dirname, "../wordpress/assets/packs/examples.js"),
+  resolve(__dirname, "../wordpress/assets/packs/minimus.js"),
 ];
 
 const isWatch = process.argv.includes("--watch");
@@ -118,7 +118,7 @@ async function build() {
   }
 
   const pkb = (packBytes.byteLength / 1024).toFixed(1);
-  console.log(`Pack: ${pkb} KB  packs/examples.js`);
+  console.log(`Pack: ${pkb} KB  packs/minimus.js`);
   for (const dest of PACK_COPIES) {
     console.log(`  -> ${dest.replace(resolve(__dirname, ".."), "..")}`);
   }

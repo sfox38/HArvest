@@ -76,7 +76,7 @@ def register_views(
     hass.http.register_view(HarvestActionDetailView(action_manager))
     if theme_manager is not None:
         hass.http.register_view(HarvestThemesView(theme_manager, token_manager))
-        hass.http.register_view(HarvestThemeReloadView(theme_manager))
+        hass.http.register_view(HarvestThemeReloadView(theme_manager, token_manager, session_manager, pack_manager))
         hass.http.register_view(HarvestThemeDetailView(theme_manager, token_manager, pack_manager))
         hass.http.register_view(HarvestThemeThumbnailView(hass, theme_manager))
         _LOGGER.debug("HArvest: registered theme views")
@@ -1029,20 +1029,57 @@ class HarvestThemesView(HomeAssistantView):
 
 
 class HarvestThemeReloadView(HomeAssistantView):
-    """POST /api/harvest/themes/reload - reload all themes from disk."""
+    """POST /api/harvest/themes/reload - reload all bundled themes from disk.
+
+    After reloading, pushes updated theme variables and renderer pack URLs
+    to all active sessions that reference a bundled theme.
+    """
 
     url = "/api/harvest/themes/reload"
     name = "api:harvest:themes:reload"
     requires_auth = True
 
-    def __init__(self, theme_manager: ThemeManager) -> None:
+    def __init__(
+        self,
+        theme_manager: ThemeManager,
+        token_manager: TokenManager,
+        session_manager: SessionManager,
+        pack_manager: PackManager | None = None,
+    ) -> None:
         self._theme_manager = theme_manager
+        self._token_manager = token_manager
+        self._session_manager = session_manager
+        self._pack_manager = pack_manager
 
     async def post(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
         await self._theme_manager.load()
+        ts = int(datetime.now(timezone.utc).timestamp())
+        for token in self._token_manager.get_all():
+            theme_id = theme_url_to_id(token.theme_url)
+            theme_def = self._theme_manager.get(theme_id)
+            if not theme_def or not theme_def.is_bundled:
+                continue
+            theme_msg = {
+                "type": "theme",
+                "variables": theme_def.variables,
+                "dark_variables": theme_def.dark_variables,
+            }
+            pack_msg: dict[str, Any] = {"type": "renderer_pack", "url": ""}
+            if token.renderer_pack and self._pack_manager:
+                pack_def = self._pack_manager.get(token.renderer_pack)
+                if pack_def:
+                    pack_msg["url"] = f"/api/harvest/packs/{token.renderer_pack}.js?v={ts}"
+            for session in self._session_manager.get_all_for_token(token.token_id):
+                if not session.ws.closed:
+                    try:
+                        await session.ws.send_json(theme_msg)
+                        if token.renderer_pack:
+                            await session.ws.send_json(pack_msg)
+                    except Exception:
+                        pass
         return self.json({"status": "ok"})
 
 

@@ -290,7 +290,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     const t0 = Date.now();
     try {
       await api.themes.reload();
+      if (selectedTheme?.renderer_pack) clearPackCache(selectedTheme.renderer_pack);
       await reload();
+      setPreviewKey(k => k + 1);
     } catch (e) { setError(String(e)); }
     const elapsed = Date.now() - t0;
     if (elapsed < 500) await new Promise(r => setTimeout(r, 500 - elapsed));
@@ -489,47 +491,49 @@ export function Themes({ onSelectToken }: ThemesProps) {
     <div className="content-narrow col" style={{ gap: 18 }}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      {/* Horizontal theme strip */}
+      {/* Theme tray: fixed actions on left, scrollable strip on right */}
       <Card>
-        <div className="theme-strip">
-          {themes.map(t => (
-            <button
-              key={t.theme_id}
-              className={`theme-strip-item${selected === t.theme_id ? " selected" : ""}`}
-              onClick={() => setSelected(t.theme_id)}
-            >
-              {thumbUrls[t.theme_id] && (
-                <img
-                  className="theme-strip-thumb"
-                  src={thumbUrls[t.theme_id]}
-                  alt={t.name}
-                  draggable={false}
-                />
-              )}
-              <span className="theme-strip-name">{t.name}</span>
-              <div className="theme-strip-meta">
-                {t.is_bundled && <span className="badge badge-muted">System</span>}
-                {t.renderer_pack && <span className="badge badge-accent">Pack</span>}
-                <span className="muted" style={{ fontSize: 11 }}>{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
-              </div>
+        <div className="theme-tray">
+          <div className="theme-tray-actions">
+            <button className="theme-tray-action" onClick={handleCreate}>
+              <Icon name="plus" size={14} /> New Theme
             </button>
-          ))}
-          <button className="theme-strip-item theme-strip-add" onClick={handleCreate}>
-            <Icon name="plus" size={18} />
-            <span style={{ fontSize: 12 }}>New Theme</span>
-          </button>
-          <button className="theme-strip-item theme-strip-add" onClick={() => fileRef.current?.click()}>
-            <Icon name="upload" size={18} />
-            <span style={{ fontSize: 12 }}>Import</span>
-          </button>
-          <button className="theme-strip-item theme-strip-add" onClick={handleReload} disabled={reloading}>
-            {reloading ? <Spinner size={18} /> : <Icon name="refresh" size={18} />}
-            <span style={{ fontSize: 12 }}>{reloading ? "Reloading..." : "Reload"}</span>
-          </button>
-          <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
-          <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />
-          <input ref={packJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handlePackJsUpload} />
+            <button className="theme-tray-action" onClick={() => fileRef.current?.click()}>
+              <Icon name="upload" size={14} /> Import
+            </button>
+            <button className="theme-tray-action" onClick={handleReload} disabled={reloading}>
+              {reloading ? <Spinner size={14} /> : <Icon name="refresh" size={14} />}
+              {reloading ? "Reloading..." : "Reload"}
+            </button>
+          </div>
+          <div className="theme-strip">
+            {themes.map(t => (
+              <button
+                key={t.theme_id}
+                className={`theme-strip-item${selected === t.theme_id ? " selected" : ""}`}
+                onClick={() => setSelected(t.theme_id)}
+              >
+                {thumbUrls[t.theme_id] && (
+                  <img
+                    className="theme-strip-thumb"
+                    src={thumbUrls[t.theme_id]}
+                    alt={t.name}
+                    draggable={false}
+                  />
+                )}
+                <span className="theme-strip-name">{t.name}</span>
+                <div className="theme-strip-meta">
+                  {t.is_bundled && <span className="badge badge-muted">System</span>}
+                  {t.renderer_pack && <span className="badge badge-accent">Pack</span>}
+                  <span className="muted" style={{ fontSize: 11 }}>{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
+        <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
+        <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />
+        <input ref={packJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handlePackJsUpload} />
       </Card>
 
       {selectedTheme && (

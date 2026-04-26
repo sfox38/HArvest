@@ -715,8 +715,8 @@ function Step4({ state, onChange }: { state: WizardState; onChange: (u: Partial<
 
 function themeIdToUrl(id: string): string {
   if (id === "default") return "";
-  if (id === "glassmorphism" || id === "accessible") return `bundled:${id}`;
-  return `custom:${id}`;
+  if (id.startsWith("hth_")) return `custom:${id}`;
+  return `bundled:${id}`;
 }
 
 function themeUrlToId(url: string): string {
@@ -742,19 +742,24 @@ function Step5({ state, onChange }: { state: WizardState; onChange: (u: Partial<
 
       <div className="col" style={{ gap: 6 }}>
         <label style={{ fontSize: 13, fontWeight: 600 }}>Theme</label>
-        <div className="theme-grid">
+        <div className="theme-strip">
           {themes.map(t => (
             <button
               key={t.theme_id}
-              className={`theme-card${selectedId === t.theme_id ? " selected" : ""}`}
+              className={`theme-strip-item${selectedId === t.theme_id ? " selected" : ""}`}
               onClick={() => { const url = themeIdToUrl(t.theme_id); onChange({ themeUrl: url }); saveMemory({ themeUrl: url }); }}
             >
               {thumbUrls[t.theme_id] ? (
-                <img className="theme-preview" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
+                <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
               ) : (
-                <div className="theme-preview" />
+                <div className="theme-strip-thumb" />
               )}
-              <span style={{ fontSize: 12 }}>{t.name}</span>
+              <span className="theme-strip-name">{t.name}</span>
+              {t.renderer_pack && (
+                <div className="theme-strip-meta">
+                  <span className="badge badge-accent">Pack</span>
+                </div>
+              )}
             </button>
           ))}
         </div>

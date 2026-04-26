@@ -26,7 +26,7 @@ THEMES_STORAGE_VERSION = 1
 _THEMES_DIR = Path(__file__).parent / "themes"
 _CUSTOM_THUMBNAILS_DIR = _THEMES_DIR / "custom"
 
-_BUNDLED_IDS = {"default", "glassmorphism", "accessible", "examples"}
+_BUNDLED_IDS = {"default", "glass", "access", "minimus"}
 
 _MAX_THUMBNAIL_BYTES = 512 * 1024  # 500 KB
 _ALLOWED_THUMBNAIL_TYPES = {".png", ".jpg", ".jpeg"}
@@ -59,7 +59,7 @@ class ThemeManager:
 
     async def load(self) -> None:
         """Load bundled themes from disk and custom themes from HA storage."""
-        for filename in ("default.json", "glassmorphism.json", "accessible.json", "examples.json"):
+        for filename in ("default.json", "glass.json", "access.json", "minimus.json"):
             path = _THEMES_DIR / filename
             theme_id = filename.removesuffix(".json")
             try:
