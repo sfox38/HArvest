@@ -25,15 +25,19 @@
     "--hrv-transition-speed":      "150ms"
   },
   "dark_variables": {
+    "--hrv-color-primary":         "#7c3aed",
+    "--hrv-color-on-primary":      "#ffffff",
+    "--hrv-color-primary-dim":     "#312e81",
     "--hrv-color-surface":         "#1e1e2e",
     "--hrv-color-surface-alt":     "#2a2a4e",
     "--hrv-color-border":          "#2a2a4e",
     "--hrv-color-text":            "#e0e0ff",
     "--hrv-color-text-secondary":  "#9e9eb8",
     "--hrv-color-icon":            "#e0e0ff",
+    "--hrv-color-state-on":        "#7c3aed",
     "--hrv-color-state-off":       "#6b6b8a",
     "--hrv-color-state-unavailable": "#4a4a6a",
-    "--hrv-color-primary-dim":     "#312e81",
+    "--hrv-color-error":           "#ef5350",
     "--hrv-card-shadow":           "0 2px 8px rgba(0,0,0,0.3)"
   }
 }

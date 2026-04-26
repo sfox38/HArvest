@@ -17,6 +17,15 @@ const MEDIA_STYLES = /* css */`
     gap: var(--hrv-spacing-s);
   }
 
+  [part=media-artist] {
+    font-size: var(--hrv-font-size-xs);
+    color: var(--hrv-color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+  }
+
   [part=media-title] {
     font-size: var(--hrv-font-size-s);
     font-weight: var(--hrv-font-weight-medium);
@@ -24,6 +33,7 @@ const MEDIA_STYLES = /* css */`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: center;
   }
 
   .hrv-media-controls {
@@ -96,6 +106,7 @@ const MEDIA_STYLES = /* css */`
   [part=state-label] {
     font-size: var(--hrv-font-size-xs);
     color: var(--hrv-color-text-secondary);
+    text-align: center;
   }
 `;
 
@@ -116,8 +127,9 @@ export class MediaPlayerCard extends BaseCard {
   /** @type {HTMLButtonElement|null}  */ #muteBtn      = null;
   /** @type {HTMLInputElement|null}   */ #volumeSlider = null;
   /** @type {HTMLSelectElement|null}  */ #sourceSelect = null;
-  /** @type {HTMLElement|null}        */ #mediaTitleEl = null;
-  /** @type {HTMLElement|null}        */ #stateLabel   = null;
+  /** @type {HTMLElement|null}        */ #mediaArtistEl = null;
+  /** @type {HTMLElement|null}        */ #mediaTitleEl  = null;
+  /** @type {HTMLElement|null}        */ #stateLabel    = null;
   /** @type {boolean}                 */ #isMuted      = false;
   /** @type {Function}                */ #volumeDebounce;
 
@@ -140,6 +152,7 @@ export class MediaPlayerCard extends BaseCard {
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
         </div>
         <div part="card-body">
+          <span part="media-artist"></span>
           <span part="media-title"></span>
           <span part="state-label"></span>
           ${isWritable ? /* html */`
@@ -193,14 +206,14 @@ export class MediaPlayerCard extends BaseCard {
     this.#muteBtn      = this.root.querySelector("[part=mute-button]");
     this.#volumeSlider = this.root.querySelector("[part=volume-slider]");
     this.#sourceSelect = this.root.querySelector("[part=source-select]");
-    this.#mediaTitleEl = this.root.querySelector("[part=media-title]");
-    this.#stateLabel   = this.root.querySelector("[part=state-label]");
+    this.#mediaArtistEl = this.root.querySelector("[part=media-artist]");
+    this.#mediaTitleEl  = this.root.querySelector("[part=media-title]");
+    this.#stateLabel    = this.root.querySelector("[part=state-label]");
 
     this.renderIcon(this.def.icon ?? "mdi:cast", "card-icon");
 
     this.#playBtn?.addEventListener("click", () => {
-      const isPlaying = this.#playBtn?.getAttribute("aria-pressed") === "true";
-      this.config.card?.sendCommand(isPlaying ? "media_pause" : "media_play", {});
+      this.config.card?.sendCommand("media_play_pause", {});
     });
 
     this.#prevBtn?.addEventListener("click", () =>
@@ -231,6 +244,10 @@ export class MediaPlayerCard extends BaseCard {
       this.#stateLabel.textContent = this.i18n.t(`state.${state}`) !== `state.${state}`
         ? this.i18n.t(`state.${state}`)
         : state;
+    }
+
+    if (this.#mediaArtistEl) {
+      this.#mediaArtistEl.textContent = attributes.media_artist ?? "";
     }
 
     if (this.#mediaTitleEl) {

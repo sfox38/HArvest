@@ -150,7 +150,7 @@
       transition: box-shadow var(--hrv-transition-speed, 0.2s);
     }
 
-    [part=companion][data-on=true] { box-shadow: 0 0 0 3px #fff; }
+    [part=companion][data-on=true] { box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff); }
     [part=companion][data-interactive=true] { cursor: pointer; }
     [part=companion][data-interactive=true]:hover { opacity: 0.88; }
 
@@ -204,7 +204,7 @@
 
     .hrv-dial-thumb {
       fill: none;
-      stroke: #fff;
+      stroke: var(--hrv-ex-ring, #fff);
       stroke-width: 1.5;
       filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
       transition: cx 0.15s ease, cy 0.15s ease;
@@ -287,7 +287,7 @@
     [part=toggle-button]:active { opacity: 0.75; }
 
     [part=toggle-button][aria-pressed=true] {
-      box-shadow: 0 0 0 3px #fff;
+      box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff);
     }
 
     [part=toggle-button][aria-pressed=false] {
@@ -310,12 +310,12 @@
       align-items: center;
       justify-content: center;
       opacity: 0.35;
-      box-shadow: 0 0 0 0 rgba(255,255,255,0);
+      box-shadow: 0 0 0 0 transparent;
       transition: box-shadow 200ms ease, opacity 200ms ease;
     }
     .hrv-light-ro-circle[data-on=true] {
       opacity: 1;
-      box-shadow: 0 0 0 5px #fff;
+      box-shadow: 0 0 0 5px var(--hrv-ex-ring, #fff);
     }
     .hrv-light-ro-circle [part=ro-state-icon] {
       display: flex;
@@ -335,13 +335,13 @@
       width: 44px;
       height: 44px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.45);
+      background: var(--hrv-ex-dot-bg, rgba(255,255,255,0.45));
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 10px;
       font-weight: 600;
-      color: #000;
+      color: var(--hrv-ex-dot-text, #000);
       line-height: 1;
     }
 
@@ -799,7 +799,7 @@
       padding: 0;
       transition: box-shadow var(--hrv-transition-speed, 0.2s), opacity var(--hrv-transition-speed, 0.2s);
     }
-    .hrv-fan-feat-btn[data-on=true]  { box-shadow: 0 0 0 3px #fff; opacity: 1; }
+    .hrv-fan-feat-btn[data-on=true]  { box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff); opacity: 1; }
     .hrv-fan-feat-btn[data-on=false] { opacity: 0.45; box-shadow: none; }
     .hrv-fan-feat-btn:hover { opacity: 0.88; }
     .hrv-dial-controls [part=toggle-button] { margin-top: 8px; }
@@ -814,14 +814,14 @@
       width: 96px;
       height: 96px;
       border-radius: 50%;
-      border: 4px solid #fff;
+      border: 4px solid var(--hrv-ex-ring, #fff);
       background: transparent;
       cursor: pointer;
       padding: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
+      color: var(--hrv-ex-ring, #fff);
       font-size: 2.2rem;
       font-weight: 300;
       line-height: 1;
@@ -901,12 +901,12 @@
       align-items: center;
       justify-content: center;
       opacity: 0.35;
-      box-shadow: 0 0 0 0 rgba(255,255,255,0);
+      box-shadow: 0 0 0 0 transparent;
       transition: box-shadow 200ms ease, opacity 200ms ease;
     }
     .hrv-fan-ro-circle[data-on=true] {
       opacity: 1;
-      box-shadow: 0 0 0 5px #fff;
+      box-shadow: 0 0 0 5px var(--hrv-ex-ring, #fff);
     }
     .hrv-fan-ro-circle [part=ro-state-icon] {
       display: flex;
@@ -1449,7 +1449,7 @@
       width: 56px;
       height: 56px;
       border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.35);
+      border: 2px solid var(--hrv-ex-outline, rgba(255,255,255,0.35));
       background: transparent;
       color: var(--hrv-color-text, #fff);
       font-size: 1.6rem;
@@ -1463,8 +1463,8 @@
     }
     .hrv-climate-step:active,
     .hrv-climate-step[data-pressing=true] {
-      border-color: #fff;
-      background: rgba(255,255,255,0.1);
+      border-color: var(--hrv-ex-ring, #fff);
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.1));
       transition: none;
     }
 
@@ -1508,11 +1508,11 @@
       bottom: calc(100% - 8px);
       left: 0;
       right: 0;
-      background: rgba(255,255,255,0.15);
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15));
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-radius: var(--hrv-radius-s, 8px);
-      box-shadow: 0 -4px 16px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.12);
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.25), 0 0 0 1px var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
       overflow: hidden;
       max-height: 280px;
       overflow-y: auto;
@@ -1533,9 +1533,9 @@
       transition: background 0.1s;
     }
     .hrv-cf-option + .hrv-cf-option {
-      border-top: 1px solid rgba(255,255,255,0.06);
+      border-top: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.06));
     }
-    .hrv-cf-option:hover { background: rgba(255,255,255,0.08); }
+    .hrv-cf-option:hover { background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.08)); }
     .hrv-cf-option[data-active=true] { color: var(--hrv-color-primary, #1976d2); }
 
     .hrv-cf-btn[data-readonly=true] {
@@ -1980,7 +1980,7 @@
       justify-content: center;
       background: var(--hrv-color-primary);
       cursor: pointer;
-      box-shadow: 0 0 0 0 rgba(255,255,255,0);
+      box-shadow: 0 0 0 0 transparent;
       transition:
         box-shadow 200ms ease,
         background var(--hrv-transition-speed),
@@ -1990,7 +1990,7 @@
     [part=trigger-button]:hover { opacity: 0.88; }
 
     [part=trigger-button][data-pressing=true] {
-      box-shadow: 0 0 0 5px #fff;
+      box-shadow: 0 0 0 5px var(--hrv-ex-ring, #fff);
       transition: box-shadow 0ms, background var(--hrv-transition-speed), opacity 80ms;
     }
 
@@ -2098,7 +2098,7 @@
       align-items: center;
       justify-content: center;
       opacity: 0.35;
-      box-shadow: 0 0 0 0 rgba(255,255,255,0);
+      box-shadow: 0 0 0 0 transparent;
       transition:
         box-shadow 200ms ease,
         opacity 200ms ease;
@@ -2106,7 +2106,7 @@
 
     .hrv-bs-circle[data-on=true] {
       opacity: 1;
-      box-shadow: 0 0 0 5px #fff;
+      box-shadow: 0 0 0 5px var(--hrv-ex-ring, #fff);
     }
 
     [part=state-icon] {
@@ -2209,7 +2209,7 @@
     .hrv-cover-slider-track {
       position: relative;
       height: 6px;
-      background: rgba(255,255,255,0.15);
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15));
       border-radius: 3px;
       cursor: pointer;
     }
@@ -2230,7 +2230,7 @@
       height: 20px;
       border-radius: 50%;
       background: transparent;
-      border: 3px solid #fff;
+      border: 3px solid var(--hrv-ex-thumb, #fff);
       transform: translate(-50%, -50%);
       cursor: grab;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
@@ -2253,7 +2253,7 @@
       width: 52px;
       height: 52px;
       border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.35);
+      border: 2px solid var(--hrv-ex-outline, rgba(255,255,255,0.35));
       background: transparent;
       color: var(--hrv-color-text, #fff);
       cursor: pointer;
@@ -2266,14 +2266,14 @@
     .hrv-cover-btn svg { width: 22px; height: 22px; }
     .hrv-cover-btn:active,
     .hrv-cover-btn[data-pressing=true] {
-      border-color: #fff;
+      border-color: var(--hrv-ex-ring, #fff);
       transition: none;
     }
     .hrv-cover-btn:disabled {
       opacity: 0.3;
       cursor: not-allowed;
     }
-    .hrv-cover-btn:disabled:active { background: transparent; border-color: rgba(255,255,255,0.35); }
+    .hrv-cover-btn:disabled:active { background: transparent; border-color: var(--hrv-ex-outline, rgba(255,255,255,0.35)); }
   `;
 
   class CoverCard extends BaseCard {
@@ -2460,7 +2460,7 @@
     .hrv-num-slider-track {
       position: relative;
       height: 6px;
-      background: rgba(255,255,255,0.15);
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15));
       border-radius: 3px;
       cursor: pointer;
     }
@@ -2481,7 +2481,7 @@
       height: 20px;
       border-radius: 50%;
       background: transparent;
-      border: 3px solid #fff;
+      border: 3px solid var(--hrv-ex-thumb, #fff);
       box-sizing: border-box;
       transform: translate(-50%, -50%);
       cursor: grab;
@@ -2504,9 +2504,9 @@
     .hrv-num-input {
       width: 72px;
       padding: 6px 8px;
-      border: 1px solid rgba(255,255,255,0.2);
+      border: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
       border-radius: var(--hrv-radius-s, 8px);
-      background: rgba(255,255,255,0.08);
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.08));
       color: var(--hrv-color-text, #fff);
       font-size: 15px;
       font-family: inherit;
@@ -2735,19 +2735,19 @@
       width: 100%;
       padding: 10px 14px;
       border-radius: var(--hrv-radius-s, 8px);
-      background: rgba(255,255,255,0.10);
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.10));
       color: var(--hrv-color-text, #fff);
       font-size: 14px;
       font-family: inherit;
       text-align: left;
-      border: 1px solid rgba(255,255,255,0.12);
+      border: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
       transition: background 0.15s;
     }
-    .hrv-is-selected:hover { background: rgba(255,255,255,0.15); }
+    .hrv-is-selected:hover { background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15)); }
     .hrv-is-selected[data-readonly=true] {
       cursor: not-allowed;
       border-color: transparent;
@@ -2762,11 +2762,11 @@
       top: calc(100% + 4px);
       left: 0;
       right: 0;
-      background: rgba(255,255,255,0.15);
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15));
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-radius: var(--hrv-radius-s, 8px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.12);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 0 1px var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
       overflow: hidden;
       max-height: 280px;
       overflow-y: auto;
@@ -2787,9 +2787,9 @@
       transition: background 0.1s;
     }
     .hrv-is-option + .hrv-is-option {
-      border-top: 1px solid rgba(255,255,255,0.06);
+      border-top: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.06));
     }
-    .hrv-is-option:hover { background: rgba(255,255,255,0.08); }
+    .hrv-is-option:hover { background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.08)); }
     .hrv-is-option[data-active=true] { color: var(--hrv-color-primary, #1976d2); }
   `;
 
@@ -2948,7 +2948,7 @@
     .hrv-mp-btn:hover { opacity: 0.85; }
     .hrv-mp-btn:active,
     .hrv-mp-btn[data-pressing=true] {
-      box-shadow: 0 0 0 3px #fff;
+      box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff);
     }
     .hrv-mp-btn:disabled {
       opacity: 0.35;
@@ -2986,7 +2986,7 @@
     .hrv-mp-slider-track {
       position: relative;
       height: 6px;
-      background: rgba(255,255,255,0.15);
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15));
       border-radius: 3px;
       cursor: pointer;
     }
@@ -3005,7 +3005,7 @@
       width: 18px;
       height: 18px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--hrv-ex-thumb, #fff);
       transform: translate(-50%, -50%);
       cursor: grab;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
@@ -3121,8 +3121,7 @@
 
       if (isWritable) {
         this.#playBtn?.addEventListener("click", () => {
-          const isPlaying = this.#playBtn?.getAttribute("data-playing") === "true";
-          this.config.card?.sendCommand(isPlaying ? "media_pause" : "media_play", {});
+          this.config.card?.sendCommand("media_play_pause", {});
         });
         this.#prevBtn?.addEventListener("click", () =>
           this.config.card?.sendCommand("media_previous_track", {}));
@@ -3264,7 +3263,7 @@
     .hrv-remote-circle:hover { opacity: 0.85; }
     .hrv-remote-circle:active,
     .hrv-remote-circle[data-pressing=true] {
-      box-shadow: 0 0 0 5px #fff;
+      box-shadow: 0 0 0 5px var(--hrv-ex-ring, #fff);
     }
     .hrv-remote-circle:disabled {
       opacity: 0.35;
@@ -3444,8 +3443,8 @@
       width: 48px;
       height: 96px;
       border-radius: 24px;
-      background: rgba(255,255,255,0.25);
-      border: 2px solid rgba(255,255,255,0.3);
+      background: var(--hrv-ex-toggle-idle, rgba(255,255,255,0.25));
+      border: 2px solid var(--hrv-ex-outline, rgba(255,255,255,0.3));
       cursor: pointer;
       padding: 0;
       margin: 0;
@@ -3480,7 +3479,7 @@
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--hrv-ex-thumb, #fff);
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       transition: top 200ms ease;
       pointer-events: none;
@@ -3617,7 +3616,7 @@
     .hrv-timer-btn:hover { opacity: 0.85; }
     .hrv-timer-btn:active,
     .hrv-timer-btn[data-pressing=true] {
-      box-shadow: 0 0 0 3px #fff;
+      box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff);
     }
     .hrv-timer-btn:disabled {
       opacity: 0.35;
@@ -3856,7 +3855,7 @@
       border-radius: 22px;
       background: var(--hrv-color-surface-alt, rgba(255,255,255,0.15));
       cursor: pointer;
-      border: 2px solid rgba(255,255,255,0.3);
+      border: 2px solid var(--hrv-ex-outline, rgba(255,255,255,0.3));
       padding: 0;
       margin: 0;
       outline: none;
@@ -3887,7 +3886,7 @@
       width: 32px;
       height: 32px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--hrv-ex-thumb, #fff);
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       transition: top 200ms ease;
       pointer-events: none;

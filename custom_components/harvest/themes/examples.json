@@ -1,14 +1,14 @@
 {
-  "name": "Default",
+  "name": "Examples",
   "author": "HArvest Contributors",
-  "version": "2.0",
+  "version": "1.0",
   "harvest_version": 1,
   "variables": {
     "--hrv-color-primary":         "#6200ea",
     "--hrv-color-primary-dim":     "#ede7f6",
     "--hrv-color-on-primary":      "#ffffff",
     "--hrv-color-surface":         "#ffffff",
-    "--hrv-color-surface-alt":     "#f5f5f5",
+    "--hrv-color-surface-alt":     "#f0f0f0",
     "--hrv-color-border":          "#e0e0e0",
     "--hrv-color-text":            "#1a1a1a",
     "--hrv-color-text-secondary":  "#757575",
@@ -22,7 +22,16 @@
     "--hrv-card-padding":          "16px",
     "--hrv-icon-size":             "24px",
     "--hrv-font-family":           "system-ui, -apple-system, sans-serif",
-    "--hrv-transition-speed":      "150ms"
+    "--hrv-transition-speed":      "150ms",
+
+    "--hrv-ex-ring":               "rgba(0,0,0,0.35)",
+    "--hrv-ex-glass-bg":           "rgba(0,0,0,0.06)",
+    "--hrv-ex-glass-border":       "rgba(0,0,0,0.10)",
+    "--hrv-ex-outline":            "rgba(0,0,0,0.20)",
+    "--hrv-ex-thumb":              "#ffffff",
+    "--hrv-ex-toggle-idle":        "rgba(0,0,0,0.12)",
+    "--hrv-ex-dot-bg":             "rgba(0,0,0,0.08)",
+    "--hrv-ex-dot-text":           "var(--hrv-color-text, #1a1a1a)"
   },
   "dark_variables": {
     "--hrv-color-primary":         "#7c3aed",
@@ -38,6 +47,15 @@
     "--hrv-color-state-off":       "#6b6b8a",
     "--hrv-color-state-unavailable": "#4a4a6a",
     "--hrv-color-error":           "#ef5350",
-    "--hrv-card-shadow":           "0 2px 8px rgba(0,0,0,0.3)"
+    "--hrv-card-shadow":           "0 2px 8px rgba(0,0,0,0.3)",
+
+    "--hrv-ex-ring":               "#ffffff",
+    "--hrv-ex-glass-bg":           "rgba(255,255,255,0.12)",
+    "--hrv-ex-glass-border":       "rgba(255,255,255,0.15)",
+    "--hrv-ex-outline":            "rgba(255,255,255,0.35)",
+    "--hrv-ex-thumb":              "#ffffff",
+    "--hrv-ex-toggle-idle":        "rgba(255,255,255,0.22)",
+    "--hrv-ex-dot-bg":             "rgba(255,255,255,0.45)",
+    "--hrv-ex-dot-text":           "#000000"
   }
 }

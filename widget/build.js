@@ -21,7 +21,7 @@
 
 import * as esbuild from "esbuild";
 import { createHash } from "node:crypto";
-import { writeFileSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, copyFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +30,17 @@ const SRC_ENTRY = resolve(__dirname, "src/harvest-entry.js");
 const DIST_DIR  = resolve(__dirname, "dist");
 const PACK_ENTRY = resolve(__dirname, "src/packs/examples-pack.js");
 const PACK_OUT   = resolve(__dirname, "../custom_components/harvest/packs/examples.js");
+
+// Post-build copy destinations for the widget bundle.
+const WIDGET_COPIES = [
+  resolve(__dirname, "../custom_components/harvest/panel/harvest.min.js"),
+  resolve(__dirname, "../wordpress/assets/harvest.min.js"),
+];
+
+// Post-build copy destinations for pack files.
+const PACK_COPIES = [
+  resolve(__dirname, "../wordpress/assets/packs/examples.js"),
+];
 
 const isWatch = process.argv.includes("--watch");
 
@@ -69,10 +80,17 @@ async function build() {
   writeFileSync(hashedPath, outputBytes);
   writeFileSync(stablePath, outputBytes);
 
+  for (const dest of WIDGET_COPIES) {
+    copyFileSync(stablePath, dest);
+  }
+
   const kb = (outputBytes.byteLength / 1024).toFixed(1);
   console.log(`Built ${kb} KB`);
   console.log(`  dist/harvest.min.${hash}.js`);
   console.log(`  dist/harvest.min.js`);
+  for (const dest of WIDGET_COPIES) {
+    console.log(`  -> ${dest.replace(resolve(__dirname, ".."), "..")}`);
+  }
 
   // Build renderer packs
   const packResult = await esbuild.build({
@@ -93,8 +111,17 @@ async function build() {
 
   const packBytes = packResult.outputFiles[0].contents;
   writeFileSync(PACK_OUT, packBytes);
+
+  for (const dest of PACK_COPIES) {
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(PACK_OUT, dest);
+  }
+
   const pkb = (packBytes.byteLength / 1024).toFixed(1);
   console.log(`Pack: ${pkb} KB  packs/examples.js`);
+  for (const dest of PACK_COPIES) {
+    console.log(`  -> ${dest.replace(resolve(__dirname, ".."), "..")}`);
+  }
 }
 
 if (isWatch) {
