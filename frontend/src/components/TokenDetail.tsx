@@ -494,7 +494,7 @@ const HOURS_OPTIONS = [1, 6, 12, 24, 48, 72, 168];
 
 function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError }: EntitiesEditorProps) {
   const [addInput, setAddInput]         = useState("");
-  const [companionInput, setCompanionInput] = useState("");
+  const [companionInputs, setCompanionInputs] = useState<Record<string, string>>({});
   const [adding,   setAdding]           = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [expandedCompanions, setExpandedCompanions] = useState<Set<string>>(new Set());
@@ -575,6 +575,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
     }];
     await patchEntities(updated);
     setAdding(false);
+    setCompanionInputs(prev => { const next = { ...prev }; delete next[primaryEntityId]; return next; });
   };
 
   const removeEntity = (entityId: string) => {
@@ -589,7 +590,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
   };
 
   const toggleCompanionExpand = (entityId: string) => {
-    setCompanionInput("");
+    setCompanionInputs(prev => { const next = { ...prev }; delete next[entityId]; return next; });
     setExpandedCompanions(prev => {
       const next = new Set(prev);
       if (next.has(entityId)) next.delete(entityId); else next.add(entityId);
@@ -730,9 +731,9 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 ))}
                 {canEdit && companionCount < MAX_COMPANIONS && (
                   <EntityAutocomplete
-                    value={companionInput}
-                    onChange={setCompanionInput}
-                    onSelect={(id) => { addCompanion(e.entity_id, id); setCompanionInput(""); }}
+                    value={companionInputs[e.entity_id] ?? ""}
+                    onChange={v => setCompanionInputs(prev => ({ ...prev, [e.entity_id]: v }))}
+                    onSelect={(id) => addCompanion(e.entity_id, id)}
                     disabled={adding || saving}
                     excludeIds={existingIds}
                     filterDomains={COMPANION_ALLOWED_DOMAINS}

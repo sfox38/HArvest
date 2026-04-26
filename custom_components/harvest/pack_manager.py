@@ -128,10 +128,23 @@ class PackManager:
         version: str = "1.0",
         author: str = "",
         js_code: str = "",
+        pack_id: str = "",
     ) -> PackDefinition:
-        """Create a custom pack with optional initial JS code."""
+        """Create a custom pack with optional initial JS code.
+
+        If pack_id is provided it is used as-is (caller must ensure uniqueness);
+        otherwise a random hpk_ ID is generated.
+        """
+        if pack_id:
+            if pack_id in self._bundled:
+                raise ValueError(f"Pack ID conflicts with a bundled pack: {pack_id}")
+            if pack_id in self._custom:
+                raise ValueError(f"Pack ID already in use: {pack_id}")
+            pid = pack_id
+        else:
+            pid = self._generate_id()
         pack = PackDefinition(
-            pack_id=self._generate_id(),
+            pack_id=pid,
             name=name,
             description=description,
             version=version,

@@ -39,6 +39,46 @@
     return s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ") : "";
   }
 
+  // Shared companion dot styles for all cards that don't extend DIAL_STYLES.
+  // Shows each companion as a colored circle; hides the base-card icon and text.
+  const COMPANION_DOT_STYLES = /* css */`
+    [part=companion-zone] {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      padding: 8px var(--hrv-card-padding, 16px) var(--hrv-card-padding, 16px);
+      border-top: none;
+      margin-top: 0;
+    }
+    [part=companion-zone]:empty { display: none; }
+    [part=companion] {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      border: none;
+      padding: 0;
+      cursor: default;
+      flex-shrink: 0;
+      box-shadow: none;
+      transition: box-shadow var(--hrv-transition-speed, 0.2s);
+    }
+    [part=companion][data-on=true] { box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff); }
+    [part=companion][data-interactive=true] { cursor: pointer; }
+    [part=companion][data-interactive=true]:hover { opacity: 0.88; }
+    [part=companion-icon]  { display: none; }
+    [part=companion-state] { display: none; }
+  `;
+
+  // Set each companion dot's tooltip from its aria-label (entity ID initially;
+  // base-card updateCompanionState() will enrich it with state when data arrives).
+  function _applyCompanionTooltips(root) {
+    root.querySelectorAll("[part=companion]").forEach((el) => {
+      el.title = el.getAttribute("aria-label") ?? "";
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // SVG arc helpers - stroke-dashoffset approach
   // ---------------------------------------------------------------------------
@@ -159,7 +199,9 @@
 
     .hrv-dial-wrap {
       position: relative;
-      flex: 1;
+      flex: none;
+      width: 100%;
+      aspect-ratio: 1 / 1;
       touch-action: auto;
       cursor: default;
     }
@@ -352,6 +394,64 @@
     }
   `;
 
+  // Light-specific toggle override: vertical pill switch (same as SwitchCard).
+  // Applied only to DialLightCard's style block so FanCard toggle stays circular.
+  const LIGHT_TOGGLE_STYLES = /* css */`
+    [part=toggle-button] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      position: relative;
+      width: 36px;
+      height: 72px;
+      border-radius: 18px;
+      background: var(--hrv-ex-toggle-idle, rgba(255,255,255,0.25));
+      border: 2px solid var(--hrv-ex-outline, rgba(255,255,255,0.3));
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      outline: none;
+      font: inherit;
+      color: inherit;
+      transition: background 250ms ease, border-color 250ms ease;
+    }
+    [part=toggle-button]:focus-visible {
+      box-shadow: 0 0 0 3px var(--hrv-color-primary, #1976d2);
+    }
+    [part=toggle-button][aria-pressed=true] {
+      background: var(--hrv-color-primary, #1976d2);
+      border-color: var(--hrv-color-primary, #1976d2);
+      box-shadow: none;
+    }
+    .hrv-dial-wrap {
+      max-width: 200px;
+      margin: 0 auto;
+    }
+    [part=toggle-button]:hover { opacity: 0.85; }
+    [part=toggle-button]:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .hrv-light-toggle-knob {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--hrv-ex-thumb, #fff);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      transition: top 200ms ease;
+      pointer-events: none;
+      top: 40px;
+    }
+    [part=toggle-button][aria-pressed=true] .hrv-light-toggle-knob { top: 4px; }
+    @media (prefers-reduced-motion: reduce) {
+      [part=toggle-button],
+      .hrv-light-toggle-knob { transition: none; }
+    }
+  `;
+
   class DialLightCard extends BaseCard {
     #toggleBtn = null;
     #dialFill = null;
@@ -394,7 +494,7 @@
       const startPt = _arcPoint(ARC_START_DEG);
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${DIAL_STYLES}</style>
+        <style>${this.getSharedStyles()}${DIAL_STYLES}${LIGHT_TOGGLE_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -430,8 +530,8 @@
                   <span part="ro-state-icon" aria-hidden="true"></span>
                 </div>
                 <div class="hrv-light-ro-dots">
-                  ${hasBrightness ? '<span class="hrv-light-ro-dot" data-attr="brightness" title="Brightness">-</span>' : ""}
-                  ${hasColorTemp ? '<span class="hrv-light-ro-dot" data-attr="temp" title="Color temperature">-</span>' : ""}
+                  ${hasBrightness ? '<span class="hrv-light-ro-dot" data-attr="brightness" title="Brightness"></span>' : ""}
+                  ${hasColorTemp ? '<span class="hrv-light-ro-dot" data-attr="temp" title="Color temperature"></span>' : ""}
                   ${hasColor ? '<span class="hrv-light-ro-dot" data-attr="color" title="Color"></span>' : ""}
                 </div>
               </div>
@@ -447,10 +547,13 @@
                 ` : ""}
                 <button part="toggle-button" type="button"
                   aria-label="${_esc(this.def.friendly_name)} - toggle"
-                  title="Turn ${_esc(this.def.friendly_name)} on / off"></button>
+                  title="Turn ${_esc(this.def.friendly_name)} on / off">
+                  <div class="hrv-light-toggle-knob"></div>
+                </button>
               </div>
             ` : ""}
           </div>
+          ${!showDial ? this.renderCompanionZoneHTML() : ""}
         </div>
       `;
 
@@ -672,11 +775,14 @@
         const inColorMode = colorMode && colorMode !== "color_temp";
 
         const bDot = this.root.querySelector('[data-attr="brightness"]');
-        if (bDot) bDot.textContent = this.#isOn ? `${Math.round((this.#brightness / 255) * 100)}%` : "-";
+        if (bDot) {
+          const pct = Math.round((this.#brightness / 255) * 100);
+          bDot.title = this.#isOn ? `Brightness: ${pct}%` : "Brightness: off";
+        }
 
         const tDot = this.root.querySelector('[data-attr="temp"]');
         if (tDot) {
-          tDot.textContent = `${this.#colorTempK}K`;
+          tDot.title = `Color temperature: ${this.#colorTempK}K`;
           tDot.style.display = inColorMode ? "none" : "";
         }
 
@@ -686,8 +792,10 @@
           if (attributes?.rgb_color) {
             const [r, g, b] = attributes.rgb_color;
             cDot.style.background = `rgb(${r},${g},${b})`;
+            cDot.title = `Color: rgb(${r}, ${g}, ${b})`;
           } else {
             cDot.style.background = `hsl(${this.#hue}, 100%, 50%)`;
+            cDot.title = `Color: hue ${this.#hue}°`;
           }
         }
       }
@@ -804,38 +912,39 @@
     .hrv-fan-feat-btn:hover { opacity: 0.88; }
     .hrv-dial-controls [part=toggle-button] { margin-top: 8px; }
     .hrv-dial-controls { padding-bottom: var(--hrv-card-padding, 16px); }
+    .hrv-dial-wrap { max-width: 200px; margin: 0 auto; }
     .hrv-fan-stepped-wrap {
-      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: var(--hrv-card-padding, 16px) 0;
     }
     .hrv-fan-speed-circle {
       width: 96px;
       height: 96px;
       border-radius: 50%;
-      border: 4px solid var(--hrv-ex-ring, #fff);
-      background: transparent;
+      border: none;
+      background: var(--hrv-color-primary, #1976d2);
       cursor: pointer;
       padding: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--hrv-ex-ring, #fff);
-      font-size: 2.2rem;
-      font-weight: 300;
-      line-height: 1;
+      color: var(--hrv-color-on-primary, #fff);
+      box-shadow: none;
       user-select: none;
-      transition: border-color var(--hrv-transition-speed, 0.2s), opacity var(--hrv-transition-speed, 0.2s), color var(--hrv-transition-speed, 0.2s);
+      transition: box-shadow var(--hrv-transition-speed, 0.2s), opacity var(--hrv-transition-speed, 0.2s);
     }
-    .hrv-fan-speed-circle[aria-pressed=false] {
-      opacity: 0.35;
+    .hrv-fan-speed-svg {
+      width: 56px;
+      height: 56px;
+      display: block;
+      pointer-events: none;
+      fill: currentColor;
     }
-    .hrv-fan-speed-circle:active {
-      transition: none;
-      border-color: var(--hrv-color-primary, #1976d2);
-      color: var(--hrv-color-primary, #1976d2);
-    }
+    .hrv-fan-speed-circle[aria-pressed=false] { opacity: 0.45; }
+    .hrv-fan-speed-circle[aria-pressed=true]  { box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff); }
+    .hrv-fan-speed-circle:active { transition: none; opacity: 0.75; }
     .hrv-fan-hspeed-wrap {
       flex: 1;
       display: flex;
@@ -925,9 +1034,25 @@
       to   { transform: rotate(360deg); }
     }
 
+    [part=card-body].hrv-no-dial [part=toggle-button] {
+      width: 96px;
+      height: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    [part=card-body].hrv-no-dial [part=toggle-button][aria-pressed=false] { opacity: 0.45; }
+    [part=fan-onoff-icon] { color: var(--hrv-color-on-primary, #fff); }
+    [part=fan-onoff-icon] svg { width: 56px; height: 56px; display: block; pointer-events: none; }
+    [part=toggle-button][aria-pressed=true][data-animate=true] [part=fan-onoff-icon] svg {
+      animation: hrv-fan-spin 2s linear infinite;
+      transform-origin: center;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .hrv-fan-hspeed-thumb { transition: none; }
       .hrv-fan-ro-circle[data-on=true] [part=ro-state-icon] svg { animation: none; }
+      [part=toggle-button][aria-pressed=true][data-animate=true] [part=fan-onoff-icon] svg { animation: none; }
     }
   `;
 
@@ -1016,7 +1141,7 @@
                     <button class="hrv-fan-speed-circle" part="speed-circle" type="button"
                       aria-pressed="false"
                       title="Click to increase fan speed"
-                      aria-label="Click to increase fan speed">+</button>
+                      aria-label="Click to increase fan speed"><svg class="hrv-fan-speed-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13,19C13,17.59 13.5,16.3 14.3,15.28C14.17,14.97 14.03,14.65 13.86,14.34C14.26,14 14.57,13.59 14.77,13.11C15.26,13.21 15.78,13.39 16.25,13.67C17.07,13.25 18,13 19,13C20.05,13 21.03,13.27 21.89,13.74C21.95,13.37 22,12.96 22,12.5C22,8.92 18.03,8.13 14.33,10.13C14,9.73 13.59,9.42 13.11,9.22C13.3,8.29 13.74,7.24 14.73,6.75C17.09,5.57 17,2 12.5,2C8.93,2 8.14,5.96 10.13,9.65C9.72,9.97 9.4,10.39 9.21,10.87C8.28,10.68 7.23,10.25 6.73,9.26C5.56,6.89 2,7 2,11.5C2,15.07 5.95,15.85 9.64,13.87C9.96,14.27 10.39,14.59 10.88,14.79C10.68,15.71 10.24,16.75 9.26,17.24C6.9,18.42 7,22 11.5,22C12.31,22 13,21.78 13.5,21.41C13.19,20.67 13,19.86 13,19M20,15V18H23V20H20V23H18V20H15V18H18V15H20Z"/></svg></button>
                   </div>
                 ` : /* html */`
                   <div class="hrv-dial-wrap" role="slider"
@@ -1063,10 +1188,11 @@
                 ` : ""}
                 <button part="toggle-button" type="button"
                   aria-label="${_esc(this.def.friendly_name)} - toggle"
-                  title="Turn ${_esc(this.def.friendly_name)} on / off"></button>
+                  title="Turn ${_esc(this.def.friendly_name)} on / off">${!showDial ? '<span part="fan-onoff-icon" aria-hidden="true"></span>' : ""}</button>
               </div>
             ` : ""}
           </div>
+          ${!showDial ? this.renderCompanionZoneHTML() : ""}
         </div>
       `;
 
@@ -1081,6 +1207,10 @@
       this.#dirBtn      = this.root.querySelector('[data-feat="direction"]');
       this.#presetBtn   = this.root.querySelector('[data-feat="preset"]');
 
+      if (this.#toggleBtn && !showDial) {
+        this.renderIcon(this.def.icon ?? "mdi:fan", "fan-onoff-icon");
+        this.#toggleBtn.setAttribute("data-animate", String(!!this.config.animate));
+      }
       this.#toggleBtn?.addEventListener("click", () => {
         this.config.card?.sendCommand("toggle", {});
       });
@@ -1768,6 +1898,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     #toggleDropdown(feat) {
@@ -1995,7 +2126,8 @@
     }
 
     [part=trigger-button][data-state=triggered] {
-      background: var(--hrv-color-success, #43a047);
+      background: var(--hrv-color-primary, #1976d2);
+      opacity: 0.5;
     }
 
     [part=trigger-button]:disabled {
@@ -2012,7 +2144,7 @@
       const label      = this.def.friendly_name;
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${HARVEST_ACTION_STYLES}</style>
+        <style>${this.getSharedStyles()}${HARVEST_ACTION_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(label)}</span>
@@ -2040,6 +2172,7 @@
 
       if (this.#triggerBtn && isWritable) {
         this.#triggerBtn.addEventListener("click", () => {
+          this.#triggerBtn.disabled = true;
           this.config.card?.sendCommand("trigger", {});
         });
         this.#triggerBtn.addEventListener("pointerdown",   () => this.#triggerBtn.setAttribute("data-pressing", "true"));
@@ -2049,6 +2182,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     applyState(state, _attributes) {
@@ -2124,7 +2258,7 @@
 
     render() {
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${BINARY_SENSOR_STYLES}</style>
+        <style>${this.getSharedStyles()}${BINARY_SENSOR_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -2150,6 +2284,7 @@
       );
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     applyState(state, _attributes) {
@@ -2300,7 +2435,7 @@
       const hasButtons  = !this.def.supported_features || this.def.supported_features.includes("buttons");
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${COVER_STYLES}</style>
+        <style>${this.getSharedStyles()}${COVER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -2383,6 +2518,7 @@
       });
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     #updateSliderFromPointer(e) {
@@ -2451,11 +2587,11 @@
       flex-direction: column;
       align-items: stretch;
       gap: 0;
-      padding: 0 var(--hrv-card-padding, 16px) 0;
+      padding: var(--hrv-card-padding, 16px) var(--hrv-card-padding, 16px) 0;
     }
 
     .hrv-num-slider-wrap {
-      padding: 20px 8px 12px;
+      padding: 20px 8px 20px;
     }
     .hrv-num-slider-track {
       position: relative;
@@ -2533,8 +2669,8 @@
     }
 
     .hrv-num-input {
-      width: 72px;
-      padding: 6px 8px;
+      width: 58px;
+      padding: 4px 6px;
       border: 1.5px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.18));
       border-radius: var(--hrv-radius-s, 8px);
       background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.10));
@@ -2588,6 +2724,7 @@
       height: 56px;
       display: block;
     }
+    [part=history-empty] { display: none; }
   `;
 
   class InputNumberCard extends BaseCard {
@@ -2618,7 +2755,7 @@
       const unit = this.def.unit_of_measurement ?? "";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${INPUT_NUMBER_STYLES}</style>
+        <style>${this.getSharedStyles()}${INPUT_NUMBER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -2727,6 +2864,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     #valToPct(v) {
@@ -2881,7 +3019,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${INPUT_SELECT_STYLES}</style>
+        <style>${this.getSharedStyles()}${INPUT_SELECT_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -2912,6 +3050,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     #openDropdown() {
@@ -3032,9 +3171,9 @@
       cursor: not-allowed;
       box-shadow: none;
     }
-    .hrv-mp-btn svg { width: 20px; height: 20px; }
+    .hrv-mp-btn svg { width: 20px; height: 20px; display: block; }
     .hrv-mp-btn[data-role=play] { width: 48px; height: 48px; }
-    .hrv-mp-btn[data-role=play] svg { width: 24px; height: 24px; }
+    .hrv-mp-btn[data-role=play] svg { width: 24px; height: 24px; display: block; }
 
     .hrv-mp-volume {
       display: flex;
@@ -3057,7 +3196,7 @@
     }
     .hrv-mp-mute:hover { opacity: 0.7; }
     .hrv-mp-mute:disabled { opacity: 0.35; cursor: not-allowed; }
-    .hrv-mp-mute svg { width: 20px; height: 20px; }
+    .hrv-mp-mute svg { width: 20px; height: 20px; display: block; }
 
     .hrv-mp-slider-wrap { flex: 1; padding: 4px 0; }
     .hrv-mp-slider-track {
@@ -3129,7 +3268,7 @@
       const hasPrevNext = features.includes("previous_track");
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${MEDIA_PLAYER_STYLES}</style>
+        <style>${this.getSharedStyles()}${MEDIA_PLAYER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3250,6 +3389,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     #updateSliderFromPointer(e) {
@@ -3368,7 +3508,7 @@
       const commandLabel = this.config.tapAction?.data?.command ?? "power";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${REMOTE_STYLES}</style>
+        <style>${this.getSharedStyles()}${REMOTE_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3406,6 +3546,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     applyState(state, _attributes) {
@@ -3464,7 +3605,7 @@
       const unit = this.def.unit_of_measurement ?? "";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${SENSOR_STYLES}</style>
+        <style>${this.getSharedStyles()}${SENSOR_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3484,6 +3625,7 @@
       this.#unitEl  = this.root.querySelector(".hrv-sensor-unit");
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     applyState(state, attributes) {
@@ -3589,7 +3731,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${SWITCH_STYLES}</style>
+        <style>${this.getSharedStyles()}${SWITCH_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3620,6 +3762,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     applyState(state, _attributes) {
@@ -3747,7 +3890,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${TIMER_STYLES}</style>
+        <style>${this.getSharedStyles()}${TIMER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3808,6 +3951,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     applyState(state, attributes) {
@@ -3990,7 +4134,7 @@
       this.#hasToggle = false;
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${GENERIC_STYLES}</style>
+        <style>${this.getSharedStyles()}${GENERIC_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -4021,6 +4165,7 @@
       }
 
       this.renderCompanions();
+      _applyCompanionTooltips(this.root);
     }
 
     applyState(state, _attributes) {
@@ -4056,7 +4201,8 @@
   // ---------------------------------------------------------------------------
 
   HArvest._packs = HArvest._packs || {};
-  HArvest._packs["examples"] = {
+  const _packKey = window.__HARVEST_PACK_ID__ || "examples";
+  HArvest._packs[_packKey] = {
     "light":          DialLightCard,
     "fan":            FanCard,
     "climate":        ClimateCard,

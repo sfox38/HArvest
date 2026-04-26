@@ -329,18 +329,23 @@ interface ErrorBannerProps {
 }
 
 export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
+  if (!onDismiss) {
+    return (
+      <div role="alert" className="error-banner">
+        <span style={{ flex: 1 }}>{message}</span>
+      </div>
+    );
+  }
   return (
-    <div role="alert" className="error-banner">
-      <span style={{ flex: 1 }}>{message}</span>
-      {onDismiss && (
-        <button
-          onClick={onDismiss}
-          aria-label="Dismiss error"
-          className="btn btn-ghost btn-sm"
-        >
-          <Icon name="close" size={14} />
-        </button>
-      )}
+    <div className="overlay" role="dialog" aria-modal="true" aria-label="Error" onClick={onDismiss}>
+      <div className="dialog" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+        <div className="dialog-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div role="alert" style={{ fontSize: 14, lineHeight: 1.5 }}>{message}</div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-sm" onClick={onDismiss} autoFocus>Dismiss</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

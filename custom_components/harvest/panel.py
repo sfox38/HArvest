@@ -12,14 +12,6 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN, PANEL_PATH, PANEL_ASSETS_PATH
 
 
-def _read_panel_version(path: str) -> str:
-    try:
-        with open(path) as f:
-            return f.read().strip()
-    except OSError:
-        return "0"
-
-
 async def register_panel(hass: HomeAssistant) -> None:
     """Register the HArvest sidebar panel.
 
@@ -27,6 +19,9 @@ async def register_panel(hass: HomeAssistant) -> None:
     The panel UI is registered at /{PANEL_PATH}/ (sidebar URL).
     Using a separate assets path avoids a 403 when the browser makes a direct
     GET to /{PANEL_PATH} on full page reload (directory listing is forbidden).
+
+    panel.js is served via HarvestPanelJsView (Cache-Control: no-store) so
+    an updated bundle is picked up on the next page load without an HA restart.
     """
     await hass.http.async_register_static_paths([
         StaticPathConfig(
@@ -37,16 +32,10 @@ async def register_panel(hass: HomeAssistant) -> None:
     ])
 
     # Remove any existing panel registration before re-registering.
-    # async_register_built_in_panel raises ValueError if the path is already
-    # taken, which happens when the integration is reloaded (e.g. after a
-    # settings save). Removing first makes re-registration idempotent.
     try:
         async_remove_panel(hass, PANEL_PATH)
     except Exception:
         pass
-
-    version_path = hass.config.path("custom_components", DOMAIN, "panel", "panel_version.txt")
-    build_version = await hass.async_add_executor_job(_read_panel_version, version_path)
 
     async_register_built_in_panel(
         hass,
@@ -56,7 +45,7 @@ async def register_panel(hass: HomeAssistant) -> None:
         frontend_url_path=PANEL_PATH,
         config={"_panel_custom": {
             "name": "ha-panel-harvest",
-            "js_url": f"/{PANEL_ASSETS_PATH}/panel.js?v={build_version}",
+            "js_url": "/api/harvest/panel.js",
             "embed_iframe": False,
             "trust_external": False,
         }},

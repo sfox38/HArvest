@@ -16,8 +16,9 @@ import buildVersion from "./buildVersion.json";
 import panelCss from "./panel.css?inline";
 
 // Check panel_version.txt once at startup. If the deployed build number
-// differs from the one baked into this bundle, reload once to pick up the
-// new panel.js. No further polling - prevents reload loops in production.
+// differs from the one baked into this bundle, reload to pick up the new
+// panel.js. panel.js is served with Cache-Control: no-store so the reload
+// always fetches the latest file from disk - no version in the URL needed.
 function startBuildWatcher(): void {
   setTimeout(async () => {
     try {
@@ -27,11 +28,7 @@ function startBuildWatcher(): void {
       if (!res.ok) return;
       const latest = parseInt(await res.text(), 10);
       if (!isNaN(latest) && latest !== buildVersion.build) {
-        // Navigate with a cache-busting query param so the browser fetches
-        // a fresh copy of the page and panel.js rather than a cached version.
-        const url = new URL(window.location.href);
-        url.searchParams.set("_hrv", String(latest));
-        window.location.href = url.toString();
+        window.location.reload();
       }
     } catch { /* ignore network errors */ }
   }, 2000);

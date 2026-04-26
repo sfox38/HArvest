@@ -675,7 +675,9 @@ export class HarvestClient {
     }
     const script = document.createElement("script");
     script.src = this.#haUrl + msg.url + "?_=" + Date.now();
+    window.__HARVEST_PACK_ID__ = packId;
     script.onload = () => {
+      window.__HARVEST_PACK_ID__ = null;
       document.head.removeChild(script);
       this.#activePack = packId;
       for (const card of this.#cards.values()) {
@@ -683,6 +685,7 @@ export class HarvestClient {
       }
     };
     script.onerror = () => {
+      window.__HARVEST_PACK_ID__ = null;
       console.warn("[HArvest] Failed to load renderer pack:", msg.url);
       document.head.removeChild(script);
     };

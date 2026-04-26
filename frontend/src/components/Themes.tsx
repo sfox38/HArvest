@@ -11,7 +11,7 @@ import type { ThemeDefinition, Token, PacksResponse } from "../types";
 import { api } from "../api";
 import { Card, ConfirmDialog, Spinner, ErrorBanner, useThemeThumbs } from "./Shared";
 import { Icon } from "./Icon";
-import { WidgetPreview } from "./WidgetPreview";
+import { WidgetPreview, clearPackCache } from "./WidgetPreview";
 
 // ---------------------------------------------------------------------------
 // Theme URL mapping helpers
@@ -70,6 +70,12 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const [agreeText, setAgreeText] = useState("");
   const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
 
+  // Pack upload reminder (shown after importing a theme that has a renderer_pack)
+  const [showPackReminder, setShowPackReminder] = useState(false);
+
+  // Incremented after a pack JS is uploaded to force the widget preview to remount
+  const [previewKey, setPreviewKey] = useState(0);
+
   // Delete confirm
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -80,6 +86,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const thumbRef = useRef<HTMLInputElement>(null);
+  const packJsRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -146,7 +153,25 @@ export function Themes({ onSelectToken }: ThemesProps) {
     setJsonError(null);
     setParsedVars(null);
     setParsedDarkVars(null);
-  }, [selected, selectedTheme?.name]);
+  }, [selected, selectedTheme?.name, selectedTheme?.author, selectedTheme?.version]);
+
+  // Validate a theme name: 1-64 chars, only letters/digits/spaces/hyphens/underscores/parens/apostrophes/periods
+  const _NAME_RE = /^[a-zA-Z0-9 \-_'().]+$/;
+  const validateThemeName = (name: string): string | null => {
+    const t = name.trim();
+    if (!t) return "Theme name cannot be empty.";
+    if (t.length > 64) return "Theme name must be 64 characters or fewer.";
+    if (!_NAME_RE.test(t)) return "Theme name may only contain letters, numbers, spaces, hyphens, underscores, apostrophes, parentheses, and periods.";
+    return null;
+  };
+
+  // Returns a name that doesn't conflict with any existing theme name
+  const uniqueThemeName = (base: string): string => {
+    if (!themes.some(t => t.name.toLowerCase() === base.toLowerCase())) return base;
+    let i = 2;
+    while (themes.some(t => t.name.toLowerCase() === `${base} (${i})`.toLowerCase())) i++;
+    return `${base} (${i})`;
+  };
 
   // Usage count helper
   const usageForTheme = (themeId: string) => tokens.filter(t => themeUrlToId(t.theme_url) === themeId).length;
@@ -177,7 +202,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const handleCreate = async () => {
     try {
       const theme = await api.themes.create({
-        name: "New Theme",
+        name: uniqueThemeName("New Theme"),
+        author: "",
+        version: "1.0",
         variables: themes.find(t => t.theme_id === "default")?.variables ?? {},
         dark_variables: themes.find(t => t.theme_id === "default")?.dark_variables ?? {},
       });
@@ -191,11 +218,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
     const doDuplicate = async () => {
       try {
         const theme = await api.themes.create({
-          name: `Copy of ${selectedTheme.name}`,
+          name: uniqueThemeName(`Copy of ${selectedTheme.name}`),
           variables: selectedTheme.variables,
           dark_variables: selectedTheme.dark_variables,
-          author: selectedTheme.author,
-          version: selectedTheme.version,
+          author: "",
+          version: "1.0",
           renderer_pack: selectedTheme.renderer_pack,
         });
         const updated = await reload();
@@ -216,7 +243,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
     } catch (e) { setError(String(e)); setConfirmDelete(false); }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!selectedTheme) return;
     const obj: Record<string, unknown> = {
       name: selectedTheme.name,
@@ -231,13 +258,29 @@ export function Themes({ onSelectToken }: ThemesProps) {
     if (selectedTheme.renderer_pack) {
       obj.renderer_pack = selectedTheme.renderer_pack;
     }
+    const slug = selectedTheme.name.toLowerCase().replace(/\s+/g, "-");
     const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${selectedTheme.name.toLowerCase().replace(/\s+/g, "-")}.json`;
+    a.download = `${slug}.json`;
     a.click();
     URL.revokeObjectURL(url);
+
+    if (selectedTheme.renderer_pack) {
+      try {
+        const result = await api.packs.getCode(selectedTheme.renderer_pack);
+        if (result.code) {
+          const jsBlob = new Blob([result.code], { type: "application/javascript" });
+          const jsUrl = URL.createObjectURL(jsBlob);
+          const jsA = document.createElement("a");
+          jsA.href = jsUrl;
+          jsA.download = `${slug}.js`;
+          jsA.click();
+          URL.revokeObjectURL(jsUrl);
+        }
+      } catch { /* pack code unavailable - skip JS export */ }
+    }
   };
 
   const [reloading, setReloading] = useState(false);
@@ -264,6 +307,13 @@ export function Themes({ onSelectToken }: ThemesProps) {
         setError("Invalid theme file: must contain 'name' and 'variables'.");
         return;
       }
+      const importNameError = validateThemeName(String(parsed.name));
+      if (importNameError) { setError(importNameError); if (fileRef.current) fileRef.current.value = ""; return; }
+      if (themes.some(t => t.name.toLowerCase() === String(parsed.name).toLowerCase())) {
+        setError(`A theme named "${parsed.name}" already exists. Rename the existing theme first, or edit the JSON before importing.`);
+        if (fileRef.current) fileRef.current.value = "";
+        return;
+      }
       const doImport = async () => {
         const theme = await api.themes.create({
           name: parsed.name,
@@ -273,10 +323,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
           version: parsed.version ?? "1.0",
           renderer_pack: parsed.renderer_pack ?? "",
         });
-        const updated = await reload();
+        const [updated, freshPacks] = await Promise.all([reload(), api.packs.list()]);
         if (updated) setSelected(theme.theme_id);
-        if (parsed.renderer_pack && !packsData?.packs.some(p => p.pack_id === parsed.renderer_pack)) {
-          setError(`Theme imported. Referenced renderer pack "${parsed.renderer_pack}" is not installed - upload the pack JS via the Renderer Pack card.`);
+        setPacksData(freshPacks);
+        if (parsed.renderer_pack && !freshPacks.packs.some((p: { pack_id: string }) => p.pack_id === parsed.renderer_pack)) {
+          setShowPackReminder(true);
         }
       };
       if (parsed.renderer_pack) { requireConsent(doImport); }
@@ -344,10 +395,59 @@ export function Themes({ onSelectToken }: ThemesProps) {
     if (!selectedTheme || selectedTheme.is_bundled) return;
     const trimmed = newName.trim();
     if (!trimmed || trimmed === selectedTheme.name) return;
+    const nameErr = validateThemeName(trimmed);
+    if (nameErr) { setError(nameErr); return; }
+    if (themes.some(t => t.theme_id !== selectedTheme.theme_id && t.name.toLowerCase() === trimmed.toLowerCase())) {
+      setError(`A theme named "${trimmed}" already exists.`);
+      return;
+    }
     try {
       await api.themes.update(selectedTheme.theme_id, { name: trimmed });
+      if (selectedTheme.renderer_pack && !selectedPack?.is_bundled && selectedPack) {
+        await api.packs.update(selectedTheme.renderer_pack, { name: trimmed }).catch(() => {});
+      }
       await reload();
     } catch (e) { setError(String(e)); }
+  };
+
+  const handleAuthorBlur = async (newAuthor: string) => {
+    if (!selectedTheme || selectedTheme.is_bundled) return;
+    const trimmed = newAuthor.trim();
+    if (trimmed === selectedTheme.author) return;
+    try {
+      await api.themes.update(selectedTheme.theme_id, { author: trimmed });
+      await reload();
+    } catch (e) { setError(String(e)); }
+  };
+
+  const handleVersionBlur = async (newVersion: string) => {
+    if (!selectedTheme || selectedTheme.is_bundled) return;
+    const trimmed = newVersion.trim();
+    if (!trimmed || trimmed === selectedTheme.version) return;
+    try {
+      await api.themes.update(selectedTheme.theme_id, { version: trimmed });
+      await reload();
+    } catch (e) { setError(String(e)); }
+  };
+
+  const handlePackJsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedTheme?.renderer_pack) return;
+    try {
+      const code = await file.text();
+      const packId = selectedTheme.renderer_pack;
+      await api.packs.create({ name: selectedTheme.name, pack_id: packId, code });
+      const [updated, codeResult] = await Promise.all([
+        api.packs.list(),
+        api.packs.getCode(packId),
+      ]);
+      setPacksData(updated);
+      setPackCode(codeResult.code);
+      setPackCodeDirty(false);
+      clearPackCache(packId);
+      setPreviewKey(k => k + 1);
+    } catch (err) { setError(String(err)); }
+    if (packJsRef.current) packJsRef.current.value = "";
   };
 
   const handleThumbnailUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -375,6 +475,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const previewDarkVars = parsedDarkVars ?? selectedTheme?.dark_variables ?? {};
 
   const jsonCopy = useCopy(editedJson);
+  const packCodeCopy = useCopy(packCode ?? "");
 
   if (loading) {
     return (
@@ -427,6 +528,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
           </button>
           <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
           <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />
+          <input ref={packJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handlePackJsUpload} />
         </div>
       </Card>
 
@@ -466,11 +568,36 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 )}
               </div>
 
-              {selectedTheme.author && (
-                <div className="muted" style={{ fontSize: 12 }}>Author: {selectedTheme.author}</div>
-              )}
-              {selectedTheme.version && (
-                <div className="muted" style={{ fontSize: 12 }}>Version: {selectedTheme.version}</div>
+              {selectedTheme.is_bundled ? (
+                <>
+                  {selectedTheme.author && (
+                    <div className="muted" style={{ fontSize: 12 }}>Author: {selectedTheme.author}</div>
+                  )}
+                  {selectedTheme.version && (
+                    <div className="muted" style={{ fontSize: 12 }}>Version: {selectedTheme.version}</div>
+                  )}
+                </>
+              ) : (
+                <div className="row" style={{ gap: 8 }}>
+                  <input
+                    className="input"
+                    defaultValue={selectedTheme.author}
+                    key={`author-${selectedTheme.theme_id}`}
+                    placeholder="Author"
+                    style={{ flex: 1, fontSize: 12 }}
+                    onBlur={e => handleAuthorBlur(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                  />
+                  <input
+                    className="input"
+                    defaultValue={selectedTheme.version}
+                    key={`version-${selectedTheme.theme_id}`}
+                    placeholder="Version"
+                    style={{ width: 80, fontSize: 12 }}
+                    onBlur={e => handleVersionBlur(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                  />
+                </div>
               )}
 
               {!selectedTheme.is_bundled && (
@@ -503,7 +630,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
           {/* Preview card */}
           <Card title="Preview">
-            <WidgetPreview variables={previewVars} darkVariables={previewDarkVars} packId={selectedTheme?.renderer_pack || undefined} />
+            <WidgetPreview key={`preview-${selected}-${previewKey}`} variables={previewVars} darkVariables={previewDarkVars} packId={selectedTheme?.renderer_pack || undefined} />
           </Card>
 
           {/* Code card */}
@@ -543,15 +670,17 @@ export function Themes({ onSelectToken }: ThemesProps) {
                   <strong>{selectedPack.name}</strong>
                   {selectedPack.is_bundled && <span className="badge badge-muted">Bundled</span>}
                 </div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  v{selectedPack.version} by {selectedPack.author}
-                </div>
                 {selectedPack.description && (
                   <div className="muted" style={{ fontSize: 12 }}>{selectedPack.description}</div>
                 )}
                 {packCode !== null && (
                   <div className="col" style={{ gap: 8, marginTop: 4 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>Pack Source</div>
+                    <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>Pack Source</div>
+                      <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
+                        <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
+                      </button>
+                    </div>
                     <textarea
                       className="theme-code-textarea"
                       value={packCode}
@@ -585,10 +714,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
           {selectedTheme.renderer_pack && !selectedPack && (
             <Card title="Renderer Pack">
-              <div className="col" style={{ gap: 8 }}>
+              <div className="col" style={{ gap: 10 }}>
                 <div className="muted" style={{ fontSize: 13 }}>
-                  This theme references renderer pack "{selectedTheme.renderer_pack}" which is not installed.
+                  This theme references renderer pack <strong>{selectedTheme.renderer_pack}</strong> which is not installed.
                 </div>
+                <div style={{ fontSize: 12 }}>Upload the pack JS file to enable it. The file must be the <code>.js</code> exported alongside this theme.</div>
+                <button className="btn btn-sm btn-primary" style={{ alignSelf: "flex-start" }} onClick={() => packJsRef.current?.click()}>
+                  <Icon name="upload" size={13} /> Upload Pack JS
+                </button>
               </div>
             </Card>
           )}
@@ -614,6 +747,24 @@ export function Themes({ onSelectToken }: ThemesProps) {
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(false)}
         />
+      )}
+
+      {showPackReminder && (
+        <div className="overlay" onClick={() => setShowPackReminder(false)}>
+          <div className="dialog" onClick={e => e.stopPropagation()}>
+            <h3 className="dialog-title">Upload Renderer Pack</h3>
+            <div className="dialog-body">
+              <p>
+                This theme includes a renderer pack. Scroll down to the <strong>Renderer Pack</strong> card and upload the corresponding <code>.js</code> file.
+              </p>
+            </div>
+            <div className="dialog-actions">
+              <button className="btn btn-primary" autoFocus onClick={() => setShowPackReminder(false)}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showAgree && (

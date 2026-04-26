@@ -201,20 +201,40 @@ function loadWidgetScript(): Promise<void> {
 
 const _loadedPacks = new Set<string>();
 const _loadingPacks = new Map<string, Promise<void>>();
+const _packCacheBust = new Map<string, string>();
 
 function loadPackScript(packId: string): Promise<void> {
   if (_loadedPacks.has(packId)) return Promise.resolve();
   const existing = _loadingPacks.get(packId);
   if (existing) return existing;
+  const bust = _packCacheBust.get(packId) ?? "";
   const p = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `/api/harvest/packs/${encodeURIComponent(packId)}.js`;
-    script.onload = () => { _loadedPacks.add(packId); resolve(); };
-    script.onerror = () => reject(new Error(`Failed to load pack ${packId}`));
+    script.src = `/api/harvest/packs/${encodeURIComponent(packId)}.js${bust ? `?v=${bust}` : ""}`;
+    // Tell the pack IIFE which ID to register under (may differ from its hardcoded default)
+    (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = packId;
+    script.onload = () => {
+      (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = null;
+      _loadedPacks.add(packId);
+      _loadingPacks.delete(packId);
+      resolve();
+    };
+    script.onerror = () => {
+      (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = null;
+      _loadingPacks.delete(packId);
+      reject(new Error(`Failed to load pack ${packId}`));
+    };
     document.head.appendChild(script);
   });
   _loadingPacks.set(packId, p);
   return p;
+}
+
+/** Call after uploading new pack JS to force a fresh script fetch on next preview render. */
+export function clearPackCache(packId: string): void {
+  _loadedPacks.delete(packId);
+  _loadingPacks.delete(packId);
+  _packCacheBust.set(packId, String(Date.now()));
 }
 
 export function resolveVars(
@@ -354,6 +374,11 @@ function RealWidget({ mock, vars, capability, features, graphType, packId }: {
 
   useEffect(() => {
     const load = async () => {
+      // Reset ready if this packId hasn't been loaded yet, so the card render
+      // effect waits until the pack script is available before mounting.
+      if (packId && !_loadedPacks.has(packId)) {
+        setReady(false);
+      }
       await loadWidgetScript();
       if (packId) await loadPackScript(packId).catch(() => {});
       setReady(true);

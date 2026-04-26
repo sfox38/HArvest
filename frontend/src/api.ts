@@ -280,7 +280,7 @@ export const api = {
     agree: (agreed: boolean): Promise<{ agreed: boolean }> =>
       _post<{ agreed: boolean }>("/packs/agree", { agreed }),
 
-    create: (data: { name: string; description?: string; version?: string; author?: string; code?: string }): Promise<RendererPack> =>
+    create: (data: { name: string; description?: string; version?: string; author?: string; code?: string; pack_id?: string }): Promise<RendererPack> =>
       _post<RendererPack>("/packs", data),
 
     update: (packId: string, data: Partial<{ name: string; description: string; version: string; author: string }>): Promise<RendererPack> =>

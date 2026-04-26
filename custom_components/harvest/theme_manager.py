@@ -113,6 +113,16 @@ class ThemeManager:
         """Return a theme by ID, checking both bundled and custom."""
         return self._bundled.get(theme_id) or self._custom.get(theme_id)
 
+    def name_exists(self, name: str, exclude_id: str | None = None) -> bool:
+        """Return True if any theme already uses this name (case-insensitive)."""
+        lower = name.lower()
+        for theme in list(self._bundled.values()) + list(self._custom.values()):
+            if theme.theme_id == exclude_id:
+                continue
+            if theme.name.lower() == lower:
+                return True
+        return False
+
     def get_all(self) -> list[ThemeDefinition]:
         """Return all themes, bundled first then custom."""
         return list(self._bundled.values()) + list(self._custom.values())

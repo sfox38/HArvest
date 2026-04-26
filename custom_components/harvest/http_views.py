@@ -11,6 +11,7 @@ import dataclasses
 import logging
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,6 +22,7 @@ from homeassistant.core import HomeAssistant
 
 from .activity_store import ActivityStore, TokenLifecycleEvent
 from .diagnostic_sensors import DiagnosticSensors
+from .entity_definition import build_entity_definition
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager, ServiceCall
 from .session_manager import SessionManager
@@ -93,6 +95,7 @@ def register_views(
     hass.http.register_view(HarvestActivityExportView(activity_store))
     hass.http.register_view(HarvestAggregatesView(activity_store))
     hass.http.register_view(HarvestEntitiesView(hass))
+    hass.http.register_view(HarvestPanelJsView(hass))
 
 
 # ---------------------------------------------------------------------------
@@ -433,6 +436,37 @@ class HarvestTokenDetailView(HomeAssistantView):
                 except Exception:
                     pass
 
+    async def _push_entity_definitions_to_sessions(self, token_id: str) -> None:
+        """Push updated entity_definition messages to all active sessions for a token.
+
+        Called after entity capabilities, graph settings, or exclude_attributes
+        change so that connected widgets reflect the new configuration without
+        requiring a reconnect.
+        """
+        token = self._token_manager.get(token_id)
+        if not token:
+            return
+        ea_map = {ea.entity_id: ea for ea in token.entities}
+        for session in self._session_manager.get_all_for_token(token_id):
+            if session.ws.closed:
+                continue
+            for real_id in session.subscribed_entity_ids:
+                ea = ea_map.get(real_id)
+                if ea is None:
+                    continue
+                defn = build_entity_definition(self._hass, real_id, ea)
+                if defn is None:
+                    continue
+                defn = dict(defn)
+                defn["type"] = "entity_definition"
+                defn["entity_id"] = ea.alias if ea.alias else real_id
+                defn["capabilities"] = ea.capabilities
+                defn["msg_id"] = None
+                try:
+                    await session.ws.send_json(defn)
+                except Exception:
+                    pass
+
     async def get(self, request: web.Request, token_id: str) -> web.Response:
         user = request.get("hass_user")
         if user is None or not user.is_admin:
@@ -541,6 +575,9 @@ class HarvestTokenDetailView(HomeAssistantView):
             for ws in ws_list:
                 if not ws.closed:
                     asyncio.create_task(_close_ws_with_auth_failed(ws))
+
+        if "entities" in updates:
+            await self._push_entity_definitions_to_sessions(token_id)
 
         if "theme_url" in updates:
             await self._push_theme_to_sessions(token_id)
@@ -910,6 +947,20 @@ class HarvestActionDetailView(HomeAssistantView):
 # Theme views
 # ---------------------------------------------------------------------------
 
+_THEME_NAME_RE = re.compile(r"^[a-zA-Z0-9 \-_'().]+$")
+_THEME_NAME_MAX = 64
+
+
+def _validate_theme_name(name: str) -> str | None:
+    """Return an error string if the name is invalid, else None."""
+    if not name:
+        return "Theme name cannot be empty."
+    if len(name) > _THEME_NAME_MAX:
+        return f"Theme name must be {_THEME_NAME_MAX} characters or fewer."
+    if not _THEME_NAME_RE.match(name):
+        return "Theme name may only contain letters, numbers, spaces, hyphens, underscores, apostrophes, parentheses, and periods."
+    return None
+
 
 class HarvestThemesView(HomeAssistantView):
     """GET /api/harvest/themes  - list all themes.
@@ -956,8 +1007,11 @@ class HarvestThemesView(HomeAssistantView):
             raise web.HTTPBadRequest(reason="Invalid JSON body.")
 
         name = str(body.get("name", "")).strip()
-        if not name:
-            raise web.HTTPBadRequest(reason="Theme name is required.")
+        name_err = _validate_theme_name(name)
+        if name_err:
+            raise web.HTTPBadRequest(reason=name_err)
+        if self._theme_manager.name_exists(name):
+            raise web.HTTPConflict(reason=f"A theme named \"{name}\" already exists.")
         variables = body.get("variables")
         if not isinstance(variables, dict):
             raise web.HTTPBadRequest(reason="variables must be an object.")
@@ -1035,8 +1089,11 @@ class HarvestThemeDetailView(HomeAssistantView):
         updates: dict = {}
         if "name" in body:
             name = str(body["name"]).strip()
-            if not name:
-                raise web.HTTPBadRequest(reason="Theme name cannot be empty.")
+            name_err = _validate_theme_name(name)
+            if name_err:
+                raise web.HTTPBadRequest(reason=name_err)
+            if self._theme_manager.name_exists(name, exclude_id=theme_id):
+                raise web.HTTPConflict(reason=f"A theme named \"{name}\" already exists.")
             updates["name"] = name
         if "author" in body:
             updates["author"] = str(body["author"])
@@ -1070,6 +1127,12 @@ class HarvestThemeDetailView(HomeAssistantView):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
+
+        theme = self._theme_manager.get(theme_id)
+        if theme is None:
+            raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
+        orphaned_pack = theme.renderer_pack
+
         try:
             await self._theme_manager.delete(theme_id)
         except ValueError as exc:
@@ -1082,6 +1145,20 @@ class HarvestThemeDetailView(HomeAssistantView):
                 await self._token_manager.update(
                     token.token_id, {"theme_url": "", "renderer_pack": ""},
                 )
+
+        # Delete the associated custom pack if no other theme still references it.
+        if orphaned_pack and self._pack_manager:
+            pack = self._pack_manager.get(orphaned_pack)
+            if pack and not pack.is_bundled:
+                still_used = any(
+                    t.renderer_pack == orphaned_pack
+                    for t in self._theme_manager.get_all()
+                )
+                if not still_used:
+                    try:
+                        await self._pack_manager.delete(orphaned_pack)
+                    except Exception:
+                        pass
 
         return web.Response(status=204)
 
@@ -1179,13 +1256,17 @@ class HarvestPacksView(HomeAssistantView):
         name = body.get("name", "").strip()
         if not name:
             raise web.HTTPBadRequest(reason="Pack name is required.")
-        pack = await self._pack_manager.create(
-            name=name,
-            description=str(body.get("description", "")),
-            version=str(body.get("version", "1.0")),
-            author=str(body.get("author", "")),
-            js_code=str(body.get("code", "")),
-        )
+        try:
+            pack = await self._pack_manager.create(
+                name=name,
+                description=str(body.get("description", "")),
+                version=str(body.get("version", "1.0")),
+                author=str(body.get("author", "")),
+                js_code=str(body.get("code", "")),
+                pack_id=str(body.get("pack_id", "")),
+            )
+        except ValueError as exc:
+            raise web.HTTPConflict(reason=str(exc))
         return self.json(pack_to_api_dict(pack), status_code=201)
 
 
@@ -1562,3 +1643,33 @@ class HarvestPreviewTokenView(HomeAssistantView):
             "expires": token.expires.isoformat() if token.expires else None,
             "status": "preview",
         }, status_code=201)
+
+
+class HarvestPanelJsView(HomeAssistantView):
+    """GET /api/harvest/panel.js - serve panel bundle with no-store headers.
+
+    Bypasses HA's static file caching so an updated panel.js is picked up
+    immediately on the next page load without an integration reload or HA
+    restart.
+    """
+
+    url = "/api/harvest/panel.js"
+    name = "api:harvest:panel_js"
+    requires_auth = False
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
+
+    async def get(self, _request: web.Request) -> web.Response:
+        panel_path = Path(self._hass.config.path(
+            "custom_components", "harvest", "panel", "panel.js"
+        ))
+        try:
+            content = await self._hass.async_add_executor_job(panel_path.read_bytes)
+        except OSError:
+            raise web.HTTPNotFound()
+        return web.Response(
+            body=content,
+            content_type="application/javascript",
+            headers={"Cache-Control": "no-store"},
+        )
