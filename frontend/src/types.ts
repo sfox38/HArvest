@@ -221,6 +221,7 @@ export interface IntegrationConfig {
     max_lifetime_minutes: number;
   };
   ha_event_bus: HaEventBusConfig;
+  platform_version?: string;
 }
 
 // ---------------------------------------------------------------------------

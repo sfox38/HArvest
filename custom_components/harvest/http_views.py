@@ -1475,7 +1475,7 @@ class HarvestConfigView(HomeAssistantView):
         self._session_manager = session_manager
 
     async def get(self, request: web.Request) -> web.Response:
-        from .const import DOMAIN, DEFAULTS
+        from .const import DOMAIN, DEFAULTS, PLATFORM_VERSION
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
             return self.json({})
@@ -1483,6 +1483,7 @@ class HarvestConfigView(HomeAssistantView):
         # Deep-merge stored values over defaults so nested objects like
         # default_session are always fully populated even after partial saves.
         merged = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
+        merged["platform_version"] = PLATFORM_VERSION
         return self.json(merged)
 
     async def patch(self, request: web.Request) -> web.Response:
@@ -1552,6 +1553,8 @@ class HarvestConfigView(HomeAssistantView):
                 if not session.ws.closed:
                     asyncio.create_task(_close_ws_with_auth_failed(session.ws))
 
+        from .const import PLATFORM_VERSION
+        updated["platform_version"] = PLATFORM_VERSION
         return self.json(updated)
 
 

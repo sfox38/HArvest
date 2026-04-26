@@ -220,6 +220,7 @@
 
 .appbar-row.top {
   border-bottom: 1px solid var(--divider);
+  justify-content: space-between;
 }
 
 .brand {
@@ -228,15 +229,33 @@
   gap: 10px;
 }
 
+.brand-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.brand-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .brand-mark {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
+  overflow: hidden;
   display: grid;
   place-items: center;
   flex-shrink: 0;
+}
+
+.brand-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .brand-text {
@@ -1714,6 +1733,38 @@
 
 .muted   { color: var(--ink-3); }
 .mono    { font-family: var(--font-mono); }
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.info-table tr + tr td {
+  border-top: 1px solid var(--divider);
+}
+
+.info-table td {
+  padding: 9px 0;
+}
+
+.info-label {
+  color: var(--ink-3);
+  width: 50%;
+  padding-right: 12px;
+}
+
+.info-link {
+  color: var(--accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-link:hover {
+  text-decoration: underline;
+}
 .spacer  { flex: 1; }
 .url-clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

@@ -3,15 +3,16 @@
  *
  * Card-based sections with auto-save on blur (300ms debounce).
  * Dark/Light/Auto theme toggle stored in localStorage via App.tsx.
- * Help & resources card at the bottom.
+ * Integration Info card at the bottom.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { IntegrationConfig, HaEventBusConfig } from "../types";
+import type { IntegrationConfig, HaEventBusConfig, PanelStats } from "../types";
 import type { AppTheme } from "../App";
 import { api } from "../api";
-import { Spinner, ErrorBanner, Card } from "./Shared";
+import { Spinner, ErrorBanner, Card, fmtBytes } from "./Shared";
 import { Icon } from "./Icon";
+import buildVersion from "../buildVersion.json";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -354,11 +355,15 @@ interface SettingsProps {
 
 export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsProps) {
   const [config,  setConfig]  = useState<IntegrationConfig | null>(null);
+  const [stats,   setStats]   = useState<PanelStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    api.config.get().then(setConfig).catch(e => setError(String(e))).finally(() => setLoading(false));
+    Promise.all([api.config.get(), api.stats.get()])
+      .then(([cfg, st]) => { setConfig(cfg); setStats(st); })
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
   }, []);
 
   const patch = useCallback(async (data: Partial<IntegrationConfig>) => {
@@ -509,32 +514,52 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
         ))}
       </Card>
 
-      {/* Help & resources */}
-      <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="help" size={14} /> Help & resources</span>}
-        pad={false}
-      >
-        {[
-          { label: "Documentation",     sub: "Widgets, tokens, security - everything.",     href: "https://github.com/sfox38/harvest/wiki" },
-          { label: "Getting started",   sub: "Create your first widget in 2 minutes.",      href: "https://github.com/sfox38/harvest/blob/main/docs/getting-started.md" },
-          { label: "Report an issue",   sub: "Found a bug? File it on GitHub.",             href: "https://github.com/sfox38/harvest/issues" },
-          { label: "GitHub repository", sub: "Source, releases, and roadmap.",              href: "https://github.com/sfox38/harvest" },
-        ].map(l => (
-          <a
-            key={l.label}
-            href={l.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="widget-row"
-            style={{ textDecoration: "none", color: "inherit", gridTemplateColumns: "1fr auto" }}
-          >
-            <div>
-              <div style={{ fontWeight: 600 }}>{l.label}</div>
-              <div className="muted" style={{ fontSize: 12.5 }}>{l.sub}</div>
-            </div>
-            <Icon name="external" size={15} />
-          </a>
-        ))}
+      {/* Integration info */}
+      <Card title={<span className="row" style={{ gap: 8 }}><Icon name="info" size={14} /> Integration info</span>}>
+        <table className="info-table">
+          <tbody>
+            <tr>
+              <td className="info-label">HArvest Version</td>
+              <td>{config.platform_version ?? "-"}</td>
+            </tr>
+            <tr>
+              <td className="info-label">JS Build</td>
+              <td>{buildVersion.build}</td>
+            </tr>
+            <tr>
+              <td className="info-label">Minimum HA Version</td>
+              <td>2024.1.0</td>
+            </tr>
+            <tr>
+              <td className="info-label">Database Size</td>
+              <td>{stats ? fmtBytes(stats.db_size_bytes) : "-"}</td>
+            </tr>
+            <tr>
+              <td className="info-label">GitHub Repository</td>
+              <td>
+                <a href="https://github.com/sfox38/harvest/" target="_blank" rel="noopener noreferrer" className="info-link">
+                  https://github.com/sfox38/harvest/ <Icon name="external" size={12} />
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td className="info-label">Report an Issue</td>
+              <td>
+                <a href="https://github.com/sfox38/harvest/issues" target="_blank" rel="noopener noreferrer" className="info-link">
+                  https://github.com/sfox38/harvest/issues <Icon name="external" size={12} />
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td className="info-label">Documentation</td>
+              <td>
+                <a href="https://github.com/sfox38/harvest/" target="_blank" rel="noopener noreferrer" className="info-link">
+                  https://github.com/sfox38/harvest/ <Icon name="external" size={12} />
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </Card>
 
       <div className="muted" style={{ fontSize: 12, textAlign: "center", padding: "4px 0 20px" }}>

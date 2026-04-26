@@ -114,12 +114,12 @@ export function App() {
       <header className="appbar">
         {/* Top row: brand + actions */}
         <div className="appbar-row top">
-          <div className="brand">
+          <button className="brand brand-btn" onClick={() => setScreen("dashboard")} aria-label="Go to dashboard">
             <div className="brand-mark">
-              <Icon name="leaf" size={16} />
+              <img src="/harvest_assets/icon.png" alt="" className="brand-icon" />
             </div>
             <span className="brand-name">HArvest</span>
-          </div>
+          </button>
           <div className="appbar-actions">
             {killSwitch && (
               <span className="kill-switch-indicator" title="Kill switch is active - all sessions blocked">

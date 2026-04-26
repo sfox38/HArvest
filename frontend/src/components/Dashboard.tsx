@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Screen, PanelStats, HourlyBucket, ActivityEvent, Token } from "../types";
 import { api } from "../api";
-import { Spinner, ErrorBanner, Card, Sparkline, ActivityGraph, StatusBadge, EventRow, fmtBytes, fmtRel } from "./Shared";
+import { Spinner, ErrorBanner, Card, Sparkline, ActivityGraph, StatusBadge, EventRow, fmtRel } from "./Shared";
 import { Icon } from "./Icon";
 import buildVersion from "../buildVersion.json";
 
@@ -224,15 +224,9 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
       </div>
 
       {/* Footer */}
-      {stats && (
-        <div className="row muted" style={{ fontSize: 12, justifyContent: "space-between", padding: "0 4px 18px" }}>
-          <span>
-            {stats.is_running ? "Running" : "Stopped"} -
-            DB {fmtBytes(stats.db_size_bytes)}
-          </span>
-          <span>build #{buildVersion.build}</span>
-        </div>
-      )}
+      <div className="row muted" style={{ fontSize: 12, justifyContent: "flex-end", padding: "0 4px 18px" }}>
+        <span>build #{buildVersion.build}</span>
+      </div>
     </div>
   );
 }
