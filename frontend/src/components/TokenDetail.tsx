@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Token, TokenUpdate, Session, ActivityPage, ThemeDefinition, RendererPack, PacksResponse } from "../types";
+import type { Token, TokenUpdate, Session, ActivityPage, ThemeDefinition } from "../types";
 import { validateLabel, DEFAULT_WIDGET_SCRIPT_URL } from "../types";
 import { api } from "../api";
 import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, EventRow, fmtRel, EntityAutocomplete, useThemeThumbs } from "./Shared";
@@ -362,85 +362,89 @@ function themeUrlToId(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Renderer pack editor
-// ---------------------------------------------------------------------------
-
-function RendererPackEditor({ token, setToken, setError }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void }) {
-  const [packsData, setPacksData] = useState<PacksResponse | null>(null);
+function ThemeEditor({ token, setToken, setError }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void }) {
+  const [themes, setThemes] = useState<ThemeDefinition[]>([]);
+  const [packsAgreed, setPacksAgreed] = useState<boolean | null>(null);
   const [showAgree, setShowAgree] = useState(false);
   const [agreeText, setAgreeText] = useState("");
-  const [pendingPackId, setPendingPackId] = useState<string | null>(null);
+  const [pendingThemeId, setPendingThemeId] = useState<string | null>(null);
 
-  useEffect(() => { api.packs.list().then(setPacksData).catch(() => {}); }, []);
+  useEffect(() => { api.themes.list().then(setThemes).catch(() => {}); }, []);
+  useEffect(() => { api.packs.list().then(d => setPacksAgreed(d.agreed)).catch(() => {}); }, []);
+  const thumbUrls = useThemeThumbs(themes);
 
-  const enablePack = async (packId: string) => {
-    if (!packsData?.agreed) {
-      setPendingPackId(packId);
-      setShowAgree(true);
-      return;
-    }
+  const currentId = themeUrlToId(token.theme_url ?? "");
+  const selectedTheme = themes.find(t => t.theme_id === currentId) ?? null;
+
+  const applyTheme = async (themeId: string) => {
     try {
-      const updated = await api.tokens.update(token.token_id, { renderer_pack: packId });
+      const updated = await api.tokens.update(token.token_id, { theme_url: themeIdToUrl(themeId) });
       setToken(updated);
     } catch (e) { setError(String(e)); }
   };
 
-  const disablePack = async () => {
-    try {
-      const updated = await api.tokens.update(token.token_id, { renderer_pack: "" });
-      setToken(updated);
-    } catch (e) { setError(String(e)); }
+  const change = (themeId: string) => {
+    const target = themes.find(t => t.theme_id === themeId);
+    if (target?.renderer_pack && !packsAgreed) {
+      setPendingThemeId(themeId);
+      setShowAgree(true);
+      return;
+    }
+    applyTheme(themeId);
   };
 
   const confirmAgree = async () => {
     try {
       await api.packs.agree(true);
-      setPacksData(prev => prev ? { ...prev, agreed: true } : prev);
+      setPacksAgreed(true);
       setShowAgree(false);
       setAgreeText("");
-      if (pendingPackId) {
-        const updated = await api.tokens.update(token.token_id, { renderer_pack: pendingPackId });
-        setToken(updated);
-        setPendingPackId(null);
+      if (pendingThemeId) {
+        await applyTheme(pendingThemeId);
+        setPendingThemeId(null);
       }
     } catch (e) { setError(String(e)); }
   };
 
-  if (!packsData || packsData.packs.length === 0) return null;
-
   return (
     <>
-      <Card title="Renderer Packs">
-        <div className="col" style={{ gap: 10 }}>
-          {packsData.packs.map(pack => {
-            const active = token.renderer_pack === pack.pack_id;
-            return (
-              <div key={pack.pack_id} className={`pack-item${active ? " active" : ""}`}>
-                <div className="pack-info">
-                  <strong>{pack.name}</strong>
-                  <span className="pack-meta">v{pack.version} by {pack.author}</span>
-                  <span className="pack-desc">{pack.description}</span>
-                </div>
-                <button
-                  className={`btn btn-sm ${active ? "btn-danger" : "btn-primary"}`}
-                  onClick={() => active ? disablePack() : enablePack(pack.pack_id)}
-                >
-                  {active ? "Disable" : "Enable"}
-                </button>
-              </div>
-            );
-          })}
+      <Card title="Theme">
+        <div className="col" style={{ gap: 12 }}>
+          <div className="theme-grid">
+            {themes.map(t => (
+              <button
+                key={t.theme_id}
+                className={`theme-card${currentId === t.theme_id ? " selected" : ""}`}
+                onClick={() => change(t.theme_id)}
+              >
+                {thumbUrls[t.theme_id] ? (
+                  <img className="theme-preview" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
+                ) : (
+                  <div className="theme-preview" />
+                )}
+                <span style={{ fontSize: 12 }}>{t.name}</span>
+                {t.renderer_pack && <span className="badge badge-accent" style={{ fontSize: 10 }}>Pack</span>}
+              </button>
+            ))}
+          </div>
+          {selectedTheme && (
+            <WidgetPreview
+              variables={selectedTheme.variables}
+              darkVariables={selectedTheme.dark_variables}
+              packId={selectedTheme.renderer_pack || undefined}
+            />
+          )}
         </div>
       </Card>
 
       {showAgree && (
-        <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingPackId(null); }}>
+        <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
             <h3 className="dialog-title">Renderer Pack Warning</h3>
             <div className="dialog-body">
               <p>
-                Renderer packs execute JavaScript from your HA instance inside the widget on the embedding page.
-                Only enable packs you trust.
+                This theme includes a renderer pack that executes JavaScript from your HA instance
+                inside the widget on the embedding page. Only enable themes with packs you trust.
               </p>
               <p style={{ marginTop: 12 }}>
                 Type <strong>AGREE</strong> below to confirm.
@@ -456,7 +460,7 @@ function RendererPackEditor({ token, setToken, setError }: { token: Token; setTo
               />
             </div>
             <div className="dialog-actions">
-              <button className="btn btn-ghost" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingPackId(null); }}>
+              <button className="btn btn-ghost" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
                 Cancel
               </button>
               <button className="btn btn-primary" disabled={agreeText !== "AGREE"} onClick={confirmAgree}>
@@ -467,51 +471,6 @@ function RendererPackEditor({ token, setToken, setError }: { token: Token; setTo
         </div>
       )}
     </>
-  );
-}
-
-function ThemeEditor({ token, setToken, setError }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void }) {
-  const [themes, setThemes] = useState<ThemeDefinition[]>([]);
-  useEffect(() => { api.themes.list().then(setThemes).catch(() => {}); }, []);
-  const thumbUrls = useThemeThumbs(themes);
-
-  const currentId = themeUrlToId(token.theme_url ?? "");
-  const selectedTheme = themes.find(t => t.theme_id === currentId) ?? null;
-
-  const change = async (themeId: string) => {
-    try {
-      const updated = await api.tokens.update(token.token_id, { theme_url: themeIdToUrl(themeId) });
-      setToken(updated);
-    } catch (e) { setError(String(e)); }
-  };
-
-  return (
-    <Card title="Theme">
-      <div className="col" style={{ gap: 12 }}>
-        <div className="theme-grid">
-          {themes.map(t => (
-            <button
-              key={t.theme_id}
-              className={`theme-card${currentId === t.theme_id ? " selected" : ""}`}
-              onClick={() => change(t.theme_id)}
-            >
-              {thumbUrls[t.theme_id] ? (
-                <img className="theme-preview" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
-              ) : (
-                <div className="theme-preview" />
-              )}
-              <span style={{ fontSize: 12 }}>{t.name}</span>
-            </button>
-          ))}
-        </div>
-        {selectedTheme && (
-          <WidgetPreview
-            variables={selectedTheme.variables}
-            darkVariables={selectedTheme.dark_variables}
-          />
-        )}
-      </div>
-    </Card>
   );
 }
 
@@ -1884,9 +1843,6 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
 
           {/* Theme */}
           {!readonly && <ThemeEditor token={token} setToken={t => setToken({ ...t, created_by_name: token.created_by_name })} setError={setError} />}
-
-          {/* Renderer Packs */}
-          {!readonly && <RendererPackEditor token={token} setToken={t => setToken({ ...t, created_by_name: token.created_by_name })} setError={setError} />}
 
           {/* Entities */}
           <EntitiesEditor

@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { ThemeDefinition, Token } from "../types";
+import type { ThemeDefinition, Token, PacksResponse } from "../types";
 import { api } from "../api";
 import { Card, ConfirmDialog, Spinner, ErrorBanner, useThemeThumbs } from "./Shared";
 import { Icon } from "./Icon";
@@ -61,6 +61,15 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const [parsedVars, setParsedVars] = useState<Record<string, string> | null>(null);
   const [parsedDarkVars, setParsedDarkVars] = useState<Record<string, string> | null>(null);
 
+  // Renderer pack state
+  const [packsData, setPacksData] = useState<PacksResponse | null>(null);
+  const [packCode, setPackCode] = useState<string | null>(null);
+  const [packCodeDirty, setPackCodeDirty] = useState(false);
+  const [packCodeSaving, setPackCodeSaving] = useState(false);
+  const [showAgree, setShowAgree] = useState(false);
+  const [agreeText, setAgreeText] = useState("");
+  const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
+
   // Delete confirm
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -87,8 +96,34 @@ export function Themes({ onSelectToken }: ThemesProps) {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { api.packs.list().then(setPacksData).catch(() => {}); }, []);
 
   const selectedTheme = themes.find(t => t.theme_id === selected) ?? null;
+  const selectedPack = selectedTheme?.renderer_pack
+    ? packsData?.packs.find(p => p.pack_id === selectedTheme.renderer_pack) ?? null
+    : null;
+
+  useEffect(() => {
+    if (!selectedTheme?.renderer_pack) { setPackCode(null); setPackCodeDirty(false); return; }
+    api.packs.getCode(selectedTheme.renderer_pack).then(r => setPackCode(r.code)).catch(() => setPackCode(null));
+    setPackCodeDirty(false);
+  }, [selectedTheme?.renderer_pack]);
+
+  const requireConsent = (action: () => Promise<void>) => {
+    if (packsData?.agreed) { action(); return; }
+    setPendingAction(() => action);
+    setShowAgree(true);
+  };
+
+  const confirmAgree = async () => {
+    try {
+      await api.packs.agree(true);
+      setPacksData(prev => prev ? { ...prev, agreed: true } : prev);
+      setShowAgree(false);
+      setAgreeText("");
+      if (pendingAction) { await pendingAction(); setPendingAction(null); }
+    } catch (e) { setError(String(e)); }
+  };
 
   // When selection changes, sync the code editor
   useEffect(() => {
@@ -102,6 +137,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     };
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
       obj.dark_variables = selectedTheme.dark_variables;
+    }
+    if (selectedTheme.renderer_pack) {
+      obj.renderer_pack = selectedTheme.renderer_pack;
     }
     setEditedJson(JSON.stringify(obj, null, 2));
     setDirty(false);
@@ -148,19 +186,24 @@ export function Themes({ onSelectToken }: ThemesProps) {
     } catch (e) { setError(String(e)); }
   };
 
-  const handleDuplicate = async () => {
+  const handleDuplicate = () => {
     if (!selectedTheme) return;
-    try {
-      const theme = await api.themes.create({
-        name: `Copy of ${selectedTheme.name}`,
-        variables: selectedTheme.variables,
-        dark_variables: selectedTheme.dark_variables,
-        author: selectedTheme.author,
-        version: selectedTheme.version,
-      });
-      const updated = await reload();
-      if (updated) setSelected(theme.theme_id);
-    } catch (e) { setError(String(e)); }
+    const doDuplicate = async () => {
+      try {
+        const theme = await api.themes.create({
+          name: `Copy of ${selectedTheme.name}`,
+          variables: selectedTheme.variables,
+          dark_variables: selectedTheme.dark_variables,
+          author: selectedTheme.author,
+          version: selectedTheme.version,
+          renderer_pack: selectedTheme.renderer_pack,
+        });
+        const updated = await reload();
+        if (updated) setSelected(theme.theme_id);
+      } catch (e) { setError(String(e)); }
+    };
+    if (selectedTheme.renderer_pack) { requireConsent(doDuplicate); }
+    else { doDuplicate(); }
   };
 
   const handleDelete = async () => {
@@ -184,6 +227,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     };
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
       obj.dark_variables = selectedTheme.dark_variables;
+    }
+    if (selectedTheme.renderer_pack) {
+      obj.renderer_pack = selectedTheme.renderer_pack;
     }
     const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -218,15 +264,23 @@ export function Themes({ onSelectToken }: ThemesProps) {
         setError("Invalid theme file: must contain 'name' and 'variables'.");
         return;
       }
-      const theme = await api.themes.create({
-        name: parsed.name,
-        variables: parsed.variables,
-        dark_variables: parsed.dark_variables,
-        author: parsed.author ?? "",
-        version: parsed.version ?? "1.0",
-      });
-      const updated = await reload();
-      if (updated) setSelected(theme.theme_id);
+      const doImport = async () => {
+        const theme = await api.themes.create({
+          name: parsed.name,
+          variables: parsed.variables,
+          dark_variables: parsed.dark_variables,
+          author: parsed.author ?? "",
+          version: parsed.version ?? "1.0",
+          renderer_pack: parsed.renderer_pack ?? "",
+        });
+        const updated = await reload();
+        if (updated) setSelected(theme.theme_id);
+        if (parsed.renderer_pack && !packsData?.packs.some(p => p.pack_id === parsed.renderer_pack)) {
+          setError(`Theme imported. Referenced renderer pack "${parsed.renderer_pack}" is not installed - upload the pack JS via the Renderer Pack card.`);
+        }
+      };
+      if (parsed.renderer_pack) { requireConsent(doImport); }
+      else { await doImport(); }
     } catch (err) {
       setError(String(err));
     }
@@ -235,22 +289,33 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
   const handleSave = async () => {
     if (!selectedTheme || selectedTheme.is_bundled || !dirty || jsonError) return;
-    setSaving(true);
+    const doSave = async () => {
+      setSaving(true);
+      try {
+        const parsed = JSON.parse(editedJson);
+        await api.themes.update(selectedTheme.theme_id, {
+          name: parsed.name ?? selectedTheme.name,
+          author: parsed.author ?? selectedTheme.author,
+          version: parsed.version ?? selectedTheme.version,
+          variables: parsed.variables,
+          dark_variables: parsed.dark_variables ?? {},
+          renderer_pack: parsed.renderer_pack ?? "",
+        });
+        setDirty(false);
+        setParsedVars(null);
+        setParsedDarkVars(null);
+        await reload();
+      } catch (e) { setError(String(e)); }
+      setSaving(false);
+    };
     try {
       const parsed = JSON.parse(editedJson);
-      await api.themes.update(selectedTheme.theme_id, {
-        name: parsed.name ?? selectedTheme.name,
-        author: parsed.author ?? selectedTheme.author,
-        version: parsed.version ?? selectedTheme.version,
-        variables: parsed.variables,
-        dark_variables: parsed.dark_variables ?? {},
-      });
-      setDirty(false);
-      setParsedVars(null);
-      setParsedDarkVars(null);
-      await reload();
-    } catch (e) { setError(String(e)); }
-    setSaving(false);
+      if (parsed.renderer_pack && !selectedTheme.renderer_pack) {
+        requireConsent(doSave);
+      } else {
+        await doSave();
+      }
+    } catch { await doSave(); }
   };
 
   const handleCancel = () => {
@@ -264,6 +329,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     };
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
       obj.dark_variables = selectedTheme.dark_variables;
+    }
+    if (selectedTheme.renderer_pack) {
+      obj.renderer_pack = selectedTheme.renderer_pack;
     }
     setEditedJson(JSON.stringify(obj, null, 2));
     setDirty(false);
@@ -340,6 +408,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
               <span className="theme-strip-name">{t.name}</span>
               <div className="theme-strip-meta">
                 {t.is_bundled && <span className="badge badge-muted">System</span>}
+                {t.renderer_pack && <span className="badge badge-accent">Pack</span>}
                 <span className="muted" style={{ fontSize: 11 }}>{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
               </div>
             </button>
@@ -434,7 +503,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
           {/* Preview card */}
           <Card title="Preview">
-            <WidgetPreview variables={previewVars} darkVariables={previewDarkVars} />
+            <WidgetPreview variables={previewVars} darkVariables={previewDarkVars} packId={selectedTheme?.renderer_pack || undefined} />
           </Card>
 
           {/* Code card */}
@@ -465,6 +534,64 @@ export function Themes({ onSelectToken }: ThemesProps) {
               )}
             </div>
           </Card>
+
+          {/* Renderer Pack card */}
+          {selectedTheme.renderer_pack && selectedPack && (
+            <Card title="Renderer Pack">
+              <div className="col" style={{ gap: 10 }}>
+                <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                  <strong>{selectedPack.name}</strong>
+                  {selectedPack.is_bundled && <span className="badge badge-muted">Bundled</span>}
+                </div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  v{selectedPack.version} by {selectedPack.author}
+                </div>
+                {selectedPack.description && (
+                  <div className="muted" style={{ fontSize: 12 }}>{selectedPack.description}</div>
+                )}
+                {packCode !== null && (
+                  <div className="col" style={{ gap: 8, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>Pack Source</div>
+                    <textarea
+                      className="theme-code-textarea"
+                      value={packCode}
+                      onChange={e => { setPackCode(e.target.value); setPackCodeDirty(true); }}
+                      readOnly={selectedPack.is_bundled}
+                      spellCheck={false}
+                      style={{ minHeight: 200 }}
+                    />
+                    {!selectedPack.is_bundled && (
+                      <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+                        <button className="btn btn-sm" onClick={() => {
+                          api.packs.getCode(selectedPack.pack_id).then(r => { setPackCode(r.code); setPackCodeDirty(false); }).catch(() => {});
+                        }} disabled={!packCodeDirty}>Cancel</button>
+                        <button className="btn btn-sm btn-primary" disabled={!packCodeDirty || packCodeSaving} onClick={async () => {
+                          setPackCodeSaving(true);
+                          try {
+                            await api.packs.updateCode(selectedPack.pack_id, packCode);
+                            setPackCodeDirty(false);
+                          } catch (e) { setError(String(e)); }
+                          setPackCodeSaving(false);
+                        }}>
+                          {packCodeSaving ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
+          {selectedTheme.renderer_pack && !selectedPack && (
+            <Card title="Renderer Pack">
+              <div className="col" style={{ gap: 8 }}>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  This theme references renderer pack "{selectedTheme.renderer_pack}" which is not installed.
+                </div>
+              </div>
+            </Card>
+          )}
         </>
       )}
 
@@ -487,6 +614,40 @@ export function Themes({ onSelectToken }: ThemesProps) {
           onConfirm={handleDelete}
           onCancel={() => setConfirmDelete(false)}
         />
+      )}
+
+      {showAgree && (
+        <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
+          <div className="dialog" onClick={e => e.stopPropagation()}>
+            <h3 className="dialog-title">Renderer Pack Warning</h3>
+            <div className="dialog-body">
+              <p>
+                This theme includes a renderer pack that executes JavaScript from your HA instance
+                inside the widget on the embedding page. Only enable themes with packs you trust.
+              </p>
+              <p style={{ marginTop: 12 }}>
+                Type <strong>AGREE</strong> below to confirm.
+              </p>
+              <input
+                type="text"
+                className="input"
+                value={agreeText}
+                onChange={e => setAgreeText(e.target.value)}
+                placeholder="Type AGREE"
+                autoFocus
+                style={{ marginTop: 8 }}
+              />
+            </div>
+            <div className="dialog-actions">
+              <button className="btn btn-ghost" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" disabled={agreeText !== "AGREE"} onClick={confirmAgree}>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

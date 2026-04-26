@@ -612,20 +612,17 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
   const [highlighted, setHighlighted] = useState(0);
   const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [, forceUpdate] = useState(0);
-  const cacheChecked = useRef(false);
+  const [cacheLen, setCacheLen] = useState(() => getEntityCache().length);
 
   useEffect(() => {
-    if (!cacheChecked.current && getEntityCache().length === 0) {
-      cacheChecked.current = true;
-      loadEntityCache().then(() => forceUpdate(n => n + 1));
-    }
+    if (getEntityCache().length > 0) { setCacheLen(getEntityCache().length); return; }
+    loadEntityCache().then(() => setCacheLen(getEntityCache().length));
   }, []);
 
   const excluded = useMemo(() => new Set(excludeIds ?? []), [excludeIds]);
 
   const matches = useMemo<HAEntity[]>(() => {
-    if (!value.trim()) return [];
+    if (!value.trim() || cacheLen === 0) return [];
     const words = value.toLowerCase().split(/\s+/).filter(Boolean);
     return getEntityCache()
       .filter(e => {
@@ -635,7 +632,7 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
         return words.every(w => hay.includes(w));
       })
       .slice(0, 8);
-  }, [value, filterDomains, excluded]);
+  }, [value, filterDomains, excluded, cacheLen]);
 
   useEffect(() => { setHighlighted(0); }, [matches.length]);
 

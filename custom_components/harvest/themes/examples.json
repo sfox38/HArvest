@@ -3,6 +3,7 @@
   "author": "HArvest Contributors",
   "version": "1.0",
   "harvest_version": 1,
+  "renderer_pack": "examples",
   "variables": {
     "--hrv-color-primary":         "#6200ea",
     "--hrv-color-primary-dim":     "#ede7f6",

@@ -123,7 +123,7 @@ function anyState(callback) {
  * @param {string} state         - Entity state value
  * @param {object} attributes    - Entity attributes
  * @param {object} [themeVars]   - CSS custom properties to apply
- * @param {object} [options]     - Additional options (graph, hours, historyData)
+ * @param {object} [options]     - Additional options (graph, hours, historyData, packId)
  * @returns {HrvCard}
  */
 function preview(container, entityDef, state, attributes, themeVars, options) {
@@ -135,7 +135,7 @@ function preview(container, entityDef, state, attributes, themeVars, options) {
   container.appendChild(card);
 
   // setPreview must run after connectedCallback (which is synchronous).
-  card.setPreview(entityDef, state, attributes, themeVars);
+  card.setPreview(entityDef, state, attributes, themeVars, options?.packId ?? null);
 
   if (options?.graph && options?.historyData) {
     card.receiveHistoryData(options.historyData, options.hours ?? 24, options.graph);

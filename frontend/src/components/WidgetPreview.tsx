@@ -176,7 +176,7 @@ declare global {
         state: string,
         attributes: Record<string, unknown>,
         themeVars?: Record<string, string>,
-        options?: { graph?: string; hours?: number; historyData?: Array<{ t: string; s: string }> },
+        options?: { graph?: string; hours?: number; historyData?: Array<{ t: string; s: string }>; packId?: string },
       ) => HTMLElement;
     };
   }
@@ -197,6 +197,24 @@ function loadWidgetScript(): Promise<void> {
     document.head.appendChild(script);
   });
   return _widgetScriptLoading;
+}
+
+const _loadedPacks = new Set<string>();
+const _loadingPacks = new Map<string, Promise<void>>();
+
+function loadPackScript(packId: string): Promise<void> {
+  if (_loadedPacks.has(packId)) return Promise.resolve();
+  const existing = _loadingPacks.get(packId);
+  if (existing) return existing;
+  const p = new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `/api/harvest/packs/${encodeURIComponent(packId)}.js`;
+    script.onload = () => { _loadedPacks.add(packId); resolve(); };
+    script.onerror = () => reject(new Error(`Failed to load pack ${packId}`));
+    document.head.appendChild(script);
+  });
+  _loadingPacks.set(packId, p);
+  return p;
 }
 
 export function resolveVars(
@@ -321,12 +339,13 @@ function generateMockHistory(domain: string, graphType: GraphType, state: string
 // RealWidget - renders a single hrv-card preview
 // ---------------------------------------------------------------------------
 
-function RealWidget({ mock, vars, capability, features, graphType }: {
+function RealWidget({ mock, vars, capability, features, graphType, packId }: {
   mock: MockEntity;
   vars: Record<string, string>;
   capability: "read" | "read-write";
   features: Record<string, boolean>;
   graphType: GraphType;
+  packId?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement | null>(null);
@@ -334,13 +353,16 @@ function RealWidget({ mock, vars, capability, features, graphType }: {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    loadWidgetScript()
-      .then(() => setReady(true))
-      .catch(() => setLoadError(true));
-  }, []);
+    const load = async () => {
+      await loadWidgetScript();
+      if (packId) await loadPackScript(packId).catch(() => {});
+      setReady(true);
+    };
+    load().catch(() => setLoadError(true));
+  }, [packId]);
 
   const featKey = Object.entries(features).filter(([, v]) => v).map(([k]) => k).sort().join(",");
-  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}`;
+  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${packId ?? ""}`;
 
   useEffect(() => {
     if (!ready || !containerRef.current || !window.HArvest) return;
@@ -352,13 +374,16 @@ function RealWidget({ mock, vars, capability, features, graphType }: {
     const entityDef = buildEntityDef(mock, features, capability);
     const attrs = buildAttributes(mock);
 
-    const graphOpts = graphType !== "none" ? {
-      graph: graphType,
-      hours: 24,
-      historyData: generateMockHistory(mock.domain, graphType, mock.state),
-    } : undefined;
+    const graphOpts: Record<string, unknown> = {};
+    if (graphType !== "none") {
+      graphOpts.graph = graphType;
+      graphOpts.hours = 24;
+      graphOpts.historyData = generateMockHistory(mock.domain, graphType, mock.state);
+    }
+    if (packId) graphOpts.packId = packId;
+    const opts = Object.keys(graphOpts).length > 0 ? graphOpts : undefined;
 
-    const card = window.HArvest.preview(container, entityDef, mock.state, attrs, vars, graphOpts);
+    const card = window.HArvest.preview(container, entityDef, mock.state, attrs, vars, opts as any);
     cardRef.current = card;
 
     return () => {
@@ -402,9 +427,10 @@ function RealWidget({ mock, vars, capability, features, graphType }: {
 interface WidgetPreviewProps {
   variables: Record<string, string>;
   darkVariables?: Record<string, string>;
+  packId?: string;
 }
 
-export function WidgetPreview({ variables, darkVariables }: WidgetPreviewProps) {
+export function WidgetPreview({ variables, darkVariables, packId }: WidgetPreviewProps) {
   const [renderer, setRenderer] = useState("light");
   const [capability, setCapability] = useState<"read" | "read-write">("read-write");
   const [colorMode, setColorMode] = useState<"light" | "dark" | "auto">("auto");
@@ -544,7 +570,7 @@ export function WidgetPreview({ variables, darkVariables }: WidgetPreviewProps) 
       </div>
 
       <div className="theme-preview-stage">
-        <RealWidget mock={previewMock} vars={vars} capability={capability} features={features} graphType={graphType} />
+        <RealWidget mock={previewMock} vars={vars} capability={capability} features={features} graphType={graphType} packId={packId} />
       </div>
     </div>
   );

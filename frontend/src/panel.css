@@ -717,6 +717,9 @@
 .badge-info      { background: var(--info-weak); color: var(--info); }
 .badge-info .dot { background: var(--info); }
 
+.badge-muted   { background: var(--bg-2); color: var(--ink-4); }
+.badge-accent  { background: var(--accent-weak); color: var(--accent-strong); }
+
 /* ============================================================
    Stat cards
    ============================================================ */

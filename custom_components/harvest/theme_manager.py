@@ -26,7 +26,7 @@ THEMES_STORAGE_VERSION = 1
 _THEMES_DIR = Path(__file__).parent / "themes"
 _CUSTOM_THUMBNAILS_DIR = _THEMES_DIR / "custom"
 
-_BUNDLED_IDS = {"default", "glassmorphism", "accessible"}
+_BUNDLED_IDS = {"default", "glassmorphism", "accessible", "examples"}
 
 _MAX_THUMBNAIL_BYTES = 512 * 1024  # 500 KB
 _ALLOWED_THUMBNAIL_TYPES = {".png", ".jpg", ".jpeg"}
@@ -42,8 +42,9 @@ class ThemeDefinition:
     harvest_version: int
     variables: dict[str, str]
     dark_variables: dict[str, str]
-    created_by: str
     created_at: str
+    renderer_pack: str = ""
+    created_by: str = ""
     is_bundled: bool = False
 
 
@@ -58,7 +59,7 @@ class ThemeManager:
 
     async def load(self) -> None:
         """Load bundled themes from disk and custom themes from HA storage."""
-        for filename in ("default.json", "glassmorphism.json", "accessible.json"):
+        for filename in ("default.json", "glassmorphism.json", "accessible.json", "examples.json"):
             path = _THEMES_DIR / filename
             theme_id = filename.removesuffix(".json")
             try:
@@ -74,6 +75,7 @@ class ThemeManager:
                     harvest_version=raw.get("harvest_version", 1),
                     variables=raw.get("variables", {}),
                     dark_variables=raw.get("dark_variables", {}),
+                    renderer_pack=raw.get("renderer_pack", ""),
                     created_by="system",
                     created_at="",
                     is_bundled=True,
@@ -123,6 +125,7 @@ class ThemeManager:
         created_by: str,
         author: str = "",
         version: str = "1.0",
+        renderer_pack: str = "",
     ) -> ThemeDefinition:
         """Create and persist a new custom theme."""
         theme = ThemeDefinition(
@@ -133,6 +136,7 @@ class ThemeManager:
             harvest_version=1,
             variables=variables,
             dark_variables=dark_variables or {},
+            renderer_pack=renderer_pack,
             created_by=created_by,
             created_at=datetime.now(tz=timezone.utc).isoformat(),
             is_bundled=False,
@@ -149,7 +153,7 @@ class ThemeManager:
         if theme is None:
             raise KeyError(f"Theme not found: {theme_id}")
 
-        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables"}
+        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "renderer_pack"}
         for field, value in updates.items():
             if field in _UPDATABLE:
                 setattr(theme, field, value)
@@ -231,6 +235,7 @@ def _theme_to_dict(theme: ThemeDefinition) -> dict:
         "harvest_version": theme.harvest_version,
         "variables": theme.variables,
         "dark_variables": theme.dark_variables,
+        "renderer_pack": theme.renderer_pack,
         "created_by": theme.created_by,
         "created_at": theme.created_at,
     }
@@ -246,6 +251,7 @@ def _theme_from_dict(d: dict) -> ThemeDefinition:
         harvest_version=d.get("harvest_version", 1),
         variables=d.get("variables", {}),
         dark_variables=d.get("dark_variables", {}),
+        renderer_pack=d.get("renderer_pack", ""),
         created_by=d.get("created_by", ""),
         created_at=d.get("created_at", ""),
         is_bundled=False,

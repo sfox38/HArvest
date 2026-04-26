@@ -764,6 +764,7 @@ function Step5({ state, onChange }: { state: WizardState; onChange: (u: Partial<
         <WidgetPreview
           variables={selectedTheme.variables}
           darkVariables={selectedTheme.dark_variables}
+          packId={selectedTheme.renderer_pack || undefined}
         />
       )}
 

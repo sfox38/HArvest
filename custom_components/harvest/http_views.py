@@ -24,7 +24,7 @@ from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager, ServiceCall
 from .session_manager import SessionManager
-from .pack_manager import PackManager
+from .pack_manager import PackManager, pack_to_api_dict
 from .theme_manager import ThemeManager, theme_to_api_dict, theme_url_to_id
 from .const import ERR_TOKEN_INACTIVE
 from .token_manager import (
@@ -75,13 +75,15 @@ def register_views(
     if theme_manager is not None:
         hass.http.register_view(HarvestThemesView(theme_manager, token_manager))
         hass.http.register_view(HarvestThemeReloadView(theme_manager))
-        hass.http.register_view(HarvestThemeDetailView(theme_manager, token_manager))
+        hass.http.register_view(HarvestThemeDetailView(theme_manager, token_manager, pack_manager))
         hass.http.register_view(HarvestThemeThumbnailView(hass, theme_manager))
         _LOGGER.debug("HArvest: registered theme views")
     if pack_manager is not None:
         hass.http.register_view(HarvestPacksView(pack_manager))
         hass.http.register_view(HarvestPackAgreeView(pack_manager))
         hass.http.register_view(HarvestPackFileView(hass, pack_manager))
+        hass.http.register_view(HarvestPackDetailView(pack_manager))
+        hass.http.register_view(HarvestPackCodeView(hass, pack_manager))
         _LOGGER.warning("HArvest: registered pack views")
     hass.http.register_view(HarvestConfigView(hass, session_manager))
     hass.http.register_view(HarvestStatsView(sensors, activity_store, session_manager, token_manager))
@@ -507,13 +509,12 @@ class HarvestTokenDetailView(HomeAssistantView):
                 raise web.HTTPBadRequest(reason="embed_mode must be single, group, or page.")
             updates["embed_mode"] = body["embed_mode"]
         if "theme_url" in body:
-            updates["theme_url"] = str(body["theme_url"] or "")
-        if "renderer_pack" in body:
-            pack_val = str(body["renderer_pack"] or "")
-            if pack_val and self._pack_manager:
-                if not self._pack_manager.get(pack_val):
-                    raise web.HTTPBadRequest(reason=f"Unknown renderer pack: {pack_val}")
-            updates["renderer_pack"] = pack_val
+            new_theme_url = str(body["theme_url"] or "")
+            updates["theme_url"] = new_theme_url
+            if self._theme_manager:
+                theme_id = theme_url_to_id(new_theme_url)
+                theme_def = self._theme_manager.get(theme_id)
+                updates["renderer_pack"] = theme_def.renderer_pack if theme_def else ""
 
         generated_secret: str | None = None
         if "token_secret" in body:
@@ -543,8 +544,6 @@ class HarvestTokenDetailView(HomeAssistantView):
 
         if "theme_url" in updates:
             await self._push_theme_to_sessions(token_id)
-
-        if "renderer_pack" in updates:
             await self._push_renderer_pack_to_sessions(token_id)
 
         result = _token_to_dict(token)
@@ -970,6 +969,7 @@ class HarvestThemesView(HomeAssistantView):
             created_by=user.id,
             author=str(body.get("author", "")),
             version=str(body.get("version", "1.0")),
+            renderer_pack=str(body.get("renderer_pack", "")),
         )
         return self.json(theme_to_api_dict(theme), status_code=201)
 
@@ -1002,9 +1002,10 @@ class HarvestThemeDetailView(HomeAssistantView):
     name = "api:harvest:theme_detail"
     requires_auth = True
 
-    def __init__(self, theme_manager: ThemeManager, token_manager: TokenManager) -> None:
+    def __init__(self, theme_manager: ThemeManager, token_manager: TokenManager, pack_manager: PackManager | None = None) -> None:
         self._theme_manager = theme_manager
         self._token_manager = token_manager
+        self._pack_manager = pack_manager
 
     async def get(self, request: web.Request, theme_id: str) -> web.Response:
         user = request.get("hass_user")
@@ -1049,6 +1050,12 @@ class HarvestThemeDetailView(HomeAssistantView):
             if not isinstance(body["dark_variables"], dict):
                 raise web.HTTPBadRequest(reason="dark_variables must be an object.")
             updates["dark_variables"] = body["dark_variables"]
+        if "renderer_pack" in body:
+            pack_val = str(body["renderer_pack"] or "")
+            if pack_val and self._pack_manager:
+                if not self._pack_manager.get(pack_val):
+                    raise web.HTTPBadRequest(reason=f"Unknown renderer pack: {pack_val}")
+            updates["renderer_pack"] = pack_val
 
         try:
             theme = await self._theme_manager.update(theme_id, updates)
@@ -1069,6 +1076,13 @@ class HarvestThemeDetailView(HomeAssistantView):
             raise web.HTTPForbidden(reason=str(exc))
         except KeyError:
             raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
+
+        for token in self._token_manager.get_all():
+            if theme_url_to_id(token.theme_url) == theme_id:
+                await self._token_manager.update(
+                    token.token_id, {"theme_url": "", "renderer_pack": ""},
+                )
+
         return web.Response(status=204)
 
 
@@ -1133,7 +1147,9 @@ class HarvestThemeThumbnailView(HomeAssistantView):
 
 
 class HarvestPacksView(HomeAssistantView):
-    """GET /api/harvest/packs - list available renderer packs + consent state."""
+    """GET /api/harvest/packs - list packs + consent state.
+    POST /api/harvest/packs - create a custom pack.
+    """
 
     url = "/api/harvest/packs"
     name = "api:harvest:packs"
@@ -1149,18 +1165,28 @@ class HarvestPacksView(HomeAssistantView):
         packs = self._pack_manager.get_all()
         return self.json({
             "agreed": self._pack_manager.agreed,
-            "packs": [
-                {
-                    "pack_id": p.pack_id,
-                    "name": p.name,
-                    "description": p.description,
-                    "version": p.version,
-                    "author": p.author,
-                    "is_bundled": p.is_bundled,
-                }
-                for p in packs
-            ],
+            "packs": [pack_to_api_dict(p) for p in packs],
         })
+
+    async def post(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        try:
+            body = await request.json()
+        except Exception:
+            raise web.HTTPBadRequest(reason="Invalid JSON body.")
+        name = body.get("name", "").strip()
+        if not name:
+            raise web.HTTPBadRequest(reason="Pack name is required.")
+        pack = await self._pack_manager.create(
+            name=name,
+            description=str(body.get("description", "")),
+            version=str(body.get("version", "1.0")),
+            author=str(body.get("author", "")),
+            js_code=str(body.get("code", "")),
+        )
+        return self.json(pack_to_api_dict(pack), status_code=201)
 
 
 class HarvestPackAgreeView(HomeAssistantView):
@@ -1210,6 +1236,93 @@ class HarvestPackFileView(HomeAssistantView):
             content_type="application/javascript",
             headers={"Cache-Control": "public, max-age=3600"},
         )
+
+
+class HarvestPackDetailView(HomeAssistantView):
+    """PATCH/DELETE /api/harvest/packs/{pack_id} - update or delete a custom pack."""
+
+    url = "/api/harvest/packs/{pack_id}"
+    name = "api:harvest:pack_detail"
+    requires_auth = True
+
+    def __init__(self, pack_manager: PackManager) -> None:
+        self._pack_manager = pack_manager
+
+    async def patch(self, request: web.Request, pack_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        try:
+            body = await request.json()
+        except Exception:
+            raise web.HTTPBadRequest(reason="Invalid JSON body.")
+        updates = {}
+        for key in ("name", "description", "version", "author"):
+            if key in body:
+                updates[key] = str(body[key])
+        if "name" in updates and not updates["name"].strip():
+            raise web.HTTPBadRequest(reason="Pack name cannot be empty.")
+        try:
+            pack = await self._pack_manager.update(pack_id, updates)
+        except ValueError as exc:
+            raise web.HTTPForbidden(reason=str(exc))
+        except KeyError as exc:
+            raise web.HTTPNotFound(reason=str(exc))
+        return self.json(pack_to_api_dict(pack))
+
+    async def delete(self, request: web.Request, pack_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        try:
+            await self._pack_manager.delete(pack_id)
+        except ValueError as exc:
+            raise web.HTTPForbidden(reason=str(exc))
+        except KeyError as exc:
+            raise web.HTTPNotFound(reason=str(exc))
+        return web.Response(status=204)
+
+
+class HarvestPackCodeView(HomeAssistantView):
+    """GET/POST /api/harvest/packs/{pack_id}/code - view or update pack JS source."""
+
+    url = "/api/harvest/packs/{pack_id}/code"
+    name = "api:harvest:pack_code"
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant, pack_manager: PackManager) -> None:
+        self._hass = hass
+        self._pack_manager = pack_manager
+
+    async def get(self, request: web.Request, pack_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        if not self._pack_manager.get(pack_id):
+            raise web.HTTPNotFound()
+        code = await self._hass.async_add_executor_job(
+            self._pack_manager.get_code, pack_id,
+        )
+        return self.json({"pack_id": pack_id, "code": code or ""})
+
+    async def post(self, request: web.Request, pack_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        try:
+            body = await request.json()
+        except Exception:
+            raise web.HTTPBadRequest(reason="Invalid JSON body.")
+        code = body.get("code")
+        if code is None or not isinstance(code, str):
+            raise web.HTTPBadRequest(reason="'code' field (string) is required.")
+        try:
+            await self._pack_manager.update_code(pack_id, code)
+        except ValueError as exc:
+            raise web.HTTPForbidden(reason=str(exc))
+        except KeyError as exc:
+            raise web.HTTPNotFound(reason=str(exc))
+        return self.json({"pack_id": pack_id, "status": "ok"})
 
 
 # ---------------------------------------------------------------------------

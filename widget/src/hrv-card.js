@@ -359,14 +359,23 @@ export class HrvCard extends HTMLElement {
    * @param {object}   attributes - Entity attributes ({brightness: 180, ...})
    * @param {object}   [themeVars] - CSS custom properties to apply
    */
-  setPreview(entityDef, state, attributes, themeVars) {
+  setPreview(entityDef, state, attributes, themeVars, packId) {
     if (!this.shadowRoot) return;
 
     // Force read-write unless entityDef says otherwise.
     if (!entityDef.capabilities) entityDef.capabilities = "read-write";
 
-    // Instantiate the renderer exactly as receiveDefinition does.
-    const RendererClass = lookupRenderer(entityDef.domain, entityDef.device_class ?? null);
+    // Check pack renderer first, then fall back to global registry.
+    let RendererClass = null;
+    if (packId) {
+      const pack = window.HArvest?._packs?.[packId];
+      if (pack) {
+        const dc = entityDef.device_class ?? null;
+        const specificKey = dc ? `${entityDef.domain}.${dc}` : null;
+        RendererClass = (specificKey && pack[specificKey]) || pack[entityDef.domain] || null;
+      }
+    }
+    if (!RendererClass) RendererClass = lookupRenderer(entityDef.domain, entityDef.device_class ?? null);
     this.#renderer = new RendererClass(entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
 

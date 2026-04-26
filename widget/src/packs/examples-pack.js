@@ -2501,20 +2501,60 @@
       gap: 6px;
       padding: 0 0 16px;
     }
+    .hrv-num-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      color: var(--hrv-color-on-primary, #fff);
+      cursor: pointer;
+      padding: 0;
+      font-size: 22px;
+      font-weight: 300;
+      line-height: 1;
+      transition: opacity 150ms ease, box-shadow 150ms ease;
+    }
+    .hrv-num-btn:hover { opacity: 0.85; }
+    .hrv-num-btn:focus-visible { box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff); }
+    .hrv-num-btn:active { box-shadow: 0 0 0 3px var(--hrv-ex-ring, #fff); }
+    .hrv-num-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .hrv-num-btn:disabled:hover { opacity: 0.35; }
+    @media (prefers-reduced-motion: reduce) {
+      .hrv-num-btn { transition: none; }
+    }
+
     .hrv-num-input {
       width: 72px;
       padding: 6px 8px;
-      border: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
+      border: 1.5px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.18));
       border-radius: var(--hrv-radius-s, 8px);
-      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.08));
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.10));
       color: var(--hrv-color-text, #fff);
-      font-size: 15px;
+      font-size: 18px;
+      font-weight: 500;
       font-family: inherit;
       text-align: center;
       outline: none;
-      transition: border-color 0.15s;
+      -webkit-appearance: textfield;
+      -moz-appearance: textfield;
+      appearance: textfield;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .hrv-num-input:focus { border-color: var(--hrv-color-primary, #1976d2); }
+    .hrv-num-input::-webkit-outer-spin-button,
+    .hrv-num-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .hrv-num-input:focus {
+      border-color: var(--hrv-color-primary, #1976d2);
+      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.35);
+    }
     .hrv-num-unit {
       font-size: 13px;
       color: var(--hrv-color-text-secondary, rgba(255,255,255,0.6));
@@ -2556,6 +2596,8 @@
     /** @type {HTMLElement|null}      */ #sliderThumb  = null;
     /** @type {HTMLInputElement|null} */ #numInput     = null;
     /** @type {HTMLElement|null}      */ #readonlyVal  = null;
+    /** @type {HTMLButtonElement|null} */ #decBtn      = null;
+    /** @type {HTMLButtonElement|null} */ #incBtn      = null;
     /** @type {boolean}              */ #dragging     = false;
     /** @type {number}               */ #value        = 0;
     /** @type {number}               */ #min          = 0;
@@ -2590,9 +2632,13 @@
                 </div>
               </div>
               <div class="hrv-num-input-row">
+                <button class="hrv-num-btn" type="button" part="dec-btn"
+                  aria-label="Decrease ${_esc(this.def.friendly_name)}">-</button>
                 <input class="hrv-num-input" type="number"
                   min="${this.#min}" max="${this.#max}" step="${this.#step}"
                   title="Enter value" aria-label="${_esc(this.def.friendly_name)} value">
+                <button class="hrv-num-btn" type="button" part="inc-btn"
+                  aria-label="Increase ${_esc(this.def.friendly_name)}">+</button>
                 ${unit ? `<span class="hrv-num-unit">${_esc(unit)}</span>` : ""}
               </div>
             ` : /* html */`
@@ -2614,6 +2660,8 @@
       this.#sliderThumb = this.root.querySelector(".hrv-num-slider-thumb");
       this.#numInput    = this.root.querySelector(".hrv-num-input");
       this.#readonlyVal = this.root.querySelector(".hrv-num-readonly-val");
+      this.#decBtn      = this.root.querySelector("[part=dec-btn]");
+      this.#incBtn      = this.root.querySelector("[part=inc-btn]");
 
       if (this.#sliderTrack && this.#sliderThumb) {
         const onDown = (e) => {
@@ -2653,6 +2701,27 @@
           if (isNaN(v)) return;
           this.#value = Math.max(this.#min, Math.min(this.#max, v));
           this.#syncSlider();
+          this.#updateBtnStates();
+          this.#sendDebounce();
+        });
+      }
+
+      if (this.#decBtn) {
+        this.#decBtn.addEventListener("click", () => {
+          this.#value = +Math.max(this.#min, this.#value - this.#step).toFixed(10);
+          this.#syncSlider();
+          if (this.#numInput) this.#numInput.value = String(this.#value);
+          this.#updateBtnStates();
+          this.#sendDebounce();
+        });
+      }
+
+      if (this.#incBtn) {
+        this.#incBtn.addEventListener("click", () => {
+          this.#value = +Math.min(this.#max, this.#value + this.#step).toFixed(10);
+          this.#syncSlider();
+          if (this.#numInput) this.#numInput.value = String(this.#value);
+          this.#updateBtnStates();
           this.#sendDebounce();
         });
       }
@@ -2684,10 +2753,16 @@
       this.#value = this.#pctToVal(pct);
       this.#syncSlider();
       if (this.#numInput) this.#numInput.value = String(this.#value);
+      this.#updateBtnStates();
     }
 
     #doSend() {
       this.config.card?.sendCommand("set_value", { value: this.#value });
+    }
+
+    #updateBtnStates() {
+      if (this.#decBtn) this.#decBtn.disabled = this.#value <= this.#min;
+      if (this.#incBtn) this.#incBtn.disabled = this.#value >= this.#max;
     }
 
     applyState(state, _attributes) {
@@ -2701,6 +2776,8 @@
           this.#numInput.value = String(v);
         }
       }
+
+      this.#updateBtnStates();
 
       if (this.#readonlyVal) {
         this.#readonlyVal.textContent = String(v);
@@ -3986,6 +4063,7 @@
     "harvest_action": HarvestActionCard,
     "binary_sensor":  BinarySensorCard,
     "cover":          CoverCard,
+    "input_boolean":  SwitchCard,
     "input_number":   InputNumberCard,
     "input_select":   InputSelectCard,
     "media_player":   MediaPlayerCard,
