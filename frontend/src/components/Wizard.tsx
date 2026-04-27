@@ -213,7 +213,7 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
   };
 
   return (
-    <div className="col" style={{ gap: 6, paddingLeft: 12, borderLeft: "2px solid var(--border)", marginTop: 2 }}>
+    <div className="col" style={{ gap: 6, paddingLeft: 12, borderLeft: "2px solid var(--divider)", marginTop: 2 }}>
       <div className="muted" style={{ fontSize: 11 }}>
         Companions ({companions.length}/{MAX_COMPANIONS}) - secondary entities shown alongside this card.
         Allowed domains: light, switch, lock, cover, binary sensor, input boolean, remote.
@@ -361,7 +361,7 @@ function Step1({ state, onChange, existingLabels }: { state: WizardState; onChan
             const isExpanded = state.mode === "single" || expandedCompanions.has(e.entity_id);
             const companionCount = e.companions.length;
             return (
-              <div key={e.entity_id} className="col" style={{ gap: 6, border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px" }}>
+              <div key={e.entity_id} className="col" style={{ gap: 6, border: "1px solid var(--divider)", borderRadius: 8, padding: "8px 10px" }}>
                 <div className="row" style={{ alignItems: "center", gap: 8 }}>
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{e.entity_id}</span>
                   {e.alias && <span className="muted" style={{ fontSize: 11 }}>alias: {e.alias}</span>}
@@ -1098,7 +1098,7 @@ export function Wizard({ onClose }: WizardProps) {
         {/* Header */}
         <div className="wizard-head">
           <div className="wizard-head-brand">
-            <Icon name="leaf" size={18} />
+            <img src="/harvest_assets/icon.png" alt="HArvest" style={{ width: 22, height: 22 }} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="wizard-head-title">

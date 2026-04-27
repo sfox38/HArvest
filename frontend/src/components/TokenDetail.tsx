@@ -169,7 +169,7 @@ function fmtDateLong(iso: string): string {
 // Code section
 // ---------------------------------------------------------------------------
 
-function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void; hmacSecret: string | null }) {
+function CodeSection({ token, setToken, setError, hmacSecret, bare }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void; hmacSecret: string | null; bare?: boolean }) {
   const [useAliases,      setUseAliases]      = useState(() => { try { return localStorage.getItem("hrv_use_aliases") === "true"; } catch { return false; } });
   const [tab,             setTab]             = useState<"web" | "wordpress">(() => { try { return localStorage.getItem("hrv_code_tab") === "wordpress" ? "wordpress" : "web"; } catch { return "web"; } });
   const primaryCount = token.entities.filter(e => !e.companion_of).length;
@@ -209,16 +209,15 @@ function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; 
   const setupCopy = useCopy(setupSnippet);
   const cardCopy = useCopy(cardSnippet);
 
-  return (
-    <Card
-      title="Embed code"
-      action={
-        <div className="segmented" role="group" aria-label="Code format">
-          <button aria-pressed={tab === "web"} onClick={() => { setTab("web"); localStorage.setItem("hrv_code_tab", "web"); }}>HTML</button>
-          <button aria-pressed={tab === "wordpress"} onClick={() => { setTab("wordpress"); localStorage.setItem("hrv_code_tab", "wordpress"); }}>WordPress</button>
-        </div>
-      }
-    >
+  const formatToggle = (
+    <div className="segmented" role="group" aria-label="Code format">
+      <button aria-pressed={tab === "web"} onClick={() => { setTab("web"); localStorage.setItem("hrv_code_tab", "web"); }}>HTML</button>
+      <button aria-pressed={tab === "wordpress"} onClick={() => { setTab("wordpress"); localStorage.setItem("hrv_code_tab", "wordpress"); }}>WordPress</button>
+    </div>
+  );
+
+  const codeBody = (
+    <>
       {/* Mode selector */}
       <div className="segmented" role="group" aria-label="Embed mode" style={{ marginBottom: 12 }}>
         <button
@@ -286,6 +285,23 @@ function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; 
           (?)
         </span>
       </label>
+    </>
+  );
+
+  if (bare) {
+    return (
+      <div className="card-body">
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+          {formatToggle}
+        </div>
+        {codeBody}
+      </div>
+    );
+  }
+
+  return (
+    <Card title="Embed code" action={formatToggle}>
+      {codeBody}
     </Card>
   );
 }
@@ -308,7 +324,7 @@ function themeUrlToId(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
-function ThemeEditor({ token, setToken, setError }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void }) {
+function ThemeEditor({ token, setToken, setError, bare }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void; bare?: boolean }) {
   const [themes, setThemes] = useState<ThemeDefinition[]>([]);
   const [packsAgreed, setPacksAgreed] = useState<boolean | null>(null);
   const [showAgree, setShowAgree] = useState(false);
@@ -352,11 +368,9 @@ function ThemeEditor({ token, setToken, setError }: { token: Token; setToken: (t
     } catch (e) { setError(String(e)); }
   };
 
-  return (
-    <>
-      <Card title="Theme">
-        <div className="col" style={{ gap: 12 }}>
-          <div className="theme-strip">
+  const themeContent = (
+    <div className="col" style={{ gap: 12 }}>
+      <div className="theme-strip">
             {themes.map(t => (
               <button
                 key={t.theme_id}
@@ -385,41 +399,54 @@ function ThemeEditor({ token, setToken, setError }: { token: Token; setToken: (t
             />
           )}
         </div>
-      </Card>
+  );
 
-      {showAgree && (
-        <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
-          <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 className="dialog-title">Renderer Pack Warning</h3>
-            <div className="dialog-body">
-              <p>
-                This theme includes a renderer pack that executes JavaScript from your HA instance
-                inside the widget on the embedding page. Only enable themes with packs you trust.
-              </p>
-              <p style={{ marginTop: 12 }}>
-                Type <strong>AGREE</strong> below to confirm.
-              </p>
-              <input
-                type="text"
-                className="input"
-                value={agreeText}
-                onChange={e => setAgreeText(e.target.value)}
-                placeholder="Type AGREE"
-                autoFocus
-                style={{ marginTop: 8 }}
-              />
-            </div>
-            <div className="dialog-actions">
-              <button className="btn btn-ghost" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" disabled={agreeText !== "AGREE"} onClick={confirmAgree}>
-                Confirm
-              </button>
-            </div>
-          </div>
+  const agreeDialog = showAgree && (
+    <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
+      <div className="dialog" onClick={e => e.stopPropagation()}>
+        <h3 className="dialog-title">Renderer Pack Warning</h3>
+        <div className="dialog-body">
+          <p>
+            This theme includes a renderer pack that executes JavaScript from your HA instance
+            inside the widget on the embedding page. Only enable themes with packs you trust.
+          </p>
+          <p style={{ marginTop: 12 }}>
+            Type <strong>AGREE</strong> below to confirm.
+          </p>
+          <input
+            type="text"
+            className="input"
+            value={agreeText}
+            onChange={e => setAgreeText(e.target.value)}
+            placeholder="Type AGREE"
+            autoFocus
+            style={{ marginTop: 8 }}
+          />
         </div>
-      )}
+        <div className="dialog-actions">
+          <button className="btn btn-ghost" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" disabled={agreeText !== "AGREE"} onClick={confirmAgree}>
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (bare) {
+    return (
+      <>
+        <div className="card-body">{themeContent}</div>
+        {agreeDialog}
+      </>
+    );
+  }
+  return (
+    <>
+      <Card title="Theme">{themeContent}</Card>
+      {agreeDialog}
     </>
   );
 }
@@ -472,7 +499,7 @@ interface DisplaySettingsProps {
   setError: (e: string) => void;
 }
 
-function DisplaySettings({ token, readonly, saving, setSaving, setToken, setError }: DisplaySettingsProps) {
+function DisplaySettings({ token, readonly, saving, setSaving, setToken, setError, bare }: DisplaySettingsProps & { bare?: boolean }) {
   const canEdit = !readonly && !saving;
   const [offlineText, setOfflineText] = useState(token.offline_text);
   const [errorText, setErrorText] = useState(token.error_text);
@@ -512,9 +539,7 @@ function DisplaySettings({ token, readonly, saving, setSaving, setToken, setErro
     patchToken({ custom_messages: checked } as Partial<Token>);
   };
 
-  return (
-    <Card title="Display">
-      <div className="col" style={{ gap: 14 }}>
+  const displayBody = <div className="col" style={{ gap: 14 }}>
 
         {/* Theme mode */}
         <div className="display-settings-row">
@@ -656,9 +681,10 @@ function DisplaySettings({ token, readonly, saving, setSaving, setToken, setErro
             </label>
           </div>
         )}
-      </div>
-    </Card>
-  );
+      </div>;
+
+  if (bare) return <div className="card-body">{displayBody}</div>;
+  return <Card title="Display">{displayBody}</Card>;
 }
 
 // ---------------------------------------------------------------------------
@@ -679,7 +705,7 @@ const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "
 const HISTORY_DOMAINS = new Set(["sensor", "input_number", "binary_sensor"]);
 const HOURS_OPTIONS = [1, 6, 12, 24, 48, 72, 168];
 
-function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError }: EntitiesEditorProps) {
+function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError, bare }: EntitiesEditorProps & { bare?: boolean }) {
   const [addInput, setAddInput]         = useState("");
   const [companionInputs, setCompanionInputs] = useState<Record<string, string>>({});
   const [adding,   setAdding]           = useState(false);
@@ -850,16 +876,20 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
 
   const primaryCount = grouped.length;
 
-  return (
-    <Card
-      title={`Entities (${primaryCount} primary, ${token.entities.length - primaryCount} companion)`}
-      pad={false}
-      action={!readonly ? (
-        <span className="muted" style={{ fontSize: 11 }}>
-          {adding ? "Adding..." : ""}
-        </span>
-      ) : undefined}
-    >
+  const entitiesBody = (
+    <>
+      {!readonly && (
+        <div style={{ padding: "8px 12px" }}>
+          <EntityAutocomplete
+            value={addInput}
+            onChange={setAddInput}
+            onSelect={addEntity}
+            disabled={adding || saving}
+            excludeIds={existingIds}
+            placeholder="Add primary entity..."
+          />
+        </div>
+      )}
       {grouped.map(g => {
         const e = g.primary;
         const domain = e.entity_id.split(".")[0];
@@ -899,7 +929,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 disabled={!canEdit}
                 className="entity-cap-pill"
                 style={{
-                  background: isRW ? "var(--info-weak)" : "var(--ok-weak)",
+                  background: isRW ? "var(--info-weak)" : "var(--accent-weak)",
                   color: isRW ? "var(--info)" : "var(--ok)",
                 }}
               >
@@ -1124,19 +1154,6 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
         );
       })}
 
-      {!readonly && (
-        <div style={{ padding: "8px 12px" }}>
-          <EntityAutocomplete
-            value={addInput}
-            onChange={setAddInput}
-            onSelect={addEntity}
-            disabled={adding || saving}
-            excludeIds={existingIds}
-            placeholder="Add primary entity..."
-          />
-        </div>
-      )}
-
       {confirmRemove && (
         <ConfirmDialog
           title="Remove entity"
@@ -1147,6 +1164,14 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
           onCancel={() => setConfirmRemove(null)}
         />
       )}
+    </>
+  );
+
+  if (bare) return entitiesBody;
+
+  return (
+    <Card title="Entities" pad={false}>
+      {entitiesBody}
     </Card>
   );
 }
@@ -1404,7 +1429,7 @@ interface SecurityEditorProps {
   setGeneratedSecret: (s: string | null) => void;
 }
 
-function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError, generatedSecret, setGeneratedSecret }: SecurityEditorProps) {
+function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError, generatedSecret, setGeneratedSecret, bare }: SecurityEditorProps & { bare?: boolean }) {
   const canEdit = !readonly && !saving;
   const prevName = token.created_by_name;
   const patchToken = async (data: Partial<Token> | TokenUpdate) => {
@@ -1614,9 +1639,9 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
     setGeneratedSecret(null);
   };
 
-  return (
-    <Card title="Security">
-      <div className="col" style={{ gap: 16 }}>
+  const securityBody = (
+    <>
+    <div className="col" style={{ gap: 16 }}>
 
         {/* Allow from any website */}
         <div>
@@ -1882,7 +1907,7 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
             className="input"
             style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 12, resize: "vertical" }}
           />
-          {ipError && <div style={{ color: "var(--color-danger)", fontSize: 11.5, marginTop: 4 }}>{ipError}</div>}
+          {ipError && <div style={{ color: "var(--danger)", fontSize: 11.5, marginTop: 4 }}>{ipError}</div>}
         </div>
 
         <div style={{ height: 1, background: "var(--divider)" }} />
@@ -1930,7 +1955,75 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
           onCancel={() => setPendingReplace(null)}
         />
       )}
-    </Card>
+    </>
+  );
+
+  if (bare) return <div className="card-body">{securityBody}</div>;
+  return <Card title="Security">{securityBody}</Card>;
+}
+
+// ---------------------------------------------------------------------------
+// Config tab card
+// ---------------------------------------------------------------------------
+
+type ConfigTab = "embed" | "entities" | "style" | "preferences" | "security";
+
+interface ConfigTabCardProps {
+  token: Token & { created_by_name?: string | null };
+  readonly: boolean;
+  saving: boolean;
+  setSaving: (v: boolean) => void;
+  setToken: (t: Token & { created_by_name?: string | null }) => void;
+  setError: (e: string | null) => void;
+  hmacSecret: string | null;
+  setHmacSecret: (s: string | null) => void;
+}
+
+function ConfigTabCard({ token, readonly, saving, setSaving, setToken, setError, hmacSecret, setHmacSecret }: ConfigTabCardProps) {
+  const primaryCount = token.entities.filter(e => !e.companion_of).length;
+  const [activeTab, setActiveTab] = useState<ConfigTab>(() => primaryCount === 0 ? "entities" : "embed");
+
+  const visibleTabs: { id: ConfigTab; label: string }[] = readonly
+    ? [
+        { id: "entities", label: "Entities" },
+        { id: "security", label: "Security" },
+      ]
+    : [
+        { id: "embed",       label: "Embed" },
+        { id: "entities",    label: "Entities" },
+        { id: "style",       label: "Style" },
+        { id: "preferences", label: "Preferences" },
+        { id: "security",    label: "Security" },
+      ];
+
+  const effectiveTab = visibleTabs.some(t => t.id === activeTab) ? activeTab : "entities";
+  const wrap = (t: Token) => setToken({ ...t, created_by_name: token.created_by_name });
+
+  return (
+    <div className="card">
+      <div className="config-tabs-nav">
+        {visibleTabs.map(t => (
+          <button key={t.id} aria-selected={effectiveTab === t.id} onClick={() => setActiveTab(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {effectiveTab === "embed" && !readonly && (
+        <CodeSection bare token={token} setToken={wrap} setError={setError} hmacSecret={hmacSecret} />
+      )}
+      {effectiveTab === "entities" && (
+        <EntitiesEditor bare token={token} readonly={readonly} saving={saving} setSaving={setSaving} setToken={wrap} setError={setError} />
+      )}
+      {effectiveTab === "style" && !readonly && (
+        <ThemeEditor bare token={token} setToken={wrap} setError={setError} />
+      )}
+      {effectiveTab === "preferences" && !readonly && (
+        <DisplaySettings bare token={token} readonly={readonly} saving={saving} setSaving={setSaving} setToken={wrap} setError={setError} />
+      )}
+      {effectiveTab === "security" && (
+        <SecurityEditor bare token={token} readonly={readonly} saving={saving} setSaving={setSaving} setToken={wrap} setError={setError} generatedSecret={hmacSecret} setGeneratedSecret={setHmacSecret} />
+      )}
+    </div>
   );
 }
 
@@ -2038,17 +2131,13 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
     <div className="content-narrow col" style={{ gap: 18 }}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      {/* Back + header */}
-      <div className="row">
-        <button className="btn btn-ghost btn-sm" onClick={onBack}>
-          <Icon name="chevLeft" size={14} /> Back
-        </button>
-      </div>
-
       <div className="card card-pad">
         <div className="row detail-header-row" style={{ alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+              <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ padding: "2px 6px" }}>
+                <Icon name="chevLeft" size={14} />
+              </button>
               <StatusBadge status={token.paused ? "inactive" : token.status} label={token.paused ? "Paused" : undefined} />
               <input
                 value={editLabel}
@@ -2097,48 +2186,18 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
         </div>
       </div>
 
-      {/* detail-grid: left (code + entities + origins + expiry), right (sessions + activity) */}
+      {/* detail-grid: left (tabbed config card), right (usage + sessions + activity) */}
       <div className="detail-grid">
         <div className="col" style={{ gap: 18 }}>
-
-          {/* Code section */}
-          {!readonly && <CodeSection token={token} setToken={t => setToken({ ...t, created_by_name: token.created_by_name })} setError={setError} hmacSecret={hmacSecret} />}
-
-          {/* Theme */}
-          {!readonly && <ThemeEditor token={token} setToken={t => setToken({ ...t, created_by_name: token.created_by_name })} setError={setError} />}
-
-          {/* Entities */}
-          <EntitiesEditor
+          <ConfigTabCard
             token={token}
             readonly={readonly}
             saving={saving}
             setSaving={setSaving}
             setToken={t => setToken({ ...t, created_by_name: token.created_by_name })}
             setError={setError}
-          />
-
-          {/* Display settings */}
-          {!readonly && (
-            <DisplaySettings
-              token={token}
-              readonly={readonly}
-              saving={saving}
-              setSaving={setSaving}
-              setToken={t => setToken({ ...t, created_by_name: token.created_by_name })}
-              setError={setError}
-            />
-          )}
-
-          {/* Security */}
-          <SecurityEditor
-            token={token}
-            readonly={readonly}
-            saving={saving}
-            setSaving={setSaving}
-            setToken={t => setToken({ ...t, created_by_name: token.created_by_name })}
-            setError={setError}
-            generatedSecret={hmacSecret}
-            setGeneratedSecret={setHmacSecret}
+            hmacSecret={hmacSecret}
+            setHmacSecret={setHmacSecret}
           />
         </div>
 
@@ -2147,6 +2206,11 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
           <Card title="Usage">
             <dl className="kv">
               <dt>Live sessions</dt><dd>{token.active_sessions}</dd>
+              {(() => {
+                const p = token.entities.filter(e => !e.companion_of).length;
+                const c = token.entities.length - p;
+                return <><dt>Entities</dt><dd>{p} primary{c > 0 ? `, ${c} companion` : ""}</dd></>;
+              })()}
               <dt>Token ID</dt><dd className="mono" style={{ fontSize: 11 }}>{token.token_id}</dd>
               <dt>Version</dt><dd>{token.token_version}</dd>
             </dl>

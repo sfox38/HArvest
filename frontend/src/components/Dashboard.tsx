@@ -123,7 +123,7 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
             label="Commands today"
             value={stats.commands_today}
             spark={buckets.map(b => b.commands)}
-            sparkColor="#2563c2"
+            sparkColor="var(--info)"
             icon="bolt"
           />
           <Stat
@@ -135,7 +135,7 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
             label="Errors today"
             value={stats.errors_today}
             spark={buckets.map(b => b.auth_failures)}
-            sparkColor="#b3261e"
+            sparkColor="var(--danger)"
             icon="alert"
           />
         </section>

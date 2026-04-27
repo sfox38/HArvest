@@ -97,7 +97,7 @@ class ControlEntities:
         """Create per-token controls and add them to HA if the component is ready."""
         entities = self.create_token_controls(token_id, label)
         if self._switch_add_fn is not None:
-            await self._switch_add_fn(entities)
+            self._switch_add_fn(entities)  # AddEntitiesCallback is sync
 
     def remove_token_controls(self, token_id: str) -> None:
         """Mark the token's paused switch unavailable when the token is deleted."""

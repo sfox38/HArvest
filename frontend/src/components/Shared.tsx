@@ -370,8 +370,8 @@ export function Sparkline({ data, color = "var(--accent)", w = 160, h = 28 }: Sp
   const dFill = d + ` L ${w},${h} L 0,${h} Z`;
   return (
     <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none" aria-hidden="true">
-      <path d={dFill} fill={color} opacity="0.14" />
-      <path d={d} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={dFill} style={{ fill: color }} opacity="0.14" />
+      <path d={d} fill="none" style={{ stroke: color }} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -407,8 +407,8 @@ export function ActivityGraph({ buckets, height = 180 }: ActivityGraphProps) {
     const dFill = d + ` L ${PAD.left + innerW},${PAD.top + innerH} L ${PAD.left},${PAD.top + innerH} Z`;
     return (
       <g key={color}>
-        {filled && <path d={dFill} fill={color} opacity="0.08" />}
-        <path d={d} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+        {filled && <path d={dFill} style={{ fill: color }} opacity="0.08" />}
+        <path d={d} fill="none" style={{ stroke: color }} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
       </g>
     );
   };
@@ -437,15 +437,15 @@ export function ActivityGraph({ buckets, height = 180 }: ActivityGraphProps) {
     <div className="graph-wrap">
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block" }} aria-hidden="true">
         {gridLines}
-        {makeLine(buckets.map(b => b.commands),     "#2563c2")}
+        {makeLine(buckets.map(b => b.commands),     "var(--info)")}
         {makeLine(buckets.map(b => b.sessions),      "var(--accent)")}
-        {makeLine(buckets.map(b => b.auth_failures), "#b3261e", false)}
+        {makeLine(buckets.map(b => b.auth_failures), "var(--danger)", false)}
         {xLabels}
       </svg>
       <div className="graph-legend">
-        <span><i style={{ background: "#2563c2" }} /> Commands</span>
+        <span><i style={{ background: "var(--info)" }} /> Commands</span>
         <span><i style={{ background: "var(--accent)" }} /> Sessions</span>
-        <span><i style={{ background: "#b3261e" }} /> Auth failures</span>
+        <span><i style={{ background: "var(--danger)" }} /> Auth failures</span>
       </div>
     </div>
   );
