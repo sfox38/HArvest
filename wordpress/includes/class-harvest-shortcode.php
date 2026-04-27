@@ -47,8 +47,8 @@ class Harvest_Shortcode {
                 'graph'        => '',
                 'hours'        => '24',
                 'period'       => '10',
-                'animate'      => 'false',
-                'a11y'         => 'false',
+                'animate'           => 'false',
+                'a11y'              => 'false',
             ],
             $atts,
             'harvest'

@@ -93,6 +93,7 @@ export class BatterySensorCard extends BaseCard {
     this.#valueEl = this.root.querySelector("[part=sensor-value]");
     this.renderIcon(this.def.icon ?? "mdi:battery", "card-icon");
     this.renderCompanions();
+    this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
 
   applyState(state, _attributes) {

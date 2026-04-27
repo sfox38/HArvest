@@ -139,6 +139,7 @@ export class TimerCard extends BaseCard {
     this.#finishBtn?.addEventListener("click", () => this.config.card?.sendCommand("finish", {}));
 
     this.renderCompanions();
+    this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
 
   applyState(state, attributes) {

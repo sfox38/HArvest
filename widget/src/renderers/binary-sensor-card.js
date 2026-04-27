@@ -74,6 +74,7 @@ export class BinarySensorCard extends BaseCard {
       "card-icon",
     );
     this.renderCompanions();
+    this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
 
   applyState(state, _attributes) {

@@ -60,6 +60,7 @@ export class HumiditySensorCard extends BaseCard {
     this.#valueEl = this.root.querySelector("[part=sensor-value]");
     this.renderIcon(this.def.icon ?? "mdi:water-percent", "card-icon");
     this.renderCompanions();
+    this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
 
   applyState(state, _attributes) {

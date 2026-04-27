@@ -34,6 +34,11 @@
  *   data-animate      -> animate
  *   data-a11y         -> a11y
  *
+ * Gesture configuration (tap/hold/double-tap actions) is managed server-side
+ * per entity on the token and delivered via the entity_definition message.
+ * There are no data-tap-action / data-hold-action / data-double-tap-action
+ * attributes - use the HArvest panel to configure gestures.
+ *
  * Per CLAUDE.md Open Question #3: mountCard() walks parentElement until
  * document.body to find a parent .hrv-group and inherit token/ha-url when
  * not set on the mount element itself.
@@ -161,8 +166,8 @@ function mountCard(el) {
   if (el.dataset.graph)            card.setAttribute("graph",        el.dataset.graph);
   if (el.dataset.hours)            card.setAttribute("hours",        el.dataset.hours);
   if (el.dataset.period)           card.setAttribute("period",       el.dataset.period);
-  if (el.dataset.animate)          card.setAttribute("animate",      "");
-  if (el.dataset.a11y)             card.setAttribute("a11y",         el.dataset.a11y);
+  if (el.dataset.animate)          card.setAttribute("animate",         "");
+  if (el.dataset.a11y)             card.setAttribute("a11y",            el.dataset.a11y);
 
   el.appendChild(card);
 }

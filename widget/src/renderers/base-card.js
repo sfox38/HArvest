@@ -21,6 +21,9 @@
 import { renderIconSVG, resolveIcon as _resolveIcon, MDI_ICONS } from "../icons.js";
 import { getErrorStateStyles } from "../error-states.js";
 
+const HOLD_MS = 500;
+const DOUBLE_TAP_MS = 250;
+
 // ---------------------------------------------------------------------------
 // Shared CSS custom property defaults
 // These values are overridden by the theme system (ThemeLoader.apply()) when
@@ -249,6 +252,38 @@ const HISTORY_CSS = /* css */`
 `;
 
 // ---------------------------------------------------------------------------
+// Gesture CSS
+// ---------------------------------------------------------------------------
+
+const GESTURE_CSS = /* css */`
+  [data-gesture-hold=pending] {
+    position: relative;
+    overflow: hidden;
+  }
+  [data-gesture-hold=pending]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    animation: hrv-hold-fill ${HOLD_MS}ms linear forwards;
+    pointer-events: none;
+    z-index: 1;
+  }
+  @keyframes hrv-hold-fill {
+    0%   { opacity: 0; }
+    100% { opacity: 0.12; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-gesture-hold=pending]::before {
+      animation: none;
+      opacity: 0.06;
+    }
+  }
+`;
+
+// ---------------------------------------------------------------------------
 // BaseCard
 // ---------------------------------------------------------------------------
 
@@ -424,9 +459,11 @@ export class BaseCard {
       if (isInteractive) {
         pill.type = "button";
         pill.setAttribute("data-interactive", "true");
-        pill.addEventListener("click", () => {
-          this.config.card?._sendCompanionCommand(companion.entityId, "toggle", {});
-        });
+        this._attachGestureHandlers(pill, {
+          onTap: () => {
+            this.config.card?._sendCompanionCommand(companion.entityId, "toggle", {});
+          },
+        }, {});
       }
 
       const iconWrap = document.createElement("span");
@@ -497,7 +534,7 @@ export class BaseCard {
    * @returns {string}
    */
   getSharedStyles() {
-    return SHARED_CSS_VARS + CARD_BASE_CSS + getErrorStateStyles() + COMPANION_CSS + HISTORY_CSS;
+    return SHARED_CSS_VARS + CARD_BASE_CSS + getErrorStateStyles() + COMPANION_CSS + HISTORY_CSS + GESTURE_CSS;
   }
 
   /**
@@ -514,6 +551,135 @@ export class BaseCard {
       clearTimeout(timer);
       timer = setTimeout(() => { timer = null; fn(...args); }, ms);
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // Gesture handling
+  // -------------------------------------------------------------------------
+
+  /**
+   * Attach tap / hold / double-tap gesture handling to element.
+   * Reads tapAction, holdAction, and doubleTapAction from this.config.
+   * Call once in render() after the element is in the shadow DOM.
+   *
+   * For card-level gestures (element = [part=card]) the handler silently
+   * skips events that originate from interactive child controls (button,
+   * input, select, textarea, a[href]) so those controls continue to work
+   * without triggering the card-level action.
+   *
+   * @param {HTMLElement|null} element
+   * @param {{ onTap?: () => void, onHold?: () => void, onDoubleTap?: () => void }} [callbacks]
+   *   Override any gesture's default _runAction dispatch.
+   */
+  _attachGestureHandlers(element, callbacks = {}, actionConfig = null) {
+    if (!element) return;
+    const cfg = actionConfig !== null ? actionConfig : this.config;
+
+    const onTap       = callbacks.onTap       ?? (() => { const t = cfg.gestureConfig?.tap;        if (t) this._runAction(t); });
+    const onHold      = callbacks.onHold      ?? (() => { const h = cfg.gestureConfig?.hold;       if (h) this._runAction(h); });
+    const onDoubleTap = callbacks.onDoubleTap ?? (() => { const d = cfg.gestureConfig?.double_tap; if (d) this._runAction(d); });
+
+    let holdTimer = null;
+    let tapTimer  = null;
+    let lastTapAt = 0;
+    let didHold   = false;
+
+    const cancel = () => {
+      clearTimeout(holdTimer);
+      clearTimeout(tapTimer);
+      holdTimer = null;
+      didHold   = false;
+      element.removeAttribute("data-pressing");
+      element.removeAttribute("data-gesture-hold");
+    };
+
+    element.addEventListener("pointerdown", (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      if (e.target !== element && e.target.matches?.("button, input, select, textarea, a[href]")) return;
+      didHold = false;
+      element.setAttribute("data-pressing", "true");
+      element.setAttribute("data-gesture-hold", "pending");
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        clearTimeout(tapTimer);
+        tapTimer = null;
+        didHold = true;
+        element.removeAttribute("data-pressing");
+        element.setAttribute("data-gesture-hold", "fired");
+        onHold();
+        setTimeout(() => element.removeAttribute("data-gesture-hold"), 80);
+      }, HOLD_MS);
+    });
+
+    element.addEventListener("pointerup", (e) => {
+      if (didHold) { cancel(); return; }
+      if (!holdTimer) return;
+      clearTimeout(holdTimer);
+      holdTimer = null;
+      element.removeAttribute("data-pressing");
+      element.removeAttribute("data-gesture-hold");
+
+      const now = Date.now();
+      if (cfg.gestureConfig?.double_tap && (now - lastTapAt) < DOUBLE_TAP_MS) {
+        clearTimeout(tapTimer);
+        tapTimer  = null;
+        lastTapAt = 0;
+        onDoubleTap();
+      } else if (cfg.gestureConfig?.double_tap) {
+        lastTapAt = now;
+        tapTimer  = setTimeout(() => { tapTimer = null; onTap(); }, DOUBLE_TAP_MS);
+      } else {
+        lastTapAt = 0;
+        onTap();
+      }
+    });
+
+    element.addEventListener("pointerleave",  cancel);
+    element.addEventListener("pointercancel", cancel);
+    element.addEventListener("contextmenu", (e) => {
+      if (cfg.gestureConfig?.hold) e.preventDefault();
+    });
+  }
+
+  /**
+   * Execute an action config. Standard HA action types are handled natively.
+   * Unknown action strings are passed through as direct service calls so
+   * custom renderers can extend the action vocabulary without subclassing.
+   *
+   * Supported: toggle, turn_on, turn_off, call-service (alias call_service), none.
+   *
+   * @param {{ action: string, data?: object }} actionConfig
+   */
+  _runAction(actionConfig) {
+    if (!actionConfig) return;
+    const { action, data } = actionConfig;
+    switch (action) {
+      case "toggle":
+        this.config.card?.sendCommand("toggle", {});
+        break;
+      case "turn_on":
+        this.config.card?.sendCommand("turn_on", data ?? {});
+        break;
+      case "turn_off":
+        this.config.card?.sendCommand("turn_off", data ?? {});
+        break;
+      case "trigger-action": {
+        const targetId = actionConfig.entity_id;
+        if (targetId) this.config.card?._sendCompanionCommand(targetId, "trigger", {});
+        break;
+      }
+      case "call-service":
+      case "call_service": {
+        const svc     = data?.service ?? data?.action;
+        const svcData = data?.service_data ?? data?.data ?? {};
+        if (svc) this.config.card?.sendCommand(svc, svcData);
+        break;
+      }
+      case "none":
+        break;
+      default:
+        this.config.card?.sendCommand(action, data ?? {});
+    }
   }
 
   // -------------------------------------------------------------------------

@@ -73,6 +73,7 @@ class EntityAccess:
     hours: int = 24
     period: int = 10                        # aggregation period in minutes
     animate: bool = False
+    gesture_config: dict = field(default_factory=dict)  # per-gesture action configs
 
 
 @dataclass
@@ -750,6 +751,7 @@ class TokenManager:
                 hours=e.get("hours", 24),
                 period=e.get("period", 10),
                 animate=e.get("animate", False),
+                gesture_config=e.get("gesture_config", {}),
             )
             for e in d.get("entities", [])
         ]

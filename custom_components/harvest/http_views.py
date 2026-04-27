@@ -176,6 +176,39 @@ def _parse_session_config(raw: dict) -> SessionConfig:
 _VALID_CAPABILITIES = ("read", "read-write")
 _ENTITY_ID_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 
+
+def _parse_gesture_config(raw: dict) -> dict:
+    """Validate and normalise a gesture_config dict.
+
+    Shape: { "tap"?: Action, "hold"?: Action, "double_tap"?: Action }
+    where Action = { "action": str, "data"?: dict } | null.
+    Unknown keys are ignored. Raises ValueError on invalid input.
+    """
+    result: dict = {}
+    for key in ("tap", "hold", "double_tap"):
+        val = raw.get(key)
+        if val is None:
+            continue
+        if not isinstance(val, dict):
+            raise ValueError(f"gesture_config.{key} must be a dict or null.")
+        action = val.get("action", "")
+        if not isinstance(action, str) or not action:
+            raise ValueError(f"gesture_config.{key}.action must be a non-empty string.")
+        data = val.get("data")
+        if data is not None and not isinstance(data, dict):
+            raise ValueError(f"gesture_config.{key}.data must be a dict or absent.")
+        entry: dict = {"action": action}
+        entity_id = val.get("entity_id")
+        if entity_id is not None:
+            if not isinstance(entity_id, str) or not entity_id:
+                raise ValueError(f"gesture_config.{key}.entity_id must be a non-empty string.")
+            entry["entity_id"] = entity_id
+        if data:
+            entry["data"] = data
+        result[key] = entry
+    return result
+
+
 def _parse_entities(raw_list: list) -> list[EntityAccess]:
     from .entity_compatibility import get_support_tier
     entities = []
@@ -199,6 +232,7 @@ def _parse_entities(raw_list: list) -> list[EntityAccess]:
             hours=int(e.get("hours", 24)),
             period=int(e.get("period", 10)),
             animate=bool(e.get("animate", False)),
+            gesture_config=_parse_gesture_config(e.get("gesture_config", {})),
         ))
     return entities
 

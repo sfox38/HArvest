@@ -76,6 +76,7 @@ export class InputSelectCard extends BaseCard {
     });
 
     this.renderCompanions();
+    this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
 
   applyState(state, attributes) {

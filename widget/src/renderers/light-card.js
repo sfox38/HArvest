@@ -224,11 +224,14 @@ export class LightCard extends BaseCard {
     this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lightbulb"), "card-icon");
 
     // Wire up events.
-    if (this.#toggleBtn) {
-      this.#toggleBtn.addEventListener("click", () => {
-        this.config.card?.sendCommand("toggle", {});
-      });
-    }
+    this._attachGestureHandlers(this.#toggleBtn, {
+      onTap: () => {
+        const tap = this.config.gestureConfig?.tap;
+        if (tap) { this._runAction(tap); return; }
+        const isOn = this.#toggleBtn?.getAttribute("aria-pressed") === "true";
+        this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
+      },
+    });
 
     if (this.#brightnessSlider) {
       this.#brightnessSlider.addEventListener("input", (e) => {
@@ -255,13 +258,6 @@ export class LightCard extends BaseCard {
       this.#colorSlider.addEventListener("input", (e) => {
         this.#colorDebounce(parseInt(e.target.value, 10));
       });
-    }
-
-    if (this.#toggleBtn) {
-      this.#toggleBtn.addEventListener("pointerdown",  () => this.#toggleBtn.setAttribute("data-pressing", "true"));
-      this.#toggleBtn.addEventListener("pointerup",    () => this.#toggleBtn.removeAttribute("data-pressing"));
-      this.#toggleBtn.addEventListener("pointerleave", () => this.#toggleBtn.removeAttribute("data-pressing"));
-      this.#toggleBtn.addEventListener("pointercancel",() => this.#toggleBtn.removeAttribute("data-pressing"));
     }
 
     this.renderCompanions();
@@ -357,9 +353,8 @@ export class LightCard extends BaseCard {
   }
 
   predictState(action, data) {
-    if (action === "toggle") {
-      const isOn = this.#toggleBtn?.getAttribute("aria-pressed") === "true";
-      return { state: isOn ? "off" : "on", attributes: { ...this.#lastAttrs } };
+    if (action === "turn_off") {
+      return { state: "off", attributes: { ...this.#lastAttrs } };
     }
     if (action === "turn_on") {
       const attrs = { ...this.#lastAttrs };

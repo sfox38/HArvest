@@ -84,11 +84,13 @@ export class RemoteCard extends BaseCard {
 
     this.renderIcon(this.def.icon ?? "mdi:remote", "card-icon");
 
-    this.#commandBtn?.addEventListener("click", () => {
-      const cmd  = this.config.tapAction?.data?.command ?? "power";
-      const device = this.config.tapAction?.data?.device ?? undefined;
-      const data = device ? { command: cmd, device } : { command: cmd };
-      this.config.card?.sendCommand("send_command", data);
+    this._attachGestureHandlers(this.#commandBtn, {
+      onTap: () => {
+        const cmd    = this.config.tapAction?.data?.command ?? "power";
+        const device = this.config.tapAction?.data?.device;
+        const data   = device ? { command: cmd, device } : { command: cmd };
+        this.config.card?.sendCommand("send_command", data);
+      },
     });
 
     this.renderCompanions();

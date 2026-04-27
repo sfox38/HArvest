@@ -280,11 +280,13 @@ export class FanCard extends BaseCard {
 
     this.renderIcon(this.resolveIcon(this.def.icon, "mdi:fan-off"), "card-icon");
 
-    if (this.#toggleBtn) {
-      this.#toggleBtn.addEventListener("click", () => {
-        this.config.card?.sendCommand("toggle", {});
-      });
-    }
+    this._attachGestureHandlers(this.#toggleBtn, {
+      onTap: () => {
+        const tap = this.config.gestureConfig?.tap;
+        if (tap) { this._runAction(tap); return; }
+        this.config.card?.sendCommand(this.#isOn ? "turn_off" : "turn_on", {});
+      },
+    });
 
     if (this.#speedSlider) {
       this.#speedSlider.addEventListener("input", (e) => {
@@ -435,9 +437,8 @@ export class FanCard extends BaseCard {
 
   predictState(action, data) {
     const attrs = { ...this.#lastAttrs };
-    if (action === "toggle") {
-      return { state: this.#isOn ? "off" : "on", attributes: attrs };
-    }
+    if (action === "turn_on")  return { state: "on",  attributes: attrs };
+    if (action === "turn_off") return { state: "off", attributes: attrs };
     if (action === "set_percentage" && data.percentage !== undefined) {
       attrs.percentage = data.percentage;
       return { state: this.#lastState, attributes: attrs };

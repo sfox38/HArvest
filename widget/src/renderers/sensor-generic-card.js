@@ -64,6 +64,7 @@ export class GenericSensorCard extends BaseCard {
 
     this.renderIcon(this.def.icon ?? "mdi:eye", "card-icon");
     this.renderCompanions();
+    this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
 
   applyState(state, attributes) {

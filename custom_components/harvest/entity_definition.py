@@ -352,6 +352,7 @@ def build_entity_definition(
         "support_tier": support_tier,
         "renderer": renderer,
         "unit_of_measurement": unit_of_measurement,
+        "gesture_config": entity_access.gesture_config or {},
     }
 
 

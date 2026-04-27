@@ -505,9 +505,16 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
   const [expandedSettings, setExpandedSettings] = useState<Set<string>>(new Set());
   const [attrCache, setAttrCache] = useState<Record<string, string[]>>({});
   const [attrLoading, setAttrLoading] = useState<Set<string>>(new Set());
+  const [haActionEntities, setHaActionEntities] = useState<import("../types").HAEntity[]>([]);
 
   useEffect(() => {
     if (getEntityCache().length === 0) loadEntityCache();
+  }, []);
+
+  useEffect(() => {
+    api.entities.list()
+      .then(list => setHaActionEntities(list.filter(e => e.domain === "harvest_action")))
+      .catch(() => {});
   }, []);
 
   const canEdit = !readonly && !saving;
@@ -550,6 +557,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
       hours: 24,
       period: 10,
       animate: false,
+      gesture_config: {},
     }];
     await patchEntities(updated);
     setAdding(false);
@@ -576,6 +584,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
       hours: 24,
       period: 10,
       animate: false,
+      gesture_config: {},
     }];
     await patchEntities(updated);
     setAdding(false);
@@ -629,6 +638,22 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
     ));
   };
 
+  const updateGestureSetting = (entityId: string, gesture: "tap" | "hold" | "double_tap", action: string, targetEntityId?: string) => {
+    if (!canEdit) return;
+    patchEntities(token.entities.map(en => {
+      if (en.entity_id !== entityId) return en;
+      const gc = { ...(en.gesture_config ?? {}) };
+      if (action) {
+        const entry: import("../types").GestureAction = { action };
+        if (targetEntityId) entry.entity_id = targetEntityId;
+        gc[gesture] = entry;
+      } else {
+        delete gc[gesture];
+      }
+      return { ...en, gesture_config: gc };
+    }));
+  };
+
   const toggleExcludeAttr = (entityId: string, attrKey: string) => {
     if (!canEdit) return;
     const entity = token.entities.find(e => e.entity_id === entityId);
@@ -661,7 +686,8 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
         const isSettingsOpen = expandedSettings.has(e.entity_id);
         const showGraphOption = HISTORY_DOMAINS.has(domain);
         const showAnimateOption = domain === "fan";
-        const settingsBadge = (e.exclude_attributes.length > 0 || e.graph || e.animate) ? "entity-settings-badge" : "";
+        const hasGestures = Object.keys(e.gesture_config ?? {}).length > 0;
+        const settingsBadge = (e.exclude_attributes.length > 0 || e.graph || e.animate || hasGestures) ? "entity-settings-badge" : "";
         return (
           <div key={e.entity_id} className="entity-card">
             {/* Row 1: entity name + alias + delete */}
@@ -852,6 +878,63 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                     </label>
                   </div>
                 )}
+
+                {/* Gesture settings - available for all entities */}
+                {(() => {
+                  const haActions = haActionEntities;
+                  return (
+                    <div style={{ marginTop: showGraphOption || showAnimateOption ? 10 : 0 }}>
+                      <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>Gestures</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                        {(["tap", "hold", "double_tap"] as const).map(gesture => {
+                          const label = gesture === "double_tap" ? "Double-tap" : gesture.charAt(0).toUpperCase() + gesture.slice(1);
+                          const gc = e.gesture_config ?? {};
+                          const currentAction = gc[gesture]?.action ?? "";
+                          const currentTarget = gc[gesture]?.entity_id ?? "";
+                          return (
+                            <div key={gesture} style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 12, color: "var(--ink-3)", minWidth: 68 }}>{label}</span>
+                              <select
+                                value={currentAction}
+                                onChange={ev => {
+                                  const action = ev.target.value;
+                                  if (action === "trigger-action" && haActions.length) {
+                                    updateGestureSetting(e.entity_id, gesture, action, haActions[0].entity_id);
+                                  } else {
+                                    updateGestureSetting(e.entity_id, gesture, action);
+                                  }
+                                }}
+                                disabled={!canEdit}
+                                className="input entity-graph-select"
+                              >
+                                <option value="">Default</option>
+                                <option value="toggle">Toggle</option>
+                                <option value="none">None (disable)</option>
+                                {haActions.length > 0 && <option value="trigger-action">Trigger action...</option>}
+                              </select>
+                              {currentAction === "trigger-action" && haActions.length > 0 && (
+                                <select
+                                  value={currentTarget}
+                                  onChange={ev => updateGestureSetting(e.entity_id, gesture, "trigger-action", ev.target.value)}
+                                  disabled={!canEdit}
+                                  className="input entity-graph-select"
+                                  style={{ minWidth: 120 }}
+                                >
+                                  {haActions.map(ha => (
+                                    <option key={ha.entity_id} value={ha.entity_id}>
+                                      {ha.friendly_name || ha.entity_id.replace("harvest_action.", "")}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
               </div>
             )}
           </div>

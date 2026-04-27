@@ -95,8 +95,8 @@ export class HarvestActionCard extends BaseCard {
       "card-icon",
     );
 
-    this.#triggerBtn?.addEventListener("click", () => {
-      this.config.card?.sendCommand("trigger", {});
+    this._attachGestureHandlers(this.#triggerBtn, {
+      onTap: () => this.config.card?.sendCommand("trigger", {}),
     });
 
     this.renderCompanions();

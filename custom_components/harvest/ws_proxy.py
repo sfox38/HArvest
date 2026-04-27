@@ -606,6 +606,16 @@ class HarvestWsView(HomeAssistantView):
 
         # Resolve entity_ref (alias or real ID) to EntityAccess.
         ea = self._resolve_entity_ref(entity_ref, token)
+
+        # harvest_action entities are not added to tokens. Allow trigger commands if
+        # the entity is explicitly listed in a gesture_config on this token.
+        if ea is None and entity_ref.startswith("harvest_action.") and action == "trigger":
+            if _is_permitted_gesture_harvest_action(entity_ref, token):
+                ea = EntityAccess(entity_id=entity_ref, capabilities="read-write")
+            else:
+                await ack_error(ERR_ENTITY_NOT_IN_TOKEN, f"harvest_action not permitted on this token: {entity_ref}")
+                return
+
         if ea is None:
             await ack_error(ERR_ENTITY_NOT_IN_TOKEN, f"Entity not in token: {entity_ref}")
             return
@@ -1279,6 +1289,23 @@ def _find_entity_access(entity_id: str, token: Token) -> EntityAccess | None:
         if ea.entity_id == entity_id:
             return ea
     return None
+
+
+def _is_permitted_gesture_harvest_action(entity_ref: str, token: Token) -> bool:
+    """Return True if entity_ref is explicitly listed as a trigger-action gesture target on this token.
+
+    harvest_action entities are not added to tokens as regular entities. Instead they
+    are permitted on a per-entity basis by appearing in a gesture_config entry with
+    action="trigger-action" on any entity in the token. This keeps scope narrow: only
+    harvest_actions that the admin explicitly wired to a gesture can be triggered.
+    """
+    for ea in token.entities:
+        for gesture_action in ea.gesture_config.values():
+            if (isinstance(gesture_action, dict)
+                    and gesture_action.get("action") == "trigger-action"
+                    and gesture_action.get("entity_id") == entity_ref):
+                return True
+    return False
 
 
 def _track_flood(count: int, window_start: float) -> tuple[int, float]:

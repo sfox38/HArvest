@@ -37,6 +37,18 @@ export interface ActiveSchedule {
   windows: ActiveScheduleWindow[];
 }
 
+export interface GestureAction {
+  action: string;
+  entity_id?: string;
+  data?: Record<string, unknown>;
+}
+
+export interface GestureConfig {
+  tap?: GestureAction | null;
+  hold?: GestureAction | null;
+  double_tap?: GestureAction | null;
+}
+
 export interface EntityAccess {
   entity_id: string;
   alias: string | null;
@@ -47,6 +59,7 @@ export interface EntityAccess {
   hours: number;
   period: number;
   animate: boolean;
+  gesture_config: GestureConfig;
 }
 
 export type TokenStatus = "active" | "inactive" | "expiring_soon" | "expired" | "revoked";

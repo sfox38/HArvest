@@ -122,6 +122,7 @@ export class InputNumberCard extends BaseCard {
     });
 
     this.renderCompanions();
+    this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
 
   applyState(state, _attributes) {

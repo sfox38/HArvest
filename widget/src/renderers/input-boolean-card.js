@@ -87,8 +87,13 @@ export class InputBooleanCard extends BaseCard {
       "card-icon",
     );
 
-    this.#toggleBtn?.addEventListener("click", () => {
-      this.config.card?.sendCommand("toggle", {});
+    this._attachGestureHandlers(this.#toggleBtn, {
+      onTap: () => {
+        const tap = this.config.gestureConfig?.tap;
+        if (tap) { this._runAction(tap); return; }
+        const isOn = this.#toggleBtn?.getAttribute("aria-pressed") === "true";
+        this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
+      },
     });
 
     this.renderCompanions();
@@ -123,8 +128,8 @@ export class InputBooleanCard extends BaseCard {
   }
 
   predictState(action, _data) {
-    if (action !== "toggle") return null;
-    const isOn = this.#toggleBtn?.getAttribute("aria-pressed") === "true";
-    return { state: isOn ? "off" : "on", attributes: {} };
+    if (action === "turn_on")  return { state: "on",  attributes: {} };
+    if (action === "turn_off") return { state: "off", attributes: {} };
+    return null;
   }
 }

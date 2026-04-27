@@ -235,6 +235,7 @@ export class MediaPlayerCard extends BaseCard {
     });
 
     this.renderCompanions();
+    this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
 
   applyState(state, attributes) {

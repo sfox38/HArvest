@@ -69,7 +69,6 @@ export class HrvCard extends HTMLElement {
     return [
       "token", "ha-url", "entity", "alias", "companion",
       "on-offline", "on-error", "offline-text", "error-text",
-      "tap-action", "hold-action", "double-tap-action",
       "graph", "hours", "period", "animate",
       "lang", "a11y", "theme-url", "theme",
     ];
@@ -175,6 +174,9 @@ export class HrvCard extends HTMLElement {
       `[HArvest] receiveDefinition: ${def.entity_id} domain=${def.domain} capabilities=${def.capabilities}`,
     );
     this.#entityDef = def;
+    // Apply server-side gesture config. Gesture handlers close over this.#config so
+    // updating this field is sufficient - no re-render needed for gesture-only changes.
+    this.#config.gestureConfig = def.gesture_config ?? {};
     const RendererClass = this.#client?._getPackRenderer?.(def.domain, def.device_class ?? null)
       || lookupRenderer(def.domain, def.device_class ?? null);
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
@@ -557,9 +559,7 @@ export class HrvCard extends HTMLElement {
       onError:      this.getAttribute("on-error")     ?? "message",
       offlineText:  this.getAttribute("offline-text") ?? "",
       errorText:    this.getAttribute("error-text")   ?? "",
-      tapAction:    this._parseJsonAttr("tap-action")        ?? { action: "toggle" },
-      holdAction:   this._parseJsonAttr("hold-action")       ?? null,
-      doubleTapAction: this._parseJsonAttr("double-tap-action") ?? null,
+      gestureConfig:   {},
       graph:        this.getAttribute("graph") || null,
       hours:        parseInt(this.getAttribute("hours") ?? "", 10) || 24,
       period:       parseInt(this.getAttribute("period") ?? "", 10) || 10,
