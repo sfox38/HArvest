@@ -86,6 +86,13 @@ export interface Token {
   embed_mode: "single" | "group" | "page";
   theme_url: string;
   renderer_pack: string;
+  lang: string;
+  a11y: "standard" | "enhanced";
+  custom_messages: boolean;
+  on_offline: "dim" | "hide" | "message" | "last-state";
+  on_error: "dim" | "hide" | "message";
+  offline_text: string;
+  error_text: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +236,12 @@ export interface IntegrationConfig {
   widget_script_url: string;
   trusted_proxies: string[];
   kill_switch: boolean;
+  default_lang: string;
+  default_a11y: "standard" | "enhanced";
+  default_on_offline: "dim" | "hide" | "message" | "last-state";
+  default_on_error: "dim" | "hide" | "message";
+  default_offline_text: string;
+  default_error_text: string;
   default_session: {
     lifetime_minutes: number;
     max_lifetime_minutes: number;

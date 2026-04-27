@@ -239,6 +239,53 @@ function ToggleField({ label, value, onChange, hint }: ToggleFieldProps) {
 }
 
 // ---------------------------------------------------------------------------
+// SelectField
+// ---------------------------------------------------------------------------
+
+interface SelectFieldProps {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => Promise<void>;
+  hint?: string;
+}
+
+function SelectField({ label, value, options, onChange, hint }: SelectFieldProps) {
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState("");
+
+  const commit = async (v: string) => {
+    if (v === value) return;
+    setSaving(true);
+    setErr("");
+    try { await onChange(v); }
+    catch (e) { setErr(String(e)); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="kv" style={{ paddingBottom: 8 }}>
+      <dt>
+        {label}
+        {hint && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{hint}</div>}
+      </dt>
+      <dd>
+        <select
+          value={value}
+          onChange={e => commit(e.target.value)}
+          disabled={saving}
+          className="input"
+          style={{ fontSize: 13 }}
+        >
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {err && <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{err}</div>}
+      </dd>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TrustedProxiesField
 // ---------------------------------------------------------------------------
 
@@ -410,6 +457,87 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
         title={<span className="row" style={{ gap: 8 }}><Icon name="eye" size={14} /> Appearance</span>}
       >
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
+        <div style={{ height: 1, background: "var(--divider)", margin: "8px 0 12px" }} />
+        <div className="muted" style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          Widget defaults
+        </div>
+        <dl>
+          <SelectField
+            label="Accessibility"
+            value={config.default_a11y}
+            options={[
+              { value: "standard", label: "Standard" },
+              { value: "enhanced", label: "Enhanced" },
+            ]}
+            hint="Enhanced adds aria-live announcements for state changes."
+            onChange={v => patch({ default_a11y: v } as Partial<IntegrationConfig>)}
+          />
+          <SelectField
+            label="Language"
+            value={config.default_lang}
+            options={[
+              { value: "auto", label: "Auto-detect" },
+              { value: "en", label: "English" },
+              { value: "de", label: "German" },
+              { value: "fr", label: "French" },
+              { value: "es", label: "Spanish" },
+              { value: "pt", label: "Portuguese" },
+              { value: "nl", label: "Dutch" },
+              { value: "ja", label: "Japanese" },
+              { value: "zh", label: "Chinese" },
+              { value: "th", label: "Thai" },
+            ]}
+            hint="Default language for all widgets. Individual widgets can override this."
+            onChange={v => patch({ default_lang: v } as Partial<IntegrationConfig>)}
+          />
+          <SelectField
+            label="When offline"
+            value={config.default_on_offline}
+            options={[
+              { value: "last-state", label: "Show last known state" },
+              { value: "message", label: "Show message" },
+              { value: "dim", label: "Dim card" },
+              { value: "hide", label: "Hide card" },
+            ]}
+            hint="Default behavior when a widget loses connection."
+            onChange={v => patch({ default_on_offline: v } as Partial<IntegrationConfig>)}
+          />
+          <TextField
+            label="Default offline message"
+            value={config.default_offline_text}
+            placeholder="Auto (i18n)"
+            hint="Shown when connection is lost. Leave blank for the localized default."
+            validate={v => {
+              if (v.length > 200) return "200 characters max.";
+              if (v && /[<>"';\\]|--|\/\*|\*\/|\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|UNION|EXEC)\b/i.test(v)) return "Contains disallowed characters.";
+              return null;
+            }}
+            onChange={v => patch({ default_offline_text: v } as Partial<IntegrationConfig>)}
+          />
+          <SelectField
+            label="When error"
+            value={config.default_on_error}
+            options={[
+              { value: "message", label: "Show message" },
+              { value: "dim", label: "Dim card" },
+              { value: "hide", label: "Hide card" },
+            ]}
+            hint="Default behavior on auth failure or missing entity."
+            onChange={v => patch({ default_on_error: v } as Partial<IntegrationConfig>)}
+          />
+          <TextField
+            label="Default error message"
+            value={config.default_error_text}
+            placeholder="Auto (i18n)"
+            hint="Shown on auth failure or missing entity. Leave blank for the localized default."
+            validate={v => {
+              if (v.length > 200) return "200 characters max.";
+              if (v && /[<>"';\\]|--|\/\*|\*\/|\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|UNION|EXEC)\b/i.test(v)) return "Contains disallowed characters.";
+              return null;
+            }}
+            onChange={v => patch({ default_error_text: v } as Partial<IntegrationConfig>)}
+          />
+        </dl>
       </Card>
 
       {/* Security */}

@@ -166,6 +166,18 @@ class HarvestWsView(HomeAssistantView):
                 return entry_data["theme_manager"]
         return None
 
+    def _get_global_config(self) -> dict:
+        """Return the merged global integration config."""
+        from .const import DEFAULTS
+        entries = self._hass.config_entries.async_entries(DOMAIN)
+        if not entries:
+            return dict(DEFAULTS)
+        entry = entries[0]
+        merged: dict = dict(DEFAULTS)
+        merged.update(entry.data)
+        merged.update(entry.options)
+        return merged
+
     def _resolve_pack_manager(self) -> PackManager | None:
         """Resolve the pack manager, falling back to hass.data lookup."""
         if self._pack_manager is not None:
@@ -314,6 +326,8 @@ class HarvestWsView(HomeAssistantView):
                 real_entity_ids.append(ea.entity_id)
                 outgoing_ids[ea.entity_id] = ref  # echo back whatever the client sent
 
+        real_entity_ids = _expand_with_companions(real_entity_ids, token, outgoing_ids)
+
         session_id = self._token_manager.generate_session_id()
 
         try:
@@ -389,7 +403,20 @@ class HarvestWsView(HomeAssistantView):
         )
 
         # Track which entities have already had history sent (debounce per session).
-        history_sent: set[str] = set()
+
+
+        # --- Step 4a-0: Send token-level display config ---
+        gcfg = self._get_global_config()
+        use_custom = token.custom_messages
+        await ws.send_json({
+            "type": "token_config",
+            "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
+            "a11y": token.a11y if token.a11y != "standard" else gcfg.get("default_a11y", "standard"),
+            "on_offline": token.on_offline if use_custom else gcfg.get("default_on_offline", "last-state"),
+            "on_error": token.on_error if use_custom else gcfg.get("default_on_error", "message"),
+            "offline_text": token.offline_text if use_custom else gcfg.get("default_offline_text", ""),
+            "error_text": token.error_text if use_custom else gcfg.get("default_error_text", ""),
+        })
 
         # --- Step 4a: Send theme data if token has a theme ---
         theme_mgr = self._resolve_theme_manager()
@@ -418,7 +445,7 @@ class HarvestWsView(HomeAssistantView):
         try:
             await self._send_initial_state(ws, session, real_entity_ids, token, outgoing_ids)
             self._register_listeners(ws, session, token, outgoing_ids, listener_unsubs, real_entity_ids)
-            await self._message_loop(ws, session, token, outgoing_ids, listener_unsubs, history_sent)
+            await self._message_loop(ws, session, token, outgoing_ids, listener_unsubs)
         finally:
             # --- Step 7: Cleanup ---
             expiry_warning_task.cancel()
@@ -464,8 +491,15 @@ class HarvestWsView(HomeAssistantView):
                 await ws.send_json({"type": "entity_removed", "entity_id": outgoing_id, "msg_id": None})
                 continue
 
+            # Companion outgoing refs for this entity's definition.
+            companion_refs = [
+                outgoing_ids.get(comp_ea.entity_id, comp_ea.entity_id)
+                for comp_ea in token.entities
+                if comp_ea.companion_of == real_id
+            ]
+
             # entity_definition
-            defn = build_entity_definition(self._hass, real_id, ea)
+            defn = build_entity_definition(self._hass, real_id, ea, companions=companion_refs)
             if defn is not None:
                 defn = dict(defn)
                 defn["type"] = "entity_definition"
@@ -492,7 +526,6 @@ class HarvestWsView(HomeAssistantView):
         token: Token,
         outgoing_ids: dict[str, str],
         listener_unsubs: dict[str, Callable],
-        history_sent: set[str],
     ) -> None:
         """Process incoming messages until the connection closes.
 
@@ -560,11 +593,11 @@ class HarvestWsView(HomeAssistantView):
                 elif msg_type == "subscribe":
                     await self._handle_subscribe(ws, msg, session, token, outgoing_ids, listener_unsubs)
                 elif msg_type == "unsubscribe":
-                    await self._handle_unsubscribe(ws, msg, session, listener_unsubs)
+                    await self._handle_unsubscribe(ws, msg, session, token, listener_unsubs)
                 elif msg_type == "renew":
                     await self._handle_renew(ws, msg, session, token, outgoing_ids, listener_unsubs)
                 elif msg_type == "history_request":
-                    await self._handle_history_request(ws, msg, session, token, outgoing_ids, history_sent)
+                    await self._handle_history_request(ws, msg, session, token, outgoing_ids)
                 elif msg_type is None:
                     _LOGGER.debug("HArvest: message missing 'type' from session %s.", session.session_id)
                     flood_count, flood_window_start = _track_flood(flood_count, flood_window_start)
@@ -733,6 +766,8 @@ class HarvestWsView(HomeAssistantView):
             await ws.send_json({"type": "subscribe_ok", "entity_ids": [], "msg_id": msg_id})
             return
 
+        new_real_ids = _expand_with_companions(new_real_ids, token, outgoing_ids)
+
         self._session_manager.add_subscription(session.session_id, new_real_ids)
 
         await ws.send_json({"type": "subscribe_ok", "entity_ids": accepted_refs, "msg_id": msg_id})
@@ -748,11 +783,13 @@ class HarvestWsView(HomeAssistantView):
         ws: WebSocketResponse,
         msg: dict,
         session: Session,
+        token: Token,
         listener_unsubs: dict[str, Callable],
     ) -> None:
         """Process an unsubscribe message.
 
         Removes entity_ids from session subscriptions.
+        Auto-removes companions of unsubscribed primaries (unless shared).
         Unregisters state_changed listeners if no other session needs them.
         No response is sent.
         """
@@ -760,10 +797,22 @@ class HarvestWsView(HomeAssistantView):
         real_ids: list[str] = []
 
         for ref in refs:
-            # Map ref back to real entity_id via the reverse of outgoing_ids.
             real_id = self._ref_to_real_id(ref, session)
             if real_id:
                 real_ids.append(real_id)
+
+        remaining_primaries = set(session.subscribed_entity_ids) - set(real_ids)
+        for real_id in list(real_ids):
+            for comp_id in _get_companion_ids(real_id, token):
+                if comp_id in real_ids:
+                    continue
+                shared = any(
+                    ea.companion_of == other and ea.entity_id == comp_id
+                    for other in remaining_primaries
+                    for ea in token.entities
+                )
+                if not shared:
+                    real_ids.append(comp_id)
 
         self._session_manager.remove_subscription(session.session_id, real_ids)
 
@@ -844,7 +893,6 @@ class HarvestWsView(HomeAssistantView):
         session: Session,
         token: Token,
         outgoing_ids: dict[str, str],
-        history_sent: set[str],
     ) -> None:
         """Fetch entity state history from HA's recorder and send history_data.
 
@@ -853,18 +901,6 @@ class HarvestWsView(HomeAssistantView):
         """
         msg_id = msg.get("msg_id")
         entity_ref = msg.get("entity_id", "")
-        hours = msg.get("hours", 24)
-        if not isinstance(hours, (int, float)) or hours < 1:
-            hours = 24
-        hours = min(hours, 168)  # cap at 7 days
-
-        period = msg.get("period", 10)
-        if not isinstance(period, (int, float)) or period < 1:
-            period = 10
-        period = int(period)
-        hours_in_minutes = int(hours) * 60
-        if period >= hours_in_minutes:
-            period = 10
 
         real_id = self._ref_to_real_id(entity_ref, session)
         if real_id is None:
@@ -878,9 +914,14 @@ class HarvestWsView(HomeAssistantView):
 
         outgoing_id = outgoing_ids.get(real_id, real_id)
 
-        if real_id in history_sent:
-            return
-        history_sent.add(real_id)
+        ea = _find_entity_access(real_id, token)
+        hours = ea.hours if ea else 24
+        hours = max(1, min(hours, 168))
+        period = ea.period if ea else 10
+        period = max(1, period)
+        hours_in_minutes = hours * 60
+        if period >= hours_in_minutes:
+            period = 10
 
         points: list[dict[str, str]] = []
 
@@ -1289,6 +1330,33 @@ def _find_entity_access(entity_id: str, token: Token) -> EntityAccess | None:
         if ea.entity_id == entity_id:
             return ea
     return None
+
+
+def _get_companion_ids(primary_entity_id: str, token: Token) -> list[str]:
+    """Return real entity_ids of companions for a primary entity."""
+    return [ea.entity_id for ea in token.entities
+            if ea.companion_of == primary_entity_id]
+
+
+def _expand_with_companions(
+    entity_ids: list[str],
+    token: Token,
+    outgoing_ids: dict[str, str],
+) -> list[str]:
+    """Expand entity_ids to include auto-subscribed companions.
+
+    Appends companions after primaries. Updates outgoing_ids with
+    companion mappings (alias or real_id).
+    """
+    expanded = list(entity_ids)
+    seen = set(entity_ids)
+    for real_id in entity_ids:
+        for ea in token.entities:
+            if ea.companion_of == real_id and ea.entity_id not in seen:
+                expanded.append(ea.entity_id)
+                seen.add(ea.entity_id)
+                outgoing_ids[ea.entity_id] = ea.alias or ea.entity_id
+    return expanded
 
 
 def _is_permitted_gesture_harvest_action(entity_ref: str, token: Token) -> bool:

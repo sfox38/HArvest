@@ -96,6 +96,12 @@ DEFAULTS: dict[str, object] = {
     # or a full URL (https://example.com/harvest.min.js).
     CONF_WIDGET_SCRIPT_URL: "",
     CONF_KILL_SWITCH: False,
+    "default_lang": "auto",
+    "default_a11y": "standard",
+    "default_on_offline": "last-state",
+    "default_on_error": "message",
+    "default_offline_text": "",
+    "default_error_text": "",
 }
 
 # Attribute denylist - keys containing these strings are stripped from state_updates.

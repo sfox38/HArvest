@@ -298,6 +298,31 @@ def _validate_max_sessions(raw: Any) -> int | None:
     return raw
 
 
+_DISPLAY_TEXT_MAX_LEN = 200
+_DISPLAY_TEXT_FORBIDDEN_RE = re.compile(
+    r"[<>\"';\\]"
+    r"|--"
+    r"|/\*"
+    r"|\*/"
+    r"|\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|UNION|EXEC)\b",
+    re.IGNORECASE,
+)
+
+
+def _validate_display_text(raw: Any, field_name: str) -> str:
+    """Validate a user-supplied display text field (offline_text, error_text)."""
+    val = str(raw or "").strip()
+    if len(val) > _DISPLAY_TEXT_MAX_LEN:
+        raise web.HTTPBadRequest(
+            reason=f"{field_name} must be {_DISPLAY_TEXT_MAX_LEN} characters or fewer.",
+        )
+    if val and _DISPLAY_TEXT_FORBIDDEN_RE.search(val):
+        raise web.HTTPBadRequest(
+            reason=f"{field_name} contains disallowed characters or keywords.",
+        )
+    return val
+
+
 _VALID_DAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 _HH_MM_RE = re.compile(r"^\d{2}:\d{2}$")
 
@@ -485,31 +510,151 @@ class HarvestTokenDetailView(HomeAssistantView):
 
         Called after entity capabilities, graph settings, or exclude_attributes
         change so that connected widgets reflect the new configuration without
-        requiring a reconnect.
+        requiring a reconnect. Also reconciles companion subscriptions: subscribes
+        new companions and unsubscribes removed ones.
         """
         token = self._token_manager.get(token_id)
         if not token:
             return
         ea_map = {ea.entity_id: ea for ea in token.entities}
+        primary_ids = {ea.entity_id for ea in token.entities if ea.companion_of is None}
+
         for session in self._session_manager.get_all_for_token(token_id):
             if session.ws.closed:
                 continue
+
+            # Compute expected companions for currently subscribed primaries.
+            expected_companions: set[str] = set()
             for real_id in session.subscribed_entity_ids:
+                if real_id in primary_ids:
+                    for ea in token.entities:
+                        if ea.companion_of == real_id:
+                            expected_companions.add(ea.entity_id)
+
+            current_subs = set(session.subscribed_entity_ids)
+
+            # Subscribe new companions.
+            new_companions = expected_companions - current_subs
+            if new_companions:
+                self._session_manager.add_subscription(
+                    session.session_id, list(new_companions)
+                )
+
+            # Unsubscribe removed companions (only companions, not primaries).
+            removed = (current_subs - expected_companions - primary_ids) & {
+                ea.entity_id for ea in token.entities if ea.companion_of is not None
+            }
+            if removed:
+                self._session_manager.remove_subscription(
+                    session.session_id, list(removed)
+                )
+                for rem_id in removed:
+                    ea = ea_map.get(rem_id)
+                    out_id = (ea.alias if ea and ea.alias else rem_id)
+                    try:
+                        await session.ws.send_json({
+                            "type": "entity_removed",
+                            "entity_id": out_id,
+                            "msg_id": None,
+                        })
+                    except Exception:
+                        pass
+
+            # Send updated definitions + state for all currently subscribed entities.
+            all_subs = set(session.subscribed_entity_ids)
+            for real_id in all_subs:
                 ea = ea_map.get(real_id)
                 if ea is None:
                     continue
-                defn = build_entity_definition(self._hass, real_id, ea)
+                companion_refs = [
+                    (comp_ea.alias or comp_ea.entity_id)
+                    for comp_ea in token.entities
+                    if comp_ea.companion_of == real_id
+                ]
+                defn = build_entity_definition(
+                    self._hass, real_id, ea, companions=companion_refs
+                )
                 if defn is None:
                     continue
+                out_id = ea.alias if ea.alias else real_id
                 defn = dict(defn)
                 defn["type"] = "entity_definition"
-                defn["entity_id"] = ea.alias if ea.alias else real_id
+                defn["entity_id"] = out_id
                 defn["capabilities"] = ea.capabilities
                 defn["msg_id"] = None
                 try:
                     await session.ws.send_json(defn)
                 except Exception:
                     pass
+
+                state = self._hass.states.get(real_id)
+                if state is not None:
+                    try:
+                        await session.ws.send_json({
+                            "type": "state_update",
+                            "entity_id": out_id,
+                            "state": state.state,
+                            "attributes": dict(state.attributes),
+                            "last_updated": state.last_updated.isoformat(),
+                            "initial": True,
+                            "msg_id": None,
+                        })
+                    except Exception:
+                        pass
+
+            # Send state_update for newly subscribed companions.
+            for comp_id in new_companions:
+                ea = ea_map.get(comp_id)
+                if ea is None:
+                    continue
+                state = self._hass.states.get(comp_id)
+                if state is None:
+                    continue
+                out_id = ea.alias if ea.alias else comp_id
+                update: dict[str, Any] = {
+                    "type": "state_update",
+                    "entity_id": out_id,
+                    "state": state.state,
+                    "attributes": dict(state.attributes),
+                    "msg_id": None,
+                }
+                try:
+                    await session.ws.send_json(update)
+                except Exception:
+                    pass
+
+    def _resolve_token_display(self, token: "Token") -> dict:
+        """Resolve effective display values for a token, falling back to global defaults."""
+        from .const import DOMAIN, DEFAULTS
+        entries = self._hass.config_entries.async_entries(DOMAIN)
+        gcfg: dict = dict(DEFAULTS)
+        if entries:
+            gcfg.update(entries[0].data)
+            gcfg.update(entries[0].options)
+        use_custom = token.custom_messages
+        return {
+            "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
+            "a11y": token.a11y if token.a11y != "standard" else gcfg.get("default_a11y", "standard"),
+            "on_offline": token.on_offline if use_custom else gcfg.get("default_on_offline", "last-state"),
+            "on_error": token.on_error if use_custom else gcfg.get("default_on_error", "message"),
+            "offline_text": token.offline_text if use_custom else gcfg.get("default_offline_text", ""),
+            "error_text": token.error_text if use_custom else gcfg.get("default_error_text", ""),
+        }
+
+    async def _push_token_config_to_sessions(self, token_id: str) -> None:
+        """Push updated token_config to all active sessions for a token."""
+        token = self._token_manager.get(token_id)
+        if not token:
+            return
+        display = self._resolve_token_display(token)
+        msg = {"type": "token_config", **display}
+        for session in self._session_manager.get_all_for_token(token_id):
+            if session.ws.closed:
+                continue
+            try:
+                await session.ws.send_json(msg)
+            except Exception:
+                pass
 
     async def get(self, request: web.Request, token_id: str) -> web.Response:
         user = request.get("hass_user")
@@ -594,6 +739,41 @@ class HarvestTokenDetailView(HomeAssistantView):
                 theme_def = self._theme_manager.get(theme_id)
                 updates["renderer_pack"] = theme_def.renderer_pack if theme_def else ""
 
+        if "custom_messages" in body:
+            if not isinstance(body["custom_messages"], bool):
+                raise web.HTTPBadRequest(reason="custom_messages must be a boolean.")
+            updates["custom_messages"] = body["custom_messages"]
+        _VALID_ON_OFFLINE = {"dim", "hide", "message", "last-state"}
+        _VALID_ON_ERROR = {"dim", "hide", "message"}
+        if "lang" in body:
+            lang_val = str(body["lang"] or "auto").strip().lower()
+            if len(lang_val) > 20 or not re.fullmatch(r"auto|[a-z]{2,3}(-[a-zA-Z0-9]{1,8})*", lang_val):
+                raise web.HTTPBadRequest(reason="lang must be 'auto' or a BCP 47 language tag.")
+            updates["lang"] = lang_val
+        if "a11y" in body:
+            val = str(body["a11y"])
+            if val not in ("standard", "enhanced"):
+                raise web.HTTPBadRequest(reason="a11y must be standard or enhanced.")
+            updates["a11y"] = val
+        if "on_offline" in body:
+            val = str(body["on_offline"])
+            if val not in _VALID_ON_OFFLINE:
+                raise web.HTTPBadRequest(reason=f"on_offline must be one of {_VALID_ON_OFFLINE}.")
+            updates["on_offline"] = val
+        if "on_error" in body:
+            val = str(body["on_error"])
+            if val not in _VALID_ON_ERROR:
+                raise web.HTTPBadRequest(reason=f"on_error must be one of {_VALID_ON_ERROR}.")
+            updates["on_error"] = val
+        if "offline_text" in body:
+            updates["offline_text"] = _validate_display_text(
+                body["offline_text"], "offline_text",
+            )
+        if "error_text" in body:
+            updates["error_text"] = _validate_display_text(
+                body["error_text"], "error_text",
+            )
+
         generated_secret: str | None = None
         if "token_secret" in body:
             raw_secret = body["token_secret"]
@@ -626,6 +806,10 @@ class HarvestTokenDetailView(HomeAssistantView):
         if "theme_url" in updates:
             await self._push_theme_to_sessions(token_id)
             await self._push_renderer_pack_to_sessions(token_id)
+
+        _TOKEN_CONFIG_FIELDS = {"lang", "a11y", "custom_messages", "on_offline", "on_error", "offline_text", "error_text"}
+        if _TOKEN_CONFIG_FIELDS & updates.keys():
+            await self._push_token_config_to_sessions(token_id)
 
         result = _token_to_dict(token)
         if generated_secret is not None:
@@ -1577,6 +1761,30 @@ class HarvestConfigView(HomeAssistantView):
                     raise
                 except Exception:
                     raise web.HTTPBadRequest(reason="widget_script_url: invalid value.")
+        # Validate global display defaults when present.
+        if "default_lang" in filtered:
+            lang_val = str(filtered["default_lang"] or "auto").strip().lower()
+            if len(lang_val) > 20 or not re.fullmatch(r"auto|[a-z]{2,3}(-[a-zA-Z0-9]{1,8})*", lang_val):
+                raise web.HTTPBadRequest(reason="default_lang must be 'auto' or a BCP 47 tag.")
+            filtered["default_lang"] = lang_val
+        if "default_a11y" in filtered:
+            if str(filtered["default_a11y"]) not in ("standard", "enhanced"):
+                raise web.HTTPBadRequest(reason="default_a11y must be standard or enhanced.")
+        if "default_on_offline" in filtered:
+            if str(filtered["default_on_offline"]) not in {"dim", "hide", "message", "last-state"}:
+                raise web.HTTPBadRequest(reason="default_on_offline must be dim, hide, message, or last-state.")
+        if "default_on_error" in filtered:
+            if str(filtered["default_on_error"]) not in {"dim", "hide", "message"}:
+                raise web.HTTPBadRequest(reason="default_on_error must be dim, hide, or message.")
+        if "default_offline_text" in filtered:
+            filtered["default_offline_text"] = _validate_display_text(
+                filtered["default_offline_text"], "default_offline_text",
+            )
+        if "default_error_text" in filtered:
+            filtered["default_error_text"] = _validate_display_text(
+                filtered["default_error_text"], "default_error_text",
+            )
+
         # Deep-merge the incoming partial update over the current full config.
         current = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
         updated = _deep_merge(current, filtered)

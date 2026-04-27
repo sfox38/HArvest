@@ -41,14 +41,6 @@ class Harvest_Shortcode {
                 'token-secret' => '',
                 'entity'       => '',
                 'alias'        => '',
-                'companion'    => '',
-                'theme'        => '',
-                'lang'         => 'auto',
-                'graph'        => '',
-                'hours'        => '24',
-                'period'       => '10',
-                'animate'           => 'false',
-                'a11y'              => 'false',
             ],
             $atts,
             'harvest'
@@ -89,11 +81,6 @@ class Harvest_Shortcode {
             );
         }
 
-        // Theme: shortcode attr > site default > empty (widget uses its own default)
-        $theme_url = ! empty( $atts['theme'] )
-            ? $atts['theme']
-            : Harvest_Settings::get_default_theme();
-
         // Build data attributes. entity takes priority over alias.
         $data_attrs = [
             'data-token'  => $atts['token'],
@@ -110,33 +97,6 @@ class Harvest_Shortcode {
             $data_attrs['data-entity'] = $atts['entity'];
         } else {
             $data_attrs['data-alias'] = $atts['alias'];
-        }
-
-        // Companion values follow the same entity/alias convention as the primary.
-        if ( ! empty( $atts['companion'] ) ) {
-            $data_attrs['data-companion'] = $atts['companion'];
-        }
-
-        if ( ! empty( $theme_url ) ) {
-            $data_attrs['data-theme-url'] = $theme_url;
-        }
-
-        if ( $atts['lang'] !== 'auto' ) {
-            $data_attrs['data-lang'] = $atts['lang'];
-        }
-
-        if ( ! empty( $atts['graph'] ) ) {
-            $data_attrs['data-graph']  = $atts['graph'];
-            $data_attrs['data-hours']  = $atts['hours'];
-            $data_attrs['data-period'] = $atts['period'];
-        }
-
-        if ( $atts['animate'] === 'true' ) {
-            $data_attrs['data-animate'] = 'true';
-        }
-
-        if ( $atts['a11y'] === 'true' ) {
-            $data_attrs['data-a11y'] = 'enhanced';
         }
 
         $attr_string = self::build_attr_string( $data_attrs );
@@ -159,8 +119,6 @@ class Harvest_Shortcode {
             [
                 'token'        => '',
                 'token-secret' => '',
-                'theme'        => '',
-                'lang'         => 'auto',
             ],
             $atts,
             'harvest_group'
@@ -181,14 +139,6 @@ class Harvest_Shortcode {
 
         if ( ! empty( $atts['token-secret'] ) ) {
             $data_attrs['data-token-secret'] = $atts['token-secret'];
-        }
-
-        if ( ! empty( $atts['theme'] ) ) {
-            $data_attrs['data-theme-url'] = $atts['theme'];
-        }
-
-        if ( $atts['lang'] !== 'auto' ) {
-            $data_attrs['data-lang'] = $atts['lang'];
         }
 
         $attr_string = self::build_attr_string( $data_attrs );

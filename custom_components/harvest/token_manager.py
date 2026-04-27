@@ -142,6 +142,13 @@ class Token:
     embed_mode: str = "single"             # "single", "group", or "page"
     theme_url: str = ""                    # bundled theme URL or custom theme URL; empty means default
     renderer_pack: str = ""                # "" = none, "minimus" = bundled pack ID
+    lang: str = "auto"                     # BCP 47 language tag or "auto"
+    a11y: str = "standard"                 # "standard" or "enhanced"
+    custom_messages: bool = False           # when False, widget uses global defaults for error/offline
+    on_offline: str = "last-state"         # "dim" | "hide" | "message" | "last-state"
+    on_error: str = "message"              # "dim" | "hide" | "message"
+    offline_text: str = ""
+    error_text: str = ""
 
 
 class TokenManager:
@@ -444,7 +451,8 @@ class TokenManager:
             "label", "origins", "entities", "expires", "token_secret",
             "rate_limits", "session", "max_sessions", "allowed_ips",
             "active_schedule", "paused", "embed_mode", "theme_url",
-            "renderer_pack",
+            "renderer_pack", "lang", "a11y", "custom_messages",
+            "on_offline", "on_error", "offline_text", "error_text",
         }
         for field_name, value in updates.items():
             if field_name in _UPDATABLE_FIELDS:
@@ -816,6 +824,13 @@ class TokenManager:
             embed_mode=d.get("embed_mode", "single"),
             theme_url=d.get("theme_url", ""),
             renderer_pack=d.get("renderer_pack", ""),
+            lang=d.get("lang", "auto"),
+            a11y=d.get("a11y", "standard"),
+            custom_messages=d.get("custom_messages", False),
+            on_offline=d.get("on_offline", "last-state"),
+            on_error=d.get("on_error", "message"),
+            offline_text=d.get("offline_text", ""),
+            error_text=d.get("error_text", ""),
         )
 
 

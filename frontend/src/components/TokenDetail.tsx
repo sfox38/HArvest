@@ -111,32 +111,13 @@ const PERIOD_OPTIONS = [
   { value: 1,    label: "1 minute" },
 ];
 
-function graphAttrs(e: Token["entities"][0], format: "html" | "shortcode"): string {
-  if (!e.graph) return "";
-  if (format === "html") {
-    return ` graph="${e.graph}" hours="${e.hours ?? 24}" period="${e.period ?? 10}"`;
-  }
-  return ` graph="${e.graph}" hours="${e.hours ?? 24}" period="${e.period ?? 10}"`;
-}
-
-function extraAttrs(e: Token["entities"][0], format: "html" | "shortcode"): string {
-  let s = "";
-  if (e.animate) s += format === "html" ? ` animate` : ` animate="true"`;
-  return s;
-}
-
-function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null, useA11y = false): string {
+function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null): string {
   const groups = groupEntities(token.entities);
   const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
-  const a11yAttr = useA11y ? ` a11y` : "";
 
   function cardLine(g: PrimaryWithCompanions, indent = ""): string {
     const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
-    const cl = g.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-    const companionAttr = cl.length > 0 ? ` companion="${cl.join(", ")}"` : "";
-    const hist = graphAttrs(g.primary, "html");
-    const extra = extraAttrs(g.primary, "html");
-    return `${indent}<hrv-card ${attr}${companionAttr}${hist}${extra}></hrv-card>`;
+    return `${indent}<hrv-card ${attr}></hrv-card>`;
   }
 
   if (mode === "page") {
@@ -145,55 +126,38 @@ function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haU
 
   const groupAttrs = `ha-url="${haUrl}" token="${token.token_id}"${secretAttr}`;
   if (mode === "group") {
-    return `<hrv-group ${groupAttrs}${a11yAttr}>\n${groups.map(g => cardLine(g, "  ")).join("\n")}\n</hrv-group>`;
+    return `<hrv-group ${groupAttrs}>\n${groups.map(g => cardLine(g, "  ")).join("\n")}\n</hrv-group>`;
   }
   const g = groups[0];
   if (!g) return "";
   const entityAttr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
-  const cl = g.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-  const companionAttr = cl.length > 0 ? ` companion="${cl.join(", ")}"` : "";
-  const hist = graphAttrs(g.primary, "html");
-  const extra = extraAttrs(g.primary, "html");
-  return `<hrv-card ${groupAttrs} ${entityAttr}${companionAttr}${hist}${extra}${a11yAttr}></hrv-card>`;
+  return `<hrv-card ${groupAttrs} ${entityAttr}></hrv-card>`;
 }
 
-function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null, useA11y = false): string {
+function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null): string {
   const groups = groupEntities(token.entities);
   const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
-  const a11yAttr = useA11y ? ` a11y="true"` : "";
 
   function shortcodeLine(g: PrimaryWithCompanions, indent = ""): string {
     const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
-    const cl = g.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-    const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-    const hist = graphAttrs(g.primary, "shortcode");
-    const extra = extraAttrs(g.primary, "shortcode");
-    return `${indent}[harvest ${attr}${companionAttr}${hist}${extra}]`;
+    return `${indent}[harvest ${attr}]`;
   }
 
   if (mode === "page") {
     return groups.map(g => {
       const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
-      const cl = g.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-      const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-      const hist = graphAttrs(g.primary, "shortcode");
-      const extra = extraAttrs(g.primary, "shortcode");
-      return `[harvest token="${token.token_id}"${secretAttr} ${attr}${companionAttr}${hist}${extra}${a11yAttr}]`;
+      return `[harvest token="${token.token_id}"${secretAttr} ${attr}]`;
     }).join("\n");
   }
 
   if (mode === "group") {
-    return `[harvest_group token="${token.token_id}"${secretAttr}${a11yAttr}]\n${groups.map(g => shortcodeLine(g, "  ")).join("\n")}\n[/harvest_group]`;
+    return `[harvest_group token="${token.token_id}"${secretAttr}]\n${groups.map(g => shortcodeLine(g, "  ")).join("\n")}\n[/harvest_group]`;
   }
 
   const g = groups[0];
   if (!g) return "";
   const entityAttr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
-  const cl = g.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-  const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-  const hist = graphAttrs(g.primary, "shortcode");
-  const extra = extraAttrs(g.primary, "shortcode");
-  return `[harvest token="${token.token_id}"${secretAttr} ${entityAttr}${companionAttr}${hist}${extra}${a11yAttr}]`;
+  return `[harvest token="${token.token_id}"${secretAttr} ${entityAttr}]`;
 }
 
 function fmtDateLong(iso: string): string {
@@ -207,7 +171,6 @@ function fmtDateLong(iso: string): string {
 
 function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; setToken: (t: Token) => void; setError: (e: string | null) => void; hmacSecret: string | null }) {
   const [useAliases,      setUseAliases]      = useState(() => { try { return localStorage.getItem("hrv_use_aliases") === "true"; } catch { return false; } });
-  const [useA11y,         setUseA11y]         = useState(false);
   const [tab,             setTab]             = useState<"web" | "wordpress">(() => { try { return localStorage.getItem("hrv_code_tab") === "wordpress" ? "wordpress" : "web"; } catch { return "web"; } });
   const primaryCount = token.entities.filter(e => !e.companion_of).length;
   const [cardMode,        setCardMode]        = useState<CardMode>(token.embed_mode ?? "single");
@@ -235,14 +198,13 @@ function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; 
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
   if (isPage && hmacSecret) pageConfigParts.push(`tokenSecret: "${hmacSecret}"`);
-  if (isPage && useA11y) pageConfigParts.push(`a11y: "enhanced"`);
   const setupSnippet = isPage
     ? `${scriptTag}\n<script>HArvest.config({ ${pageConfigParts.join(", ")} });</script>`
     : scriptTag;
 
   const cardSnippet = tab === "web"
-    ? buildCardSnippet(token, useAliases, cardMode, haUrl, hmacSecret, useA11y)
-    : buildWordPressSnippet(token, useAliases, cardMode, hmacSecret, useA11y);
+    ? buildCardSnippet(token, useAliases, cardMode, haUrl, hmacSecret)
+    : buildWordPressSnippet(token, useAliases, cardMode, hmacSecret);
 
   const setupCopy = useCopy(setupSnippet);
   const cardCopy = useCopy(cardSnippet);
@@ -318,22 +280,6 @@ function CodeSection({ token, setToken, setError, hmacSecret }: { token: Token; 
         Show as aliases
         <span
           title="Aliases hide your real entity IDs from the page source. Both formats work against the same token."
-          className="muted"
-          style={{ fontSize: 11, cursor: "help" }}
-        >
-          (?)
-        </span>
-      </label>
-      {/* Enhanced accessibility toggle */}
-      <label className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer" }}>
-        <input
-          type="checkbox"
-          checked={useA11y}
-          onChange={e => setUseA11y(e.target.checked)}
-        />
-        Enhanced accessibility
-        <span
-          title="Adds aria-live announcements for screen readers. State changes are announced as they happen."
           className="muted"
           style={{ fontSize: 11, cursor: "help" }}
         >
@@ -475,6 +421,220 @@ function ThemeEditor({ token, setToken, setError }: { token: Token; setToken: (t
         </div>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Display settings (lang, a11y, error behavior)
+// ---------------------------------------------------------------------------
+
+const LANG_OPTIONS = [
+  { value: "auto", label: "Auto-detect" },
+  { value: "en", label: "English" },
+  { value: "de", label: "German" },
+  { value: "fr", label: "French" },
+  { value: "es", label: "Spanish" },
+  { value: "pt", label: "Portuguese" },
+  { value: "nl", label: "Dutch" },
+  { value: "ja", label: "Japanese" },
+  { value: "zh", label: "Chinese" },
+  { value: "th", label: "Thai" },
+];
+
+const ON_OFFLINE_OPTIONS = [
+  { value: "last-state", label: "Show last known state" },
+  { value: "message",    label: "Show message" },
+  { value: "dim",        label: "Dim card" },
+  { value: "hide",       label: "Hide card" },
+];
+
+const ON_ERROR_OPTIONS = [
+  { value: "message", label: "Show message" },
+  { value: "dim",     label: "Dim card" },
+  { value: "hide",    label: "Hide card" },
+];
+
+const DISPLAY_TEXT_MAX_LEN = 200;
+const DISPLAY_TEXT_FORBIDDEN = /[<>"';\\]|--|\/\*|\*\/|\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|UNION|EXEC)\b/i;
+
+function validateDisplayText(val: string): string | null {
+  if (val.length > DISPLAY_TEXT_MAX_LEN) return `${DISPLAY_TEXT_MAX_LEN} characters max.`;
+  if (val && DISPLAY_TEXT_FORBIDDEN.test(val)) return "Contains disallowed characters.";
+  return null;
+}
+
+interface DisplaySettingsProps {
+  token: Token;
+  readonly: boolean;
+  saving: boolean;
+  setSaving: (v: boolean) => void;
+  setToken: (t: Token) => void;
+  setError: (e: string) => void;
+}
+
+function DisplaySettings({ token, readonly, saving, setSaving, setToken, setError }: DisplaySettingsProps) {
+  const canEdit = !readonly && !saving;
+  const [offlineText, setOfflineText] = useState(token.offline_text);
+  const [errorText, setErrorText] = useState(token.error_text);
+  const [offlineTextErr, setOfflineTextErr] = useState<string | null>(null);
+  const [errorTextErr, setErrorTextErr] = useState<string | null>(null);
+
+  const patchToken = async (data: Partial<Token>) => {
+    setSaving(true);
+    try {
+      const updated = await api.tokens.update(token.token_id, data);
+      setToken(updated);
+    } catch (e) { setError(String(e)); }
+    finally { setSaving(false); }
+  };
+
+  const saveLang = (val: string) => patchToken({ lang: val } as Partial<Token>);
+  const saveA11y = (val: string) => patchToken({ a11y: val } as Partial<Token>);
+  const saveOnOffline = (val: string) => patchToken({ on_offline: val } as Partial<Token>);
+  const saveOnError = (val: string) => patchToken({ on_error: val } as Partial<Token>);
+
+  const saveOfflineText = (val: string) => {
+    const err = validateDisplayText(val);
+    setOfflineTextErr(err);
+    if (err) return;
+    patchToken({ offline_text: val } as Partial<Token>);
+  };
+
+  const saveErrorText = (val: string) => {
+    const err = validateDisplayText(val);
+    setErrorTextErr(err);
+    if (err) return;
+    patchToken({ error_text: val } as Partial<Token>);
+  };
+
+  const toggleMessages = (checked: boolean) => {
+    patchToken({ custom_messages: checked } as Partial<Token>);
+  };
+
+  return (
+    <Card title="Display">
+      <div className="col" style={{ gap: 14 }}>
+
+        {/* Accessibility */}
+        <div className="display-settings-row">
+          <div>
+            <div className="display-settings-label">Accessibility</div>
+            <div className="muted" style={{ fontSize: 11 }}>Enhanced mode adds aria-live announcements for state changes.</div>
+          </div>
+          <select
+            value={token.a11y}
+            onChange={e => saveA11y(e.target.value)}
+            disabled={!canEdit}
+            className="input display-settings-select"
+          >
+            <option value="standard">Standard</option>
+            <option value="enhanced">Enhanced</option>
+          </select>
+        </div>
+
+        <div style={{ height: 1, background: "var(--divider)" }} />
+
+        {/* Language */}
+        <div className="display-settings-row">
+          <div>
+            <div className="display-settings-label">Language</div>
+            <div className="muted" style={{ fontSize: 11 }}>Widget UI language for all cards using this token.</div>
+          </div>
+          <select
+            value={token.lang}
+            onChange={e => saveLang(e.target.value)}
+            disabled={!canEdit}
+            className="input display-settings-select"
+          >
+            {LANG_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+
+        <div style={{ height: 1, background: "var(--divider)" }} />
+
+        {/* Custom error messages - gated behind checkbox */}
+        <label className="display-settings-row" style={{ cursor: canEdit ? "pointer" : "default" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={token.custom_messages}
+              onChange={e => toggleMessages(e.target.checked)}
+              disabled={!canEdit}
+            />
+            <div>
+              <div className="display-settings-label">Custom error messages</div>
+              <div className="muted" style={{ fontSize: 11 }}>Override the default offline and error behavior for this token.</div>
+            </div>
+          </div>
+        </label>
+
+        {token.custom_messages && (
+          <div className="display-settings-messages">
+            {/* When offline */}
+            <div className="display-settings-row">
+              <span className="display-settings-text-label">When offline</span>
+              <select
+                value={token.on_offline}
+                onChange={e => saveOnOffline(e.target.value)}
+                disabled={!canEdit}
+                className="input display-settings-select"
+              >
+                {ON_OFFLINE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <label className="display-settings-text-field">
+              <span className="display-settings-text-label">Offline message</span>
+              <input
+                type="text"
+                value={offlineText}
+                onChange={e => { setOfflineText(e.target.value); setOfflineTextErr(validateDisplayText(e.target.value)); }}
+                onBlur={() => saveOfflineText(offlineText)}
+                onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                disabled={!canEdit}
+                placeholder="Default: auto (i18n)"
+                maxLength={DISPLAY_TEXT_MAX_LEN}
+                className={`input${offlineTextErr ? " input-error" : ""}`}
+                style={{ fontSize: 12 }}
+              />
+              {offlineTextErr && <span className="display-settings-text-error">{offlineTextErr}</span>}
+              <span className="muted" style={{ fontSize: 10 }}>{offlineText.length}/{DISPLAY_TEXT_MAX_LEN}</span>
+            </label>
+
+            <div style={{ height: 1, background: "var(--divider)" }} />
+
+            {/* When error */}
+            <div className="display-settings-row">
+              <span className="display-settings-text-label">When error</span>
+              <select
+                value={token.on_error}
+                onChange={e => saveOnError(e.target.value)}
+                disabled={!canEdit}
+                className="input display-settings-select"
+              >
+                {ON_ERROR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <label className="display-settings-text-field">
+              <span className="display-settings-text-label">Error message</span>
+              <input
+                type="text"
+                value={errorText}
+                onChange={e => { setErrorText(e.target.value); setErrorTextErr(validateDisplayText(e.target.value)); }}
+                onBlur={() => saveErrorText(errorText)}
+                onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                disabled={!canEdit}
+                placeholder="Default: auto (i18n)"
+                maxLength={DISPLAY_TEXT_MAX_LEN}
+                className={`input${errorTextErr ? " input-error" : ""}`}
+                style={{ fontSize: 12 }}
+              />
+              {errorTextErr && <span className="display-settings-text-error">{errorTextErr}</span>}
+              <span className="muted" style={{ fontSize: 10 }}>{errorText.length}/{DISPLAY_TEXT_MAX_LEN}</span>
+            </label>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -1163,236 +1323,7 @@ function ActivityPanel({ tokenId }: { tokenId: string }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Origins editor
-// ---------------------------------------------------------------------------
-
 const ORIGIN_CUSTOM = "__custom__";
-
-interface OriginsEditorProps {
-  token: Token;
-  saving: boolean;
-  setSaving: (v: boolean) => void;
-  setToken: (t: Token) => void;
-  setError: (e: string | null) => void;
-}
-
-function OriginsEditor({ token, saving, setSaving, setToken, setError }: OriginsEditorProps) {
-  const [knownOrigins,   setKnownOrigins]   = useState<string[]>(loadKnownOrigins);
-  const [usingCustom,    setUsingCustom]    = useState(false);
-  const [customInput,    setCustomInput]    = useState("");
-  const [dropdownSel,    setDropdownSel]    = useState("");
-  const [urlError,       setUrlError]       = useState<string | null>(null);
-  const [pendingReplace, setPendingReplace] = useState<{ url: string; newOrigin: string; path: string | null } | null>(null);
-  const readonly = token.status === "revoked" || token.status === "expired";
-
-  const baseOrigin = token.origins.allowed[0] ?? "";
-  const paths = token.origins.allow_paths;
-  const displayUrls: string[] = token.origins.allow_any
-    ? []
-    : paths.length > 0
-      ? paths.map(p => `${baseOrigin}${p}`)
-      : baseOrigin ? [baseOrigin] : [];
-
-  const saveOrigins = async (origins: Token["origins"]) => {
-    setSaving(true);
-    try {
-      const updated = await api.tokens.update(token.token_id, { origins });
-      setToken(updated);
-    } catch (e) { setError(String(e)); }
-    finally { setSaving(false); }
-  };
-
-  const removeUrl = (displayUrl: string) => {
-    if (readonly || saving) return;
-    try {
-      const u = new URL(displayUrl);
-      const path = (u.pathname && u.pathname !== "/") ? u.pathname : null;
-      if (path) {
-        const newPaths = paths.filter(p => p !== path);
-        saveOrigins({ allow_any: false, allowed: newPaths.length > 0 ? [baseOrigin] : [], allow_paths: newPaths });
-      } else {
-        saveOrigins({ allow_any: false, allowed: [], allow_paths: [] });
-      }
-    } catch { /* bad URL */ }
-  };
-
-  const applyUrl = (url: string, newOrigin: string, path: string | null) => {
-    const differentHost = !!baseOrigin && baseOrigin !== newOrigin;
-    if (path) {
-      const newPaths = differentHost ? [path] : [...paths.filter(p => p !== path), path];
-      saveOrigins({ allow_any: false, allowed: [newOrigin], allow_paths: newPaths });
-    } else {
-      saveOrigins({ allow_any: false, allowed: [newOrigin], allow_paths: differentHost ? [] : paths });
-    }
-    addKnownOrigin(url);
-    setKnownOrigins(loadKnownOrigins());
-    setDropdownSel("");
-    setUsingCustom(false);
-    setCustomInput("");
-    setUrlError(null);
-    setPendingReplace(null);
-  };
-
-  const addUrl = (url: string) => {
-    const trimmed = url.trim();
-    if (!trimmed || readonly || saving) return;
-    const err = validateOriginUrl(trimmed);
-    if (err) { setUrlError(err); return; }
-    const u = new URL(trimmed);
-    const newOrigin = u.origin;
-    const path = (u.pathname && u.pathname !== "/") ? u.pathname : null;
-    // Strip query string and fragment - only origin+path are used for matching.
-    const normalized = path ? `${newOrigin}${path}` : newOrigin;
-    if (baseOrigin && baseOrigin !== newOrigin && displayUrls.length > 0) {
-      setPendingReplace({ url: normalized, newOrigin, path });
-      return;
-    }
-    applyUrl(normalized, newOrigin, path);
-  };
-
-  const handleDeleteFromDropdown = () => {
-    removeKnownOrigin(dropdownSel);
-    setKnownOrigins(loadKnownOrigins());
-    setDropdownSel("");
-  };
-
-  const dropdownItems = knownOrigins.filter(o => {
-    if (displayUrls.includes(o)) return false;
-    if (!baseOrigin) return true;
-    try { return new URL(o).origin === baseOrigin; } catch { return false; }
-  });
-  const hasDropdown = dropdownItems.length > 0;
-
-  return (
-    <Card title="Origins">
-      {!readonly && (
-        <label className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer", marginBottom: 10 }}>
-          <input
-            type="checkbox"
-            checked={token.origins.allow_any}
-            onChange={() => saveOrigins({ allow_any: !token.origins.allow_any, allowed: token.origins.allowed, allow_paths: token.origins.allow_paths })}
-            disabled={saving}
-          />
-          Allow from any website
-        </label>
-      )}
-
-      {token.origins.allow_any ? (
-        <div className="muted" style={{ fontSize: 13 }}>
-          {token.entities.some(e => e.capabilities === "read-write") && (
-            <div className="badge badge-warn" style={{ marginBottom: 6, display: "inline-block" }}>
-              Write access from any website
-            </div>
-          )}
-          {readonly && <div>Any website</div>}
-        </div>
-      ) : (
-        <>
-          {displayUrls.length === 0 && (
-            <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>No origin set.</div>
-          )}
-          <div className="col" style={{ gap: 4, marginBottom: 8 }}>
-            {displayUrls.map(url => (
-              <div key={url} className="row" style={{ gap: 6, fontSize: 13 }}>
-                <span style={{ flex: 1 }} className="mono url-clip">{url}</span>
-                {!readonly && (
-                  <button
-                    onClick={() => removeUrl(url)}
-                    disabled={saving}
-                    className="btn btn-sm btn-danger"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {!readonly && (
-            <div className="col" style={{ gap: 6 }}>
-              {hasDropdown && (
-                <div className="row" style={{ gap: 6 }}>
-                  <select
-                    value={usingCustom ? ORIGIN_CUSTOM : dropdownSel}
-                    onChange={e => {
-                      const v = e.target.value;
-                      if (v === ORIGIN_CUSTOM) { setUsingCustom(true); setDropdownSel(""); }
-                      else { setDropdownSel(v); setUsingCustom(false); }
-                    }}
-                    disabled={saving}
-                    className="input"
-                    style={{ flex: 1, fontSize: 13 }}
-                  >
-                    <option value="">Select a URL...</option>
-                    {dropdownItems.map(o => <option key={o} value={o}>{displayOriginLabel(o)}</option>)}
-                    <option value={ORIGIN_CUSTOM}>Enter a new URL...</option>
-                  </select>
-                  {dropdownSel && !usingCustom && (
-                    <>
-                      <button
-                        onClick={() => addUrl(dropdownSel)}
-                        disabled={saving}
-                        className="btn btn-sm"
-                      >
-                        Add URL
-                      </button>
-                      <button
-                        onClick={handleDeleteFromDropdown}
-                        disabled={saving}
-                        className="btn btn-sm btn-danger"
-                      >
-                        Delete URL
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-              {(usingCustom || !hasDropdown) && (
-                <div className="row" style={{ gap: 6 }}>
-                  <input
-                    value={customInput}
-                    onChange={e => setCustomInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") addUrl(customInput); }}
-                    placeholder="https://example.com/page.html"
-                    disabled={saving}
-                    autoFocus={hasDropdown}
-                    className="input"
-                    style={{ flex: 1, fontSize: 13 }}
-                  />
-                  <button
-                    onClick={() => addUrl(customInput)}
-                    disabled={saving || !customInput.trim()}
-                    className="btn btn-sm"
-                  >
-                    Add URL
-                  </button>
-                </div>
-              )}
-              {urlError && (
-                <div style={{ fontSize: 12, color: "var(--danger)" }}>{urlError}</div>
-              )}
-              <p className="muted" style={{ fontSize: 11 }}>
-                Site only (https://example.com) or a specific page (https://example.com/page.html).
-              </p>
-            </div>
-          )}
-        </>
-      )}
-
-      {pendingReplace && (
-        <ConfirmDialog
-          title="Replace website?"
-          message={`Changing to ${pendingReplace.newOrigin} will remove all existing URLs for ${baseOrigin}. Continue?`}
-          confirmLabel="Replace"
-          confirmDestructive
-          onConfirm={() => applyUrl(pendingReplace.url, pendingReplace.newOrigin, pendingReplace.path)}
-          onCancel={() => setPendingReplace(null)}
-        />
-      )}
-    </Card>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // IANA timezone list (common subset)
@@ -1460,6 +1391,110 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
       setToken({ ...updated, created_by_name: prevName });
     } catch (e) { setError(String(e)); }
     finally { setSaving(false); }
+  };
+
+  // -- Origins --
+  const [knownOrigins, setKnownOrigins]   = useState<string[]>(loadKnownOrigins);
+  const [usingCustom,  setUsingCustom]    = useState(false);
+  const [customInput,  setCustomInput]    = useState("");
+  const [dropdownSel,  setDropdownSel]    = useState("");
+  const [urlError,     setUrlError]       = useState<string | null>(null);
+  const [pendingReplace, setPendingReplace] = useState<{ url: string; newOrigin: string; path: string | null } | null>(null);
+  const [showOriginInput, setShowOriginInput] = useState(false);
+
+  const baseOrigin = token.origins.allowed[0] ?? "";
+  const paths = token.origins.allow_paths;
+  const hasOrigins = !!(baseOrigin || paths.length > 0);
+  const effectiveAllowAny = token.origins.allow_any || !hasOrigins;
+  const displayUrls: string[] = effectiveAllowAny
+    ? []
+    : paths.length > 0
+      ? paths.map(p => `${baseOrigin}${p}`)
+      : baseOrigin ? [baseOrigin] : [];
+
+  const saveOrigins = async (origins: Token["origins"]) => {
+    await patchToken({ origins });
+  };
+
+  const removeUrl = (displayUrl: string) => {
+    if (!canEdit) return;
+    try {
+      const u = new URL(displayUrl);
+      const path = (u.pathname && u.pathname !== "/") ? u.pathname : null;
+      if (path) {
+        const newPaths = paths.filter(p => p !== path);
+        if (newPaths.length > 0) {
+          saveOrigins({ allow_any: false, allowed: [baseOrigin], allow_paths: newPaths });
+        } else {
+          saveOrigins({ allow_any: true, allowed: [], allow_paths: [] });
+        }
+      } else {
+        saveOrigins({ allow_any: true, allowed: [], allow_paths: [] });
+      }
+    } catch { /* bad URL */ }
+  };
+
+  const applyUrl = (url: string, newOrigin: string, path: string | null) => {
+    const differentHost = !!baseOrigin && baseOrigin !== newOrigin;
+    if (path) {
+      const newPaths = differentHost ? [path] : [...paths.filter(p => p !== path), path];
+      saveOrigins({ allow_any: false, allowed: [newOrigin], allow_paths: newPaths });
+    } else {
+      saveOrigins({ allow_any: false, allowed: [newOrigin], allow_paths: differentHost ? [] : paths });
+    }
+    addKnownOrigin(url);
+    setKnownOrigins(loadKnownOrigins());
+    setDropdownSel("");
+    setUsingCustom(false);
+    setCustomInput("");
+    setUrlError(null);
+    setShowOriginInput(false);
+    setPendingReplace(null);
+  };
+
+  const addUrl = (url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed || !canEdit) return;
+    const err = validateOriginUrl(trimmed);
+    if (err) { setUrlError(err); return; }
+    const u = new URL(trimmed);
+    const newOrigin = u.origin;
+    const path = (u.pathname && u.pathname !== "/") ? u.pathname : null;
+    const normalized = path ? `${newOrigin}${path}` : newOrigin;
+    if (baseOrigin && baseOrigin !== newOrigin && displayUrls.length > 0) {
+      setPendingReplace({ url: normalized, newOrigin, path });
+      return;
+    }
+    applyUrl(normalized, newOrigin, path);
+  };
+
+  const handleDeleteFromDropdown = () => {
+    removeKnownOrigin(dropdownSel);
+    setKnownOrigins(loadKnownOrigins());
+    setDropdownSel("");
+  };
+
+  const originDropdownItems = knownOrigins.filter(o => {
+    if (displayUrls.includes(o)) return false;
+    if (!baseOrigin) return true;
+    try { return new URL(o).origin === baseOrigin; } catch { return false; }
+  });
+  const hasOriginDropdown = originDropdownItems.length > 0;
+
+  // -- Expiry --
+  const today = new Date().toISOString().slice(0, 10);
+  const [editExpiry, setEditExpiry] = useState(token.expires ? token.expires.slice(0, 10) : "");
+  const expiryInvalid = editExpiry !== "" && (
+    !/^\d{4}-\d{2}-\d{2}$/.test(editExpiry) || editExpiry <= today
+  );
+  const saveExpiry = async (val: string) => {
+    if (!canEdit) return;
+    if (val === "") {
+      await patchToken({ expires: null });
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(val) || val <= today) return;
+    await patchToken({ expires: `${val}T23:59:59Z` });
   };
 
   // -- Active Schedule --
@@ -1559,6 +1594,138 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
   return (
     <Card title="Security">
       <div className="col" style={{ gap: 16 }}>
+
+        {/* Allow from any website */}
+        <div>
+          {!readonly && (
+            <label className="row" style={{ gap: 8, fontSize: 13, cursor: canEdit ? "pointer" : "default", marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={effectiveAllowAny && !showOriginInput}
+                onChange={() => {
+                  if (effectiveAllowAny && !showOriginInput) {
+                    setShowOriginInput(true);
+                  } else {
+                    setShowOriginInput(false);
+                    if (hasOrigins) {
+                      saveOrigins({ allow_any: true, allowed: token.origins.allowed, allow_paths: token.origins.allow_paths });
+                    }
+                  }
+                }}
+                disabled={saving}
+              />
+              Allow from any website
+            </label>
+          )}
+          {(effectiveAllowAny && !showOriginInput) ? (
+            <div className="muted" style={{ fontSize: 13 }}>
+              {token.entities.some(e => e.capabilities === "read-write") && (
+                <div className="badge badge-warn" style={{ marginBottom: 6, display: "inline-block" }}>
+                  Write access from any website
+                </div>
+              )}
+              {readonly && <div>Any website</div>}
+            </div>
+          ) : (
+            <>
+              {displayUrls.length === 0 && (
+                <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>No origin set.</div>
+              )}
+              <div className="col" style={{ gap: 4, marginBottom: 8 }}>
+                {displayUrls.map(url => (
+                  <div key={url} className="row" style={{ gap: 6, fontSize: 13 }}>
+                    <span style={{ flex: 1 }} className="mono url-clip">{url}</span>
+                    {!readonly && (
+                      <button onClick={() => removeUrl(url)} disabled={saving} className="btn btn-sm btn-danger">Remove</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {!readonly && (
+                <div className="col" style={{ gap: 6 }}>
+                  {hasOriginDropdown && (
+                    <div className="row" style={{ gap: 6 }}>
+                      <select
+                        value={usingCustom ? ORIGIN_CUSTOM : dropdownSel}
+                        onChange={e => {
+                          const v = e.target.value;
+                          if (v === ORIGIN_CUSTOM) { setUsingCustom(true); setDropdownSel(""); }
+                          else { setDropdownSel(v); setUsingCustom(false); }
+                        }}
+                        disabled={saving}
+                        className="input"
+                        style={{ flex: 1, fontSize: 13 }}
+                      >
+                        <option value="">Select a URL...</option>
+                        {originDropdownItems.map(o => <option key={o} value={o}>{displayOriginLabel(o)}</option>)}
+                        <option value={ORIGIN_CUSTOM}>Enter a new URL...</option>
+                      </select>
+                      {dropdownSel && !usingCustom && (
+                        <>
+                          <button onClick={() => addUrl(dropdownSel)} disabled={saving} className="btn btn-sm">Add URL</button>
+                          <button onClick={handleDeleteFromDropdown} disabled={saving} className="btn btn-sm btn-danger">Delete URL</button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {(usingCustom || !hasOriginDropdown) && (
+                    <div className="row" style={{ gap: 6 }}>
+                      <input
+                        value={customInput}
+                        onChange={e => setCustomInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") addUrl(customInput); }}
+                        placeholder="https://example.com/page.html"
+                        disabled={saving}
+                        autoFocus={hasOriginDropdown}
+                        className="input"
+                        style={{ flex: 1, fontSize: 13 }}
+                      />
+                      <button onClick={() => addUrl(customInput)} disabled={saving || !customInput.trim()} className="btn btn-sm">Add URL</button>
+                    </div>
+                  )}
+                  {urlError && (
+                    <div style={{ fontSize: 12, color: "var(--danger)" }}>{urlError}</div>
+                  )}
+                  <p className="muted" style={{ fontSize: 11 }}>
+                    Site only (https://example.com) or a specific page (https://example.com/page.html).
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div style={{ height: 1, background: "var(--divider)" }} />
+
+        {/* Expiry */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Expiry date</div>
+          {readonly ? (
+            <div className="muted" style={{ fontSize: 13 }}>
+              {token.expires ? new Date(token.expires).toLocaleString() : "No expiry set"}
+            </div>
+          ) : (
+            <div className="col" style={{ gap: 4 }}>
+              <input
+                type="date"
+                value={editExpiry}
+                min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
+                onChange={e => { setEditExpiry(e.target.value); saveExpiry(e.target.value); }}
+                disabled={saving}
+                className="input"
+                style={{ fontSize: 13, width: 180, borderColor: expiryInvalid ? "var(--danger)" : undefined }}
+              />
+              {expiryInvalid && (
+                <div style={{ fontSize: 12, color: "var(--danger)" }}>Date must be in the future.</div>
+              )}
+              {!editExpiry && !expiryInvalid && (
+                <div className="muted" style={{ fontSize: 12 }}>No expiry - widget never expires</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={{ height: 1, background: "var(--divider)" }} />
 
         {/* HMAC */}
         <div>
@@ -1730,6 +1897,16 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
           onCancel={() => setConfirmDisableHmac(false)}
         />
       )}
+      {pendingReplace && (
+        <ConfirmDialog
+          title="Replace website?"
+          message={`Changing to ${pendingReplace.newOrigin} will remove all existing URLs for ${baseOrigin}. Continue?`}
+          confirmLabel="Replace"
+          confirmDestructive
+          onConfirm={() => applyUrl(pendingReplace.url, pendingReplace.newOrigin, pendingReplace.path)}
+          onCancel={() => setPendingReplace(null)}
+        />
+      )}
     </Card>
   );
 }
@@ -1745,7 +1922,6 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
   const [editLabel,     setEditLabel]     = useState("");
   const [labelError,    setLabelError]    = useState<string | null>(null);
   const [allLabels,     setAllLabels]     = useState<string[]>([]);
-  const [editExpiry,    setEditExpiry]    = useState("");
   const [saving,        setSaving]        = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1757,7 +1933,6 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
       .then(t => {
         setToken(t);
         setEditLabel(t.label);
-        setEditExpiry(t.expires ? t.expires.slice(0, 10) : "");
       })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
@@ -1788,25 +1963,6 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
     try {
       const updated = await api.tokens.update(token.token_id, { label: trimmed });
       setToken({ ...updated, created_by_name: prevCreatedByName });
-    } catch (e) { setError(String(e)); }
-    finally { setSaving(false); }
-  };
-
-  const saveExpiry = async (val: string) => {
-    if (!token) return;
-    let newExpires: string | null = null;
-    if (val) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return;
-      newExpires = val + "T00:00:00Z";
-    }
-    const current = token.expires ? token.expires.slice(0, 10) : "";
-    if (val === current) return;
-    setSaving(true);
-    const prevCreatedByName = token.created_by_name;
-    try {
-      const updated = await api.tokens.update(token.token_id, { expires: newExpires });
-      setToken({ ...updated, created_by_name: prevCreatedByName });
-      setEditExpiry(updated.expires ? updated.expires.slice(0, 10) : "");
     } catch (e) { setError(String(e)); }
     finally { setSaving(false); }
   };
@@ -1855,10 +2011,6 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
   }
 
   const readonly = token.status === "revoked" || token.status === "expired";
-  const today = new Date().toISOString().slice(0, 10);
-  const expiryInvalid = editExpiry !== "" && (
-    !/^\d{4}-\d{2}-\d{2}$/.test(editExpiry) || editExpiry <= today
-  );
   return (
     <div className="content-narrow col" style={{ gap: 18 }}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
@@ -1942,41 +2094,17 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
             setError={setError}
           />
 
-          {/* Origins */}
-          <OriginsEditor
-            token={token}
-            saving={saving}
-            setSaving={setSaving}
-            setToken={t => setToken({ ...t, created_by_name: token.created_by_name })}
-            setError={setError}
-          />
-
-          {/* Expiry */}
-          <Card title="Expiry">
-            {readonly ? (
-              <div className="muted" style={{ fontSize: 13 }}>
-                {token.expires ? new Date(token.expires).toLocaleString() : "No expiry set"}
-              </div>
-            ) : (
-              <div className="col" style={{ gap: 6 }}>
-                <input
-                  type="date"
-                  value={editExpiry}
-                  min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
-                  onChange={e => { setEditExpiry(e.target.value); saveExpiry(e.target.value); }}
-                  disabled={saving}
-                  className="input"
-                  style={{ fontSize: 13, borderColor: expiryInvalid ? "var(--danger)" : undefined }}
-                />
-                {expiryInvalid && (
-                  <div style={{ fontSize: 12, color: "var(--danger)" }}>Date must be in the future.</div>
-                )}
-                {!editExpiry && !expiryInvalid && (
-                  <div className="muted" style={{ fontSize: 12 }}>No expiry - widget never expires</div>
-                )}
-              </div>
-            )}
-          </Card>
+          {/* Display settings */}
+          {!readonly && (
+            <DisplaySettings
+              token={token}
+              readonly={readonly}
+              saving={saving}
+              setSaving={setSaving}
+              setToken={t => setToken({ ...t, created_by_name: token.created_by_name })}
+              setError={setError}
+            />
+          )}
 
           {/* Security */}
           <SecurityEditor

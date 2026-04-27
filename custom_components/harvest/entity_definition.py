@@ -261,6 +261,7 @@ def build_entity_definition(
     hass: HomeAssistant,
     entity_id: str,
     entity_access: "EntityAccess",
+    companions: list[str] | None = None,
 ) -> dict | None:
     """Build a complete entity_definition message dict for a given entity.
 
@@ -353,6 +354,11 @@ def build_entity_definition(
         "renderer": renderer,
         "unit_of_measurement": unit_of_measurement,
         "gesture_config": entity_access.gesture_config or {},
+        "graph": entity_access.graph,
+        "hours": entity_access.hours,
+        "period": entity_access.period,
+        "animate": entity_access.animate,
+        "companions": companions or [],
     }
 
 

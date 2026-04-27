@@ -21,18 +21,6 @@
  *   data-token        -> token
  *   data-ha-url       -> ha-url
  *   data-token-secret -> token-secret
- *   data-companion    -> companion
- *   data-theme-url    -> theme-url
- *   data-lang         -> lang
- *   data-on-offline   -> on-offline
- *   data-on-error     -> on-error
- *   data-offline-text -> offline-text
- *   data-error-text   -> error-text
- *   data-graph        -> graph
- *   data-hours        -> hours
- *   data-period       -> period
- *   data-animate      -> animate
- *   data-a11y         -> a11y
  *
  * Gesture configuration (tap/hold/double-tap actions) is managed server-side
  * per entity on the token and delivered via the entity_definition message.
@@ -155,19 +143,6 @@ function mountCard(el) {
   // entity takes priority over alias.
   if (el.dataset.entity)           card.setAttribute("entity",       el.dataset.entity);
   else if (el.dataset.alias)       card.setAttribute("alias",        el.dataset.alias);
-
-  if (el.dataset.companion)        card.setAttribute("companion",    el.dataset.companion);
-  if (el.dataset.themeUrl)         card.setAttribute("theme-url",    el.dataset.themeUrl);
-  if (el.dataset.lang)             card.setAttribute("lang",         el.dataset.lang);
-  if (el.dataset.onOffline)        card.setAttribute("on-offline",   el.dataset.onOffline);
-  if (el.dataset.onError)          card.setAttribute("on-error",     el.dataset.onError);
-  if (el.dataset.offlineText)      card.setAttribute("offline-text", el.dataset.offlineText);
-  if (el.dataset.errorText)        card.setAttribute("error-text",   el.dataset.errorText);
-  if (el.dataset.graph)            card.setAttribute("graph",        el.dataset.graph);
-  if (el.dataset.hours)            card.setAttribute("hours",        el.dataset.hours);
-  if (el.dataset.period)           card.setAttribute("period",       el.dataset.period);
-  if (el.dataset.animate)          card.setAttribute("animate",         "");
-  if (el.dataset.a11y)             card.setAttribute("a11y",            el.dataset.a11y);
 
   el.appendChild(card);
 }

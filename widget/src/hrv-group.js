@@ -1,8 +1,8 @@
 /**
  * hrv-group.js - <hrv-group> custom element context provider.
  *
- * HrvGroup is a zero-UI context provider. It stores token, ha-url, theme-url,
- * and lang values that child <hrv-card> elements inherit during their own
+ * HrvGroup is a zero-UI context provider. It stores token, ha-url, and
+ * token-secret values that child <hrv-card> elements inherit during their own
  * connectedCallback. The group renders no shadow DOM and applies no styles.
  *
  * Design: children pull config from the group; the group never pushes to
@@ -21,7 +21,7 @@
 export class HrvGroup extends HTMLElement {
 
   static get observedAttributes() {
-    return ["token", "ha-url", "theme-url", "lang"];
+    return ["token", "ha-url", "token-secret"];
   }
 
   // -------------------------------------------------------------------------
@@ -36,10 +36,7 @@ export class HrvGroup extends HTMLElement {
   get haUrl()   { return this.getAttribute("ha-url") ?? ""; }
 
   /** @returns {string|null} */
-  get themeUrl() { return this.getAttribute("theme-url") ?? null; }
-
-  /** @returns {string} */
-  get lang()    { return this.getAttribute("lang") ?? "auto"; }
+  get tokenSecret() { return this.getAttribute("token-secret") ?? null; }
 }
 
 if (!customElements.get("hrv-group")) {

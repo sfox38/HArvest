@@ -121,6 +121,10 @@ export class HarvestClient {
 
   /** @type {string|null} */ #activePack = null;
 
+  // Buffered messages for entities not yet registered (companion race condition).
+  /** @type {Map<string, object>} */ #pendingDefinitions = new Map();
+  /** @type {Map<string, object>} */ #pendingStateUpdates = new Map();
+
   /**
    * @param {string} haUrl   - Base URL of the HA instance (e.g. https://ha.example.com)
    * @param {string} tokenId - HArvest token ID (hwt_...)
@@ -165,6 +169,28 @@ export class HarvestClient {
           this.#openConnection();
         }, AUTH_DEBOUNCE_MS);
       }
+    }
+  }
+
+  /**
+   * Register a card passively (no subscribe message sent). Used for
+   * server-auto-subscribed companions. Replays any buffered definition
+   * and state_update that arrived before the card was registered.
+   *
+   * @param {string} entityId
+   * @param {object} card
+   */
+  registerCardPassive(entityId, card) {
+    this.#cards.set(entityId, card);
+    const bufferedDef = this.#pendingDefinitions.get(entityId);
+    if (bufferedDef) {
+      this.#pendingDefinitions.delete(entityId);
+      card.receiveDefinition?.(bufferedDef);
+    }
+    const bufferedState = this.#pendingStateUpdates.get(entityId);
+    if (bufferedState) {
+      this.#pendingStateUpdates.delete(entityId);
+      card.receiveState?.(bufferedState);
     }
   }
 
@@ -223,17 +249,13 @@ export class HarvestClient {
    * Request history data for an entity from the server.
    *
    * @param {string} entityId
-   * @param {number} hours
-   * @param {number} period - aggregation period in minutes
    */
-  requestHistory(entityId, hours, period) {
+  requestHistory(entityId) {
     if (!this.#sessionId || !this.#ws || this.#ws.readyState !== WebSocket.OPEN) return;
     this.#sendJson({
       type: "history_request",
       session_id: this.#sessionId,
       entity_id: entityId,
-      hours: hours ?? 24,
-      period: period ?? 10,
       msg_id: this.#nextMsgId(),
     });
   }
@@ -476,6 +498,7 @@ export class HarvestClient {
       case "ack":              return this.#handleAck(msg);
       case "error":            return this.#handleError(msg);
       case "theme":            return this.#handleTheme(msg);
+      case "token_config":    return this.#handleTokenConfig(msg);
       case "renderer_pack":   return this.#handleRendererPack(msg);
       case "keepalive":        return; // heartbeat reset already done in #onMessage
       default:
@@ -539,6 +562,8 @@ export class HarvestClient {
     const card = this.#cards.get(entityId);
     if (card) {
       card.receiveDefinition?.(msg);
+    } else {
+      this.#pendingDefinitions.set(entityId, msg);
     }
   }
 
@@ -576,7 +601,11 @@ export class HarvestClient {
     }
 
     const card = this.#cards.get(entityId);
-    card?.receiveStateUpdate?.(msg.state, attributes, msg.last_updated);
+    if (card) {
+      card.receiveStateUpdate?.(msg.state, attributes, msg.last_updated);
+    } else {
+      this.#pendingStateUpdates.set(entityId, msg);
+    }
 
     for (const listener of this.#stateListeners) {
       try { listener(entityId, msg.state, attributes); } catch { /* ignore */ }
@@ -653,6 +682,20 @@ export class HarvestClient {
     const theme = { variables: msg.variables, dark_variables: msg.dark_variables ?? {} };
     for (const card of this.#cards.values()) {
       card.receiveTheme?.(theme);
+    }
+  }
+
+  #handleTokenConfig(msg) {
+    const config = {
+      lang: msg.lang ?? "auto",
+      a11y: msg.a11y ?? "standard",
+      onOffline: msg.on_offline ?? "last-state",
+      onError: msg.on_error ?? "message",
+      offlineText: msg.offline_text ?? "",
+      errorText: msg.error_text ?? "",
+    };
+    for (const card of this.#cards.values()) {
+      card.receiveTokenConfig?.(config);
     }
   }
 

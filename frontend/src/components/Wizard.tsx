@@ -107,14 +107,11 @@ function fmtExpiry(option: string): string {
 }
 
 function buildCardSnippetFromState(
-  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, haUrl: string, useA11y = false,
+  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, haUrl: string,
 ): string {
-  const a11yAttr = useA11y ? ` a11y` : "";
   function cardLine(e: SelectedEntity, indent = ""): string {
     const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
-    const cl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-    const companionAttr = cl.length > 0 ? ` companion="${cl.join(", ")}"` : "";
-    return `${indent}<hrv-card ${entityAttr}${companionAttr}></hrv-card>`;
+    return `${indent}<hrv-card ${entityAttr}></hrv-card>`;
   }
 
   if (mode === "page") {
@@ -123,46 +120,37 @@ function buildCardSnippetFromState(
 
   const groupAttrs = `ha-url="${haUrl}" token="${tokenId}"`;
   if (mode === "group") {
-    return `<hrv-group ${groupAttrs}${a11yAttr}>\n${entities.map(e => cardLine(e, "  ")).join("\n")}\n</hrv-group>`;
+    return `<hrv-group ${groupAttrs}>\n${entities.map(e => cardLine(e, "  ")).join("\n")}\n</hrv-group>`;
   }
   const e = entities[0];
   if (!e) return "";
   const sEntityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
-  const sCl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-  const sCompanionAttr = sCl.length > 0 ? ` companion="${sCl.join(", ")}"` : "";
-  return `<hrv-card ${groupAttrs} ${sEntityAttr}${sCompanionAttr}${a11yAttr}></hrv-card>`;
+  return `<hrv-card ${groupAttrs} ${sEntityAttr}></hrv-card>`;
 }
 
 function buildWordPressSnippetFromState(
-  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, useA11y = false,
+  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string,
 ): string {
-  const a11yAttr = useA11y ? ` a11y="true"` : "";
   function shortcodeLine(e: SelectedEntity, indent = ""): string {
     const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
-    const cl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-    const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-    return `${indent}[harvest ${entityAttr}${companionAttr}]`;
+    return `${indent}[harvest ${entityAttr}]`;
   }
 
   if (mode === "page") {
     return entities.map(e => {
       const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
-      const cl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-      const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-      return `[harvest token="${tokenId}" ${entityAttr}${companionAttr}${a11yAttr}]`;
+      return `[harvest token="${tokenId}" ${entityAttr}]`;
     }).join("\n");
   }
 
   if (mode === "group") {
-    return `[harvest_group token="${tokenId}"${a11yAttr}]\n${entities.map(e => shortcodeLine(e, "  ")).join("\n")}\n[/harvest_group]`;
+    return `[harvest_group token="${tokenId}"]\n${entities.map(e => shortcodeLine(e, "  ")).join("\n")}\n[/harvest_group]`;
   }
 
   const e = entities[0];
   if (!e) return "";
   const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
-  const cl = e.companions.map(c => useAliases && c.alias ? c.alias : c.entity_id);
-  const companionAttr = cl.length > 0 ? ` companion="${cl.join(",")}"` : "";
-  return `[harvest token="${tokenId}" ${entityAttr}${companionAttr}${a11yAttr}]`;
+  return `[harvest token="${tokenId}" ${entityAttr}]`;
 }
 
 // ---------------------------------------------------------------------------
@@ -797,7 +785,6 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
   onAcknowledgedChange?: (v: boolean) => void;
 }) {
   const [useAliases,   setUseAliases]   = useState(() => localStorage.getItem("hrv_use_aliases") === "true");
-  const [useA11y,      setUseA11y]      = useState(false);
   const [tab,          setTab]          = useState<"web" | "wordpress">(() => localStorage.getItem("hrv_code_tab") === "wordpress" ? "wordpress" : "web");
   const [acknowledged, setAcknowledged] = useState(!tokenSecret);
   const [widgetName,   setWidgetName]   = useState(token.label);
@@ -816,13 +803,12 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
   const isPage = cardMode === "page";
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
-  if (isPage && useA11y) pageConfigParts.push(`a11y: "enhanced"`);
   const pageSetup = isPage
     ? `${scriptTag}\n<script>HArvest.config({ ${pageConfigParts.join(", ")} });</script>`
     : scriptTag;
   const cardSnippet = tab === "web"
-    ? buildCardSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, haUrl, useA11y)
-    : buildWordPressSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, useA11y);
+    ? buildCardSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, haUrl)
+    : buildWordPressSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id);
   const hostDisplay = originMode === "any" ? "Anywhere" : (originUrl || haUrl);
 
   const saveWidgetName = async (name: string) => {
@@ -932,17 +918,6 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
             />
             Show as aliases
             <span className="muted" style={{ fontSize: 11, cursor: "help" }} title="Aliases hide your real entity IDs from the page source. Both formats work against the same token.">(?)
-            </span>
-          </label>
-          {/* Enhanced accessibility toggle */}
-          <label className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={useA11y}
-              onChange={e => setUseA11y(e.target.checked)}
-            />
-            Enhanced accessibility
-            <span className="muted" style={{ fontSize: 11, cursor: "help" }} title="Adds aria-live announcements for screen readers. State changes are announced as they happen.">(?)
             </span>
           </label>
         </>

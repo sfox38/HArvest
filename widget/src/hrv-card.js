@@ -66,12 +66,7 @@ export class HrvCard extends HTMLElement {
   // -------------------------------------------------------------------------
 
   static get observedAttributes() {
-    return [
-      "token", "ha-url", "entity", "alias", "companion",
-      "on-offline", "on-error", "offline-text", "error-text",
-      "graph", "hours", "period", "animate",
-      "lang", "a11y", "theme-url", "theme",
-    ];
+    return ["token", "ha-url", "entity", "alias", "token-secret"];
   }
 
   // -------------------------------------------------------------------------
@@ -128,11 +123,6 @@ export class HrvCard extends HTMLElement {
     this.#config.card = this;
 
     this.#client.registerCard(entityRef, this);
-
-    // Register companion entity IDs with the same client.
-    for (const companion of this.#companions) {
-      this.#client.registerCard(companion.entityId, companion.proxyCard);
-    }
   }
 
   disconnectedCallback() {
@@ -174,21 +164,46 @@ export class HrvCard extends HTMLElement {
       `[HArvest] receiveDefinition: ${def.entity_id} domain=${def.domain} capabilities=${def.capabilities}`,
     );
     this.#entityDef = def;
-    // Apply server-side gesture config. Gesture handlers close over this.#config so
-    // updating this field is sufficient - no re-render needed for gesture-only changes.
+
+    // Apply server-side config from entity_definition.
     this.#config.gestureConfig = def.gesture_config ?? {};
+    this.#config.graph = def.graph ?? null;
+    this.#config.hours = def.hours ?? 24;
+    this.#config.period = def.period ?? 10;
+    this.#config.animate = def.animate ?? false;
+
+    // Reconcile companion proxies from server-delivered list.
+    const newCompanionRefs = def.companions ?? [];
+    const oldRefs = new Set(this.#companions.map((c) => c.entityId));
+    const newRefs = new Set(newCompanionRefs);
+
+    for (const comp of this.#companions) {
+      if (!newRefs.has(comp.entityId)) {
+        this.#client?.unregisterCard(comp.entityId);
+      }
+    }
+
+    const kept = this.#companions.filter((c) => newRefs.has(c.entityId));
+    const keptIds = new Set(kept.map((c) => c.entityId));
+    this.#companions = [...kept];
+    for (const ref of newCompanionRefs) {
+      if (!keptIds.has(ref)) {
+        const proxyCard = _makeCompanionProxy(ref, this);
+        this.#companions.push({ entityId: ref, proxyCard, capabilities: null, domain: null });
+        this.#client?.registerCardPassive(ref, proxyCard);
+      }
+    }
+    this.#config.companions = this.#companions;
+
     const RendererClass = this.#client?._getPackRenderer?.(def.domain, def.device_class ?? null)
       || lookupRenderer(def.domain, def.device_class ?? null);
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
 
-    // Apply theme if configured.
-    ThemeLoader.resolve(this.#config).then((theme) => {
-      if (theme) ThemeLoader.apply(theme, this.shadowRoot);
-    });
-
-    // Replay cached state while waiting for the live state_update.
-    if (this.#optimisticState) {
+    // Replay last known state so the card is not blank after a re-definition.
+    if (this.#lastState !== null) {
+      this.#renderer.applyState(this.#lastState, this.#lastAttributes);
+    } else if (this.#optimisticState) {
       this.#renderer.applyState(
         this.#optimisticState.state,
         this.#optimisticState.attributes,
@@ -197,16 +212,25 @@ export class HrvCard extends HTMLElement {
     }
 
     // Replay companion definitions then states so friendly names appear in tooltips.
-    for (const [entityId, def] of this.#lastCompanionDefs) {
-      this.#renderer.updateCompanionDefinition?.(entityId, def);
+    for (const [entityId, compDef] of this.#lastCompanionDefs) {
+      this.#renderer.updateCompanionDefinition?.(entityId, compDef);
     }
     for (const [entityId, { state, attributes }] of this.#lastCompanionStates) {
       this.#renderer.updateCompanionState?.(entityId, state, attributes);
     }
 
-    if (this.#config.graph && this.#client) {
-      const entityRef = this.#entityId || this.#alias;
-      this.#client.requestHistory(entityRef, this.#config.hours, this.#config.period);
+    if (this.#config.graph) {
+      if (this.#lastHistoryData) {
+        this.#renderer.receiveHistoryData?.(
+          this.#lastHistoryData.points,
+          this.#lastHistoryData.hours,
+          this.#config.graph,
+        );
+      }
+      if (this.#client) {
+        const entityRef = this.#entityId || this.#alias;
+        this.#client.requestHistory(entityRef);
+      }
     }
   }
 
@@ -277,6 +301,47 @@ export class HrvCard extends HTMLElement {
     }
   }
 
+  /**
+   * Called when a token_config message arrives (token-level display settings).
+   * @param {object} config
+   */
+  receiveTokenConfig(config) {
+    this.#config.lang = config.lang ?? "auto";
+    this.#config.a11y = config.a11y ?? "standard";
+    this.#config.onOffline = config.onOffline ?? "last-state";
+    this.#config.onError = config.onError ?? "message";
+    this.#config.offlineText = config.offlineText ?? "";
+    this.#config.errorText = config.errorText ?? "";
+    if (this.#i18n) {
+      this.#i18n = new I18n(this.#config.lang);
+    }
+    this.#rebuildRenderer();
+  }
+
+  #rebuildRenderer() {
+    if (!this.#entityDef || !this.#renderer) return;
+    const Cls = this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
+      || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null);
+    this.#renderer = new Cls(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
+    this.#renderer.render();
+    if (this.#lastState !== null) {
+      this.#renderer.applyState(this.#lastState, this.#lastAttributes);
+    }
+    for (const [entityId, def] of this.#lastCompanionDefs) {
+      this.#renderer.updateCompanionDefinition?.(entityId, def);
+    }
+    for (const [entityId, { state, attributes }] of this.#lastCompanionStates) {
+      this.#renderer.updateCompanionState?.(entityId, state, attributes);
+    }
+    if (this.#lastHistoryData && this.#config.graph) {
+      this.#renderer.receiveHistoryData?.(
+        this.#lastHistoryData.points,
+        this.#lastHistoryData.hours,
+        this.#config.graph,
+      );
+    }
+  }
+
   _reRender() {
     if (!this.#entityDef || !this.#renderer) return;
     const NewRenderer = this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
@@ -284,9 +349,6 @@ export class HrvCard extends HTMLElement {
     if (NewRenderer === this.#renderer.constructor) return;
     this.#renderer = new NewRenderer(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
-    ThemeLoader.resolve(this.#config).then((theme) => {
-      if (theme) ThemeLoader.apply(theme, this.shadowRoot);
-    });
     if (this.#lastState !== null) {
       this.#renderer.applyState(this.#lastState, this.#lastAttributes);
     }
@@ -552,26 +614,25 @@ export class HrvCard extends HTMLElement {
       entity:       entityAttr,
       alias:        this.#alias,
       entityRef:    entityAttr || aliasAttr || "",
-      lang:         this.getAttribute("lang")         ?? "auto",
-      themeUrl:     this.getAttribute("theme-url")    ?? null,
-      theme:        this._parseJsonAttr("theme"),
-      onOffline:    this.getAttribute("on-offline")   ?? "last-state",
-      onError:      this.getAttribute("on-error")     ?? "message",
-      offlineText:  this.getAttribute("offline-text") ?? "",
-      errorText:    this.getAttribute("error-text")   ?? "",
-      gestureConfig:   {},
-      graph:        this.getAttribute("graph") || null,
-      hours:        parseInt(this.getAttribute("hours") ?? "", 10) || 24,
-      period:       parseInt(this.getAttribute("period") ?? "", 10) || 10,
-      animate:      this.hasAttribute("animate"),
-      a11y:         this.hasAttribute("a11y") ? (this.getAttribute("a11y") || "enhanced") : "standard",
+      lang:         "auto",
+      themeUrl:     null,
+      theme:        null,
+      onOffline:    "last-state",
+      onError:      "message",
+      offlineText:  "",
+      errorText:    "",
+      gestureConfig: {},
+      graph:        null,
+      hours:        24,
+      period:       10,
+      animate:      false,
+      a11y:         "standard",
       companions:   this.#companions,
       card:         this,
     };
 
     this.#inheritFromGroup();
     this.#applyPageConfigFallbacks();
-    this.#parseCompanions();
   }
 
   /**
@@ -585,11 +646,6 @@ export class HrvCard extends HTMLElement {
         if (!this.#config.tokenId) this.#config.tokenId = ancestor.getAttribute("token") ?? "";
         if (!this.#config.haUrl)   this.#config.haUrl   = ancestor.getAttribute("ha-url") ?? "";
         if (!this.#config.tokenSecret) this.#config.tokenSecret = ancestor.getAttribute("token-secret") ?? null;
-        if (!this.#config.themeUrl) this.#config.themeUrl = ancestor.getAttribute("theme-url") ?? null;
-        if (this.#config.lang === "auto") this.#config.lang = ancestor.getAttribute("lang") ?? "auto";
-        if (this.#config.a11y === "standard" && ancestor.hasAttribute("a11y")) {
-          this.#config.a11y = ancestor.getAttribute("a11y") || "enhanced";
-        }
         break;
       }
       ancestor = ancestor.parentElement;
@@ -603,42 +659,8 @@ export class HrvCard extends HTMLElement {
     if (!this.#config.tokenId    && _pageConfig.token)       this.#config.tokenId    = _pageConfig.token;
     if (!this.#config.haUrl      && _pageConfig.haUrl)       this.#config.haUrl      = _pageConfig.haUrl;
     if (!this.#config.tokenSecret && _pageConfig.tokenSecret) this.#config.tokenSecret = _pageConfig.tokenSecret;
-    if (!this.#config.themeUrl   && _pageConfig.themeUrl)     this.#config.themeUrl   = _pageConfig.themeUrl;
-    if (this.#config.lang === "auto" && _pageConfig.lang)     this.#config.lang       = _pageConfig.lang;
-    if (this.#config.a11y === "standard" && _pageConfig.a11y)  this.#config.a11y       = _pageConfig.a11y;
   }
 
-  /**
-   * Parse the companion= attribute into CompanionConfig objects.
-   * Format: comma-separated entity IDs or aliases.
-   * Companions use the same entity/alias convention as the card's primary ref.
-   */
-  #parseCompanions() {
-    this.#companions = [];
-    const raw = this.getAttribute("companion");
-    if (!raw) return;
-
-    for (const ref of raw.split(",").map((s) => s.trim()).filter(Boolean)) {
-      // Create a minimal proxy card to receive definition and state updates
-      // for the companion entity. It shares this card's renderer via callbacks.
-      const proxyCard = _makeCompanionProxy(ref, this);
-      this.#companions.push({ entityId: ref, proxyCard, capabilities: null, domain: null });
-    }
-
-    // Update config.companions reference.
-    this.#config.companions = this.#companions;
-  }
-
-  /**
-   * Parse a JSON-valued attribute safely. Returns null on parse failure.
-   * @param {string} name
-   * @returns {any}
-   */
-  _parseJsonAttr(name) {
-    const val = this.getAttribute(name);
-    if (!val) return null;
-    try { return JSON.parse(val); } catch { return null; }
-  }
 }
 
 // ---------------------------------------------------------------------------
