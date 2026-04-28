@@ -10,7 +10,6 @@ import type { Screen, PanelStats, HourlyBucket, ActivityEvent, Token } from "../
 import { api } from "../api";
 import { Spinner, ErrorBanner, Card, Sparkline, ActivityGraph, StatusBadge, EventRow, fmtRel } from "./Shared";
 import { Icon } from "./Icon";
-import buildVersion from "../buildVersion.json";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -226,10 +225,6 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
         </Card>
       </div>
 
-      {/* Footer */}
-      <div className="row muted" style={{ fontSize: 12, justifyContent: "flex-end", padding: "0 4px 18px" }}>
-        <span>build #{buildVersion.build}</span>
-      </div>
     </div>
   );
 }

@@ -639,11 +639,20 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
   const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [cacheLen, setCacheLen] = useState(() => getEntityCache().length);
+  const prevDisabled = useRef(false);
 
   useEffect(() => {
     if (getEntityCache().length > 0) { setCacheLen(getEntityCache().length); return; }
     loadEntityCache().then(() => setCacheLen(getEntityCache().length));
   }, []);
+
+  // Re-focus the input when it transitions from disabled back to enabled (alias loading complete).
+  useEffect(() => {
+    if (prevDisabled.current && !disabled) {
+      inputRef.current?.focus();
+    }
+    prevDisabled.current = !!disabled;
+  }, [disabled]);
 
   const excluded = useMemo(() => new Set(excludeIds ?? []), [excludeIds]);
 

@@ -342,6 +342,7 @@ function Step1({ state, onChange, existingLabels }: { state: WizardState; onChan
           onSelect={id => { selectEntity(id); setEntityInput(""); }}
           disabled={loadingAlias !== null}
           placeholder={state.mode === "single" ? "Search entity ID or friendly name..." : multiMode ? "Add entity..." : "Add entity..."}
+          excludeIds={primaryIds}
         />
       )}
 
