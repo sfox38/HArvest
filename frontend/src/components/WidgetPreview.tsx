@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { ThemeDefinition, HAEntityDetail } from "../types";
 import { api } from "../api";
+import { Toggle } from "./Toggle";
 import { EntityAutocomplete } from "./Shared";
 import { Icon } from "./Icon";
 import buildVersion from "../buildVersion.json";
@@ -120,7 +121,7 @@ export interface MockEntity {
 
 export const MOCK_ENTITIES: Record<string, MockEntity> = {
   light:          { domain: "light",          label: "Light",          friendly_name: "Bedroom Light",    state: "on",       attributes: { brightness: 180, color_temp: 350, min_mireds: 153, max_mireds: 500, rgb_color: [255, 180, 100] } },
-  switch:         { domain: "switch",         label: "Switch",         friendly_name: "Desk Fan",         state: "on",       attributes: {} },
+  switch:         { domain: "switch",         label: "Switch",         friendly_name: "Pump Motor",       state: "on",       attributes: {} },
   sensor:         { domain: "sensor",         label: "Sensor",         friendly_name: "Temperature",      state: "22.4",     unit: "°C", attributes: { device_class: "temperature", state_class: "measurement" } },
   climate:        { domain: "climate",        label: "Climate",        friendly_name: "Living Room",      state: "heat",     attributes: { current_temperature: 21.5, temperature: 22, hvac_modes: ["off", "heat", "cool", "auto"] } },
   cover:          { domain: "cover",          label: "Cover",          friendly_name: "Blinds",           state: "open",     attributes: { current_position: 65 } },
@@ -132,7 +133,7 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Bohemian Rhapsody", media_artist: "Queen", volume_level: 0.7 } },
   remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: {} },
   harvest_action: { domain: "harvest_action", label: "Action",         friendly_name: "Good Night",       state: "idle",     attributes: {} },
-  timer:          { domain: "timer",          label: "Timer",          friendly_name: "Pomodoro",         state: "idle",     attributes: { duration: "0:25:00", remaining: "0:25:00" } },
+  timer:          { domain: "timer",          label: "Timer",          friendly_name: "Oven Timer",       state: "idle",     attributes: { duration: "0:25:00", remaining: "0:25:00" } },
 };
 
 const RENDERER_OPTIONS = [
@@ -296,6 +297,7 @@ function buildEntityDef(
     if (features.transport) supported.push("play", "pause", "previous_track", "next_track");
     if (features.volume) supported.push("volume_set");
   } else if (domain === "input_number") {
+    if (features.slider) supported.push("slider");
     for (const key of ["min", "max", "step"]) {
       if (mock.attributes[key] != null) featureConfig[key] = mock.attributes[key];
     }
@@ -592,14 +594,13 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
       {(domainFeatures.length > 0 || graphOptions) && (
         <div className="row" style={{ gap: 12, flexWrap: "wrap", fontSize: 12 }}>
           {domainFeatures.map(f => (
-            <label key={f.key} className="row" style={{ gap: 4, alignItems: "center", cursor: "pointer" }}>
-              <input
-                type="checkbox"
+            <div key={f.key} className="row" style={{ gap: 8, alignItems: "center" }}>
+              <Toggle
                 checked={features[f.key] ?? f.default}
-                onChange={e => setFeatures(prev => ({ ...prev, [f.key]: e.target.checked }))}
+                onChange={v => setFeatures(prev => ({ ...prev, [f.key]: v }))}
               />
-              {f.label}
-            </label>
+              <span>{f.label}</span>
+            </div>
           ))}
           {graphOptions && (
             <label className="row" style={{ gap: 4, alignItems: "center" }}>

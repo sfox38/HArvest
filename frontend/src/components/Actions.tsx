@@ -97,12 +97,31 @@ interface DomainEntityPickerProps {
   placeholder?: string;
 }
 
+function scrollInputToTopOnMobile(input: HTMLInputElement | null) {
+  if (!input) return;
+  if (!window.matchMedia("(max-width: 720px)").matches) return;
+  let el: HTMLElement | null = input.parentElement;
+  while (el && el !== document.body) {
+    const style = getComputedStyle(el);
+    if (/(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight) {
+      const inputRect = input.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const delta = inputRect.top - (elRect.top + 8);
+      el.scrollBy({ top: delta, behavior: "smooth" });
+      return;
+    }
+    el = el.parentElement;
+  }
+  const inputRect = input.getBoundingClientRect();
+  window.scrollBy({ top: inputRect.top - 8, behavior: "smooth" });
+}
+
 function DomainEntityPicker({ domain, onSelect, placeholder }: DomainEntityPickerProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const [entities, setEntities] = useState<HAEntity[]>([]);
-  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -122,12 +141,33 @@ function DomainEntityPicker({ domain, onSelect, placeholder }: DomainEntityPicke
   useEffect(() => { setHighlighted(0); }, [matches.length]);
 
   useEffect(() => {
-    if (open && matches.length > 0 && inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect();
-      setDropdownRect({ top: r.bottom, left: r.left, width: r.width });
-    } else {
+    if (!open || matches.length === 0 || !inputRef.current) {
       setDropdownRect(null);
+      return;
     }
+    const calc = () => {
+      if (!inputRef.current) return;
+      const r = inputRef.current.getBoundingClientRect();
+      const vvH = window.visualViewport?.height ?? window.innerHeight;
+      const spaceBelow = vvH - r.bottom - 8;
+      if (spaceBelow >= 80) {
+        setDropdownRect({ top: r.bottom + 2, left: r.left, width: r.width, maxHeight: Math.min(280, spaceBelow) });
+      } else {
+        const maxH = Math.min(280, r.top - 8);
+        setDropdownRect(maxH > 40
+          ? { top: r.top - maxH - 2, left: r.left, width: r.width, maxHeight: maxH }
+          : null);
+      }
+    };
+    calc();
+    window.visualViewport?.addEventListener("resize", calc);
+    window.visualViewport?.addEventListener("scroll", calc);
+    window.addEventListener("resize", calc);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", calc);
+      window.visualViewport?.removeEventListener("scroll", calc);
+      window.removeEventListener("resize", calc);
+    };
   }, [open, matches.length]);
 
   const select = (e: HAEntity) => {
@@ -142,7 +182,10 @@ function DomainEntityPicker({ domain, onSelect, placeholder }: DomainEntityPicke
         ref={inputRef}
         value={query}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          setTimeout(() => scrollInputToTopOnMobile(inputRef.current), 320);
+        }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={e => {
           if (!open || matches.length === 0) return;
@@ -161,7 +204,7 @@ function DomainEntityPicker({ domain, onSelect, placeholder }: DomainEntityPicke
       {dropdownRect && (
         <div
           className="autocomplete-dropdown"
-          style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width }}
+          style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width, maxHeight: dropdownRect.maxHeight }}
           role="listbox"
         >
           {matches.map((e, i) => (
@@ -621,7 +664,7 @@ export function Actions() {
           action={{ label: "Create an action", onClick: () => setCreating(true) }}
         />
       ) : filtered.length === 0 ? (
-        <div className="card card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
+        <div className="card card-info card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
           No actions match your search.
         </div>
       ) : viewMode === "grid" ? (
@@ -635,7 +678,7 @@ export function Actions() {
           ))}
         </div>
       ) : (
-        <div className="card" style={{ padding: 0 }}>
+        <div className="card card-info" style={{ padding: 0 }}>
           {filtered.map(a => (
             <ActionRow
               key={a.action_id}

@@ -7,9 +7,10 @@
  * standard WordPress options API (get_option / update_option).
  *
  * Options managed here:
- *   harvest_ha_url          - External HA URL used by every widget on the site
- *   harvest_widget_source   - "bundled" or "cdn"
- *   harvest_default_theme   - Optional URL to a default theme JSON file
+ *   harvest_ha_url            - External HA URL used by every widget on the site
+ *   harvest_widget_source     - "bundled" or "custom"
+ *   harvest_widget_custom_url - URL used when source is "custom"
+ *   harvest_default_theme     - Optional URL to a default theme JSON file
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -52,6 +53,12 @@ class Harvest_Settings {
             'default'           => 'bundled',
         ] );
 
+        register_setting( 'harvest_settings_group', 'harvest_widget_custom_url', [
+            'type'              => 'string',
+            'sanitize_callback' => 'esc_url_raw',
+            'default'           => '',
+        ] );
+
         register_setting( 'harvest_settings_group', 'harvest_default_theme', [
             'type'              => 'string',
             'sanitize_callback' => 'esc_url_raw',
@@ -70,7 +77,7 @@ class Harvest_Settings {
     }
 
     public static function sanitize_widget_source( string $source ): string {
-        return in_array( $source, [ 'bundled', 'cdn' ], true ) ? $source : 'bundled';
+        return in_array( $source, [ 'bundled', 'custom' ], true ) ? $source : 'bundled';
     }
 
     // ---------------------------------------------------------------------------
@@ -140,24 +147,26 @@ class Harvest_Settings {
                             <label>
                                 <input type="radio"
                                     name="harvest_widget_source"
-                                    value="cdn"
-                                    <?php checked( $source, 'cdn' ); ?>>
-                                <?php esc_html_e( 'Use CDN version (always latest)', 'harvest' ); ?>
+                                    value="custom"
+                                    <?php checked( $source, 'custom' ); ?>>
+                                <?php esc_html_e( 'Use custom URL', 'harvest' ); ?>
                             </label>
+                            <?php if ( $source === 'custom' ) : ?>
+                            <br>
+                            <input
+                                type="url"
+                                name="harvest_widget_custom_url"
+                                value="<?php echo esc_attr( get_option( 'harvest_widget_custom_url' ) ); ?>"
+                                class="regular-text"
+                                placeholder="https://example.com/harvest.min.js"
+                            >
+                            <?php endif; ?>
                             <p class="description">
                                 <?php esc_html_e(
-                                    'Bundled is recommended for stability. CDN always loads the latest widget version from jsDelivr.',
+                                    'Bundled is recommended for stability. Custom URL lets you serve the widget from your own host.',
                                     'harvest'
                                 ); ?>
                             </p>
-                            <?php if ( $source === 'cdn' ) : ?>
-                            <p class="description" style="color:#b45309;">
-                                <?php esc_html_e(
-                                    'CDN note: if your site has a strict script-src Content Security Policy, you may need to add https://cdn.jsdelivr.net manually.',
-                                    'harvest'
-                                ); ?>
-                            </p>
-                            <?php endif; ?>
                         </td>
                     </tr>
 
@@ -318,5 +327,9 @@ class Harvest_Settings {
 
     public static function get_widget_source(): string {
         return (string) get_option( 'harvest_widget_source', 'bundled' );
+    }
+
+    public static function get_widget_custom_url(): string {
+        return (string) get_option( 'harvest_widget_custom_url', '' );
     }
 }

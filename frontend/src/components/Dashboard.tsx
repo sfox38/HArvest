@@ -145,6 +145,7 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
       {needsAttention.length > 0 && (
         <Card
           title="Needs attention"
+          className="card-info"
           action={
             <span className="muted" style={{ fontSize: 12 }}>
               {needsAttention.length} item{needsAttention.length === 1 ? "" : "s"}
@@ -181,6 +182,7 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
       <div className="dash-split" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 18 }}>
         <Card
           title="Activity - last 24 hours"
+          className="card-info"
           action={
             <button
               className="btn btn-sm btn-ghost"
@@ -196,6 +198,7 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
         <Card
           title="Recent activity"
           pad={false}
+          className="card-info"
           action={
             <button
               className="btn btn-sm btn-ghost"

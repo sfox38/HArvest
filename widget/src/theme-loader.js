@@ -141,6 +141,10 @@ export class ThemeLoader {
         ? { ...theme.variables, ...theme.dark_variables }
         : theme.variables;
 
+      // Wipe all inline styles so no var from the previous theme lingers
+      // when the incoming theme does not define that property.
+      host.style.cssText = "";
+
       for (const [key, value] of Object.entries(vars ?? {})) {
         host.style.setProperty(key, value);
       }

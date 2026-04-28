@@ -496,10 +496,9 @@ export class HrvCard extends HTMLElement {
   applyPreviewTheme(themeVars) {
     if (!this.shadowRoot) return;
     const host = this.shadowRoot.host;
-    // Clear any previously set preview vars.
-    for (const name of Array.from(host.style)) {
-      if (name.startsWith("--hrv-")) host.style.removeProperty(name);
-    }
+    // Wipe all inline styles so no var from the previous theme lingers
+    // when the incoming theme does not define that property.
+    host.style.cssText = "";
     for (const [key, value] of Object.entries(themeVars)) {
       host.style.setProperty(key, String(value));
     }

@@ -22,6 +22,25 @@ import { renderIconSVG, resolveIcon as _resolveIcon, MDI_ICONS } from "../icons.
 import { getErrorStateStyles } from "../error-states.js";
 
 const HOLD_MS = 500;
+
+// Domain-level icon fallback used when a companion's specific icon is not in
+// the bundle (e.g. custom HA icon or an icon added after this bundle was built).
+const _DOMAIN_FALLBACK = {
+  light:          "mdi:lightbulb-outline",
+  switch:         "mdi:toggle-switch-off-outline",
+  input_boolean:  "mdi:toggle-switch-off-outline",
+  binary_sensor:  "mdi:radiobox-blank",
+  sensor:         "mdi:gauge",
+  fan:            "mdi:fan-off",
+  climate:        "mdi:thermostat",
+  cover:          "mdi:window-shutter",
+  media_player:   "mdi:cast",
+  input_number:   "mdi:numeric",
+  input_select:   "mdi:format-list-bulleted",
+  remote:         "mdi:remote",
+  timer:          "mdi:timer-outline",
+  harvest_action: "mdi:play-circle-outline",
+};
 const DOUBLE_TAP_MS = 250;
 
 // ---------------------------------------------------------------------------
@@ -501,9 +520,17 @@ export class BaseCard {
     const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
     if (!pill) return;
 
+    pill.dataset.domain = def.domain ?? "";
+    if (def.icon_state_map) {
+      pill.dataset.iconStateMap = JSON.stringify(def.icon_state_map);
+    }
+
     if (def.icon) {
       const iconWrap = pill.querySelector("[part=companion-icon]");
-      if (iconWrap) iconWrap.innerHTML = renderIconSVG(def.icon, "companion-icon-svg");
+      if (iconWrap) {
+        const domainFallback = _DOMAIN_FALLBACK[def.domain] ?? "mdi:circle-small";
+        iconWrap.innerHTML = renderIconSVG(_resolveIcon(def.icon, domainFallback), "companion-icon-svg");
+      }
     }
     if (def.friendly_name) {
       // Preserve any existing state suffix (e.g. " - on") when updating the name.
@@ -534,6 +561,19 @@ export class BaseCard {
     pill.setAttribute("aria-label", `${name} - ${label}`);
     pill.setAttribute("data-on", String(state === "on"));
     pill.title = `${name} - ${label}`;
+
+    const iconStateMap = pill.dataset.iconStateMap ? JSON.parse(pill.dataset.iconStateMap) : null;
+    if (iconStateMap) {
+      const iconName = iconStateMap[state] ?? iconStateMap["*"];
+      if (iconName) {
+        const iconWrap = pill.querySelector("[part=companion-icon]");
+        if (iconWrap) {
+          const domain = pill.dataset.domain ?? "";
+          const domainFallback = _DOMAIN_FALLBACK[domain] ?? "mdi:circle-small";
+          iconWrap.innerHTML = renderIconSVG(_resolveIcon(iconName, domainFallback), "companion-icon-svg");
+        }
+      }
+    }
   }
 
   /**

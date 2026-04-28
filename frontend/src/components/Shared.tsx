@@ -612,10 +612,31 @@ interface EntityAutocompleteProps {
   excludeIds?: string[];
 }
 
+// Scroll the input near the top of its nearest scrollable ancestor on mobile
+// so the iOS keyboard doesn't cover it and the dropdown has room to drop down.
+function scrollInputToTopOnMobile(input: HTMLInputElement | null) {
+  if (!input) return;
+  if (!window.matchMedia("(max-width: 720px)").matches) return;
+  let el: HTMLElement | null = input.parentElement;
+  while (el && el !== document.body) {
+    const style = getComputedStyle(el);
+    if (/(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight) {
+      const inputRect = input.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const delta = inputRect.top - (elRect.top + 8);
+      el.scrollBy({ top: delta, behavior: "smooth" });
+      return;
+    }
+    el = el.parentElement;
+  }
+  const inputRect = input.getBoundingClientRect();
+  window.scrollBy({ top: inputRect.top - 8, behavior: "smooth" });
+}
+
 export function EntityAutocomplete({ value, onChange, onSelect, disabled, filterDomains, placeholder, excludeIds }: EntityAutocompleteProps) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
-  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [cacheLen, setCacheLen] = useState(() => getEntityCache().length);
 
@@ -628,7 +649,33 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
 
   const matches = useMemo<HAEntity[]>(() => {
     if (!value.trim() || cacheLen === 0) return [];
-    const words = value.toLowerCase().split(/\s+/).filter(Boolean);
+    const query = value.toLowerCase().trim();
+    const words = query.split(/\s+/).filter(Boolean);
+
+    // Score a candidate entity for relevance. Higher = better match.
+    // Rewards matches at the start of the name part (after the domain dot)
+    // and at the start of the friendly name more than buried substring matches.
+    const score = (e: HAEntity): number => {
+      const id   = e.entity_id.toLowerCase();
+      const name = e.friendly_name.toLowerCase();
+      const part = id.indexOf(".") >= 0 ? id.split(".")[1] : id; // name after domain
+      let s = 0;
+      if (id === query || name === query) return 1000; // exact match
+      for (const w of words) {
+        if (id === w)                          s += 80;
+        else if (part.startsWith(w))           s += 40;
+        else if (name.startsWith(w))           s += 35;
+        else if (part.includes(`_${w}`) || part.includes(w + "_")) s += 20;
+        else if (name.includes(` ${w}`))       s += 18;
+        else if (part.includes(w))             s += 12;
+        else if (name.includes(w))             s += 8;
+        else /* word only in domain prefix */  s += 2;
+      }
+      // Prefer shorter entity IDs - a closer overall match relative to its length
+      s -= id.length * 0.15;
+      return s;
+    };
+
     return getEntityCache()
       .filter(e => {
         if (excluded.has(e.entity_id)) return false;
@@ -636,18 +683,42 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
         const hay = `${e.entity_id} ${e.friendly_name}`.toLowerCase();
         return words.every(w => hay.includes(w));
       })
-      .slice(0, 8);
+      .map(e => ({ e, s: score(e) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 8)
+      .map(({ e }) => e);
   }, [value, filterDomains, excluded, cacheLen]);
 
   useEffect(() => { setHighlighted(0); }, [matches.length]);
 
   useEffect(() => {
-    if (open && matches.length > 0 && inputRef.current) {
-      const r = inputRef.current.getBoundingClientRect();
-      setDropdownRect({ top: r.bottom, left: r.left, width: r.width });
-    } else {
+    if (!open || matches.length === 0 || !inputRef.current) {
       setDropdownRect(null);
+      return;
     }
+    const calc = () => {
+      if (!inputRef.current) return;
+      const r = inputRef.current.getBoundingClientRect();
+      const vvH = window.visualViewport?.height ?? window.innerHeight;
+      const spaceBelow = vvH - r.bottom - 8;
+      if (spaceBelow >= 80) {
+        setDropdownRect({ top: r.bottom + 2, left: r.left, width: r.width, maxHeight: Math.min(280, spaceBelow) });
+      } else {
+        const maxH = Math.min(280, r.top - 8);
+        setDropdownRect(maxH > 40
+          ? { top: r.top - maxH - 2, left: r.left, width: r.width, maxHeight: maxH }
+          : null);
+      }
+    };
+    calc();
+    window.visualViewport?.addEventListener("resize", calc);
+    window.visualViewport?.addEventListener("scroll", calc);
+    window.addEventListener("resize", calc);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", calc);
+      window.visualViewport?.removeEventListener("scroll", calc);
+      window.removeEventListener("resize", calc);
+    };
   }, [open, matches.length]);
 
   const select = (entityId: string) => {
@@ -662,7 +733,12 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
         ref={inputRef}
         value={value}
         onChange={e => { onChange(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          // After the iOS keyboard finishes animating (~300ms), scroll the input
+          // near the top of its scrollable container so the dropdown has room below.
+          setTimeout(() => scrollInputToTopOnMobile(inputRef.current), 320);
+        }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={e => {
           if (!open || matches.length === 0) {
@@ -685,7 +761,7 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
       {dropdownRect && (
         <div
           className="autocomplete-dropdown"
-          style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width }}
+          style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width, maxHeight: dropdownRect.maxHeight }}
           role="listbox"
         >
           {matches.map((e, i) => (

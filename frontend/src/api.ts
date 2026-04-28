@@ -35,9 +35,27 @@ const BASE = "/api/harvest";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _hass: any = null;
 
+let _haDarkMode = false;
+const _darkModeListeners: Array<(dark: boolean) => void> = [];
+
+export function getHaDarkMode(): boolean { return _haDarkMode; }
+
+export function onHaDarkModeChange(cb: (dark: boolean) => void): () => void {
+  _darkModeListeners.push(cb);
+  return () => {
+    const i = _darkModeListeners.indexOf(cb);
+    if (i >= 0) _darkModeListeners.splice(i, 1);
+  };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function setHass(hass: any): void {
   _hass = hass;
+  const dark = hass?.themes?.darkMode ?? false;
+  if (dark !== _haDarkMode) {
+    _haDarkMode = dark;
+    _darkModeListeners.forEach(cb => cb(dark));
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -38,7 +38,7 @@ const FAN_CARD_STYLES = /* css */`
   }
 
   [part=toggle-button][aria-pressed=false] {
-    background: var(--hrv-color-surface-alt);
+    background: var(--hrv-color-state-off);
     color: var(--hrv-color-text);
   }
 

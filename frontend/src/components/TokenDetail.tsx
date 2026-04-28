@@ -11,6 +11,7 @@ import { validateLabel, DEFAULT_WIDGET_SCRIPT_URL } from "../types";
 import { api } from "../api";
 import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, EventRow, fmtRel, EntityAutocomplete, useThemeThumbs } from "./Shared";
 import { Icon } from "./Icon";
+import { Toggle } from "./Toggle";
 import { WidgetPreview } from "./WidgetPreview";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 import { loadEntityCache, getEntityCache } from "../entityCache";
@@ -110,6 +111,23 @@ const PERIOD_OPTIONS = [
   { value: 5,    label: "5 minutes" },
   { value: 1,    label: "1 minute" },
 ];
+
+const DOMAIN_ICON: Record<string, string> = {
+  light: "lightbulb",
+  switch: "power",
+  input_boolean: "power",
+  binary_sensor: "bolt",
+  sensor: "chart-line",
+  media_player: "play",
+  lock: "lock",
+  timer: "clock",
+  input_select: "list",
+  input_number: "tune",
+  fan: "fan",
+  climate: "thermostat",
+  cover: "chevDown",
+  harvest_action: "play",
+};
 
 function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null): string {
   const groups = groupEntities(token.entities);
@@ -269,14 +287,13 @@ function CodeSection({ token, setToken, setError, hmacSecret, bare }: { token: T
       </div>
 
       {/* Alias toggle */}
-      <label className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer", marginTop: 8 }}>
-        <input
-          type="checkbox"
+      <div className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer", marginTop: 8 }}>
+        <Toggle
           checked={useAliases}
-          onChange={e => { setUseAliases(e.target.checked); localStorage.setItem("hrv_use_aliases", String(e.target.checked)); }}
+          onChange={v => { setUseAliases(v); localStorage.setItem("hrv_use_aliases", String(v)); }}
           disabled={token.entities.every(e => !e.alias)}
         />
-        Show as aliases
+        <span>Show as aliases</span>
         <span
           title="Aliases hide your real entity IDs from the page source. Both formats work against the same token."
           className="muted"
@@ -284,7 +301,7 @@ function CodeSection({ token, setToken, setError, hmacSecret, bare }: { token: T
         >
           (?)
         </span>
-      </label>
+      </div>
     </>
   );
 
@@ -377,17 +394,17 @@ function ThemeEditor({ token, setToken, setError, bare }: { token: Token; setTok
                 className={`theme-strip-item${currentId === t.theme_id ? " selected" : ""}`}
                 onClick={() => change(t.theme_id)}
               >
-                {thumbUrls[t.theme_id] ? (
-                  <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
-                ) : (
-                  <div className="theme-strip-thumb" />
-                )}
+                <div className="theme-thumb-wrap">
+                  {thumbUrls[t.theme_id] ? (
+                    <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
+                  ) : (
+                    <div className="theme-strip-thumb" />
+                  )}
+                  {t.renderer_pack && (
+                    <span className="theme-pack-star" title="Theme includes a custom renderer pack">&#9733;</span>
+                  )}
+                </div>
                 <span className="theme-strip-name">{t.name}</span>
-                {t.renderer_pack && (
-                  <div className="theme-strip-meta">
-                    <span className="badge badge-accent">Pack</span>
-                  </div>
-                )}
               </button>
             ))}
           </div>
@@ -600,21 +617,14 @@ function DisplaySettings({ token, readonly, saving, setSaving, setToken, setErro
 
         <div style={{ height: 1, background: "var(--divider)" }} />
 
-        {/* Custom error messages - gated behind checkbox */}
-        <label className="display-settings-row" style={{ cursor: canEdit ? "pointer" : "default" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              type="checkbox"
-              checked={token.custom_messages}
-              onChange={e => toggleMessages(e.target.checked)}
-              disabled={!canEdit}
-            />
-            <div>
-              <div className="display-settings-label">Custom error messages</div>
-              <div className="muted" style={{ fontSize: 11 }}>Override the default offline and error behavior for this token.</div>
-            </div>
+        {/* Custom error messages - gated behind toggle */}
+        <div className="display-settings-row" style={{ cursor: canEdit ? "pointer" : "default" }}>
+          <div>
+            <div className="display-settings-label">Custom error messages</div>
+            <div className="muted" style={{ fontSize: 11 }}>Override the default offline and error behavior for this token.</div>
           </div>
-        </label>
+          <Toggle checked={token.custom_messages} onChange={toggleMessages} disabled={!canEdit} />
+        </div>
 
         {token.custom_messages && (
           <div className="display-settings-messages">
@@ -906,7 +916,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
             {/* Row 1: entity name + alias + delete */}
             <div className="entity-row-1">
               <div className="widget-thumb" style={{ width: 28, height: 28 }}>
-                <Icon name="plug" size={14} />
+                <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={14} />
               </div>
               <span className="entity-name mono">{e.entity_id}</span>
               {e.alias && <span className="entity-alias mono">Alias: {e.alias}</span>}
@@ -1010,15 +1020,14 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                       {attrCache[e.entity_id].map(attr => {
                         const excluded = e.exclude_attributes.includes(attr);
                         return (
-                          <label key={attr} className={`attr-filter-item${excluded ? " excluded" : ""}`}>
-                            <input
-                              type="checkbox"
+                          <div key={attr} className={`attr-filter-item${excluded ? " excluded" : ""}`}>
+                            <Toggle
                               checked={excluded}
                               onChange={() => toggleExcludeAttr(e.entity_id, attr)}
                               disabled={!canEdit}
                             />
                             <span className="mono">{attr}</span>
-                          </label>
+                          </div>
                         );
                       })}
                     </div>
@@ -1075,20 +1084,19 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 {showAnimateOption && (
                   <div>
                     <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>Fan settings</div>
-                    <label className="entity-graph-field" style={{ gap: 6, cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
+                    <div className="entity-graph-field" style={{ gap: 6 }}>
+                      <Toggle
                         checked={e.animate ?? false}
-                        onChange={ev => {
+                        onChange={v => {
                           if (!canEdit) return;
                           patchEntities(token.entities.map(en =>
-                            en.entity_id === e.entity_id ? { ...en, animate: ev.target.checked } : en
+                            en.entity_id === e.entity_id ? { ...en, animate: v } : en
                           ));
                         }}
                         disabled={!canEdit}
                       />
-                      Animated
-                    </label>
+                      <span>Animated</span>
+                    </div>
                   </div>
                 )}
 
@@ -1213,6 +1221,7 @@ function SessionsPanel({ tokenId }: { tokenId: string }) {
     <Card
       title={`Sessions (${sessions.length})`}
       pad={sessions.length === 0}
+      className="card-info"
       action={sessions.length > 0 ? (
         <button className="btn btn-sm btn-danger" onClick={() => setTermAll(true)}>
           Terminate all
@@ -1233,7 +1242,7 @@ function SessionsPanel({ tokenId }: { tokenId: string }) {
               tabIndex={0}
               onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(expanded === s.session_id ? null : s.session_id); } }}
             >
-              <div className="session-row-top" style={{ gridTemplateColumns: "1fr auto 18px" }}>
+              <div className="session-compact-top">
                 <code className="mono" style={{ fontSize: 11 }}>
                   {s.session_id.slice(0, 20)}...
                 </code>
@@ -1321,6 +1330,7 @@ function ActivityPanel({ tokenId }: { tokenId: string }) {
     <Card
       title="Activity"
       pad={page.events.length === 0}
+      className="card-info"
       action={
         <select
           value={dateRange}
@@ -1646,9 +1656,8 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
         {/* Allow from any website */}
         <div>
           {!readonly && (
-            <label className="row" style={{ gap: 8, fontSize: 13, cursor: canEdit ? "pointer" : "default", marginBottom: 10 }}>
-              <input
-                type="checkbox"
+            <div className="row" style={{ gap: 8, fontSize: 13, cursor: canEdit ? "pointer" : "default", marginBottom: 10 }}>
+              <Toggle
                 checked={effectiveAllowAny && !showOriginInput}
                 onChange={() => {
                   if (effectiveAllowAny && !showOriginInput) {
@@ -1662,8 +1671,8 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
                 }}
                 disabled={saving}
               />
-              Allow from any website
-            </label>
+              <span>Allow from any website</span>
+            </div>
           )}
           {(effectiveAllowAny && !showOriginInput) ? (
             <div className="muted" style={{ fontSize: 13 }}>
@@ -2132,37 +2141,38 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <div className="card card-pad">
-        <div className="row detail-header-row" style={{ alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-              <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ padding: "2px 6px" }}>
-                <Icon name="chevLeft" size={14} />
-              </button>
-              <StatusBadge status={token.paused ? "inactive" : token.status} label={token.paused ? "Paused" : undefined} />
-              <input
-                value={editLabel}
-                maxLength={100}
-                onChange={e => {
-                  setEditLabel(e.target.value);
-                  if (labelError !== null) setLabelError(validateLabel(e.target.value.trim(), allLabels));
-                }}
-                onBlur={e => saveEdit(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                disabled={saving || readonly}
-                className="input"
-                style={{ fontSize: 20, fontWeight: 650, border: "none", padding: "0", background: "transparent", flex: 1 }}
-                aria-label="Widget name"
-              />
-            </div>
+        <div className="detail-header">
+          {/* Nav: back button + status badge */}
+          <div className="detail-header-nav">
+            <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ padding: "2px 6px" }}>
+              <Icon name="chevLeft" size={14} />
+            </button>
+            <StatusBadge status={token.paused ? "inactive" : token.status} label={token.paused ? "Paused" : undefined} />
+          </div>
+
+          {/* Name input */}
+          <div className="detail-header-name">
+            <input
+              value={editLabel}
+              maxLength={100}
+              onChange={e => {
+                setEditLabel(e.target.value);
+                if (labelError !== null) setLabelError(validateLabel(e.target.value.trim(), allLabels));
+              }}
+              onBlur={e => saveEdit(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+              disabled={saving || readonly}
+              className="input"
+              style={{ fontSize: 20, fontWeight: 650, border: "none", padding: "0", background: "transparent", width: "100%" }}
+              aria-label="Widget name"
+            />
             {labelError && (
               <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 3 }}>{labelError}</div>
             )}
-            <div className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-              Created {fmtDateLong(token.created_at)} by {token.created_by_name ?? token.created_by}
-              {" - "}{token.entities.length} {token.entities.length === 1 ? "entity" : "entities"}
-            </div>
           </div>
-          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+
+          {/* Action buttons */}
+          <div className="detail-header-actions">
             {!readonly && (
               <>
                 <button
@@ -2182,6 +2192,12 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
                 <Icon name="trash" size={13} /> Delete
               </button>
             )}
+          </div>
+
+          {/* Meta */}
+          <div className="detail-header-meta muted" style={{ fontSize: 13 }}>
+            Created {fmtDateLong(token.created_at)} by {token.created_by_name ?? token.created_by}
+            {" - "}{token.entities.length} {token.entities.length === 1 ? "entity" : "entities"}
           </div>
         </div>
       </div>
@@ -2203,7 +2219,7 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
 
         {/* Right column */}
         <div className="col" style={{ gap: 18 }}>
-          <Card title="Usage">
+          <Card title="Usage" className="card-info">
             <dl className="kv">
               <dt>Live sessions</dt><dd>{token.active_sessions}</dd>
               {(() => {

@@ -12,9 +12,8 @@
  *             Version-pinned to HARVEST_VERSION for cache-busting.
  *             Recommended for stability and predictable behaviour.
  *
- *   cdn     - loads from jsDelivr at the @latest tag, always pulling the
- *             most recent widget build. Suitable for users who want the
- *             latest widget improvements without a plugin update.
+ *   custom  - loads from a URL provided by the site administrator.
+ *             Suitable for self-hosted or staged widget builds.
  *
  * The script is loaded in the footer (last argument true to wp_enqueue_script)
  * to avoid render-blocking. The MutationObserver in hrv-mount.js handles
@@ -53,11 +52,18 @@ class Harvest_Assets {
 
         $source = Harvest_Settings::get_widget_source();
 
-        if ( $source === 'cdn' ) {
-            $src = 'https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js';
-            // Pass null for $ver to omit the ?ver= query string. jsDelivr
-            // manages cache-busting for the @latest tag via its own TTL.
-            $ver = null;
+        if ( $source === 'custom' ) {
+            $custom_url = Harvest_Settings::get_widget_custom_url();
+            if ( $custom_url ) {
+                $src = $custom_url;
+                // Pass null for $ver to omit the ?ver= query string. Cache-busting
+                // is the responsibility of the URL owner.
+                $ver = null;
+            } else {
+                // Custom selected but no URL saved - fall back to bundled.
+                $src = HARVEST_PLUGIN_URL . 'assets/harvest.min.js';
+                $ver = HARVEST_VERSION;
+            }
         } else {
             $src = HARVEST_PLUGIN_URL . 'assets/harvest.min.js';
             $ver = HARVEST_VERSION;

@@ -12,6 +12,7 @@ import { validateLabel as validateLabelWiz, DEFAULT_WIDGET_SCRIPT_URL } from "..
 import { api } from "../api";
 import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, useThemeThumbs } from "./Shared";
 import { Icon } from "./Icon";
+import { Toggle } from "./Toggle";
 import { WidgetPreview } from "./WidgetPreview";
 import { getEntityCache, loadEntityCache } from "../entityCache";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
@@ -737,17 +738,17 @@ function Step5({ state, onChange }: { state: WizardState; onChange: (u: Partial<
               className={`theme-strip-item${selectedId === t.theme_id ? " selected" : ""}`}
               onClick={() => { const url = themeIdToUrl(t.theme_id); onChange({ themeUrl: url }); saveMemory({ themeUrl: url }); }}
             >
-              {thumbUrls[t.theme_id] ? (
-                <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
-              ) : (
-                <div className="theme-strip-thumb" />
-              )}
+              <div className="theme-thumb-wrap">
+                {thumbUrls[t.theme_id] ? (
+                  <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
+                ) : (
+                  <div className="theme-strip-thumb" />
+                )}
+                {t.renderer_pack && (
+                  <span className="theme-pack-star" title="Theme includes a custom renderer pack">&#9733;</span>
+                )}
+              </div>
               <span className="theme-strip-name">{t.name}</span>
-              {t.renderer_pack && (
-                <div className="theme-strip-meta">
-                  <span className="badge badge-accent">Pack</span>
-                </div>
-              )}
             </button>
           ))}
         </div>
@@ -839,10 +840,10 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
           <p style={{ fontSize: 12, color: "var(--danger)", margin: "0 0 10px" }}>
             This is shown once only and cannot be retrieved again.
           </p>
-          <label className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer" }}>
-            <input type="checkbox" checked={acknowledged} onChange={e => { setAcknowledged(e.target.checked); onAcknowledgedChange?.(e.target.checked); }} />
-            I have saved my token secret
-          </label>
+          <div className="row" style={{ gap: 8, fontSize: 13 }}>
+            <Toggle checked={acknowledged} onChange={v => { setAcknowledged(v); onAcknowledgedChange?.(v); }} />
+            <span>I have saved my token secret</span>
+          </div>
         </div>
       )}
 
@@ -909,17 +910,16 @@ function Step6({ token, tokenSecret, originMode, originUrl, overrideHost, select
           </div>
 
           {/* Alias toggle */}
-          <label className="row" style={{ gap: 8, fontSize: 13, cursor: "pointer" }}>
-            <input
-              type="checkbox"
+          <div className="row" style={{ gap: 8, fontSize: 13 }}>
+            <Toggle
               checked={useAliases}
-              onChange={e => { setUseAliases(e.target.checked); localStorage.setItem("hrv_use_aliases", String(e.target.checked)); }}
+              onChange={v => { setUseAliases(v); localStorage.setItem("hrv_use_aliases", String(v)); }}
               disabled={selectedEntities.every(e => !e.alias && e.companions.every(c => !c.alias))}
             />
-            Show as aliases
+            <span>Show as aliases</span>
             <span className="muted" style={{ fontSize: 11, cursor: "help" }} title="Aliases hide your real entity IDs from the page source. Both formats work against the same token.">(?)
             </span>
-          </label>
+          </div>
         </>
       )}
     </div>

@@ -75,7 +75,8 @@ export class InputNumberCard extends BaseCard {
   }
 
   render() {
-    const isWritable = this.def.capabilities === "read-write";
+    const isWritable  = this.def.capabilities === "read-write";
+    const hasSlider   = this.def.supported_features?.includes("slider") ?? true;
     const min  = this.def.feature_config?.min  ?? 0;
     const max  = this.def.feature_config?.max  ?? 100;
     const step = this.def.feature_config?.step ?? 1;
@@ -91,9 +92,11 @@ export class InputNumberCard extends BaseCard {
         <div part="card-body">
           ${isWritable ? /* html */`
             <div class="hrv-number-row">
-              <input part="value-slider" type="range"
-                min="${min}" max="${max}" step="${step}"
-                aria-label="${_esc(this.def.friendly_name)}">
+              ${hasSlider ? /* html */`
+                <input part="value-slider" type="range"
+                  min="${min}" max="${max}" step="${step}"
+                  aria-label="${_esc(this.def.friendly_name)}">
+              ` : ""}
               <input part="value-input" type="number"
                 min="${min}" max="${max}" step="${step}"
                 aria-label="${_esc(this.def.friendly_name)} value">

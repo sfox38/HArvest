@@ -44,6 +44,11 @@ function SessionRow({ session: s, tokenLabel, onTerminate, onSelectToken }: Sess
           <Icon name="plug" size={12} />
         </div>
 
+        {/* Session ID - mobile only */}
+        <div className="sess-mobile-id mono muted" style={{ fontSize: 11, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {s.session_id.slice(0, 14)}
+        </div>
+
         {/* Name + session ID */}
         <div className="sess-col" style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 13.5 }}>

@@ -548,18 +548,24 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 className={`theme-strip-item${selected === t.theme_id ? " selected" : ""}`}
                 onClick={() => setSelected(t.theme_id)}
               >
-                {thumbUrls[t.theme_id] && (
-                  <img
-                    className="theme-strip-thumb"
-                    src={thumbUrls[t.theme_id]}
-                    alt={t.name}
-                    draggable={false}
-                  />
-                )}
+                <div className="theme-thumb-wrap">
+                  {thumbUrls[t.theme_id] ? (
+                    <img
+                      className="theme-strip-thumb"
+                      src={thumbUrls[t.theme_id]}
+                      alt={t.name}
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="theme-strip-thumb" />
+                  )}
+                  {t.renderer_pack && (
+                    <span className="theme-pack-star" title="Theme includes a custom renderer pack">&#9733;</span>
+                  )}
+                </div>
                 <span className="theme-strip-name">{t.name}</span>
                 <div className="theme-strip-meta">
                   {t.is_bundled && <span className="badge badge-muted">System</span>}
-                  {t.renderer_pack && <span className="badge badge-accent">Pack</span>}
                   <span className="muted" style={{ fontSize: 11 }}>{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
                 </div>
               </button>

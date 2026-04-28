@@ -154,7 +154,7 @@ export function ActivityLog({ onSelectToken, initialTypeFilter }: ActivityLogPro
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {/* Activity chart */}
-      <Card>
+      <Card className="card-info">
         <div className="card-header">
           <h3>{chartTitle}</h3>
         </div>
@@ -229,13 +229,13 @@ export function ActivityLog({ onSelectToken, initialTypeFilter }: ActivityLogPro
           <Spinner size={36} />
         </div>
       ) : !page || page.events.length === 0 ? (
-        <Card>
+        <Card className="card-info">
           <div className="muted" style={{ textAlign: "center", padding: 24, fontSize: 14 }}>
             {debouncedSearch.trim() ? "No events match your search." : "No activity data for this period."}
           </div>
         </Card>
       ) : (
-        <Card pad={false}>
+        <Card pad={false} className="card-info">
           {page.events.map(ev => (
             <EventRow
               key={ev.id}

@@ -12,6 +12,7 @@ import type { AppTheme } from "../App";
 import { api } from "../api";
 import { Spinner, ErrorBanner, Card, fmtBytes } from "./Shared";
 import { Icon } from "./Icon";
+import { Toggle } from "./Toggle";
 import buildVersion from "../buildVersion.json";
 
 // ---------------------------------------------------------------------------
@@ -208,30 +209,22 @@ function ToggleField({ label, value, onChange, hint }: ToggleFieldProps) {
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState("");
 
-  const toggle = async () => {
+  const toggle = async (v: boolean) => {
     setSaving(true);
     setErr("");
-    try { await onChange(!value); }
+    try { await onChange(v); }
     catch (e) { setErr(String(e)); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="row" style={{ justifyContent: "space-between", paddingBottom: 8 }}>
+    <div className="row" style={{ justifyContent: "space-between", paddingBottom: 8, gap: 12 }}>
       <div>
         <div style={{ fontSize: 14 }}>{label}</div>
         {hint && <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{hint}</div>}
       </div>
-      <div className="row" style={{ gap: 8 }}>
-        <button
-          onClick={toggle}
-          disabled={saving}
-          aria-pressed={value}
-          className={`btn btn-sm ${value ? "btn-primary" : "btn-ghost"}`}
-          style={{ minWidth: 52 }}
-        >
-          {saving ? "..." : value ? "ON" : "OFF"}
-        </button>
+      <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+        <Toggle checked={value} onChange={toggle} disabled={saving} />
         {err && <span style={{ fontSize: 12, color: "var(--danger)" }}>{err}</span>}
       </div>
     </div>
@@ -566,8 +559,8 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
           <TextField
             label="Widget script URL"
             value={config.widget_script_url}
-            placeholder="https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js"
-            hint="Custom URL for the widget JS. Accepts a full URL or a path (e.g. /js/harvest.min.js). Leave blank to use the default CDN."
+            placeholder="https://example.com/harvest.min.js"
+            hint="URL for the widget JS. Accepts a full URL or a path (e.g. /js/harvest.min.js). Leave blank to serve the bundled file."
             validate={validateWidgetScriptUrl}
             onChange={v => patch({ widget_script_url: v })}
           />

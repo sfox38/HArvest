@@ -300,7 +300,7 @@ export interface HAEntityDetail {
 // Shared constants
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_WIDGET_SCRIPT_URL = "https://cdn.jsdelivr.net/gh/sfox38/harvest@latest/widget/dist/harvest.min.js";
+export const DEFAULT_WIDGET_SCRIPT_URL = "";
 
 // ---------------------------------------------------------------------------
 // Shared validation

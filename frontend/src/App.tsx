@@ -8,7 +8,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import type { Screen } from "./types";
-import { api }         from "./api";
+import { api, getHaDarkMode, onHaDarkModeChange } from "./api";
 import { Dashboard }   from "./components/Dashboard";
 import { TokenList }   from "./components/TokenList";
 import { ActivityLog } from "./components/ActivityLog";
@@ -65,8 +65,10 @@ export function App() {
   const [tokenListKey, setTokenListKey] = useState(0);
   // Activity screen filter preset (set when navigating from dashboard).
   const [activityTypeFilter, setActivityTypeFilter] = useState<string | undefined>(undefined);
-  // App-level theme: "auto" defers to prefers-color-scheme CSS media query.
+  // App-level theme: "auto" follows HA's own dark mode setting.
   const [theme, setTheme] = useState<AppTheme>(readStoredTheme);
+  // HA's current dark mode state - updated whenever hass is pushed to the element.
+  const [haDark, setHaDark] = useState<boolean>(getHaDarkMode);
   // Kill switch: when active, all sessions are blocked.
   const [killSwitch, setKillSwitch] = useState(false);
 
@@ -74,6 +76,9 @@ export function App() {
   useEffect(() => {
     localStorage.setItem("hrv_theme", theme);
   }, [theme]);
+
+  // Subscribe to HA dark mode changes for "auto" mode.
+  useEffect(() => onHaDarkModeChange(setHaDark), []);
 
   // Fetch kill switch state on mount.
   useEffect(() => {
@@ -104,9 +109,11 @@ export function App() {
     setScreen("activity");
   }, []);
 
-  // data-theme is only set when the user has made an explicit choice.
-  // When "auto", no attribute - CSS @media (prefers-color-scheme) handles it.
-  const dataTheme = theme === "auto" ? undefined : theme;
+  // "auto" follows HA's own dark mode toggle (hass.themes.darkMode).
+  // Explicit "light"/"dark" overrides it regardless of HA's setting.
+  const dataTheme: "light" | "dark" = theme === "auto"
+    ? (haDark ? "dark" : "light")
+    : theme;
 
   return (
     <div className="app" data-theme={dataTheme}>

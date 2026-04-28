@@ -11,7 +11,7 @@ const INPUT_BOOLEAN_STYLES = /* css */`
   [part=card-body] {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
     gap: var(--hrv-spacing-s);
   }
 
@@ -33,7 +33,7 @@ const INPUT_BOOLEAN_STYLES = /* css */`
   }
 
   [part=toggle-button][aria-pressed=false] {
-    background: var(--hrv-color-surface-alt);
+    background: var(--hrv-color-state-off);
     color: var(--hrv-color-text);
   }
 

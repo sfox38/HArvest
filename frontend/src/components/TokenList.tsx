@@ -255,7 +255,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
                 ))}
               </div>
             ) : (
-              <div className="card" style={{ padding: 0 }}>
+              <div className="card card-info" style={{ padding: 0 }}>
                 {active.map(t => (
                   <WidgetRow
                     key={t.token_id}
@@ -269,7 +269,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           )}
 
           {active.length === 0 && filter !== "all" && (
-            <div className="card card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
+            <div className="card card-info card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
               No widgets match this filter.
             </div>
           )}
@@ -290,7 +290,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
                   ))}
                 </div>
               ) : (
-                <div className="card" style={{ padding: 0 }}>
+                <div className="card card-info" style={{ padding: 0 }}>
                   {archived.map(t => (
                     <WidgetRow key={t.token_id} token={t} onSelect={() => setSelectedId(t.token_id)} highlighted={false} />
                   ))}
@@ -300,7 +300,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           )}
 
           {showArchived && archived.length === 0 && (
-            <div className="card card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
+            <div className="card card-info card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
               No archived widgets.
             </div>
           )}

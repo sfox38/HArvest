@@ -184,8 +184,9 @@ export class LightCard extends BaseCard {
         <div part="card-body">
           ${isWritable ? /* html */`
             <button part="toggle-button" type="button"></button>
-          ` : ""}
-          <span part="state-label"></span>
+          ` : /* html */`
+            <span part="state-label"></span>
+          `}
           ${isWritable && hasBrightness ? /* html */`
             <div>
               <div class="hrv-slider-label">
