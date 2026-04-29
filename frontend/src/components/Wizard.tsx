@@ -319,7 +319,7 @@ function Step1({ state, onChange, existingLabels }: { state: WizardState; onChan
 
   return (
     <div className="col" style={{ gap: 16 }}>
-      <div className="segmented" role="group">
+      <div className="segmented" role="group" aria-label="Widget mode">
         {(["single", "group", "page"] as const).map(m => (
           <button key={m} aria-pressed={state.mode === m} onClick={() => onChange({ mode: m, entities: [], ...(state.labelAutoset ? { label: "" } : {}) })}>
             {m === "single" ? "Single card" : m === "group" ? "Group of cards" : "Page of cards"}
@@ -565,6 +565,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
                     }}
                     className="input"
                     style={{ flex: 1, fontSize: 13 }}
+                    aria-label="Select a website URL"
                   >
                     <option value="">Select a URL...</option>
                     {dropdownItems.map(o => <option key={o} value={o}>{displayOriginLabel(o)}</option>)}
@@ -590,6 +591,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
                     autoFocus={hasDropdown}
                     className="input"
                     style={{ flex: 1, fontSize: 13 }}
+                    aria-label="Website URL"
                   />
                   <button type="button" onClick={() => addUrl(customInput)} disabled={!customInput.trim()} className="btn btn-sm">Add URL</button>
                 </div>
@@ -962,6 +964,27 @@ export function Wizard({ onClose }: WizardProps) {
   const [existingLabels,     setExistingLabels]     = useState<string[]>([]);
   const [secretAcknowledged, setSecretAcknowledged] = useState(false);
   const previewRevoked = useRef(false);
+  const wizardRef = useRef<HTMLDivElement>(null);
+  const closeRequestRef = useRef<() => void>(() => {});
+
+  // Focus trap: initial focus + Tab cycle within the dialog.
+  useEffect(() => {
+    const el = wizardRef.current;
+    if (!el) return;
+    const sel = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    el.querySelector<HTMLElement>(sel)?.focus();
+    const trap = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { closeRequestRef.current(); return; }
+      if (e.key !== "Tab") return;
+      const els = Array.from(el.querySelectorAll<HTMLElement>(sel));
+      if (els.length === 0) return;
+      const first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+      else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+    };
+    document.addEventListener("keydown", trap);
+    return () => document.removeEventListener("keydown", trap);
+  }, []);
 
   useEffect(() => {
     api.config.get().then(c => {
@@ -1083,6 +1106,7 @@ export function Wizard({ onClose }: WizardProps) {
       onClose(wState.generatedToken?.token_id);
     }
   };
+  closeRequestRef.current = handleCloseRequest;
 
   const isDone = step === 6 && !!wState.generatedToken;
   const secretPending = isDone && !!wState.tokenSecret && !secretAcknowledged;
@@ -1090,6 +1114,7 @@ export function Wizard({ onClose }: WizardProps) {
   return (
     <div className="overlay" role="presentation">
       <div
+        ref={wizardRef}
         role="dialog"
         aria-modal="true"
         aria-label="Create Widget"

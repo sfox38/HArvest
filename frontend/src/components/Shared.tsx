@@ -33,7 +33,7 @@ export function StatusBadge({ status, label }: StatusBadgeProps) {
   const { kind, label: defaultLabel } = STATUS_BADGE[status] ?? { kind: "neutral", label: status };
   return (
     <span className={`badge badge-${kind}`}>
-      <span className="dot" />
+      <span className="dot" aria-hidden="true" />
       {label ?? defaultLabel}
     </span>
   );
@@ -128,13 +128,16 @@ export function CopyButton({ text, label = "Copy", size = "md" }: CopyButtonProp
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   return (
-    <button
-      onClick={handleCopy}
-      className={`copy-btn${size === "sm" ? " copy-btn-sm" : ""}${copied ? " copied" : ""}`}
-      aria-label={copied ? "Copied to clipboard" : `Copy ${label}`}
-    >
-      {copied ? "Copied!" : label}
-    </button>
+    <>
+      <button
+        onClick={handleCopy}
+        className={`copy-btn${size === "sm" ? " copy-btn-sm" : ""}${copied ? " copied" : ""}`}
+        aria-label={copied ? "Copied to clipboard" : `Copy ${label}`}
+      >
+        {copied ? "Copied!" : label}
+      </button>
+      <span aria-live="polite" className="sr-only">{copied ? "Copied to clipboard" : ""}</span>
+    </>
   );
 }
 
@@ -187,6 +190,7 @@ export function CopyablePre({ text, label = "Copy" }: CopyablePreProps) {
       >
         {copied ? "Copied!" : label}
       </button>
+      <span aria-live="polite" className="sr-only">{copied ? "Copied to clipboard" : ""}</span>
     </div>
   );
 }
@@ -215,14 +219,21 @@ export function ConfirmDialog({
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const first = dialogRef.current?.querySelector<HTMLElement>("button");
-    first?.focus();
-  }, []);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    const el = dialogRef.current;
+    if (!el) return;
+    const sel = 'button:not([disabled]), input:not([disabled])';
+    el.querySelector<HTMLElement>(sel)?.focus();
+    const trap = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { onCancel(); return; }
+      if (e.key !== "Tab") return;
+      const els = Array.from(el.querySelectorAll<HTMLElement>(sel));
+      if (els.length === 0) return;
+      const first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+      else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+    };
+    document.addEventListener("keydown", trap);
+    return () => document.removeEventListener("keydown", trap);
   }, [onCancel]);
 
   return (

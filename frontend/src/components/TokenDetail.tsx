@@ -2048,6 +2048,13 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
   const [labelError,    setLabelError]    = useState<string | null>(null);
   const [allLabels,     setAllLabels]     = useState<string[]>([]);
   const [saving,        setSaving]        = useState(false);
+  const [savedMsg,      setSavedMsg]      = useState("");
+  const prevSaving = useRef(false);
+  useEffect(() => {
+    if (prevSaving.current && !saving && !error) setSavedMsg("Changes saved");
+    if (saving) setSavedMsg("");
+    prevSaving.current = saving;
+  }, [saving, error]);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmPause,  setConfirmPause]  = useState(false);
@@ -2138,6 +2145,7 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
   const readonly = token.status === "revoked" || token.status === "expired";
   return (
     <div className="content-narrow col" style={{ gap: 18 }}>
+      <span aria-live="polite" className="sr-only">{savedMsg}</span>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <div className="card card-pad">
