@@ -202,9 +202,10 @@
       flex: none;
       width: 100%;
       aspect-ratio: 1 / 1;
-      touch-action: auto;
-      cursor: default;
+      touch-action: none;
+      cursor: grab;
     }
+    .hrv-dial-wrap:active { cursor: grabbing; }
     .hrv-dial-thumb-hit {
       touch-action: none;
       cursor: grab;
@@ -268,10 +269,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      width: 28px;
+      width: 36px;
       height: 84px;
       background: var(--hrv-color-surface-alt, #e0e0e0);
-      border-radius: 14px;
+      border-radius: 18px;
       position: relative;
       cursor: pointer;
       user-select: none;
@@ -286,7 +287,7 @@
       height: 24px;
       border-radius: 50%;
       background: var(--hrv-color-primary, #1976d2);
-      left: 2px;
+      left: 6px;
       top: 2px;
       transition: top 0.15s ease;
       pointer-events: none;
@@ -301,7 +302,7 @@
       height: 6px;
       border-radius: 50%;
       background: var(--hrv-color-text-secondary, #888);
-      left: 11px;
+      left: 15px;
       opacity: 0.4;
     }
 
@@ -314,8 +315,8 @@
     .hrv-mode-switch[data-pos="2"] .hrv-mode-dot:nth-child(4) { opacity: 0; }
 
     [part=toggle-button] {
-      width: 32px;
-      height: 32px;
+      width: 44px;
+      height: 44px;
       padding: 0;
       border: none;
       border-radius: 50%;
@@ -574,11 +575,11 @@
         });
       }
 
-      if (this.#dialThumbHit) {
-        this.#dialThumbHit.addEventListener("pointerdown", this.#onPointerDown.bind(this));
-        this.#dialThumbHit.addEventListener("pointermove", this.#onPointerMove.bind(this));
-        this.#dialThumbHit.addEventListener("pointerup", this.#onPointerUp.bind(this));
-        this.#dialThumbHit.addEventListener("pointercancel", this.#onPointerUp.bind(this));
+      if (this.#dialSvg) {
+        this.#dialSvg.addEventListener("pointerdown", this.#onPointerDown.bind(this));
+        this.#dialSvg.addEventListener("pointermove", this.#onPointerMove.bind(this));
+        this.#dialSvg.addEventListener("pointerup", this.#onPointerUp.bind(this));
+        this.#dialSvg.addEventListener("pointercancel", this.#onPointerUp.bind(this));
       }
 
       if (showDial) this.#buildModeMap();
@@ -821,7 +822,7 @@
 
     #onPointerDown(e) {
       this.#dragging = true;
-      this.#dialThumbHit?.setPointerCapture(e.pointerId);
+      this.#dialSvg?.setPointerCapture(e.pointerId);
       this.#updateFromPointer(e);
     }
 
@@ -833,7 +834,7 @@
     #onPointerUp(e) {
       if (!this.#dragging) return;
       this.#dragging = false;
-      try { this.#dialThumbHit?.releasePointerCapture(e.pointerId); } catch (_) {}
+      try { this.#dialSvg?.releasePointerCapture(e.pointerId); } catch (_) {}
       this.#sendValue();
     }
 
@@ -901,8 +902,8 @@
 
   const FAN_STYLES = DIAL_STYLES + /* css */`
     .hrv-fan-feat-btn {
-      width: 24px;
-      height: 24px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       border: none;
       background: var(--hrv-color-primary, #1976d2);
@@ -1219,11 +1220,11 @@
       this.#toggleBtn?.addEventListener("click", () => {
         this.config.card?.sendCommand("toggle", {});
       });
-      if (this.#dialThumbHit) {
-        this.#dialThumbHit.addEventListener("pointerdown",   this.#onPointerDown.bind(this));
-        this.#dialThumbHit.addEventListener("pointermove",   this.#onPointerMove.bind(this));
-        this.#dialThumbHit.addEventListener("pointerup",     this.#onPointerUp.bind(this));
-        this.#dialThumbHit.addEventListener("pointercancel", this.#onPointerUp.bind(this));
+      if (this.#dialSvg) {
+        this.#dialSvg.addEventListener("pointerdown",   this.#onPointerDown.bind(this));
+        this.#dialSvg.addEventListener("pointermove",   this.#onPointerMove.bind(this));
+        this.#dialSvg.addEventListener("pointerup",     this.#onPointerUp.bind(this));
+        this.#dialSvg.addEventListener("pointercancel", this.#onPointerUp.bind(this));
       }
       const speedCircle = this.root.querySelector(".hrv-fan-speed-circle");
       speedCircle?.addEventListener("click", () => {
@@ -1416,7 +1417,7 @@
 
     #onPointerDown(e) {
       this.#dragging = true;
-      this.#dialThumbHit?.setPointerCapture(e.pointerId);
+      this.#dialSvg?.setPointerCapture(e.pointerId);
       this.#updateFromPointer(e);
     }
 
@@ -1428,7 +1429,7 @@
     #onPointerUp(e) {
       if (!this.#dragging) return;
       this.#dragging = false;
-      try { this.#dialThumbHit?.releasePointerCapture(e.pointerId); } catch (_) {}
+      try { this.#dialSvg?.releasePointerCapture(e.pointerId); } catch (_) {}
       this.#sendValue();
     }
 
@@ -1657,7 +1658,7 @@
     .hrv-cf-option {
       display: block;
       width: 100%;
-      padding: 8px 14px;
+      padding: 12px 14px;
       border: none;
       background: transparent;
       color: var(--hrv-color-text, #fff);
@@ -1868,11 +1869,11 @@
       this.#swingBtn      = this.root.querySelector("[data-feat=swing]");
       this.#dropdown      = this.root.querySelector(".hrv-climate-dropdown");
 
-      if (this.#dialThumbHit) {
-        this.#dialThumbHit.addEventListener("pointerdown",   this.#onPointerDown.bind(this));
-        this.#dialThumbHit.addEventListener("pointermove",   this.#onPointerMove.bind(this));
-        this.#dialThumbHit.addEventListener("pointerup",     this.#onPointerUp.bind(this));
-        this.#dialThumbHit.addEventListener("pointercancel", this.#onPointerUp.bind(this));
+      if (this.#dialSvg) {
+        this.#dialSvg.addEventListener("pointerdown",   this.#onPointerDown.bind(this));
+        this.#dialSvg.addEventListener("pointermove",   this.#onPointerMove.bind(this));
+        this.#dialSvg.addEventListener("pointerup",     this.#onPointerUp.bind(this));
+        this.#dialSvg.addEventListener("pointercancel", this.#onPointerUp.bind(this));
       }
 
       if (this.#minusBtn) {
@@ -1976,7 +1977,7 @@
 
     #onPointerDown(e) {
       this.#dragging = true;
-      this.#dialThumbHit?.setPointerCapture(e.pointerId);
+      this.#dialSvg?.setPointerCapture(e.pointerId);
       this.#updateFromPointer(e);
     }
 
@@ -1988,7 +1989,7 @@
     #onPointerUp(e) {
       if (!this.#dragging) return;
       this.#dragging = false;
-      try { this.#dialThumbHit?.releasePointerCapture(e.pointerId); } catch (_) {}
+      try { this.#dialSvg?.releasePointerCapture(e.pointerId); } catch (_) {}
       if (this.#dialFill)  this.#dialFill.style.transition  = "";
       if (this.#dialThumb) this.#dialThumb.style.transition = "";
     }
@@ -2366,8 +2367,8 @@
     .hrv-cover-slider-thumb {
       position: absolute;
       top: 50%;
-      width: 20px;
-      height: 20px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
       background: transparent;
       border: 3px solid var(--hrv-ex-thumb, #fff);
@@ -3155,8 +3156,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       border: none;
       border-radius: 50%;
       background: var(--hrv-color-primary, #1976d2);
@@ -3189,8 +3190,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
+      width: 40px;
+      height: 40px;
       border: none;
       border-radius: 50%;
       background: transparent;
@@ -3223,8 +3224,8 @@
     .hrv-mp-slider-thumb {
       position: absolute;
       top: 50%;
-      width: 18px;
-      height: 18px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       background: var(--hrv-ex-thumb, #fff);
       transform: translate(-50%, -50%);

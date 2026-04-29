@@ -81,6 +81,7 @@ const FAN_CARD_STYLES = /* css */`
 
   [part=oscillate-button] {
     width: 100%;
+    min-height: 44px;
     padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
     border: 1px solid var(--hrv-color-border);
     border-radius: var(--hrv-radius-s);
@@ -102,6 +103,7 @@ const FAN_CARD_STYLES = /* css */`
 
   [part=preset-button] {
     width: 100%;
+    min-height: 44px;
     padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
     border: 1px solid var(--hrv-color-border);
     border-radius: var(--hrv-radius-s);
@@ -123,6 +125,7 @@ const FAN_CARD_STYLES = /* css */`
 
   [part=direction-select] {
     width: 100%;
+    min-height: 44px;
     padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
     border: 1px solid var(--hrv-color-border);
     border-radius: var(--hrv-radius-s);

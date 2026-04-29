@@ -86,8 +86,8 @@ const LIGHT_CARD_STYLES = /* css */`
   }
   [part=color-slider]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 20px;
-    height: 20px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     background: #fff;
     border: 2px solid rgba(0,0,0,0.3);
@@ -95,8 +95,8 @@ const LIGHT_CARD_STYLES = /* css */`
     box-shadow: 0 1px 3px rgba(0,0,0,0.3);
   }
   [part=color-slider]::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     background: #fff;
     border: 2px solid rgba(0,0,0,0.3);

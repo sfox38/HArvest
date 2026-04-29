@@ -47,8 +47,8 @@ const MEDIA_STYLES = /* css */`
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: none;
     border-radius: 50%;
     background: var(--hrv-color-surface-alt);
@@ -93,6 +93,7 @@ const MEDIA_STYLES = /* css */`
 
   [part=source-select] {
     width: 100%;
+    min-height: 44px;
     padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
     border: 1px solid var(--hrv-color-border);
     border-radius: var(--hrv-radius-s);
@@ -178,7 +179,7 @@ export class MediaPlayerCard extends BaseCard {
             ${hasVolume ? /* html */`
               <div class="hrv-volume-row">
                 <button part="mute-button" class="hrv-media-btn" type="button"
-                  style="width:28px;height:28px;border-radius:var(--hrv-radius-s)"
+                  style="width:40px;height:40px;border-radius:var(--hrv-radius-s)"
                   aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.mute"))}">
                   ${renderIconSVG("mdi:volume-high", "mute-icon")}
                 </button>

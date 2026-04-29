@@ -18,6 +18,7 @@ const REMOTE_STYLES = /* css */`
   }
 
   [part=command-button] {
+    min-height: 44px;
     padding: var(--hrv-spacing-xs) var(--hrv-spacing-m);
     border: none;
     border-radius: var(--hrv-radius-m);

@@ -42,6 +42,7 @@ const TIMER_STYLES = /* css */`
 
   .hrv-timer-btn {
     flex: 1;
+    min-height: 44px;
     padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
     border: 1px solid var(--hrv-color-border);
     border-radius: var(--hrv-radius-s);
