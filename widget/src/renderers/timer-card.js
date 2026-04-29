@@ -247,6 +247,10 @@ export class TimerCard extends BaseCard {
     }, 1000);
   }
 
+  destroy() {
+    this.#stopTick();
+  }
+
   #stopTick() {
     if (this.#tickInterval) {
       clearInterval(this.#tickInterval);

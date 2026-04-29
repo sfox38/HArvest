@@ -349,6 +349,7 @@ export class HrvCard extends HTMLElement {
 
   #rebuildRenderer() {
     if (!this.#entityDef || !this.#renderer) return;
+    this.#renderer.destroy?.();
     const Cls = this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
       || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null);
     this.#renderer = new Cls(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
@@ -376,6 +377,7 @@ export class HrvCard extends HTMLElement {
     const NewRenderer = this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
       || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null);
     if (NewRenderer === this.#renderer.constructor) return;
+    this.#renderer.destroy?.();
     this.#renderer = new NewRenderer(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
     if (this.#lastState !== null) {

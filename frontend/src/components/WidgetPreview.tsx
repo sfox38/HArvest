@@ -196,7 +196,7 @@ function loadWidgetScript(): Promise<void> {
     const script = document.createElement("script");
     script.src = _WIDGET_SRC;
     script.onload = () => { _widgetScriptLoaded = true; resolve(); };
-    script.onerror = () => reject(new Error("Failed to load harvest.min.js"));
+    script.onerror = () => { _widgetScriptLoading = null; reject(new Error("Failed to load harvest.min.js")); };
     document.head.appendChild(script);
   });
   return _widgetScriptLoading;

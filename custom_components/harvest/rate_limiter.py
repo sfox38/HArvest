@@ -130,10 +130,11 @@ class RateLimiter:
         Only failed attempts count toward the limit.
         """
         now = time.monotonic()
+        if len(self._auth_token_counters) > self._IP_COUNTER_SOFT_CAP:
+            self._prune_auth_counters(now)
         count, window_start = self._auth_token_counters.get(token_id, (0, now))
 
         if now - window_start >= _AUTH_WINDOW_SECONDS:
-            # Window expired - start a fresh window with 1 attempt.
             self._auth_token_counters[token_id] = (1, now)
         else:
             self._auth_token_counters[token_id] = (count + 1, window_start)
@@ -158,6 +159,8 @@ class RateLimiter:
     def record_auth_attempt_ip(self, ip: str) -> None:
         """Record a failed auth attempt for an IP address."""
         now = time.monotonic()
+        if len(self._auth_ip_counters) > self._IP_COUNTER_SOFT_CAP:
+            self._prune_auth_ip_counters(now)
         count, window_start = self._auth_ip_counters.get(ip, (0, now))
 
         if now - window_start >= _AUTH_WINDOW_SECONDS:
@@ -200,6 +203,24 @@ class RateLimiter:
         ]
         for ip in stale:
             del self._ip_counters[ip]
+
+    def _prune_auth_counters(self, now: float) -> None:
+        """Remove auth token counter entries whose windows have expired."""
+        stale = [
+            tid for tid, (_, ws) in self._auth_token_counters.items()
+            if now - ws >= _AUTH_WINDOW_SECONDS
+        ]
+        for tid in stale:
+            del self._auth_token_counters[tid]
+
+    def _prune_auth_ip_counters(self, now: float) -> None:
+        """Remove auth IP counter entries whose windows have expired."""
+        stale = [
+            ip for ip, (_, ws) in self._auth_ip_counters.items()
+            if now - ws >= _AUTH_WINDOW_SECONDS
+        ]
+        for ip in stale:
+            del self._auth_ip_counters[ip]
 
     def cleanup_session(self, session_id: str) -> None:
         """Remove all rate limit buckets for a closed session."""

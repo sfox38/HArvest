@@ -589,12 +589,15 @@ class HarvestTokenDetailView(HomeAssistantView):
 
                 state = self._hass.states.get(real_id)
                 if state is not None:
+                    filtered = self._token_manager.filter_attributes(
+                        real_id, token, dict(state.attributes)
+                    )
                     try:
                         await session.ws.send_json({
                             "type": "state_update",
                             "entity_id": out_id,
                             "state": state.state,
-                            "attributes": dict(state.attributes),
+                            "attributes": filtered,
                             "last_updated": state.last_updated.isoformat(),
                             "initial": True,
                             "msg_id": None,
@@ -611,11 +614,14 @@ class HarvestTokenDetailView(HomeAssistantView):
                 if state is None:
                     continue
                 out_id = ea.alias if ea.alias else comp_id
+                filtered = self._token_manager.filter_attributes(
+                    comp_id, token, dict(state.attributes)
+                )
                 update: dict[str, Any] = {
                     "type": "state_update",
                     "entity_id": out_id,
                     "state": state.state,
-                    "attributes": dict(state.attributes),
+                    "attributes": filtered,
                     "msg_id": None,
                 }
                 try:

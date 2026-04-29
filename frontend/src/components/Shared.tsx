@@ -225,6 +225,8 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -232,7 +234,7 @@ export function ConfirmDialog({
     const sel = 'button:not([disabled]), input:not([disabled])';
     el.querySelector<HTMLElement>(sel)?.focus();
     const trap = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { onCancel(); return; }
+      if (e.key === "Escape") { onCancelRef.current(); return; }
       if (e.key !== "Tab") return;
       const els = Array.from(el.querySelectorAll<HTMLElement>(sel));
       if (els.length === 0) return;
@@ -242,7 +244,7 @@ export function ConfirmDialog({
     };
     document.addEventListener("keydown", trap);
     return () => document.removeEventListener("keydown", trap);
-  }, [onCancel]);
+  }, []);
 
   return (
     <div className="overlay" onClick={onCancel} role="presentation">

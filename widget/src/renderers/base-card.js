@@ -372,6 +372,8 @@ export class BaseCard {
    * @param {object} _data
    * @returns {{ state: string, attributes: object } | null}
    */
+  destroy() {}
+
   predictState(_action, _data) {
     return null;
   }

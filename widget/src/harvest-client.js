@@ -54,6 +54,10 @@ export function getOrCreateClient(haUrl, tokenId, tokenSecret) {
   return _clients.get(key);
 }
 
+export function getClient(haUrl, tokenId) {
+  return _clients.get(`${haUrl}|${tokenId}`) ?? null;
+}
+
 /**
  * Destroy and remove the client for (haUrl, tokenId) from the registry.
  * After this call the client's WebSocket is closed and the instance is gone.
@@ -192,7 +196,8 @@ export class HarvestClient {
     const bufferedState = this.#pendingStateUpdates.get(entityId);
     if (bufferedState) {
       this.#pendingStateUpdates.delete(entityId);
-      card.receiveState?.(bufferedState);
+      const attrs = bufferedState.attributes ?? {};
+      card.receiveStateUpdate?.(bufferedState.state, attrs, bufferedState.last_updated);
     }
   }
 
@@ -538,6 +543,7 @@ export class HarvestClient {
       for (const card of this.#cards.values()) {
         card.setErrorState?.("HRV_AUTH_FAILED");
       }
+      this.#ws?.close();
       return;
     }
 
@@ -547,6 +553,7 @@ export class HarvestClient {
       for (const card of this.#cards.values()) {
         card.setErrorState?.("HRV_AUTH_FAILED");
       }
+      this.#ws?.close();
       return;
     }
 
@@ -725,6 +732,11 @@ export class HarvestClient {
       for (const card of this.#cards.values()) {
         card._reRender?.();
       }
+      return;
+    }
+    // Validate URL is a relative path (defense-in-depth against malicious server messages).
+    if (msg.url && (msg.url.includes("://") || msg.url.startsWith("//"))) {
+      console.warn("[HArvest] Rejected renderer_pack with absolute URL:", msg.url);
       return;
     }
     // Pack not yet loaded - set a promise so entity_definition messages wait.

@@ -19,6 +19,7 @@ interface DashboardProps {
   onOpenWizard: () => void;
   onNavigate: (screen: Screen) => void;
   onNavigateActivity?: (typeFilter?: string) => void;
+  onSelectToken?: (tokenId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,7 +55,7 @@ function Stat({ label, value, spark, sparkColor, icon }: StatProps) {
 // Dashboard
 // ---------------------------------------------------------------------------
 
-export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: DashboardProps) {
+export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity, onSelectToken }: DashboardProps) {
   const [stats,   setStats]   = useState<PanelStats | null>(null);
   const [buckets, setBuckets] = useState<HourlyBucket[]>([]);
   const [events,  setEvents]  = useState<ActivityEvent[]>([]);
@@ -217,7 +218,7 @@ export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity }: Dash
                 <EventRow
                   key={ev.id}
                   ev={ev}
-                  onSelectToken={id => { onNavigate("widgets"); }}
+                  onSelectToken={id => { onSelectToken ? onSelectToken(id) : onNavigate("widgets"); }}
                 />
               ))}
             </div>

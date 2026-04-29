@@ -61,6 +61,7 @@ export function ActivityLog({ onSelectToken, initialTypeFilter }: ActivityLogPro
   const [search,    setSearch]    = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => { clearTimeout(debounceRef.current); }, []);
 
   const handleSearchChange = (value: string) => {
     setSearch(value);

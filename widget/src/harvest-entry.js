@@ -19,7 +19,7 @@
 
 import { config, getPageConfig, HrvCard } from "./hrv-card.js";
 import { HrvGroup }                        from "./hrv-group.js";
-import { getOrCreateClient, setStateCacheRef } from "./harvest-client.js";
+import { getOrCreateClient, getClient, setStateCacheRef } from "./harvest-client.js";
 import { StateCache }                      from "./state-cache.js";
 import { registerRenderer, lookupRenderer } from "./renderers/index.js";
 import * as Renderers                      from "./renderers/index.js";
@@ -85,13 +85,8 @@ function getCard(entityId) {
   const token      = pageConfig.token  ?? "";
   if (!haUrl || !token) return null;
 
-  const client = getOrCreateClient(haUrl, token, null);
-  // Access the internal #cards Map via the registered card lookup.
-  // sendCommand path: client.#cards is private, but we can probe it
-  // indirectly by registering a dummy and checking. Instead, HrvCard
-  // instances register themselves; this function queries the same client.
-  // Simplest correct approach: return the card stored in the client's map
-  // by re-using the client's getCard helper (added below).
+  const client = getClient(haUrl, token);
+  if (!client) return null;
   return client._getCard?.(entityId) ?? null;
 }
 
@@ -106,7 +101,8 @@ function anyState(callback) {
   const haUrl      = pageConfig.haUrl ?? "";
   const token      = pageConfig.token ?? "";
   if (!haUrl || !token) return;
-  const client = getOrCreateClient(haUrl, token, null);
+  const client = getClient(haUrl, token);
+  if (!client) return;
   client.onAnyState(callback);
 }
 

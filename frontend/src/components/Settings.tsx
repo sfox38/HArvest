@@ -42,6 +42,7 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setLocalVal(String(initial)); }, [initial]);
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   const commit = useCallback(async (raw: string) => {
     const n = Number(raw);
@@ -119,6 +120,7 @@ function TextField({ label, value: initial, placeholder, hint, validate, onChang
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setLocalVal(initial); }, [initial]);
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
   const commit = useCallback(async (raw: string) => {
     const err = validate?.(raw.trim()) ?? null;

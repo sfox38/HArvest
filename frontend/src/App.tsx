@@ -180,6 +180,7 @@ export function App() {
               onOpenWizard={openWizard}
               onNavigate={setScreen}
               onNavigateActivity={goToActivity}
+              onSelectToken={goToToken}
             />
           )}
           {screen === "widgets" && (

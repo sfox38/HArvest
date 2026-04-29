@@ -163,7 +163,7 @@ export class ClimateCard extends BaseCard {
     const swingModes  = this.def.feature_config?.swing_modes ?? [];
 
     const modeOptions = hvacModes
-      .map((m) => `<option value="${m}">${_esc(this.i18n.t(`climate.${m}`) || m)}</option>`)
+      .map((m) => `<option value="${_esc(m)}">${_esc(this.i18n.t(`climate.${m}`) || m)}</option>`)
       .join("");
     const fanOptions    = fanModes.map((m) => `<option value="${_esc(m)}">${_esc(m)}</option>`).join("");
     const presetOptions = presetModes.map((m) => `<option value="${_esc(m)}">${_esc(m)}</option>`).join("");
