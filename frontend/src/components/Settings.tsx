@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { IntegrationConfig, HaEventBusConfig, PanelStats } from "../types";
 import type { AppTheme } from "../App";
 import { api } from "../api";
-import { Spinner, ErrorBanner, Card, fmtBytes } from "./Shared";
+import { Spinner, ErrorBanner, Card, Hint, fmtBytes } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import buildVersion from "../buildVersion.json";
@@ -539,10 +539,13 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
       >
         <dl>
           <NumberField label="Max entities per widget" value={config.max_entities_per_token} min={1} max={250}
+            hint="Maximum number of HA entities a single widget token can expose."
             onChange={patchNum("max_entities_per_token")} />
           <NumberField label="Max auth attempts per widget / min" value={config.max_auth_attempts_per_token_per_minute} suffix="/ min" min={1}
+            hint="Rate limit on failed auth attempts per widget. Protects against brute-force token guessing."
             onChange={patchNum("max_auth_attempts_per_token_per_minute")} />
           <NumberField label="Max auth attempts per IP / min" value={config.max_auth_attempts_per_ip_per_minute} suffix="/ min" min={1}
+            hint="Rate limit on failed auth attempts from a single IP address."
             onChange={patchNum("max_auth_attempts_per_ip_per_minute")} />
           <TrustedProxiesField
             value={config.trusted_proxies ?? []}
@@ -598,12 +601,16 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
       >
         <dl>
           <NumberField label="Auth timeout" value={config.auth_timeout_seconds} suffix="seconds" min={1} max={60}
+            hint="How long a widget has to complete the auth handshake before the connection is dropped."
             onChange={patchNum("auth_timeout_seconds")} />
           <NumberField label="Keepalive interval" value={config.keepalive_interval_seconds} suffix="seconds" min={5} max={300}
+            hint="How often the server sends a ping to each connected widget to check it is still alive."
             onChange={patchNum("keepalive_interval_seconds")} />
           <NumberField label="Keepalive timeout" value={config.keepalive_timeout_seconds} suffix="seconds" min={1} max={60}
+            hint="How long the server waits for a pong reply before considering the connection dead."
             onChange={patchNum("keepalive_timeout_seconds")} />
           <NumberField label="Heartbeat timeout" value={config.heartbeat_timeout_seconds} suffix="seconds" min={5} max={600}
+            hint="If no message arrives from a widget within this window, the session is closed."
             onChange={patchNum("heartbeat_timeout_seconds")} />
         </dl>
       </Card>
@@ -614,6 +621,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
       >
         <dl>
           <NumberField label="Retention" value={config.activity_log_retention_days} suffix="days" min={1} max={365}
+            hint="Events older than this are automatically purged from the SQLite database."
             onChange={patchNum("activity_log_retention_days")} />
         </dl>
         <div className="badge badge-warn" style={{ fontSize: 12, marginTop: 4 }}>
@@ -623,7 +631,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* HA Event Bus */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="waves" size={14} /> HA event bus</span>}
+        title={<span className="row" style={{ gap: 8 }}><Icon name="waves" size={14} /> HA event bus <Hint text="Enable or disable specific harvest_* events fired on the HA event bus. Automations can listen for these." /></span>}
       >
         {(Object.keys(config.ha_event_bus) as (keyof HaEventBusConfig)[]).map(key => (
           <ToggleField

@@ -1671,7 +1671,8 @@
 
 .choice:hover { border-color: var(--ink-4); }
 
-.choice[data-selected="true"] {
+.choice[data-selected="true"],
+.choice.choice-selected {
   border-color: var(--accent);
   background: var(--accent-weak);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
@@ -2535,6 +2536,94 @@
 
 .toggle input:checked + .toggle-track .toggle-thumb {
   transform: translateX(16px);
+}
+
+/* ============================================================
+   Focus indicators
+   ============================================================ */
+
+.btn:focus-visible,
+.btn-link:focus-visible,
+.icon-btn:focus-visible,
+.nav-item:focus-visible,
+.segmented button:focus-visible,
+.config-tabs-nav button:focus-visible,
+.tabs button:focus-visible,
+.event-row.expandable:focus-visible,
+.session-row:focus-visible,
+.wcard:focus-visible,
+.theme-strip-item:focus-visible,
+.choice:focus-visible,
+.choice-grid-2 label:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Save confirmation indicator
+   ============================================================ */
+
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--ok);
+  font-weight: 550;
+  opacity: 0;
+  transition: opacity 200ms;
+}
+
+.save-indicator.visible {
+  opacity: 1;
+  animation: save-fade 2s ease-out forwards;
+}
+
+@keyframes save-fade {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ============================================================
+   Contextual hint
+   ============================================================ */
+
+.hint-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  color: var(--ink-3);
+  font-size: 10px;
+  font-weight: 650;
+  cursor: help;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.hint-icon:hover::after,
+.hint-icon:focus::after {
+  content: attr(data-hint);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: var(--shadow-md);
 }
 
 /* ============================================================

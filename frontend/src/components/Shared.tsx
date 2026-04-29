@@ -1,7 +1,7 @@
 /**
  * Shared.tsx - Reusable UI primitives for the HArvest panel.
  *
- * Exports: StatusBadge, Badge, Card, CopyButton, CopyablePre,
+ * Exports: StatusBadge, Hint, Badge, Card, CopyButton, CopyablePre,
  *          ConfirmDialog, Spinner, EmptyState, ErrorBanner,
  *          Sparkline, ActivityGraph, EventRow, fmtRel, fmtBytes
  */
@@ -55,6 +55,14 @@ export function Badge({ kind = "neutral", children }: BadgeProps) {
       {children}
     </span>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Hint (contextual tooltip)
+// ---------------------------------------------------------------------------
+
+export function Hint({ text }: { text: string }) {
+  return <span className="hint-icon" data-hint={text} tabIndex={0} role="note" aria-label={text}>?</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -337,13 +345,15 @@ export function EmptyState({ icon = "grid", title, subtitle, action }: EmptyStat
 interface ErrorBannerProps {
   message: string;
   onDismiss?: () => void;
+  onRetry?: () => void;
 }
 
-export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
+export function ErrorBanner({ message, onDismiss, onRetry }: ErrorBannerProps) {
   if (!onDismiss) {
     return (
       <div role="alert" className="error-banner">
         <span style={{ flex: 1 }}>{message}</span>
+        {onRetry && <button className="btn btn-sm" onClick={onRetry}>Retry</button>}
       </div>
     );
   }
@@ -352,7 +362,8 @@ export function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
       <div className="dialog" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div className="dialog-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div role="alert" style={{ fontSize: 14, lineHeight: 1.5 }}>{message}</div>
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {onRetry && <button className="btn btn-sm btn-primary" onClick={() => { onDismiss(); onRetry(); }}>Retry</button>}
             <button className="btn btn-sm" onClick={onDismiss} autoFocus>Dismiss</button>
           </div>
         </div>

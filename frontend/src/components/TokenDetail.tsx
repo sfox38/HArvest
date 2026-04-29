@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { Token, TokenUpdate, Session, ActivityPage, ThemeDefinition } from "../types";
 import { validateLabel, DEFAULT_WIDGET_SCRIPT_URL } from "../types";
 import { api } from "../api";
-import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, EventRow, fmtRel, EntityAutocomplete, useThemeThumbs } from "./Shared";
+import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, Hint, EventRow, fmtRel, EntityAutocomplete, useThemeThumbs } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { WidgetPreview } from "./WidgetPreview";
@@ -294,13 +294,7 @@ function CodeSection({ token, setToken, setError, hmacSecret, bare }: { token: T
           disabled={token.entities.every(e => !e.alias)}
         />
         <span>Show as aliases</span>
-        <span
-          title="Aliases hide your real entity IDs from the page source. Both formats work against the same token."
-          className="muted"
-          style={{ fontSize: 11, cursor: "help" }}
-        >
-          (?)
-        </span>
+        <Hint text="Aliases hide your real entity IDs from the page source. Both formats work against the same token." />
       </div>
     </>
   );
@@ -943,8 +937,8 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                   color: isRW ? "var(--info)" : "var(--ok)",
                 }}
               >
-                <option value="read">READ</option>
-                <option value="read-write">READ-WRITE</option>
+                <option value="read">Read only</option>
+                <option value="read-write">Read + control</option>
               </select>
               <button
                 className="btn-link entity-row-2-btn"
@@ -1240,6 +1234,8 @@ function SessionsPanel({ tokenId }: { tokenId: string }) {
               className={`session-row${expanded === s.session_id ? " open" : ""}`}
               onClick={() => setExpanded(expanded === s.session_id ? null : s.session_id)}
               tabIndex={0}
+              role="button"
+              aria-expanded={expanded === s.session_id}
               onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(expanded === s.session_id ? null : s.session_id); } }}
             >
               <div className="session-compact-top">
@@ -1630,6 +1626,7 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
 
   // -- HMAC --
   const [confirmDisableHmac, setConfirmDisableHmac] = useState(false);
+  const [secretAcked, setSecretAcked] = useState(false);
   const secretCopy = useCopy(generatedSecret ?? "");
 
   const enableHmac = async () => {
@@ -1788,7 +1785,10 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
         <div>
           <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Enhanced security (HMAC)</div>
+              <div className="row" style={{ gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Enhanced security (HMAC)</span>
+                <Hint text="Signs widget auth messages with a shared secret so the token cannot be reused on other sites. Both the widget and server must share the secret." />
+              </div>
               <div className="muted" style={{ fontSize: 11.5 }}>
                 Signs auth messages with a shared secret to prevent token reuse.
               </div>
@@ -1815,6 +1815,14 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
                 Copy this secret now. It will not be shown again. Do not share your screen while this is visible.
               </div>
               <pre className="code code-full" onClick={secretCopy.copy} title="Click to copy">{generatedSecret}</pre>
+              <label className="row" style={{ gap: 6, fontSize: 12, marginTop: 8, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={!!secretAcked}
+                  onChange={e => setSecretAcked(e.target.checked)}
+                />
+                I have copied and saved this secret
+              </label>
             </div>
           )}
         </div>
@@ -1914,6 +1922,7 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
             onBlur={() => saveIps(ipText)}
             disabled={!canEdit}
             className="input"
+            aria-label="IP restrictions (CIDR ranges, one per line)"
             style={{ width: "100%", fontFamily: "var(--font-mono)", fontSize: 12, resize: "vertical" }}
           />
           {ipError && <div style={{ color: "var(--danger)", fontSize: 11.5, marginTop: 4 }}>{ipError}</div>}
@@ -1938,6 +1947,7 @@ function SecurityEditor({ token, readonly, saving, setSaving, setToken, setError
             onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
             disabled={!canEdit}
             className="input"
+            aria-label="Max concurrent sessions"
             style={{ width: 100, fontSize: 13 }}
           />
         </div>
@@ -2146,6 +2156,7 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
   return (
     <div className="content-narrow col" style={{ gap: 18 }}>
       <span aria-live="polite" className="sr-only">{savedMsg}</span>
+      {savedMsg && <span className={`save-indicator ${savedMsg ? "visible" : ""}`} key={savedMsg + Date.now()}>&#10003; Saved</span>}
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <div className="card card-pad">
