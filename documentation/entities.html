@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entity Types - HArvest Docs</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.0 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/harvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Customization</div>
+          <h1>Entity types</h1>
+          <p class="lead">Which entity domains are supported, what the dedicated card renderers do, what commands are available, and which domains are blocked for security reasons.</p>
+        </div>
+
+        <div class="toc">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#tier-overview">Tier overview</a></li>
+            <li><a href="#tier1">Tier 1 - Dedicated renderers</a></li>
+            <li><a href="#tier2">Tier 2 - Generic cards</a></li>
+            <li><a href="#tier3">Tier 3 - Blocked domains</a></li>
+            <li><a href="#companions">Companion-eligible domains</a></li>
+            <li><a href="#allowed-services">Allowed service calls</a></li>
+          </ol>
+        </div>
+
+        <section>
+        <h2 id="tier-overview">Tier overview</h2>
+
+        <p>HArvest categorizes every HA entity domain into one of three tiers. The tier determines what UI is shown and whether the domain can be used at all.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tier</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="badge badge-purple">Tier 1</span></td>
+                <td>Dedicated card renderer with full UI controls. State displays, interactive controls, and history graph support where applicable.</td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-grey">Tier 2</span></td>
+                <td>Generic card - shows icon, entity name, and current state text. Includes a basic toggle where the domain supports it. Any domain not in Tier 1 or 3 lands here.</td>
+              </tr>
+              <tr>
+                <td><span class="badge badge-red">Tier 3</span></td>
+                <td>Blocked. Cannot be added to any token. The integration rejects these at token creation time.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        </section>
+
+        <section>
+        <h2 id="tier1">Tier 1 - Dedicated renderers</h2>
+
+        <h3>light</h3>
+        <p>On/off toggle, brightness slider, color temperature slider. Hides controls the physical device doesn't support (e.g. no brightness slider on a non-dimmable light). Supported features are read from the entity's <code>supported_features</code> bitmask.</p>
+        <p><strong>History graph:</strong> supported (configurable per entity in the panel)</p>
+
+        <h3>switch</h3>
+        <p>On/off toggle. Simple state display with device-class icon.</p>
+
+        <h3>binary_sensor</h3>
+        <p>Read-only. Displays current state with device-class appropriate icon and label (motion, door, window, smoke, etc.).</p>
+        <p><strong>History graph:</strong> supported</p>
+
+        <h3>sensor</h3>
+        <p>Read-only. Three sub-renderers based on device class:</p>
+        <ul>
+          <li><strong>temperature</strong> - large temperature value display with unit</li>
+          <li><strong>humidity</strong> - large humidity percentage display</li>
+          <li><strong>battery</strong> - percentage bar with color (green/amber/red by level)</li>
+          <li><strong>generic sensor</strong> - value + unit, works for any numeric sensor</li>
+        </ul>
+        <p><strong>History graph:</strong> supported (line or bar, configurable per entity)</p>
+
+        <h3>fan</h3>
+        <p>Toggle, speed percentage slider, oscillate toggle, direction selector (forward/reverse). The fan icon optionally spins when the entity is on (enabled via the <strong>Animate</strong> display setting in the panel). Controls that the physical device doesn't support are hidden.</p>
+
+        <h3>climate</h3>
+        <p>HVAC mode selector (heat, cool, heat_cool, auto, dry, fan_only, off), target temperature controls (up/down buttons with numeric display), current temperature read-only display, fan mode dropdown, preset mode dropdown. All controls respect the entity's supported modes.</p>
+
+        <h3>cover</h3>
+        <p>Open, stop, and close buttons. Position slider (0-100%). Controls are shown or hidden based on device capabilities (some covers are open/close only with no position support).</p>
+
+        <h3>media_player</h3>
+        <p>Play/pause, next track, previous track, volume slider, mute toggle. Current track title, artist, and source display. Album art is not supported in v1.</p>
+
+        <h3>input_boolean</h3>
+        <p>On/off toggle. Functionally equivalent to switch but for HA input helpers.</p>
+
+        <h3>input_number</h3>
+        <p>Range slider spanning the entity's min/max, with current value display. Step size respects the entity's configured step.</p>
+
+        <h3>input_select</h3>
+        <p>Dropdown selector showing all available options. Current option is pre-selected.</p>
+
+        <h3>timer</h3>
+        <p>Countdown display. Start/resume, pause, cancel, and finish buttons. State-aware: shows relevant buttons for current state (idle, active, paused).</p>
+
+        <h3>remote</h3>
+        <p>Activity chip grid (selectable activities), raw command input with a send button. Power toggle. Shows the device's configured activity list.</p>
+
+        <h3>harvest_action</h3>
+        <p>A virtual entity domain for safe, panel-configured button actions. Each action is a pre-defined service call or automation trigger set up in the HArvest panel's Actions tab. The card renders as a full-width trigger button. Actions run with HA's full permissions but only execute the specific service calls you configured - visitors can't invoke arbitrary HA services.</p>
+        </section>
+
+        <section>
+        <h2 id="tier2">Tier 2 - Generic cards</h2>
+
+        <p>Any domain not in Tier 1 or Tier 3 gets the generic card renderer. It shows:</p>
+        <ul>
+          <li>Domain icon (MDI, best-match for the domain)</li>
+          <li>Entity friendly name</li>
+          <li>Current state as text</li>
+          <li>A basic toggle, if the domain supports <code>turn_on</code> / <code>turn_off</code></li>
+        </ul>
+
+        <p>Some examples of Tier 2 domains: <code>number</code>, <code>select</code>, <code>text</code>, <code>date</code>, <code>time</code>, <code>event</code>, <code>calendar</code>, <code>weather</code>.</p>
+        </section>
+
+        <section>
+        <h2 id="tier3">Tier 3 - Blocked domains</h2>
+
+        <p>These domains cannot be added to any token. The integration rejects them at token creation time in the panel - they won't appear in the entity picker at all.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Domain</th><th>Why blocked</th></tr></thead>
+            <tbody>
+              <tr><td><code>alarm_control_panel</code></td><td>Security system - only arm/disarm from trusted interfaces</td></tr>
+              <tr><td><code>lock</code></td><td>Physical security device - high risk if exposed publicly</td></tr>
+              <tr><td><code>person</code></td><td>Location tracking - privacy risk</td></tr>
+              <tr><td><code>device_tracker</code></td><td>Location tracking - privacy risk</td></tr>
+              <tr><td><code>camera</code></td><td>Live video feed - significant bandwidth and privacy risk</td></tr>
+              <tr><td><code>script</code></td><td>Arbitrary HA scripting - use <code>harvest_action</code> for controlled execution</td></tr>
+              <tr><td><code>automation</code></td><td>Arbitrary HA automation triggers</td></tr>
+              <tr><td><code>scene</code></td><td>Deferred to v2 review</td></tr>
+              <tr><td><code>update</code></td><td>HA update management - admin-only operation</td></tr>
+              <tr><td><code>button</code></td><td>Arbitrary HA button press - use <code>harvest_action</code> instead</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Need a button or script trigger?</span>
+          <p>Use the <code>harvest_action</code> virtual domain. Create an action in the HArvest panel's Actions tab that points to your script or service call. The visitor gets a button that triggers the pre-defined action. This keeps you in control of exactly what can be executed.</p>
+        </div>
+        </section>
+
+        <section>
+        <h2 id="companions">Companion-eligible domains</h2>
+
+        <p>Only these domains can be set as companions (secondary entities displayed inside another card):</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Domain</th><th>Access in companion role</th><th>Typical use</th></tr></thead>
+            <tbody>
+              <tr><td><code>binary_sensor</code></td><td>Read-only</td><td>Motion, door/window state, occupancy indicator inside a light card</td></tr>
+              <tr><td><code>light</code></td><td>Toggle on/off</td><td>Additional light in the same room shown as a pill</td></tr>
+              <tr><td><code>switch</code></td><td>Toggle on/off</td><td>Related switch shown alongside a primary entity</td></tr>
+              <tr><td><code>input_boolean</code></td><td>Toggle on/off</td><td>Boolean helper state</td></tr>
+              <tr><td><code>lock</code></td><td>Read-only</td><td>Lock status alongside a cover or light card (display only)</td></tr>
+              <tr><td><code>cover</code></td><td>Read-only</td><td>Cover position indicator alongside a related entity</td></tr>
+              <tr><td><code>remote</code></td><td>Read-only power state</td><td>Remote power status alongside a media player card</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Maximum 4 companions per card. Companions are configured per-entity in the panel's entity display settings - no HTML attribute needed. When the companion is assigned, the server automatically subscribes it and delivers its state alongside the primary entity.</p>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Important</span>
+          <p>Even companion domains listed as "toggle" above are read-only if the token's capability for that entity is set to "read". The companion's capability inherits from its own entity entry in the token.</p>
+        </div>
+        </section>
+
+        <section>
+        <h2 id="allowed-services">Allowed service calls</h2>
+
+        <p>HArvest enforces an explicit whitelist of allowed service calls. Any command not on this list is rejected by the integration before it reaches HA, regardless of what the widget requests. This is a fixed server-side list - it cannot be expanded by page-level code or custom renderers.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Domain</th><th>Allowed services</th></tr></thead>
+            <tbody>
+              <tr><td><code>light</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
+              <tr><td><code>switch</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
+              <tr><td><code>input_boolean</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
+              <tr><td><code>fan</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code>, <code>set_percentage</code>, <code>oscillate</code>, <code>set_direction</code></td></tr>
+              <tr><td><code>cover</code></td><td><code>open_cover</code>, <code>close_cover</code>, <code>stop_cover</code>, <code>set_cover_position</code></td></tr>
+              <tr><td><code>climate</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>set_temperature</code>, <code>set_hvac_mode</code>, <code>set_fan_mode</code>, <code>set_preset_mode</code>, <code>set_swing_mode</code></td></tr>
+              <tr><td><code>input_number</code></td><td><code>set_value</code></td></tr>
+              <tr><td><code>input_select</code></td><td><code>select_option</code></td></tr>
+              <tr><td><code>timer</code></td><td><code>start</code>, <code>pause</code>, <code>cancel</code>, <code>finish</code></td></tr>
+              <tr><td><code>media_player</code></td><td><code>media_play_pause</code>, <code>media_next_track</code>, <code>media_previous_track</code>, <code>volume_up</code>, <code>volume_down</code>, <code>volume_set</code>, <code>volume_mute</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
+              <tr><td><code>remote</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>send_command</code></td></tr>
+              <tr><td><code>harvest_action</code></td><td><code>trigger</code> (executes the pre-configured service call defined in the panel)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>

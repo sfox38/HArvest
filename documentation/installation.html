@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Installation - HArvest Docs</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.0 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/harvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Getting started</div>
+          <h1>Installation</h1>
+          <p class="lead">Requirements and installing HArvest into Home Assistant via HACS.</p>
+        </div>
+
+        <div class="toc">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#requirements">Requirements</a></li>
+            <li><a href="#hacs">Install via HACS</a></li>
+            <li><a href="#network">Network requirements</a></li>
+          </ol>
+        </div>
+
+        <section>
+        <h2 id="requirements">Requirements</h2>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Component</th><th>Minimum version</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Home Assistant</td><td>2024.1</td><td>Any installation method works</td></tr>
+              <tr><td>Python</td><td>3.11</td><td>Bundled with HA</td></tr>
+              <tr><td>HACS</td><td>any</td><td>Required for installation</td></tr>
+              <tr><td>HTTPS on HA</td><td>-</td><td>Required for WebSocket connections from browsers</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Your Home Assistant instance needs to be reachable from the internet over HTTPS - a URL like <code>https://myhome.duckdns.org</code> or <code>https://ha.yourdomain.com</code>. Plain HTTP is not supported; browsers block WebSocket connections to non-secure origins from secure pages.</p>
+
+        <p>Popular options for HTTPS remote access: <a href="https://www.nabucasa.com" target="_blank">Nabu Casa</a> (easiest, paid), DuckDNS + Let's Encrypt (free), Cloudflare Tunnel (free).</p>
+        </section>
+
+        <section>
+        <h2 id="hacs">Install via HACS</h2>
+
+        <p>HArvest is installed as a custom HACS repository - it isn't in the default HACS catalog.</p>
+
+        <div class="screenshot-aside">
+          <div class="screenshot">
+            <img src="hacs.jpg">
+          </div>
+          <ol class="steps">
+            <li class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <h4>Add the repository</h4>
+                <p>Open HACS in your HA sidebar. Click the three-dot menu in the top-right corner and choose <strong>Custom repositories</strong>. Paste <code>https://github.com/sfox38/harvest</code> as the URL, set the category to <strong>Integration</strong>, then click <strong>Add</strong>.</p>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <h4>Download and install</h4>
+                <p>Search for <strong>HArvest</strong> in the HACS integration list, click it, then click <strong>Download</strong>. Restart Home Assistant after the download completes.</p>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <h4>Add the integration</h4>
+                <p>Go to <strong>Settings &gt; Devices and Services &gt; Add Integration</strong>. Search for <strong>HArvest</strong> and select it. No additional configuration is needed during setup - everything is managed from the panel.</p>
+              </div>
+            </li>
+            <li class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <h4>Open the panel</h4>
+                <p>HArvest now appears in your HA sidebar with a leaf icon. Click it to open the panel.</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Next step</span>
+          <p>Once HArvest is installed, head to <a href="quickstart.html">Quick setup</a> to create your first widget and get it onto a page.</p>
+        </div>
+        </section>
+
+        <section>
+        <h2 id="network">Network requirements</h2>
+
+        <p>Widgets connect from the visitor's browser to your HA instance using a standard HTTPS/WSS connection on port 443. No additional ports, no relay servers.</p>
+
+        <p>If you use one, your reverse proxy (nginx, Caddy, Traefik, etc.) needs to forward WebSocket upgrade headers. Most configurations already do this if HA is working normally. If not, add these to your nginx config:</p>
+
+        <pre><code class="language-text">proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection "upgrade";
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;</code></pre>
+
+        <p>Caddy and Traefik handle WebSocket upgrades automatically with no extra config. Cloudflare Tunnel works with a 100-second idle timeout - HArvest's 30-second keepalive interval keeps the connection alive.</p>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Visitors behind restrictive corporate networks</span>
+          <p>Some enterprise networks block WebSocket connections. Visitors in those environments won't see the widgets. HArvest does not have a polling fallback - the connection either succeeds or the card shows an offline state.</p>
+        </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>

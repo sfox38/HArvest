@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WordPress - HArvest Docs</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.0 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/harvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Using HArvest</div>
+          <h1>WordPress</h1>
+          <p class="lead">Install the HArvest WordPress plugin, configure it with your HA URL, then use shortcodes to embed widgets on any page or post.</p>
+        </div>
+
+        <div class="toc">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#requirements">Requirements</a></li>
+            <li><a href="#installation">Installation</a></li>
+            <li><a href="#plugin-settings">Plugin settings</a></li>
+            <li><a href="#shortcodes">Shortcodes</a></li>
+            <li><a href="#csp">Content Security Policy</a></li>
+            <li><a href="#script-loading">Script loading</a></li>
+          </ol>
+        </div>
+
+        <section>
+        <h2 id="requirements">Requirements</h2>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Requirement</th><th>Version</th></tr></thead>
+            <tbody>
+              <tr><td>WordPress</td><td>5.0+</td></tr>
+              <tr><td>PHP</td><td>7.4+ (8.0+ recommended)</td></tr>
+              <tr><td>Editor</td><td>Classic Editor or any page builder that allows raw HTML</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The plugin works with any WordPress theme. It enqueues the widget script in the page footer and injects the required Content-Security-Policy header automatically.</p>
+        </section>
+
+        <section>
+        <h2 id="installation">Installation</h2>
+
+        <ol class="steps">
+          <li class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h4>Download the plugin</h4>
+              <p>Get the latest plugin ZIP from the <a href="https://github.com/sfox38/harvest" target="_blank">GitHub releases page</a>. The file is named <code>harvest.zip</code></p>
+            </div>
+          </li>
+          <li class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h4>Upload to WordPress</h4>
+              <p>In your WordPress admin, go to <strong>Plugins &gt; Add New &gt; Upload Plugin</strong>. Select the ZIP file and click <strong>Install Now</strong>, then <strong>Activate Plugin</strong>.</p>
+            </div>
+          </li>
+          <li class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h4>Configure the plugin</h4>
+              <p>Go to <strong>Settings &gt; HArvest</strong> and enter your Home Assistant external URL. Save the settings.</p>
+            </div>
+          </li>
+        </ol>
+        </section>
+
+        <section>
+        <h2 id="plugin-settings">Plugin settings</h2>
+
+        <p>Found at <strong>Settings &gt; HArvest</strong> in your WordPress admin.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Home Assistant URL</td>
+                <td>Your HA external HTTPS URL. e.g. <code>https://myhome.duckdns.org</code>. Used to set the <code>connect-src</code> Content-Security-Policy directive automatically and as the default HA URL for shortcodes.</td>
+              </tr>
+              <tr>
+                <td>Widget source</td>
+                <td>"Bundled" (default) uses the widget JS file included with the plugin. "Custom URL" lets you specify a CDN or self-hosted URL. Use "Bundled" unless you need a specific widget version.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        </section>
+
+        <section>
+        <h2 id="shortcodes">Shortcodes</h2>
+
+        <h3>[harvest] - single card</h3>
+        <p>Embeds a single widget card for one entity.</p>
+
+        <pre><code class="language-text">[harvest token="hwt_..." entity="light.bedroom_main"]</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Parameter</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>token</code></td><td>Yes</td><td>Widget token ID from the HArvest panel</td></tr>
+              <tr><td><code>entity</code></td><td>Yes*</td><td>HA entity ID. e.g. <code>light.bedroom_main</code></td></tr>
+              <tr><td><code>alias</code></td><td>Yes*</td><td>8-character alias instead of entity ID. Use <code>entity</code> OR <code>alias</code>, not both.</td></tr>
+              <tr><td><code>token-secret</code></td><td>No</td><td>HMAC signing secret, required when the token has HMAC authentication enabled</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Tip</span>
+          <p>The HArvest panel's Code section generates the exact shortcode for each entity - you don't need to type these manually. Just copy and paste.</p>
+        </div>
+
+        <h3>[harvest_group] - multiple cards</h3>
+        <p>Groups multiple <code>[harvest]</code> shortcodes together, sharing a token and HA URL. Equivalent to wrapping cards in an <code>&lt;hrv-group&gt;</code> element.</p>
+
+        <pre><code class="language-text">[harvest_group token="hwt_..."]
+  [harvest entity="light.living_room"]
+  [harvest entity="light.dining_room"]
+  [harvest entity="switch.lamp"]
+[/harvest_group]</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Parameter</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>token</code></td><td>Yes</td><td>Token ID shared by all cards in the group</td></tr>
+              <tr><td><code>token-secret</code></td><td>No</td><td>HMAC secret shared by all cards in the group</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>When using <code>[harvest_group]</code>, child <code>[harvest]</code> shortcodes do not need <code>token</code> - they inherit it from the group.</p>
+
+        <h3>Using aliases</h3>
+        <p>To avoid putting real entity IDs in your page source, use the alias format. Aliases are generated in the HArvest panel and stored with the token. The panel's Code section shows both formats.</p>
+
+        <pre><code class="language-text">[harvest token="hwt_..." alias="dJ5x3Apd"]</code></pre>
+
+        <h3>Rendered output</h3>
+        <p>The shortcodes render as a <code>&lt;hrv-card&gt;</code> custom element wrapped in a container div. The widget script is enqueued in the page footer (once per page, regardless of how many shortcodes are on the page).</p>
+        </section>
+
+        <section>
+        <h2 id="csp">Content Security Policy</h2>
+
+        <p>Browsers require a <code>connect-src</code> Content-Security-Policy directive to allow WebSocket connections from your WordPress page to your HA instance. The plugin injects this header automatically based on the HA URL you entered in the plugin settings.</p>
+
+        <p>The injected header looks like:</p>
+        <pre><code class="language-text">Content-Security-Policy: connect-src 'self' wss://myhome.duckdns.org</code></pre>
+
+        <p>The plugin converts the <code>https://</code> URL from settings to <code>wss://</code> for the directive. You don't need to add this manually.</p>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Existing CSP headers</span>
+          <p>If your WordPress host or another plugin already sets a <code>Content-Security-Policy</code> header, the HArvest plugin's header may be ignored or conflict. In that case, manually add <code>wss://your-ha-host</code> to your existing <code>connect-src</code> directive.</p>
+        </div>
+
+        <p>The plugin also allows JSON file uploads in the WordPress media library (admin users only) to make it easier to manage and import custom theme files.</p>
+        </section>
+
+        <section>
+        <h2 id="script-loading">Script loading</h2>
+
+        <p>The widget script (<code>harvest.min.js</code>) is loaded in the page footer via WordPress's <code>wp_footer</code> action. It's only enqueued once per page even when multiple shortcodes are present - the plugin uses an idempotency guard to prevent duplicate script tags.</p>
+
+        <p>The script handle is <code>harvest-widget</code>. If you need to reference it from another plugin or theme (e.g. to add a dependency), use this handle.</p>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>

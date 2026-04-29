@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security - HArvest Docs</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.0 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/harvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Reference</div>
+          <h1>Security</h1>
+          <p class="lead">How HArvest's security model works, what it protects against, what it doesn't, and how to harden a token for sensitive deployments.</p>
+        </div>
+
+        <div class="toc">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#model">Security model</a></li>
+            <li><a href="#protections">What HArvest protects</a></li>
+            <li><a href="#limitations">What it doesn't protect</a></li>
+            <li><a href="#token-options">Token security options</a></li>
+            <li><a href="#hmac">HMAC authentication</a></li>
+            <li><a href="#origin-restriction">Origin restriction</a></li>
+            <li><a href="#schedules">Access schedules</a></li>
+            <li><a href="#ip-restriction">IP restriction</a></li>
+            <li><a href="#sessions">Session controls</a></li>
+            <li><a href="#hardening">Hardening checklist</a></li>
+            <li><a href="#events">HA event bus events</a></li>
+          </ol>
+        </div>
+
+        <section>
+        <h2 id="model">Security model</h2>
+
+        <p>HArvest's security boundary is the <em>token</em>. A token grants access to a specific, server-defined list of entities with a specific capability (read or read-write). The HA long-lived access token (your HA credentials) never leaves the server. Visitors interact only with the HArvest WebSocket proxy, which forwards only the exact service calls the integration permits.</p>
+
+        <p>Tokens are independent - compromising one doesn't affect others. They can be revoked instantly from the panel, dropping all active sessions for that token within seconds.</p>
+
+        <h2 id="protections">What HArvest protects</h2>
+
+        <ul>
+          <li>Your HA credentials (long-lived access token) never reach the client</li>
+          <li>Visitors can only access entities explicitly listed in their token</li>
+          <li>Write access is separate from read access and must be explicitly granted</li>
+          <li>Tier 3 domains (alarm panels, locks, cameras, scripts, automations) are blocked at token creation time - they cannot be added regardless of capability setting</li>
+          <li>Only service calls in the <a href="entities.html#allowed-services">allowed services whitelist</a> can be executed</li>
+          <li>Tokens can be restricted to specific websites, IP ranges, and time windows</li>
+          <li>All auth events and service calls are logged with session, origin, and entity details</li>
+          <li>Tokens can be paused or revoked instantly, dropping all active connections</li>
+        </ul>
+
+        <h2 id="limitations">What it doesn't protect</h2>
+
+        <p>Being clear about limitations is important for making good deployment decisions.</p>
+
+        <ul>
+          <li><strong>Token ID in page source</strong> - the token ID is visible in your page HTML. Anyone who copies it can use it from a non-browser tool (curl, etc.) as long as the origin check passes or isn't set. Use HMAC signing and strict origin restrictions for write-access tokens.</li>
+          <li><strong>Browser developer tools</strong> - visitors with DevTools open can inspect the WebSocket traffic, see entity IDs and states, and manually send valid commands for entities in the token scope. You cannot prevent this for in-scope entities on a read-write token.</li>
+          <li><strong>Origin header</strong> - the origin check runs on the HTTP <code>Origin</code> header, which browsers send reliably but non-browser tools can forge. Origin restriction is effective for browser-based attacks, not for determined attackers with script access to your token ID.</li>
+          <li><strong>Network-level attacks</strong> - DDoS, infrastructure flooding, and similar attacks are outside HArvest's scope. Use Cloudflare, fail2ban, or similar tools at the infrastructure level.</li>
+          <li><strong>Your HA instance security</strong> - HArvest doesn't protect a weak HA installation. Keep HA updated, use a strong password, enable MFA, and don't use a weak long-lived access token.</li>
+        </ul>
+        </section>
+
+        <section>
+        <h2 id="token-options">Token security options</h2>
+
+        <p>All security options are configured per-token in the widget detail screen or wizard.</p>
+
+        <h3>Capability</h3>
+        <p>Set per entity in the token. <strong>Read</strong> - state updates only, no service calls. <strong>Read-write</strong> - state updates plus allowed service calls for that domain.</p>
+
+        <h3>Excluded attributes</h3>
+        <p>Per entity. Prevents specific HA state attributes from being sent to the widget. Useful for hiding location coordinates, internal IDs, or other attributes you don't want visible in network traffic.</p>
+
+        <h2 id="hmac">HMAC authentication</h2>
+
+        <p>By default, knowing a token ID is sufficient to connect to it from any page (subject to origin restrictions). HMAC signing adds a second factor: the connecting page must prove it has a shared secret.</p>
+
+        <p>When HMAC is enabled on a token, the widget signs each auth message with the secret using HMAC-SHA256. The server verifies the signature and rejects auth requests that don't include a valid, non-stale signature. A timestamp is embedded in the signature payload - requests older than 60 seconds are rejected to prevent replay attacks.</p>
+
+        <p>The <code>token-secret</code> attribute on <code>&lt;hrv-card&gt;</code> is the HMAC secret. It appears in your page source, so it doesn't hide from someone looking at your page. The purpose of HMAC is to prevent someone who copied your token ID from using it on a different page - the token ID alone isn't enough, they also need the secret.</p>
+
+        <p>Set a token secret in the widget detail screen under <strong>Security</strong>. Minimum 16 characters. Use a random string.</p>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Token secret storage</span>
+          <p>The token secret is stored as plaintext in HA's <code>.storage/harvest_tokens</code> file on your HA instance. This is by design - HMAC verification requires the plaintext secret. The security claim is that the secret is not exposed in public HTML, not that it's never stored on the server.</p>
+        </div>
+
+        <h2 id="origin-restriction">Origin restriction</h2>
+
+        <p>Restrict which websites can connect using a token. Add allowed origins in the widget detail screen under <strong>Origins</strong>.</p>
+
+        <p>Each origin entry is a full URL without path, e.g. <code>https://mysite.com</code>. Optionally add path restrictions to allow only specific pages: <code>https://mysite.com</code> + path <code>/smart-home</code> means only pages at <code>https://mysite.com/smart-home*</code> can connect.</p>
+
+        <p>The origin check uses the HTTP <code>Origin</code> header from the WebSocket upgrade request. Browsers send this reliably. Non-browser tools can omit or forge it - if the <code>Origin</code> header is absent, the check is skipped by default (the page_path check in the widget auth message provides a soft verification).</p>
+
+        <p><strong>Allow any origin</strong> disables origin checking entirely for that token. Use only for read-only public data tokens where security through obscurity is acceptable.</p>
+
+        <h2 id="schedules">Access schedules</h2>
+
+        <p>Restrict when a token can be used to specific days of the week and hours of the day. Outside the schedule, the token behaves as if it's paused - existing sessions are dropped and new connections are rejected.</p>
+
+        <p>Configure schedules in the widget detail screen under <strong>Schedule</strong>. Set the timezone using an IANA timezone name (e.g. <code>America/New_York</code>, <code>Europe/London</code>). The server evaluates all schedule checks in the token's configured timezone.</p>
+
+        <p>Example use: a public kiosk widget that only needs to be active during business hours, or a token for a specific event that should only work on event day.</p>
+
+        <h2 id="ip-restriction">IP restriction</h2>
+
+        <p>Restrict connections to specific IP ranges using CIDR notation. Set in the widget detail screen under <strong>Security</strong>.</p>
+
+        <pre><code class="language-text">192.168.1.0/24      # home network
+203.0.113.0/24      # office network
+198.51.100.42/32    # single IP</code></pre>
+
+        <p>IP restriction requires that your reverse proxy forwards the real client IP to HA. Configure <code>trusted_proxies</code> in your HA <code>configuration.yaml</code>:</p>
+
+        <pre><code class="language-text">http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 127.0.0.1        # localhost (nginx/Caddy running on same host)
+    - 172.16.0.0/12    # Docker network</code></pre>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Without trusted_proxies configured</span>
+          <p>If <code>trusted_proxies</code> is not configured, HA sees the proxy's IP for all requests. IP restrictions will either block all traffic (if the proxy IP isn't in the allowlist) or allow all traffic (if it is). Configure <code>trusted_proxies</code> before relying on IP restrictions.</p>
+        </div>
+        </section>
+
+        <section>
+        <h2 id="sessions">Session controls</h2>
+
+        <p>Sessions automatically expire and require renewal. This limits how long a stale session can stay active after a token is compromised.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Control</th><th>Default</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>Session lifetime</td><td>60 minutes</td><td>Duration before the widget must send a renewal request</td></tr>
+              <tr><td>Max session lifetime</td><td>24 hours</td><td>Maximum total session duration via renewals</td></tr>
+              <tr><td>Absolute cap</td><td>72 hours</td><td>Hard expiry regardless of renewals - applies globally to all tokens</td></tr>
+              <tr><td>Max concurrent sessions</td><td>unlimited</td><td>Set a per-token limit to prevent session flooding</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>For security-sensitive tokens, use shorter session lifetimes (15-30 minutes) so compromised sessions expire quickly.</p>
+
+        <h3>Kill switch</h3>
+        <p>The global kill switch in Settings &gt; Sessions immediately drops all active sessions across all tokens and blocks new connections. It stays active until you turn it off. Use this if you suspect a widespread compromise.</p>
+
+        <p>Individual tokens can be paused (drops sessions, blocks new connections for that token) or revoked (permanently disabled) from the widget detail screen without affecting other tokens.</p>
+        </section>
+
+        <section>
+        <h2 id="hardening">Hardening checklist</h2>
+
+        <p>Recommended practices by use case:</p>
+
+        <h3>Read-only public widgets (sensor displays, status boards)</h3>
+        <ul>
+          <li>Set capability to <strong>Read</strong> for all entities</li>
+          <li>Add an origin restriction for the embedding website</li>
+          <li>Set an expiry date (90 days and rotate, or use a schedule)</li>
+          <li>Use entity aliases to avoid exposing real entity IDs in page source</li>
+        </ul>
+
+        <h3>Interactive widgets (lights, climate, covers)</h3>
+        <ul>
+          <li>Use the narrowest entity scope possible - don't include entities you don't need</li>
+          <li>Add strict origin restrictions with path restrictions</li>
+          <li>Enable HMAC signing with a strong random secret</li>
+          <li>Set session lifetime to 15-30 minutes</li>
+          <li>Consider IP restrictions if your visitors come from predictable networks</li>
+          <li>Enable access schedule if the widget is only needed at certain times</li>
+          <li>Monitor the activity log for unusual patterns</li>
+        </ul>
+
+        <h3>High-traffic public widgets</h3>
+        <ul>
+          <li>Set <code>max_sessions</code> to limit concurrent connections per token</li>
+          <li>Consider per-token rate limit overrides to constrain command frequency</li>
+          <li>Use Cloudflare or a CDN in front of HA to absorb traffic spikes</li>
+        </ul>
+        </section>
+
+        <section>
+        <h2 id="events">HA event bus events</h2>
+
+        <p>HArvest fires events on the HA event bus for use in automations. Configured in Settings &gt; HA Event Bus.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Event</th><th>Default</th><th>Payload includes</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>harvest_suspicious_origin</code></td>
+                <td>Enabled</td>
+                <td>token_id, origin, session_id, ip</td>
+              </tr>
+              <tr>
+                <td><code>harvest_token_revoked</code></td>
+                <td>Enabled</td>
+                <td>token_id, token_label, revoked_by</td>
+              </tr>
+              <tr>
+                <td><code>harvest_session_limit_reached</code></td>
+                <td>Enabled</td>
+                <td>token_id, token_label, session_count, origin</td>
+              </tr>
+              <tr>
+                <td><code>harvest_flood_protection</code></td>
+                <td>Enabled</td>
+                <td>token_id, origin, ip, reason</td>
+              </tr>
+              <tr>
+                <td><code>harvest_session_connected</code></td>
+                <td>Disabled</td>
+                <td>token_id, session_id, origin, ip, entity_ids</td>
+              </tr>
+              <tr>
+                <td><code>harvest_auth_failure</code></td>
+                <td>Disabled</td>
+                <td>token_id, origin, ip, reason_code</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><code>harvest_session_connected</code> and <code>harvest_auth_failure</code> are disabled by default because they fire frequently on active sites and can generate significant HA log volume. Enable them for auditing or when investigating a specific issue.</p>
+
+        <p>Example HA automation to notify on suspicious origin:</p>
+
+        <pre><code class="language-text">automation:
+  trigger:
+    platform: event
+    event_type: harvest_suspicious_origin
+  action:
+    service: notify.mobile_app
+    data:
+      message: &gt;
+        HArvest: suspicious origin {{ trigger.event.data.origin }}
+        for token {{ trigger.event.data.token_id }}</code></pre>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>

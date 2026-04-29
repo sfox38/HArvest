@@ -10,7 +10,6 @@
  *   harvest_ha_url            - External HA URL used by every widget on the site
  *   harvest_widget_source     - "bundled" or "custom"
  *   harvest_widget_custom_url - URL used when source is "custom"
- *   harvest_default_theme     - Optional URL to a default theme JSON file
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -59,11 +58,6 @@ class Harvest_Settings {
             'default'           => '',
         ] );
 
-        register_setting( 'harvest_settings_group', 'harvest_default_theme', [
-            'type'              => 'string',
-            'sanitize_callback' => 'esc_url_raw',
-            'default'           => '',
-        ] );
     }
 
     // ---------------------------------------------------------------------------
@@ -170,30 +164,6 @@ class Harvest_Settings {
                         </td>
                     </tr>
 
-                    <tr>
-                        <th scope="row">
-                            <label for="harvest_default_theme">
-                                <?php esc_html_e( 'Default theme URL', 'harvest' ); ?>
-                            </label>
-                        </th>
-                        <td>
-                            <input
-                                type="url"
-                                id="harvest_default_theme"
-                                name="harvest_default_theme"
-                                value="<?php echo esc_attr( get_option( 'harvest_default_theme' ) ); ?>"
-                                class="regular-text"
-                                placeholder="https://example.com/my-theme.json"
-                            >
-                            <p class="description">
-                                <?php esc_html_e(
-                                    'Optional. URL to a HArvest theme JSON file. Applied to all widgets that do not specify their own theme. Leave blank to use the built-in default.',
-                                    'harvest'
-                                ); ?>
-                            </p>
-                        </td>
-                    </tr>
-
                 </table>
 
                 <?php submit_button(); ?>
@@ -247,45 +217,6 @@ class Harvest_Settings {
                             'harvest'
                         ); ?></td>
                     </tr>
-                    <tr>
-                        <td><code>companion</code></td>
-                        <td><?php esc_html_e( 'No', 'harvest' ); ?></td>
-                        <td><?php esc_html_e( 'Comma-separated companion entity IDs or aliases.', 'harvest' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>theme</code></td>
-                        <td><?php esc_html_e( 'No', 'harvest' ); ?></td>
-                        <td><?php esc_html_e(
-                            'URL to a HArvest theme JSON file. Overrides the site default.',
-                            'harvest'
-                        ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>lang</code></td>
-                        <td><?php esc_html_e( 'No', 'harvest' ); ?></td>
-                        <td><?php esc_html_e(
-                            'Language code, e.g. "de". Defaults to auto-detect from browser.',
-                            'harvest'
-                        ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>graph</code></td>
-                        <td><?php esc_html_e( 'No', 'harvest' ); ?></td>
-                        <td><?php esc_html_e(
-                            'Graph type: "line" or "bar". Omit to show no graph.',
-                            'harvest'
-                        ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>hours</code></td>
-                        <td><?php esc_html_e( 'No', 'harvest' ); ?></td>
-                        <td><?php esc_html_e( 'History window in hours. Default: 24.', 'harvest' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>period</code></td>
-                        <td><?php esc_html_e( 'No', 'harvest' ); ?></td>
-                        <td><?php esc_html_e( 'Aggregation period in minutes. Default: 10.', 'harvest' ); ?></td>
-                    </tr>
                 </tbody>
             </table>
 
@@ -319,10 +250,6 @@ class Harvest_Settings {
 
     public static function get_ha_url(): string {
         return (string) get_option( 'harvest_ha_url', '' );
-    }
-
-    public static function get_default_theme(): string {
-        return (string) get_option( 'harvest_default_theme', '' );
     }
 
     public static function get_widget_source(): string {

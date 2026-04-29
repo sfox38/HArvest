@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HArvest - Documentation</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.0 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/harvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Documentation</div>
+          <div class="hero-title">
+            <img src="logo.png" alt="HArvest logo">
+            <div>
+              <h1>HArvest</h1>
+              <p class="leadhero">Securely share and control your Home Assistant smart home devices on any HTML or WordPress page.</p>
+            </div>
+          </div>
+        </div>
+
+        <img src="hero.jpg">
+
+        <section>
+        <h2>How it works</h2>
+
+        <p>HArvest is a Home Assistant custom integration. Once installed, you open the HArvest panel in your HA sidebar and create a <em>widget token</em> - a scoped access key that grants a webpage permission to connect to a specific set of your entities.</p>
+
+        <p>The panel gives you a wizard that walks through picking entities, setting permissions, restricting access by origin/IP/schedule, choosing a theme, and generating an embed snippet. Paste the snippet into a page. Done.</p>
+
+        <p>Widgets connect from the visitor's browser directly to your HA instance over WebSocket. State changes push from HA to the widget in real time. No intermediary service.</p>
+        </section>
+
+        <section>
+        <h2>Key concepts</h2>
+
+        <h3>Widget tokens</h3>
+        <p>Every widget has a token - a short random ID (prefixed <code>hwt_</code>) that identifies both the widget and its access rules. The token determines which entities are accessible, whether visitors can control them, which websites are allowed to connect, and more. Tokens can be revoked instantly from the panel.</p>
+
+        <h3>Configuration hierarchy</h3>
+        <p>Widget configuration flows through three levels. Each level inherits from the one above and can override any value:</p>
+
+        <pre><code class="language-text">Page level:   HArvest.config({ haUrl: "...", token: "..." })
+                |
+                v
+Group level:  &lt;hrv-group&gt;     -- optional, groups related cards
+                |
+                v
+Card level:   &lt;hrv-card entity="..."&gt;</code></pre>
+
+        <p>In practice, most pages call <code>HArvest.config()</code> once with the HA URL and token, then just drop <code>&lt;hrv-card&gt;</code> elements wherever they want a widget. Groups are useful when you need one section of a page to use a different token or theme from the rest.</p>
+
+        <h3>Entity tiers</h3>
+        <p>HArvest divides entity types into three tiers:</p>
+        <ul>
+          <li><strong>Tier 1</strong> - 14 domains with dedicated card renderers (lights, fans, climate, sensors, media players, etc.)</li>
+          <li><strong>Tier 2</strong> - any other domain gets a generic card with icon, name, and current state</li>
+          <li><strong>Tier 3</strong> - blocked domains (alarm panels, locks, cameras, etc.) that cannot be added to any token</li>
+        </ul>
+        <p>See <a href="entities.html">Entity types</a> for the full breakdown.</p>
+
+        <h3>Companion entities</h3>
+        <p>A companion is a secondary entity displayed inside a primary card. For example, a binary motion sensor rendered as a pill inside a light card. Companions are read-only and are configured per-entity in the panel - they don't need their own card element on the page.</p>
+        </section>
+
+        <section>
+        <h2>Where to go from here</h2>
+
+        <div class="nav-cards">
+          <a class="nav-card" href="installation.html">
+            <strong>Installation</strong>
+            <span>HACS setup, first widget, and network requirements.</span>
+          </a>
+          <a class="nav-card" href="panel.html">
+            <strong>Panel guide</strong>
+            <span>Tokens, the wizard, themes, settings, and the activity log.</span>
+          </a>
+          <a class="nav-card" href="widgets.html">
+            <strong>Widget reference</strong>
+            <span>HTML attributes, the JavaScript API, companions, and embed modes.</span>
+          </a>
+          <a class="nav-card" href="theming.html">
+            <strong>Theming and renderer packs</strong>
+            <span>CSS variables, custom themes, and building your own renderer packs.</span>
+          </a>
+        </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HA Entities - HArvest Docs</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.0 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/harvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Reference</div>
+          <h1>HA entities</h1>
+          <p class="lead">The sensors, switches, and buttons HArvest creates in Home Assistant - what they do, when they appear, and how to use them in automations.</p>
+        </div>
+
+        <div class="toc">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#global-sensors">Global sensors</a></li>
+            <li><a href="#token-sensors">Per-token sensors</a></li>
+            <li><a href="#global-controls">Global control entities</a></li>
+            <li><a href="#token-controls">Per-token control entities</a></li>
+            <li><a href="#lifecycle">Lifecycle</a></li>
+            <li><a href="#update-frequency">Update frequency</a></li>
+            <li><a href="#automations">Automation examples</a></li>
+            <li><a href="#dashboards">Dashboard examples</a></li>
+          </ol>
+        </div>
+
+        <h2 id="overview">Overview</h2>
+
+        <p>HArvest creates two categories of entities in Home Assistant.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Category</th><th>Type</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td>Diagnostic sensors</td><td>Read-only</td><td>Surface integration metrics for HA dashboards, history graphs, and alert automations</td></tr>
+              <tr><td>Control entities</td><td>Writable</td><td>Let HA automations and scripts control the integration - pause tokens, activate the kill switch, close sessions</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Global entities exist for the lifetime of the integration. Per-token entities are created when a token is created and become unavailable when the token is permanently deleted.</p>
+
+        <h2 id="global-sensors">Global sensors</h2>
+
+        <p>These sensors reflect the state of the entire HArvest integration, not any specific token. They are created when the integration loads and removed when it unloads.</p>
+
+        <h3>binary_sensor.harvest_running</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>State</td><td><code>on</code> - integration running and accepting connections. <code>off</code> - stopped or failed.</td></tr>
+              <tr><td>Device class</td><td><code>connectivity</code></td></tr>
+              <tr><td>Updates</td><td>Immediately on state change</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Goes <code>off</code> if the integration fails to start, hits a fatal error, or is reloaded. Useful for an alert automation that notifies you if HArvest stops unexpectedly after a HA update or restart.</p>
+
+        <h3>sensor.harvest_active_sessions</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>State</td><td>Integer count of currently open WebSocket sessions across all tokens</td></tr>
+              <tr><td>Unit</td><td>sessions</td></tr>
+              <tr><td>Updates</td><td>Every 30 seconds</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A session is counted from the moment <code>auth_ok</code> is sent until the WebSocket closes. Useful for monitoring live traffic and verifying that a token revocation dropped all expected sessions.</p>
+
+        <h3>sensor.harvest_active_tokens</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>State</td><td>Integer count of tokens currently eligible to accept connections</td></tr>
+              <tr><td>Unit</td><td>tokens</td></tr>
+              <tr><td>Updates</td><td>Every 30 seconds</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A token is counted as active if its status is active AND it has not expired AND the current time is within its schedule window (if one is set). Paused tokens are not counted.</p>
+
+        <h3>sensor.harvest_commands_today</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>State</td><td>Integer count of commands processed since midnight (HA timezone)</td></tr>
+              <tr><td>Unit</td><td>commands</td></tr>
+              <tr><td>Updates</td><td>Every 30 seconds</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Counts accepted service calls (turn_on, set_brightness, etc.) from widget visitors. Rejected commands - rate-limited or permission-denied - are not counted. Resets at midnight.</p>
+
+        <h3>sensor.harvest_errors_today</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>State</td><td>Integer count of auth failures and integration errors since midnight</td></tr>
+              <tr><td>Unit</td><td>errors</td></tr>
+              <tr><td>Updates</td><td>Every 30 seconds</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Counts authentication rejections - invalid tokens, denied origins, failed HMAC signatures, and similar. A low background count is normal (bots probe any public endpoint). A sudden spike may indicate a misconfigured widget or a probing attempt. Resets at midnight.</p>
+
+        <h3>sensor.harvest_db_size</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>State</td><td>Size of the activity log database in megabytes</td></tr>
+              <tr><td>Unit</td><td>MB</td></tr>
+              <tr><td>Updates</td><td>Every 30 seconds</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The <code>harvest_activity.db</code> SQLite file size. The automatic retention policy (default 30 days, configurable in Settings) prevents unbounded growth. Useful on long-running or high-traffic installations where you want to keep an eye on storage.</p>
+
+        <h2 id="token-sensors">Per-token sensors</h2>
+
+        <p>For each token, HArvest creates four sensors. Entity IDs are derived from the token's label, converted to a slug:</p>
+
+        <pre><code class="language-text">sensor.harvest_{label_slug}_{metric}</code></pre>
+
+        <p>For example, a token labelled "Bedroom Widgets" produces:</p>
+
+        <pre><code class="language-text">sensor.harvest_bedroom_widgets_sessions
+sensor.harvest_bedroom_widgets_last_seen
+sensor.harvest_bedroom_widgets_last_origin
+sensor.harvest_bedroom_widgets_commands_today</code></pre>
+
+        <p>If two tokens produce the same slug, HA appends a numeric suffix to disambiguate. The exact entity IDs for any token are shown in the panel widget detail screen under Diagnostics.</p>
+
+        <h3>sensor.harvest_{label}_sessions</h3>
+        <p>Number of visitors currently connected using this token. Updates immediately when a session opens or closes.</p>
+
+        <h3>sensor.harvest_{label}_last_seen</h3>
+        <p>ISO 8601 timestamp of the most recent successful auth for this token. Device class: <code>timestamp</code>. Shows <code>unknown</code> if the token has never been used. Updates immediately on successful auth.</p>
+
+        <h3>sensor.harvest_{label}_last_origin</h3>
+        <p>The HTTP Origin header value from the most recent successful connection. Useful for verifying that traffic is coming from the expected website. Updates immediately on successful auth.</p>
+
+        <h3>sensor.harvest_{label}_commands_today</h3>
+        <p>Commands sent by visitors using this specific token since midnight. Updates immediately when a command is processed.</p>
+
+        <h2 id="global-controls">Global control entities</h2>
+
+        <p>These let automations and scripts act on the entire integration.</p>
+
+        <h3>switch.harvest_kill_switch</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>State</td><td><code>on</code> - all auth blocked and existing sessions closed. <code>off</code> - normal operation.</td></tr>
+              <tr><td>Icon</td><td><code>mdi:toggle-switch-off</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Turning it <code>on</code> closes every active WebSocket session immediately and refuses all new auth attempts until turned back off. It stays in sync with the kill switch toggle in the panel Settings screen - changes in either place are reflected in both. Useful for away-mode automations or quickly suspending all widget access without revoking any tokens.</p>
+
+        <h3>button.harvest_close_all_sessions</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>Action</td><td>Closes every currently open WebSocket session immediately</td></tr>
+              <tr><td>Icon</td><td><code>mdi:logout</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Unlike the kill switch, this button does not block new connections - sessions close and then reconnect automatically when visitors next interact with a widget. Useful for forcing a clean reconnect after a network change or kicking stale sessions on a schedule.</p>
+
+        <h2 id="token-controls">Per-token control entities</h2>
+
+        <h3>switch.harvest_{label}_paused</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>State</td><td><code>on</code> - token paused, auth refused. <code>off</code> - token active.</td></tr>
+              <tr><td>Icon</td><td><code>mdi:pause-circle</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Turning it <code>on</code> pauses the token - new auth attempts are rejected and existing sessions are closed on the next keepalive tick. Turning it <code>off</code> resumes the token without any other changes. This is non-destructive: the token is not revoked, its configuration is unchanged, and it can be unpaused at any time.</p>
+        <p>One switch is created per token. The entity ID follows the same slug convention as the sensors: <code>switch.harvest_{label_slug}_paused</code>.</p>
+
+        <h2 id="lifecycle">Lifecycle</h2>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Entity group</th><th>Created</th><th>Removed</th></tr></thead>
+            <tbody>
+              <tr><td>Global sensors</td><td>When the integration loads (HA startup or manual reload)</td><td>When the integration unloads</td></tr>
+              <tr><td>Global control entities</td><td>When the integration loads</td><td>When the integration unloads</td></tr>
+              <tr><td>Per-token sensors</td><td>When a new token is created</td><td>Marked unavailable immediately when the token is permanently deleted. Cleared from the entity registry on the next HA restart.</td></tr>
+              <tr><td>Per-token paused switch</td><td>When a new token is created</td><td>Marked unavailable immediately when the token is permanently deleted. Cleared on next restart.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Pausing vs. revoking</span>
+          <p>Deleting a token permanently removes it and makes its entities unavailable. Pausing a token (via the panel or the <code>_paused</code> switch) is reversible and leaves the token and its entities fully intact.</p>
+        </div>
+
+        <h2 id="update-frequency">Update frequency</h2>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Entity</th><th>Update trigger</th></tr></thead>
+            <tbody>
+              <tr><td><code>binary_sensor.harvest_running</code></td><td>Immediately on state change only</td></tr>
+              <tr><td>All other global sensors</td><td>Every 30 seconds on a fixed schedule</td></tr>
+              <tr><td><code>sensor.harvest_{label}_sessions</code></td><td>Immediately when a session opens or closes</td></tr>
+              <tr><td><code>sensor.harvest_{label}_last_seen</code></td><td>Immediately on successful auth</td></tr>
+              <tr><td><code>sensor.harvest_{label}_last_origin</code></td><td>Immediately on successful auth</td></tr>
+              <tr><td><code>sensor.harvest_{label}_commands_today</code></td><td>Immediately when a command is processed</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Per-token sensors are event-driven and always current. Global aggregate sensors (active sessions, commands today, etc.) may lag up to 30 seconds behind the actual state.</p>
+
+        <h2 id="automations">Automation examples</h2>
+
+        <h3>Suspend access when leaving home</h3>
+        <pre><code class="language-text">automation:
+  alias: "HArvest - suspend on departure"
+  trigger:
+    - platform: state
+      entity_id: person.your_name
+      to: "not_home"
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.harvest_kill_switch</code></pre>
+
+        <h3>Resume access on arrival</h3>
+        <pre><code class="language-text">automation:
+  alias: "HArvest - resume on arrival"
+  trigger:
+    - platform: state
+      entity_id: person.your_name
+      to: "home"
+  action:
+    - service: switch.turn_off
+      target:
+        entity_id: switch.harvest_kill_switch</code></pre>
+
+        <h3>Pause a token on a schedule</h3>
+        <pre><code class="language-text">automation:
+  alias: "HArvest - pause bedroom token overnight"
+  trigger:
+    - platform: time
+      at: "22:00:00"
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.harvest_bedroom_widgets_paused
+
+automation:
+  alias: "HArvest - unpause bedroom token at 7am"
+  trigger:
+    - platform: time
+      at: "07:00:00"
+  action:
+    - service: switch.turn_off
+      target:
+        entity_id: switch.harvest_bedroom_widgets_paused</code></pre>
+
+        <h3>Alert if HArvest stops running</h3>
+        <pre><code class="language-text">automation:
+  alias: "HArvest stopped"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.harvest_running
+      to: "off"
+      for:
+        minutes: 2
+  action:
+    - service: notify.notify
+      data:
+        title: "HArvest is not running"
+        message: >
+          HArvest stopped at {{ now().strftime('%H:%M') }}.
+          Check the HA logs and reload the integration if needed.</code></pre>
+
+        <h3>Alert on error spike</h3>
+        <pre><code class="language-text">automation:
+  alias: "HArvest error spike"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.harvest_errors_today
+      above: 50
+  action:
+    - service: notify.notify
+      data:
+        title: "HArvest: high error count"
+        message: >
+          {{ states('sensor.harvest_errors_today') }} auth errors today.
+          Check the HArvest activity log for details.</code></pre>
+
+        <h3>Alert on unexpected sessions for a token</h3>
+        <pre><code class="language-text">automation:
+  alias: "HArvest unexpected traffic"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.harvest_bedroom_widgets_sessions
+      above: 5
+  action:
+    - service: notify.notify
+      data:
+        title: "Unexpected HArvest traffic"
+        message: >
+          {{ states('sensor.harvest_bedroom_widgets_sessions') }} active sessions
+          on Bedroom Widgets. Last origin:
+          {{ states('sensor.harvest_bedroom_widgets_last_origin') }}.</code></pre>
+
+        <h2 id="dashboards">Dashboard examples</h2>
+
+        <h3>Global status glance card</h3>
+        <pre><code class="language-text">type: glance
+title: HArvest Status
+entities:
+  - entity: binary_sensor.harvest_running
+    name: Running
+  - entity: sensor.harvest_active_sessions
+    name: Sessions
+  - entity: sensor.harvest_active_tokens
+    name: Tokens
+  - entity: sensor.harvest_commands_today
+    name: Commands today
+  - entity: sensor.harvest_errors_today
+    name: Errors today</code></pre>
+
+        <h3>Per-token status card</h3>
+        <pre><code class="language-text">type: entities
+title: Bedroom Widgets Token
+entities:
+  - entity: sensor.harvest_bedroom_widgets_sessions
+    name: Active sessions
+  - entity: sensor.harvest_bedroom_widgets_last_seen
+    name: Last visitor
+  - entity: sensor.harvest_bedroom_widgets_last_origin
+    name: Last origin
+  - entity: sensor.harvest_bedroom_widgets_commands_today
+    name: Commands today
+  - entity: switch.harvest_bedroom_widgets_paused
+    name: Paused</code></pre>
+
+        <h3>Alert card when HArvest is not running</h3>
+        <pre><code class="language-text">type: conditional
+conditions:
+  - entity: binary_sensor.harvest_running
+    state: "off"
+card:
+  type: markdown
+  content: >
+    **HArvest is not running.** Check the HA logs and reload the
+    integration under Settings &gt; Devices &amp; Services.</code></pre>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>

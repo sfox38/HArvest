@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel Guide - HArvest Docs</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.0 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/harvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Using HArvest</div>
+          <h1>Panel guide</h1>
+          <p class="lead">A walkthrough of every screen in the HArvest panel - dashboard, token management, the wizard, themes, settings, and the activity log.</p>
+        </div>
+
+        <div class="toc">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#dashboard">Dashboard</a></li>
+            <li><a href="#token-list">Widget list</a></li>
+            <li><a href="#token-detail">Widget detail</a></li>
+            <li><a href="#wizard">Widget wizard</a></li>
+            <li><a href="#themes">Themes</a></li>
+            <li><a href="#settings">Settings</a></li>
+            <li><a href="#activity">Activity log</a></li>
+          </ol>
+        </div>
+
+        <h2 id="dashboard">Dashboard</h2>
+
+        <p>The dashboard is the first screen you see when opening the panel. It shows a real-time snapshot of what's happening across all your widgets.</p>
+
+        <div class="screenshot">
+          <img src="dashboard.jpg">
+        </div>
+
+        <h3>Stat cards</h3>
+        <p>Five sensor cards across the top of the dashboard:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Card</th><th>What it shows</th></tr></thead>
+            <tbody>
+              <tr><td>Active Sessions</td><td>Number of widget sessions currently connected</td></tr>
+              <tr><td>Active Tokens</td><td>Total non-expired, non-revoked tokens</td></tr>
+              <tr><td>Commands Today</td><td>Service calls sent through HArvest in the last 24 hours</td></tr>
+              <tr><td>Errors Today</td><td>Auth failures and flood protection events in the last 24 hours</td></tr>
+              <tr><td>DB Size</td><td>Current activity log database size</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Activity graphs</h3>
+        <p>Three time-series graphs covering the last 24 hours: commands per hour, active sessions over time, and auth failures per hour. These update in real time as events arrive.</p>
+
+        <h3>Sidebar sections</h3>
+        <p>Below the graphs: a quick view of the last four activity events (click any to open the widget detail), and a list of widgets expiring in the next 7 days.</p>
+
+        <h2 id="token-list">Widget list</h2>
+
+        <p>The Widgets tab lists all your widgets. Each row shows the widget name, status badge, primary origin (or "any website"), entity count, active session count, and expiry date.</p>
+
+        <div class="screenshot">
+          <img src="widget-list.jpg">
+        </div>
+
+        <h3>Status badges</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge badge-green">Active</span></td><td>Widget is valid and accepting connections</td></tr>
+              <tr><td><span class="badge badge-amber">Paused</span></td><td>Manually paused - existing sessions are dropped, new connections rejected</td></tr>
+              <tr><td><span class="badge badge-amber">Expiring soon</span></td><td>Expires within 7 days</td></tr>
+              <tr><td><span class="badge badge-amber">Inactive</span></td><td>Has an active schedule set, currently outside the allowed hours</td></tr>
+              <tr><td><span class="badge badge-grey">Expired</span></td><td>Past its expiry date</td></tr>
+              <tr><td><span class="badge badge-red">Revoked</span></td><td>Permanently revoked - all sessions dropped, widget cannot be re-enabled</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Filtering and search</h3>
+        <p>Filter by status with the tabs at the top (All, Active, Expiring, Paused). The search box does multi-word fuzzy matching on widget names and origins. Archived (revoked/expired) widgets are collapsed into a separate section at the bottom of the list.</p>
+
+        <h2 id="token-detail">Widget detail</h2>
+
+        <p>Clicking a widget opens the widget detail screen. This is where you manage everything about a specific widget: its entities, access rules, appearance, and embed code.</p>
+
+        <div class="screenshot">
+          <img src="widget-detail.jpg">
+        </div>
+
+        <p>The screen has two panels. The left panel (about 55% width) contains all the configuration. The right panel (45%) shows live session data and recent activity for this widget specifically.</p>
+
+        <h3>Left panel - entities</h3>
+        <p>The entity list shows every entity included in this widget. Each entity has:</p>
+        <ul>
+          <li>Icon, friendly name, entity ID, and alias (if set)</li>
+          <li>Capability badge: <span class="badge badge-green">Read + control</span> or <span class="badge badge-blue">Read only</span></li>
+          <li>Tier badge: <span class="badge badge-purple">Tier 1</span>, <span class="badge badge-grey">Tier 2</span></li>
+          <li>An expand button to access per-entity settings</li>
+        </ul>
+
+        <h4>Per-entity settings</h4>
+        <p>Expanding an entity shows two sections:</p>
+
+        <p><strong>Display settings</strong> - controls how the card renders this entity:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Graph type</td><td>None, Line, Bar</td><td>Shows a history graph on supported entities (sensors)</td></tr>
+              <tr><td>Hours</td><td>1-168</td><td>Time window for the history graph</td></tr>
+              <tr><td>Period</td><td>1-60 minutes</td><td>Aggregation period per data point</td></tr>
+              <tr><td>Animate fan</td><td>On/Off</td><td>Enables spinning fan icon when entity is on</td></tr>
+              <tr><td>Companion entities</td><td>entity list</td><td>Secondary entities displayed inside this card</td></tr>
+              <tr><td>Exclude attributes</td><td>attribute names</td><td>Prevents specific HA attributes from being sent to the widget</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>Gesture settings</strong> - maps tap, hold, and double-tap gestures on the card to actions:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gesture</th><th>Available actions</th></tr></thead>
+            <tbody>
+              <tr><td>Tap</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
+              <tr><td>Hold</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
+              <tr><td>Double tap</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Left panel - origins and security</h3>
+        <p>Below the entity list, collapsible sections for:</p>
+
+        <ul>
+          <li><strong>Origins</strong> - which websites can use this widget. Add specific URLs (e.g. <code>https://mysite.com</code>) with optional path restrictions, or enable "allow any origin".</li>
+          <li><strong>Schedule</strong> - restrict access to specific days of the week and hours of the day, in a chosen timezone.</li>
+          <li><strong>Security</strong> - set a token secret for HMAC-signed auth, configure IP allowlists, and set session lifetime limits.</li>
+          <li><strong>Rate limits</strong> - per-widget override for the global rate limit defaults.</li>
+          <li><strong>Display defaults</strong> - language, accessibility mode, and offline/error message settings.</li>
+        </ul>
+
+        <h3>Left panel - code snippets</h3>
+        <p>The Code section at the bottom of the left panel shows ready-to-paste embed snippets. These update in real time as you change entity or alias settings.</p>
+
+        <p>The snippet panel has two tabs (HTML and WordPress) and a toggle to switch between <code>entity=</code> and <code>alias=</code> format. The alias format is useful when you don't want entity IDs visible in your page source.</p>
+
+        <h3>Right panel - sessions</h3>
+        <p>The right panel shows active sessions for this widget: session ID (truncated), origin, time connected, entities subscribed, and renewal count. The <strong>End</strong> button disconnects a specific session immediately.</p>
+
+        <h3>Right panel - activity</h3>
+        <p>Below the session list: a sparkline graph of the last 7 days of activity for this widget, followed by a filtered event list. Click any event row to expand its full details.</p>
+
+        <h2 id="wizard">Widget wizard</h2>
+
+        <p>The wizard guides you through creating a new widget in six steps. It's accessible from the <strong>+ Create Widget</strong> button on the dashboard or widget list.</p>
+
+        <p>The wizard is covered step-by-step in the <a href="quickstart.html#first-widget">Quick setup page</a>. Additional details on the options available at each step:</p>
+
+        <h3>Single vs. group mode</h3>
+        <p>Step 1 has a toggle between <strong>Single widget</strong> and <strong>Group</strong> mode. Single mode creates one widget with one or more entities that each get their own card. Group mode creates a widget for a set of cards that share a group container - useful when you want cards laid out together on a page.</p>
+
+        <h3>Alias toggle (Step 6)</h3>
+        <p>The code snippet in Step 6 has an <strong>Aliases</strong> toggle. When enabled, the snippet uses 8-character random aliases instead of real entity IDs in the embed code. Both formats work - aliases are just privacy aliases, not a different access mechanism. Aliases for each entity are generated when you select the entity in Step 1 and are stored with the widget permanently.</p>
+
+        <h3>Embed modes</h3>
+        <p>The snippet panel shows two embed modes:</p>
+        <ul>
+          <li><strong>Custom element</strong> - uses <code>&lt;hrv-card&gt;</code> and <code>&lt;hrv-group&gt;</code> custom HTML elements</li>
+          <li><strong>Data attribute</strong> - uses plain <code>&lt;div class="hrv-mount"&gt;</code> elements with <code>data-</code> attributes, for environments where custom elements are blocked or inconvenient</li>
+        </ul>
+
+        <h2 id="themes">Themes</h2>
+
+        <p>The Themes tab manages the visual appearance of widget cards. HArvest ships four bundled themes (Default, Glass, Access, Minimus) and you can create unlimited custom themes.</p>
+
+        <div class="screenshot">
+          <img src="theme.jpg">
+        </div>
+
+        <h3>Theme picker strip</h3>
+        <p>A horizontal scrollable strip shows all available themes as thumbnail cards. Bundled themes are marked with a <span class="badge badge-grey">System</span> badge. Themes that include a renderer pack are marked with a <span class="badge badge-amber">☆</span> badge. The count of tokens using each theme is shown on the card.</p>
+
+        <h3>Live preview</h3>
+        <p>Selecting a theme shows a live preview panel with a sample widget card rendered using the theme's CSS variables. Use the renderer type dropdown to preview different card types (light, sensor, fan, etc.) and the Light/Dark/Auto toggle to check both color modes.</p>
+
+        <h3>Custom themes</h3>
+        <p>Click <strong>New theme</strong> to create a custom theme. You can start from scratch or duplicate an existing theme. The code editor shows the raw theme JSON, which you can edit directly. Changes are reflected in the live preview immediately. See the <a href="theming.html">Theming page</a> for the full theme JSON format and variable reference.</p>
+
+        <h3>Exporting and sharing themes</h3>
+        <p>Any theme (including bundled ones) can be exported as a JSON file via the <strong>Export JSON</strong> button. Custom themes can be imported on any HArvest instance via the Themes tab. This is how third-party themes are distributed - the theme author exports their JSON file and shares it; other users import it via the panel.</p>
+
+        <h2 id="settings">Settings</h2>
+
+        <p>The Settings screen has collapsible sections for every global configuration option.</p>
+
+        <h3>Allowed origins</h3>
+        <p>A registry of websites that widgets can reference. Rather than typing a URL each time you create a widget, you add sites here once with a friendly name. These then appear as options in the wizard and widget detail screen. You can add origins directly from the widget editor too - they sync to this registry.</p>
+
+        <h3>Connection</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Auth timeout</td><td>10 seconds</td><td>Time to complete WebSocket auth before disconnect</td></tr>
+              <tr><td>Keepalive interval</td><td>30 seconds</td><td>How often the server pings connected clients</td></tr>
+              <tr><td>Client heartbeat timeout</td><td>60 seconds</td><td>Session dropped if no client message within this window</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Rate limiting</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>State pushes per second</td><td>-</td><td>Max state update messages sent per client per second</td></tr>
+              <tr><td>Commands per minute</td><td>-</td><td>Max service calls per token per minute</td></tr>
+              <tr><td>Auth attempts per token/min</td><td>10</td><td>Failed auth attempts before token is blocked</td></tr>
+              <tr><td>Auth attempts per IP/min</td><td>20</td><td>Failed auth attempts per IP before blocking</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Sessions</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Kill switch</td><td>Off</td><td>When on, drops ALL active sessions globally and blocks new connections</td></tr>
+              <tr><td>Default session lifetime</td><td>60 minutes</td><td>Session duration before the client must renew</td></tr>
+              <tr><td>Max session lifetime</td><td>1440 minutes (24h)</td><td>Max duration via renewals</td></tr>
+              <tr><td>Absolute session cap</td><td>72 hours</td><td>Hard expiry regardless of renewals</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Activity log</h3>
+        <p>Configure retention period (default 30 days). Shows current database file size and path. The activity log uses SQLite and is stored in your HA config directory.</p>
+
+        <h3>HA event bus</h3>
+        <p>Toggle which events HArvest fires on the HA event bus. Useful for automations that react to widget activity (e.g. notify you when an auth failure occurs). See the <a href="security.html">Security page</a> for event payloads.</p>
+
+        <h3>Widget display defaults</h3>
+        <p>Global defaults for the widget display behavior, applied when a widget doesn't override them:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Options</th><th>Default</th></tr></thead>
+            <tbody>
+              <tr><td>Language</td><td>auto, or any BCP 47 language tag</td><td>auto (follows browser)</td></tr>
+              <tr><td>Accessibility mode</td><td>standard, enhanced</td><td>standard</td></tr>
+              <tr><td>On offline</td><td>dim, hide, message, last-state</td><td>last-state</td></tr>
+              <tr><td>On error</td><td>dim, hide, message</td><td>message</td></tr>
+              <tr><td>Offline text</td><td>string</td><td>(empty)</td></tr>
+              <tr><td>Error text</td><td>string</td><td>(empty)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="activity">Activity log</h2>
+
+        <p>The Activity tab shows a searchable, filterable log of all events across all tokens. Events are retained for the configured retention period (default 30 days).</p>
+
+        <div class="screenshot">
+          <img src="activity.jpg">
+        </div>
+
+        <h3>Filters</h3>
+        <ul>
+          <li><strong>Date range</strong> - Last 24 hours, Last 7 days, Last 30 days, or custom</li>
+          <li><strong>Widget</strong> - All widgets, or a specific widget</li>
+          <li><strong>Event type</strong> - All, AUTH_OK, AUTH_FAIL, COMMAND, SESSION_END, TOKEN_REVOKED, etc.</li>
+        </ul>
+
+        <h3>Event rows</h3>
+        <p>Each event row shows the event type with a color-coded icon, a summary, the widget name (clickable to open that widget's detail screen), and the relative timestamp. Click any row to expand it and see the full event payload: session ID, origin, entity ID, action taken, IP address, and error code where applicable.</p>
+
+        <h3>CSV export</h3>
+        <p>The <strong>Export CSV</strong> button at the top of the Activity tab exports all events matching the current filter criteria as a CSV file.</p>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>

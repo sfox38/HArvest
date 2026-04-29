@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quick Setup - HArvest Docs</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.0 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/harvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Getting started</div>
+          <h1>Quick setup</h1>
+          <p class="lead">Create a widget for one of your smart home devices, then put it on a webpage. Takes about five minutes. This guide assumes HArvest is already <a href="installation.html">installed</a>.</p>
+        </div>
+
+        <div class="toc">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#first-widget">Create your first widget</a></li>
+            <li><a href="#embed-html">Embed on a plain HTML page</a></li>
+            <li><a href="#embed-wp">Embed on WordPress</a></li>
+          </ol>
+        </div>
+
+        <section>
+        <h2 id="first-widget">Create your first widget</h2>
+
+        <p>From the HArvest panel dashboard, click <strong>+ Create Widget</strong> in the bottom-right corner. This opens the six-step wizard.</p>
+
+        <h3>Step 1 - Pick entities</h3>
+        <p>Search for the entity you want to embed. The search matches entity IDs and friendly names, for example "Bedroom light" or <code>light.bedroom_main</code>.</p>
+        <ul>
+          <li>Click an entity to add it. Each one becomes its own card on your page.</li>
+          <li>Optionally add companion entities. These are small secondary indicators that appear inside another card, for example a motion sensor pill inside a light card.</li>
+          <li>Give the widget a name for your own reference. Visitors to your page never see it.</li>
+        </ul>
+
+        <img src="widget-step-1.jpg" alt="Step 1 - entity picker showing search results and selected entities">
+
+        <h3>Step 2 - Set permissions</h3>
+        <p>Decide what visitors can do with your entities:</p>
+        <ul>
+          <li><strong>View only</strong> - visitors see the current state (on/off, temperature, etc.) but cannot change anything.</li>
+          <li><strong>View and control</strong> - visitors can also interact, for example toggling a light or adjusting a thermostat.</li>
+        </ul>
+        <p>This sets the default for all entities in the widget. You can override it per entity later from the widget detail screen.</p>
+
+        <h3>Step 3 - Set origin</h3>
+        <p>Specify which website is allowed to use this widget. This prevents someone from copying your embed code and using it on a different site.</p>
+        <p>Enter your site URL (e.g. <code>https://mysite.com</code>) or choose <strong>Any website</strong> if you don't need this restriction. For widgets that allow control, setting an origin is strongly recommended.</p>
+
+        <h3>Step 4 - Set expiry</h3>
+        <p>Choose when the widget expires: never, 30 days, 90 days, 365 days, or a custom date. An expired widget can be renewed from the panel at any time.</p>
+
+        <p>The <strong>Advanced</strong> section has additional options you can skip for now:</p>
+        <ul>
+          <li><strong>Access schedule</strong> - limit the widget to specific days and hours (e.g. business hours only).</li>
+          <li><strong>IP restrictions</strong> - limit connections to specific network ranges.</li>
+          <li><strong>HMAC signing</strong> - adds a shared secret that the page must prove it knows before connecting. Useful for high-security widgets. See the <a href="security.html#hmac">security page</a> for details.</li>
+        </ul>
+
+        <h3>Step 5 - Choose appearance</h3>
+        <p>Pick a visual theme for the widget cards. A live preview shows your actual entity state with the theme applied, so you can see exactly how it will look.</p>
+        <p>You can change the theme later from the widget detail screen. Changes apply immediately to anyone viewing the widget, with no page edits needed.</p>
+
+        <h3>Step 6 - Get the code</h3>
+        <p>The wizard shows a ready-to-paste code snippet. Use the tabs to switch between plain HTML and WordPress shortcode format.</p>
+
+        <p>There is also a toggle to use <strong>aliases</strong> instead of real entity IDs. An alias is a short random code like <code>dJ5x3Apd</code> that stands in for <code>light.bedroom_main</code>, so visitors cannot see your actual Home Assistant entity IDs in the page source.</p>
+
+        <p>Copy the snippet and paste it into your page. That's it.</p>
+
+        <img src="widget-step-6.jpg" alt="Step 6 - generated embed snippet with copy button">
+        </section>
+
+        <section>
+        <h2 id="embed-html">Embed on a plain HTML page</h2>
+
+        <p>The snippet has two parts. First, a one-time setup block that loads the widget script and tells it where your Home Assistant instance is. Second, one <code>&lt;hrv-card&gt;</code> tag for each entity you want to show.</p>
+
+        <pre><code class="language-html">&lt;!-- Part 1: Load the script and connect to your HA instance (once per page) --&gt;
+&lt;script src="/harvest.min.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  HArvest.config({
+    haUrl: "https://myhome.duckdns.org",
+    token: "hwt_a3F9bC2d114eF5A6b7c8dE",
+  });
+&lt;/script&gt;
+
+&lt;!-- Part 2: Place cards anywhere in your page --&gt;
+&lt;hrv-card entity="light.bedroom_main"&gt;&lt;/hrv-card&gt;
+&lt;hrv-card entity="sensor.outdoor_temp"&gt;&lt;/hrv-card&gt;</code></pre>
+
+        <p>The setup block only needs to appear once, no matter how many cards you add. Place <code>&lt;hrv-card&gt;</code> tags anywhere in the page body where you want a widget to appear.</p>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Multiple tokens on one page</span>
+          <p>The <code>HArvest.config()</code> call sets a page-level default. If you need cards from different tokens on the same page, you can set <code>token</code> and <code>ha-url</code> directly on individual cards or card groups instead. See <a href="widgets.html#config-levels">token configuration levels</a> in the widget reference.</p>
+        </div>
+        </section>
+
+        <section>
+        <h2 id="embed-wp">Embed on WordPress</h2>
+
+        <p>If you use WordPress, the wizard generates a shortcode instead of raw HTML. A shortcode is a small tag that WordPress replaces with the widget when the page loads.</p>
+
+        <pre><code class="language-text">[harvest token="hwt_a3F9bC2d114eF5A6b7c8dE" entity="light.bedroom_main"]</code></pre>
+
+        <p>Paste it into any post or page using the Classic Editor or any editor that allows shortcodes. The HArvest WordPress plugin takes care of the rest: loading the widget script, setting up browser security headers, and matching your site's light or dark mode.</p>
+
+        <p>The plugin needs to be installed and configured with your HA URL before shortcodes will work. See the <a href="wordpress.html">WordPress setup page</a> for the full process.</p>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Where to go next</span>
+          <p>The <a href="panel.html">Panel guide</a> covers everything you can do from the HArvest panel: display settings, security options, activity logs, and more. The <a href="widgets.html">Widget reference</a> has all embed options and the JavaScript API.</p>
+        </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>
