@@ -1017,14 +1017,14 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                       {attrCache[e.entity_id].map(attr => {
                         const excluded = e.exclude_attributes.includes(attr);
                         return (
-                          <div key={attr} className={`attr-filter-item${excluded ? " excluded" : ""}`}>
+                          <label key={attr} className={`attr-filter-item${excluded ? " excluded" : ""}`}>
                             <Toggle
                               checked={excluded}
                               onChange={() => toggleExcludeAttr(e.entity_id, attr)}
                               disabled={!canEdit}
                             />
                             <span className="mono">{attr}</span>
-                          </div>
+                          </label>
                         );
                       })}
                     </div>

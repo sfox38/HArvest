@@ -15,9 +15,9 @@ const INPUT_SELECT_STYLES = /* css */`
   [part=option-select] {
     width: 100%;
     padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
-    border: 1px solid var(--hrv-color-border);
+    border: none;
     border-radius: var(--hrv-radius-m);
-    background: var(--hrv-color-surface);
+    background: var(--hrv-color-surface-alt);
     color: var(--hrv-color-text);
     font-size: var(--hrv-font-size-s);
     font-family: inherit;

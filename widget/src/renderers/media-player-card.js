@@ -93,11 +93,10 @@ const MEDIA_STYLES = /* css */`
 
   [part=source-select] {
     width: 100%;
-    min-height: 44px;
-    padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
-    border: 1px solid var(--hrv-color-border);
-    border-radius: var(--hrv-radius-s);
-    background: var(--hrv-color-surface);
+    padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+    border: none;
+    border-radius: var(--hrv-radius-m);
+    background: var(--hrv-color-surface-alt);
     color: var(--hrv-color-text);
     font-size: var(--hrv-font-size-xs);
     font-family: inherit;

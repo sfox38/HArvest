@@ -29,11 +29,10 @@ const INPUT_NUMBER_STYLES = /* css */`
 
   [part=value-input] {
     width: 64px;
-    min-height: 44px;
-    padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
-    border: 1px solid var(--hrv-color-border);
-    border-radius: var(--hrv-radius-s);
-    background: var(--hrv-color-surface);
+    padding: var(--hrv-spacing-s) var(--hrv-spacing-s);
+    border: none;
+    border-radius: var(--hrv-radius-m);
+    background: var(--hrv-color-surface-alt);
     color: var(--hrv-color-text);
     font-size: var(--hrv-font-size-s);
     font-family: inherit;
