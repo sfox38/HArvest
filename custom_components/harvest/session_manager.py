@@ -297,10 +297,14 @@ class SessionManager:
     # ------------------------------------------------------------------
 
     def is_expired(self, session: Session, now: datetime | None = None) -> bool:
-        """Return True if the session's expires_at has passed."""
+        """Return True if the session's expires_at or absolute_expires_at has passed."""
         if now is None:
             now = datetime.now(tz=timezone.utc)
-        return now >= session.expires_at
+        if now >= session.expires_at:
+            return True
+        if session.absolute_expires_at is not None and now >= session.absolute_expires_at:
+            return True
+        return False
 
     def count_active(self) -> int:
         """Return the total count of active sessions."""

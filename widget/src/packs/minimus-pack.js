@@ -24,7 +24,8 @@
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function _debounce(fn, ms) {
@@ -4248,7 +4249,7 @@
   // ---------------------------------------------------------------------------
 
   HArvest._packs = HArvest._packs || {};
-  const _packKey = window.__HARVEST_PACK_ID__ || "minimus";
+  const _packKey = (document.currentScript && document.currentScript.dataset.packId) || "minimus";
   HArvest._packs[_packKey] = {
     "light":          DialLightCard,
     "fan":            FanCard,

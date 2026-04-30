@@ -529,7 +529,7 @@ export class HarvestClient {
     this.#absoluteExpiresAt = msg.absolute_expires_at ? new Date(msg.absolute_expires_at) : null;
     this.#renewalCount = 0;
     this.#maxRenewals = msg.max_renewals ?? null;
-    console.warn("[HArvest] auth_ok: session=" + msg.session_id);
+    console.debug("[HArvest] auth_ok: session=" + msg.session_id);
   }
 
   #handleAuthFailed(msg) {
@@ -749,9 +749,8 @@ export class HarvestClient {
     this.#packLoadPromise = new Promise(r => { resolve = r; });
     const script = document.createElement("script");
     script.src = this.#haUrl + msg.url + "?_=" + Date.now();
-    window.__HARVEST_PACK_ID__ = packId;
+    script.dataset.packId = packId;
     script.onload = () => {
-      window.__HARVEST_PACK_ID__ = null;
       document.head.removeChild(script);
       this.#activePack = packId;
       this.#packLoadPromise = null;
@@ -761,7 +760,6 @@ export class HarvestClient {
       }
     };
     script.onerror = () => {
-      window.__HARVEST_PACK_ID__ = null;
       console.warn("[HArvest] Failed to load renderer pack:", msg.url);
       document.head.removeChild(script);
       this.#packLoadPromise = null;

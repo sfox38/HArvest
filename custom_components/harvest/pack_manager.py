@@ -84,6 +84,8 @@ class PackManager:
 
         Checks bundled packs first, then user packs in packs/user/.
         """
+        if ".." in pack_id or "/" in pack_id or "\\" in pack_id:
+            return None
         if pack_id in self._bundled:
             path = _PACKS_DIR / f"{pack_id}.js"
             return path if path.is_file() else None

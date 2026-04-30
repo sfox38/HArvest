@@ -398,10 +398,11 @@ class HarvestWsView(HomeAssistantView):
         # Register HA state listeners. listener_unsubs maps real_entity_id -> unsub callable.
         listener_unsubs: dict[str, Callable] = {}
 
-        # Schedule session_expiring warning.
-        expiry_warning_task = asyncio.create_task(
-            self._send_session_expiring(ws, session)
-        )
+        # Schedule session_expiring warning. Wrapped in a dict so _handle_renew
+        # can cancel and restart it after the session expiry is extended.
+        expiry_warning_holder: dict[str, asyncio.Task] = {
+            "task": asyncio.create_task(self._send_session_expiring(ws, session)),
+        }
 
         # Send application-level keepalive messages so the JS client's
         # heartbeat watchdog stays satisfied (WS ping/pong frames do not
@@ -457,10 +458,10 @@ class HarvestWsView(HomeAssistantView):
         try:
             await self._send_initial_state(ws, session, real_entity_ids, token, outgoing_ids)
             self._register_listeners(ws, session, token, outgoing_ids, listener_unsubs, real_entity_ids)
-            await self._message_loop(ws, session, token, outgoing_ids, listener_unsubs)
+            await self._message_loop(ws, session, token, outgoing_ids, listener_unsubs, expiry_warning_holder)
         finally:
             # --- Step 7: Cleanup ---
-            expiry_warning_task.cancel()
+            expiry_warning_holder["task"].cancel()
             keepalive_task.cancel()
             for unsub in listener_unsubs.values():
                 unsub()
@@ -538,6 +539,7 @@ class HarvestWsView(HomeAssistantView):
         token: Token,
         outgoing_ids: dict[str, str],
         listener_unsubs: dict[str, Callable],
+        expiry_warning_holder: dict[str, asyncio.Task] | None = None,
     ) -> None:
         """Process incoming messages until the connection closes.
 
@@ -555,7 +557,7 @@ class HarvestWsView(HomeAssistantView):
         async for raw in ws:
             if raw.type == aiohttp.WSMsgType.TEXT:
                 # Size check before parsing.
-                if len(raw.data) > max_bytes:
+                if len(raw.data.encode('utf-8')) > max_bytes:
                     _LOGGER.warning(
                         "HArvest: inbound message from session %s exceeds %d bytes. Closing.",
                         session.session_id, max_bytes,
@@ -607,7 +609,7 @@ class HarvestWsView(HomeAssistantView):
                 elif msg_type == "unsubscribe":
                     await self._handle_unsubscribe(ws, msg, session, token, listener_unsubs)
                 elif msg_type == "renew":
-                    await self._handle_renew(ws, msg, session, token, outgoing_ids, listener_unsubs)
+                    await self._handle_renew(ws, msg, session, token, outgoing_ids, listener_unsubs, expiry_warning_holder)
                 elif msg_type == "history_request":
                     await self._handle_history_request(ws, msg, session, token, outgoing_ids)
                 elif msg_type is None:
@@ -841,6 +843,7 @@ class HarvestWsView(HomeAssistantView):
         token: Token,
         outgoing_ids: dict[str, str],
         listener_unsubs: dict[str, Callable],
+        expiry_warning_holder: dict[str, asyncio.Task] | None = None,
     ) -> None:
         """Process a renew message.
 
@@ -894,6 +897,13 @@ class HarvestWsView(HomeAssistantView):
         await self._send_initial_state(
             ws, session, list(session.subscribed_entity_ids), token, outgoing_ids
         )
+
+        # Cancel and restart the expiry warning task with the new session expiry.
+        if expiry_warning_holder is not None:
+            expiry_warning_holder["task"].cancel()
+            expiry_warning_holder["task"] = asyncio.create_task(
+                self._send_session_expiring(ws, session)
+            )
 
     # ------------------------------------------------------------------
     # History

@@ -284,6 +284,24 @@ function SelectField({ label, value, options, onChange, hint }: SelectFieldProps
 // TrustedProxiesField
 // ---------------------------------------------------------------------------
 
+function isValidCidr(entry: string): boolean {
+  // IPv4 or IPv4/prefix
+  const v4Match = entry.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(\/(\d{1,2}))?$/);
+  if (v4Match) {
+    const octets = [v4Match[1], v4Match[2], v4Match[3], v4Match[4]];
+    if (octets.some(o => parseInt(o, 10) > 255)) return false;
+    if (v4Match[6] !== undefined && parseInt(v4Match[6], 10) > 32) return false;
+    return true;
+  }
+  // IPv6 with optional /prefix
+  const v6Match = entry.match(/^([0-9a-fA-F:]+)(\/(\d{1,3}))?$/);
+  if (v6Match) {
+    if (v6Match[3] !== undefined && parseInt(v6Match[3], 10) > 128) return false;
+    return true;
+  }
+  return false;
+}
+
 interface TrustedProxiesFieldProps {
   value: string[];
   onChange: (v: string[]) => Promise<void>;
@@ -298,7 +316,7 @@ function TrustedProxiesField({ value, onChange }: TrustedProxiesFieldProps) {
 
   const commit = useCallback(async (raw: string) => {
     const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
-    const bad = lines.find(l => !/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(l) && !/^[0-9a-fA-F:]+\/?\d*$/.test(l));
+    const bad = lines.find(l => !isValidCidr(l));
     if (bad) {
       setSaveState("error");
       setErrMsg(`Invalid entry: ${bad}`);

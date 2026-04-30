@@ -145,7 +145,10 @@ export class ThemeLoader {
       // when the incoming theme does not define that property.
       host.style.cssText = "";
 
+      const _dangerousValueRe = /url\s*\(|expression\s*\(|@import/i;
       for (const [key, value] of Object.entries(vars ?? {})) {
+        if (!key.startsWith("--")) continue;
+        if (_dangerousValueRe.test(value)) continue;
         host.style.setProperty(key, value);
       }
     };
