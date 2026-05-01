@@ -31,6 +31,7 @@ TIER1_DOMAINS: dict[str, str] = {
     "input_select":    "InputSelectCard",
     "harvest_action":  "HarvestActionCard",
     "timer":           "TimerCard",
+    "weather":         "WeatherCard",
 }
 
 SENSOR_DEVICE_CLASS_RENDERERS: dict[str, str] = {

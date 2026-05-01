@@ -134,6 +134,13 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: {} },
   harvest_action: { domain: "harvest_action", label: "Action",         friendly_name: "Good Night",       state: "idle",     attributes: {} },
   timer:          { domain: "timer",          label: "Timer",          friendly_name: "Oven Timer",       state: "idle",     attributes: { duration: "0:25:00", remaining: "0:25:00" } },
+  weather:        { domain: "weather",        label: "Weather",        friendly_name: "Weather",          state: "sunny",    attributes: { temperature: 24, temperature_unit: "°C", humidity: 45, wind_speed: 12, wind_speed_unit: "km/h", pressure: 1013, pressure_unit: "hPa", forecast: [
+    { datetime: "2026-05-02", condition: "partlycloudy", temperature: 22, templow: 14 },
+    { datetime: "2026-05-03", condition: "rainy",        temperature: 18, templow: 12 },
+    { datetime: "2026-05-04", condition: "cloudy",       temperature: 20, templow: 13 },
+    { datetime: "2026-05-05", condition: "sunny",        temperature: 25, templow: 15 },
+    { datetime: "2026-05-06", condition: "partlycloudy", temperature: 23, templow: 14 },
+  ] } },
 };
 
 const RENDERER_OPTIONS = [
@@ -158,6 +165,7 @@ const DOMAIN_DEFAULT_ICONS: Record<string, Record<string, string>> = {
   binary_sensor:  { on: "mdi:radiobox-marked",          "*": "mdi:radiobox-blank" },
   harvest_action: { triggered: "mdi:play-circle",       "*": "mdi:play-circle-outline" },
   timer:          { active: "mdi:timer",                paused: "mdi:timer-pause", "*": "mdi:timer-outline" },
+  weather:        { sunny: "mdi:weather-sunny",          "*": "mdi:weather-cloudy" },
 };
 
 function resolveDefaultIcon(domain: string, state: string): string {

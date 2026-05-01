@@ -33,6 +33,7 @@ import { InputNumberCard }        from "./input-number-card.js";
 import { InputSelectCard }        from "./input-select-card.js";
 import { HarvestActionCard }      from "./harvest-action-card.js";
 import { TimerCard }              from "./timer-card.js";
+import { WeatherCard }            from "./weather-card.js";
 import { GenericCard }            from "./generic-card.js";
 
 /**
@@ -66,6 +67,9 @@ const _registry = new Map([
 
   // Timer
   ["timer",                   TimerCard],
+
+  // Weather
+  ["weather",                 WeatherCard],
 
   // Virtual domain
   ["harvest_action",          HarvestActionCard],
@@ -126,5 +130,6 @@ export {
   InputSelectCard,
   HarvestActionCard,
   TimerCard,
+  WeatherCard,
   GenericCard,
 };

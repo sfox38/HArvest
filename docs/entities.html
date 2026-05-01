@@ -149,6 +149,11 @@
         <h3>remote</h3>
         <p>Activity chip grid (selectable activities), raw command input with a send button. Power toggle. Shows the device's configured activity list.</p>
 
+        <h3>weather</h3>
+        <p>Read-only. Displays current conditions: a large condition icon paired with the temperature, condition label, and a detail row showing humidity, wind speed, and pressure. A 5-day forecast strip appears below, showing day name, condition icon, and high/low temperatures for each day.</p>
+        <p>Forecast data is fetched directly from HA's <code>weather/subscribe_forecast</code> API and pushed to the widget automatically. This works correctly on HA 2024.4+ where the <code>forecast</code> state attribute was removed.</p>
+        <p><strong>History graph:</strong> not supported.</p>
+
         <h3>harvest_action</h3>
         <p>A virtual entity domain for safe, panel-configured button actions. Each action is a pre-defined service call or automation trigger set up in the HArvest panel's Actions tab. The card renders as a full-width trigger button. Actions run with HA's full permissions but only execute the specific service calls you configured - visitors can't invoke arbitrary HA services.</p>
         </section>
@@ -164,7 +169,7 @@
           <li>A basic toggle, if the domain supports <code>turn_on</code> / <code>turn_off</code></li>
         </ul>
 
-        <p>Some examples of Tier 2 domains: <code>number</code>, <code>select</code>, <code>text</code>, <code>date</code>, <code>time</code>, <code>event</code>, <code>calendar</code>, <code>weather</code>.</p>
+        <p>Some examples of Tier 2 domains: <code>number</code>, <code>select</code>, <code>text</code>, <code>date</code>, <code>time</code>, <code>event</code>, <code>calendar</code>.</p>
         </section>
 
         <section>

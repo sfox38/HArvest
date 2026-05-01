@@ -142,7 +142,8 @@ BLOCKED_ATTRIBUTES: frozenset[str] = frozenset({
     "assumed_state",
     "editable",
     "id",
-    "forecast",
+    # "forecast" -- injected by ws_proxy via weather/subscribe_forecast,
+    # not a state attribute in HA 2024.4+.
 })
 
 MAX_ATTRIBUTE_VALUE_BYTES = 8192
@@ -206,6 +207,24 @@ _DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
         "active": "mdi:timer",
         "paused": "mdi:timer-pause",
         "*":      "mdi:timer-outline",
+    },
+    "weather": {
+        "sunny":            "mdi:weather-sunny",
+        "clear-night":      "mdi:weather-night",
+        "partlycloudy":     "mdi:weather-partly-cloudy",
+        "cloudy":           "mdi:weather-cloudy",
+        "fog":              "mdi:weather-fog",
+        "rainy":            "mdi:weather-rainy",
+        "pouring":          "mdi:weather-pouring",
+        "snowy":            "mdi:weather-snowy",
+        "snowy-rainy":      "mdi:weather-snowy-heavy",
+        "hail":             "mdi:weather-hail",
+        "lightning":        "mdi:weather-lightning",
+        "lightning-rainy":  "mdi:weather-lightning-rainy",
+        "windy":            "mdi:weather-windy",
+        "windy-variant":    "mdi:weather-windy-variant",
+        "exceptional":      "mdi:alert-circle-outline",
+        "*":                "mdi:weather-cloudy",
     },
 }
 
