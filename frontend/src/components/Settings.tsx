@@ -491,14 +491,15 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             options={[
               { value: "auto", label: "Auto-detect" },
               { value: "en", label: "English" },
-              { value: "de", label: "German" },
-              { value: "fr", label: "French" },
-              { value: "es", label: "Spanish" },
-              { value: "pt", label: "Portuguese" },
-              { value: "nl", label: "Dutch" },
-              { value: "ja", label: "Japanese" },
-              { value: "zh", label: "Chinese" },
-              { value: "th", label: "Thai" },
+              { value: "de", label: "Deutsch" },
+              { value: "fr", label: "Français" },
+              { value: "es", label: "Español" },
+              { value: "pt", label: "Português" },
+              { value: "nl", label: "Nederlands" },
+              { value: "ja", label: "日本語" },
+              { value: "zh-Hans", label: "简体中文" },
+              { value: "zh-Hant", label: "繁體中文" },
+              { value: "th", label: "ไทย" },
             ]}
             hint="Default language for all widgets. Individual widgets can override this."
             onChange={v => patch({ default_lang: v } as Partial<IntegrationConfig>)}

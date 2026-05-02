@@ -109,6 +109,15 @@ export function registerRenderer(key, rendererClass) {
   _registry.set(key, rendererClass);
 }
 
+export const _BUILTIN_CAPABILITIES = {
+  fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
+  input_number: { display_modes: ["slider", "buttons"] },
+  light:        { features: ["brightness", "color_temp", "rgb"] },
+  climate:      { features: ["hvac_modes", "presets", "fan_mode", "swing_mode"] },
+  cover:        { features: ["position", "tilt"] },
+  media_player: { features: ["transport", "volume", "source"] },
+};
+
 // Re-export all renderer classes so they are accessible via
 // window.HArvest.renderers (assembled in the build entry point).
 export {

@@ -95,7 +95,8 @@ export class CoverCard extends BaseCard {
 
   render() {
     const isWritable   = this.def.capabilities === "read-write";
-    const hasPosition  = this.def.supported_features?.includes("set_position");
+    const hints        = this.config.displayHints ?? {};
+    const hasPosition  = hints.show_position !== false && this.def.supported_features?.includes("set_position");
     const hasButtons   = !this.def.supported_features || this.def.supported_features.includes("buttons");
 
     this.root.innerHTML = /* html */`

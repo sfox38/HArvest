@@ -222,17 +222,43 @@ def _parse_entities(raw_list: list) -> list[EntityAccess]:
         cap = str(e.get("capabilities", "read"))
         if cap not in _VALID_CAPABILITIES:
             raise ValueError(f"Invalid capabilities {cap!r}; must be one of {_VALID_CAPABILITIES}")
+        name_override = e.get("name_override") or None
+        if name_override is not None:
+            name_override = str(name_override).strip()
+            if len(name_override) > 100:
+                raise ValueError(f"name_override for {entity_id} exceeds 100 characters.")
+            if not name_override:
+                name_override = None
+
+        icon_override = e.get("icon_override") or None
+        if icon_override is not None:
+            icon_override = str(icon_override).strip()
+            if not icon_override.startswith("mdi:") or len(icon_override) > 64:
+                raise ValueError(f"icon_override for {entity_id} must be a valid mdi:<name> key.")
+
+        color_scheme = str(e.get("color_scheme", "auto"))
+        if color_scheme not in ("auto", "light", "dark"):
+            raise ValueError(f"Invalid color_scheme {color_scheme!r} for {entity_id}.")
+
+        display_hints = e.get("display_hints")
+        if display_hints is not None:
+            if not isinstance(display_hints, dict):
+                raise ValueError(f"display_hints for {entity_id} must be a dict.")
+            display_hints = dict(display_hints)
+        else:
+            display_hints = {}
+
         entities.append(EntityAccess(
             entity_id=entity_id,
             capabilities=cap,
             alias=e.get("alias") or None,
             exclude_attributes=list(e.get("exclude_attributes", [])),
             companion_of=e.get("companion_of") or None,
-            graph=e.get("graph") or None,
-            hours=int(e.get("hours", 24)),
-            period=int(e.get("period", 10)),
-            animate=bool(e.get("animate", False)),
             gesture_config=_parse_gesture_config(e.get("gesture_config", {})),
+            name_override=name_override,
+            icon_override=icon_override,
+            color_scheme=color_scheme,
+            display_hints=display_hints,
         ))
     return entities
 
@@ -495,8 +521,13 @@ class HarvestTokenDetailView(HomeAssistantView):
             return
         msg: dict[str, Any] = {"type": "renderer_pack", "url": ""}
         if token.renderer_pack and self._pack_manager:
-            if self._pack_manager.get_pack_path(token.renderer_pack):
-                msg["url"] = f"/api/harvest/packs/{token.renderer_pack}.js"
+            path = self._pack_manager.get_pack_path(token.renderer_pack)
+            if path:
+                try:
+                    mtime = int(path.stat().st_mtime)
+                except OSError:
+                    mtime = 0
+                msg["url"] = f"/api/harvest/packs/{token.renderer_pack}.js?v={mtime}"
         for session in self._session_manager.get_all_for_token(token_id):
             if not session.ws.closed:
                 try:
@@ -613,6 +644,14 @@ class HarvestTokenDetailView(HomeAssistantView):
                     filtered = self._token_manager.filter_attributes(
                         real_id, token, dict(state.attributes)
                     )
+                    if real_id.startswith("weather.") and ea.display_hints.get("show_forecast") is True:
+                        fc = await self._try_fetch_forecast(real_id)
+                        if fc:
+                            filtered = dict(filtered)
+                            if fc.get("daily"):
+                                filtered["forecast_daily"] = fc["daily"]
+                            if fc.get("hourly"):
+                                filtered["forecast_hourly"] = fc["hourly"]
                     try:
                         await session.ws.send_json({
                             "type": "state_update",
@@ -649,6 +688,27 @@ class HarvestTokenDetailView(HomeAssistantView):
                     await session.ws.send_json(update)
                 except Exception:
                     pass
+
+    async def _try_fetch_forecast(self, entity_id: str) -> dict[str, list | None] | None:
+        """Fetch daily and hourly forecast for a weather entity."""
+        try:
+            component = self._hass.data.get("weather")
+            if component is None:
+                return None
+            entity = component.get_entity(entity_id)
+            if entity is None:
+                return None
+            from homeassistant.components.weather import WeatherEntityFeature
+            from .ws_proxy import _normalize_forecast
+            features = entity.supported_features or 0
+            result: dict[str, list | None] = {}
+            if features & WeatherEntityFeature.FORECAST_DAILY:
+                result["daily"] = _normalize_forecast(await entity.async_forecast_daily())
+            if features & WeatherEntityFeature.FORECAST_HOURLY:
+                result["hourly"] = _normalize_forecast(await entity.async_forecast_hourly())
+            return result if result else None
+        except Exception:
+            return None
 
     def _resolve_token_display(self, token: "Token") -> dict:
         """Resolve effective display values for a token, falling back to global defaults."""
@@ -1319,6 +1379,8 @@ class HarvestThemesView(HomeAssistantView):
         if not isinstance(variables, dict):
             raise web.HTTPBadRequest(reason="variables must be an object.")
 
+        raw_cap = body.get("capabilities")
+        capabilities = raw_cap if isinstance(raw_cap, dict) else None
         theme = await self._theme_manager.create(
             name=name,
             variables=variables,
@@ -1327,6 +1389,7 @@ class HarvestThemesView(HomeAssistantView):
             author=str(body.get("author", "")),
             version=str(body.get("version", "1.0")),
             has_renderer_pack=bool(body.get("renderer_pack", False)),
+            capabilities=capabilities,
         )
         d = theme_to_api_dict(theme)
         d["has_pack"] = False
@@ -1475,6 +1538,9 @@ class HarvestThemeDetailView(HomeAssistantView):
             updates["dark_variables"] = body["dark_variables"]
         if "renderer_pack" in body:
             updates["has_renderer_pack"] = bool(body["renderer_pack"])
+        if "capabilities" in body:
+            raw_cap = body["capabilities"]
+            updates["capabilities"] = raw_cap if isinstance(raw_cap, dict) else None
 
         try:
             theme = await self._theme_manager.update(theme_id, updates)
@@ -1557,7 +1623,7 @@ class HarvestThemeThumbnailView(HomeAssistantView):
         return web.Response(
             body=data,
             content_type=ct,
-            headers={"Cache-Control": "public, max-age=300"},
+            headers={"Cache-Control": "no-store"},
         )
 
     async def post(self, request: web.Request, theme_id: str) -> web.Response:
@@ -1657,7 +1723,7 @@ class HarvestPackFileView(HomeAssistantView):
         return web.Response(
             body=data,
             content_type="application/javascript",
-            headers={"Cache-Control": "public, max-age=3600"},
+            headers={"Cache-Control": "no-store"},
         )
 
 

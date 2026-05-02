@@ -287,11 +287,13 @@ def build_entity_definition(
     if device_class is None:
         device_class = attrs.get("device_class")
 
-    # friendly_name: prefer state attribute (HA keeps it current), fall back to
-    # registry original_name.
-    friendly_name: str = attrs.get("friendly_name") or ""
-    if not friendly_name and entry is not None:
-        friendly_name = entry.name or entry.original_name or entity_id
+    # friendly_name: name_override takes priority, then state attribute, then registry.
+    if entity_access.name_override:
+        friendly_name: str = entity_access.name_override
+    else:
+        friendly_name = attrs.get("friendly_name") or ""
+        if not friendly_name and entry is not None:
+            friendly_name = entry.name or entry.original_name or entity_id
 
     # supported_features bitmask -> string list.
     supported_features = decode_supported_features(
@@ -315,11 +317,21 @@ def build_entity_definition(
     if domain == "cover" and "buttons" not in supported_features:
         supported_features.append("buttons")
 
-    # icon_state_map (includes the icon for the current state as default icon).
-    icon_state_map = build_icon_state_map(domain, state, entry, device_class)
+    if domain == "weather":
+        raw_features = attrs.get("supported_features", 0) or 0
+        if raw_features & 1:
+            supported_features.append("forecast_daily")
+        if raw_features & 2:
+            supported_features.append("forecast_hourly")
 
-    # The entity's default icon is the one for its current state.
-    current_icon = icon_state_map.get(state.state) or icon_state_map.get("*", "mdi:help-circle")
+    # icon_state_map (includes the icon for the current state as default icon).
+    # icon_override replaces all state-specific icons with a single fixed icon.
+    if entity_access.icon_override:
+        icon_state_map = {"*": entity_access.icon_override}
+        current_icon = entity_access.icon_override
+    else:
+        icon_state_map = build_icon_state_map(domain, state, entry, device_class)
+        current_icon = icon_state_map.get(state.state) or icon_state_map.get("*", "mdi:help-circle")
 
     # feature_config for domain-specific sliders / range controls.
     feature_config = build_feature_config(domain, state)
@@ -352,10 +364,8 @@ def build_entity_definition(
         "renderer": renderer,
         "unit_of_measurement": unit_of_measurement,
         "gesture_config": entity_access.gesture_config or {},
-        "graph": entity_access.graph,
-        "hours": entity_access.hours,
-        "period": entity_access.period,
-        "animate": entity_access.animate,
+        "color_scheme": entity_access.color_scheme,
+        "display_hints": entity_access.display_hints or {},
         "companions": companions or [],
     }
 

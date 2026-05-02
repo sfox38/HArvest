@@ -155,13 +155,16 @@ export function Themes({ onSelectToken }: ThemesProps) {
       author: selectedTheme.author,
       version: selectedTheme.version,
       harvest_version: selectedTheme.harvest_version,
-      variables: selectedTheme.variables,
     };
-    if (Object.keys(selectedTheme.dark_variables).length > 0) {
-      obj.dark_variables = selectedTheme.dark_variables;
-    }
     if (selectedTheme.renderer_pack) {
       obj.renderer_pack = true;
+    }
+    if (selectedTheme.capabilities) {
+      obj.capabilities = selectedTheme.capabilities;
+    }
+    obj.variables = selectedTheme.variables;
+    if (Object.keys(selectedTheme.dark_variables).length > 0) {
+      obj.dark_variables = selectedTheme.dark_variables;
     }
     setEditedJson(JSON.stringify(obj, null, 2));
     setDirty(false);
@@ -248,10 +251,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
             author: theme.author,
             version: theme.version,
             harvest_version: theme.harvest_version,
-            variables: theme.variables,
           };
-          if (Object.keys(theme.dark_variables ?? {}).length > 0) obj.dark_variables = theme.dark_variables;
           if (theme.renderer_pack) obj.renderer_pack = true;
+          if (theme.capabilities) obj.capabilities = theme.capabilities;
+          obj.variables = theme.variables;
+          if (Object.keys(theme.dark_variables ?? {}).length > 0) obj.dark_variables = theme.dark_variables;
           setEditedJson(JSON.stringify(obj, null, 2));
           setDirty(false);
           setJsonError(null);
@@ -281,13 +285,16 @@ export function Themes({ onSelectToken }: ThemesProps) {
       author: selectedTheme.author,
       version: selectedTheme.version,
       harvest_version: selectedTheme.harvest_version,
-      variables: selectedTheme.variables,
     };
-    if (Object.keys(selectedTheme.dark_variables).length > 0) {
-      obj.dark_variables = selectedTheme.dark_variables;
-    }
     if (selectedTheme.renderer_pack) {
       obj.renderer_pack = true;
+    }
+    if (selectedTheme.capabilities) {
+      obj.capabilities = selectedTheme.capabilities;
+    }
+    obj.variables = selectedTheme.variables;
+    if (Object.keys(selectedTheme.dark_variables).length > 0) {
+      obj.dark_variables = selectedTheme.dark_variables;
     }
     const slug = selectedTheme.name.toLowerCase().replace(/\s+/g, "-");
     const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
@@ -359,6 +366,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
           author: parsed.author ?? "",
           version: parsed.version ?? "1.0",
           renderer_pack: !!parsed.renderer_pack,
+          capabilities: parsed.capabilities ?? undefined,
         });
         const updated = await reload();
         if (updated) setSelected(theme.theme_id);
@@ -387,6 +395,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
           variables: parsed.variables,
           dark_variables: parsed.dark_variables ?? {},
           renderer_pack: !!parsed.renderer_pack,
+          capabilities: parsed.capabilities ?? null,
         });
         setDirty(false);
         setParsedVars(null);
@@ -412,13 +421,16 @@ export function Themes({ onSelectToken }: ThemesProps) {
       author: selectedTheme.author,
       version: selectedTheme.version,
       harvest_version: selectedTheme.harvest_version,
-      variables: selectedTheme.variables,
     };
-    if (Object.keys(selectedTheme.dark_variables).length > 0) {
-      obj.dark_variables = selectedTheme.dark_variables;
-    }
     if (selectedTheme.renderer_pack) {
       obj.renderer_pack = true;
+    }
+    if (selectedTheme.capabilities) {
+      obj.capabilities = selectedTheme.capabilities;
+    }
+    obj.variables = selectedTheme.variables;
+    if (Object.keys(selectedTheme.dark_variables).length > 0) {
+      obj.dark_variables = selectedTheme.dark_variables;
     }
     setEditedJson(JSON.stringify(obj, null, 2));
     setDirty(false);

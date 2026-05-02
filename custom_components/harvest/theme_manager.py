@@ -44,6 +44,7 @@ class ThemeDefinition:
     has_renderer_pack: bool = False
     created_by: str = ""
     is_bundled: bool = False
+    capabilities: dict | None = None
 
 
 class ThemeManager:
@@ -79,6 +80,7 @@ class ThemeManager:
                     variables=raw.get("variables", {}),
                     dark_variables=raw.get("dark_variables", {}),
                     has_renderer_pack=bool(raw.get("renderer_pack", False)),
+                    capabilities=raw.get("capabilities") or None,
                     created_by="system",
                     created_at="",
                     is_bundled=True,
@@ -161,6 +163,7 @@ class ThemeManager:
         author: str = "",
         version: str = "1.0",
         has_renderer_pack: bool = False,
+        capabilities: dict | None = None,
     ) -> ThemeDefinition:
         """Create and persist a new user theme."""
         theme = ThemeDefinition(
@@ -172,6 +175,7 @@ class ThemeManager:
             variables=variables,
             dark_variables=dark_variables or {},
             has_renderer_pack=has_renderer_pack,
+            capabilities=capabilities or None,
             created_by=created_by,
             created_at=datetime.now(tz=timezone.utc).isoformat(),
             is_bundled=False,
@@ -188,7 +192,7 @@ class ThemeManager:
         if theme is None:
             raise KeyError(f"Theme not found: {theme_id}")
 
-        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer_pack"}
+        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer_pack", "capabilities"}
         for field, value in updates.items():
             if field in _UPDATABLE:
                 setattr(theme, field, value)
@@ -269,7 +273,7 @@ class ThemeManager:
 
 def _theme_to_dict(theme: ThemeDefinition) -> dict:
     """Serialise a ThemeDefinition to a JSON-compatible dict for storage."""
-    return {
+    d: dict = {
         "theme_id": theme.theme_id,
         "name": theme.name,
         "author": theme.author,
@@ -281,6 +285,9 @@ def _theme_to_dict(theme: ThemeDefinition) -> dict:
         "created_by": theme.created_by,
         "created_at": theme.created_at,
     }
+    if theme.capabilities:
+        d["capabilities"] = theme.capabilities
+    return d
 
 
 def _theme_from_dict(d: dict) -> ThemeDefinition:
@@ -294,6 +301,7 @@ def _theme_from_dict(d: dict) -> ThemeDefinition:
         variables=d.get("variables", {}),
         dark_variables=d.get("dark_variables", {}),
         has_renderer_pack=bool(d.get("renderer_pack", False)),
+        capabilities=d.get("capabilities") or None,
         created_by=d.get("created_by", ""),
         created_at=d.get("created_at", ""),
         is_bundled=False,
@@ -305,6 +313,7 @@ def theme_to_api_dict(theme: ThemeDefinition, has_thumbnail: bool = False) -> di
     d = _theme_to_dict(theme)
     d["is_bundled"] = theme.is_bundled
     d["has_thumbnail"] = has_thumbnail
+    d["capabilities"] = theme.capabilities
     return d
 
 

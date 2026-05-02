@@ -213,14 +213,21 @@ export class FanCard extends BaseCard {
 
   render() {
     const isWritable   = this.def.capabilities === "read-write";
-    const hasSpeed     = this.def.supported_features?.includes("set_speed");
     const hasOscillate = this.def.supported_features?.includes("oscillate");
     const hasDirection = this.def.supported_features?.includes("direction");
     const hasPreset    = this.def.supported_features?.includes("preset_mode")
                       || (this.def.feature_config?.preset_modes?.length > 0);
     const presetModes  = this.def.feature_config?.preset_modes ?? [];
     const step         = this.#percentageStep;
-    const isCycle      = this.#isCycleFan;
+
+    const displayMode  = this.config.displayHints?.display_mode ?? null;
+    let hasSpeed       = this.def.supported_features?.includes("set_speed");
+    let isCycle        = this.#isCycleFan;
+
+    if (displayMode === "on-off")      { hasSpeed = false; }
+    else if (displayMode === "continuous") { isCycle = false; }
+    else if (displayMode === "stepped")   { isCycle = false; }
+    else if (displayMode === "cycle")     { isCycle = true; }
 
     let speedHTML = "";
     if (isWritable && hasSpeed) {

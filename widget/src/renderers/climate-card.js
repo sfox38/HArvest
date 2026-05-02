@@ -145,14 +145,15 @@ export class ClimateCard extends BaseCard {
 
   render() {
     const isWritable  = this.def.capabilities === "read-write";
+    const hints       = this.config.displayHints ?? {};
     const hasTarget   = this.def.supported_features?.includes("target_temperature");
     const hasRange    = this.def.supported_features?.includes("target_temperature_range");
-    const hasFanMode  = this.def.supported_features?.includes("fan_mode")
-                     || (this.def.feature_config?.fan_modes?.length > 0);
-    const hasPreset   = this.def.supported_features?.includes("preset_mode")
-                     || (this.def.feature_config?.preset_modes?.length > 0);
-    const hasSwing    = this.def.supported_features?.includes("swing_mode")
-                     || (this.def.feature_config?.swing_modes?.length > 0);
+    const hasFanMode  = hints.show_fan_mode !== false && (this.def.supported_features?.includes("fan_mode")
+                     || (this.def.feature_config?.fan_modes?.length > 0));
+    const hasPreset   = hints.show_presets !== false && (this.def.supported_features?.includes("preset_mode")
+                     || (this.def.feature_config?.preset_modes?.length > 0));
+    const hasSwing    = hints.show_swing_mode !== false && (this.def.supported_features?.includes("swing_mode")
+                     || (this.def.feature_config?.swing_modes?.length > 0));
     const minTemp     = this.def.feature_config?.min_temp ?? 7;
     const maxTemp     = this.def.feature_config?.max_temp ?? 35;
     const step        = this.def.feature_config?.temp_step ?? 0.5;
@@ -181,7 +182,7 @@ export class ClimateCard extends BaseCard {
             <span part="current-temp" class="hrv-climate-temp">-</span>
           </div>
           ${!isWritable ? `<span part="state-label"></span>` : ""}
-          ${isWritable && hvacModes.length > 0 ? /* html */`
+          ${isWritable && hints.show_hvac_modes !== false && hvacModes.length > 0 ? /* html */`
             <div class="hrv-climate-row">
               <span class="hrv-climate-label">${_esc(this.i18n.t("climate.mode"))}</span>
               <select part="mode-select" aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("climate.mode"))}">

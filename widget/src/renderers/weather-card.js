@@ -2,8 +2,8 @@
  * renderers/weather-card.js - Renderer for weather entities.
  *
  * Displays current conditions: condition icon, temperature, condition label,
- * and detail stats (humidity, wind speed, pressure). A dormant forecast strip
- * renders when forecast data is present in state attributes.
+ * and detail stats (humidity, wind speed, pressure). Forecast section supports
+ * daily (5-day, no scroll) and hourly (8+ items, horizontal scroll) tabs.
  */
 
 import { BaseCard } from "./base-card.js";
@@ -34,6 +34,8 @@ const WEATHER_STYLES = /* css */`
     align-items: center;
     gap: var(--hrv-spacing-xs);
     padding: var(--hrv-spacing-xs) 0;
+    min-width: 0;
+    overflow: hidden;
   }
 
   [part=weather-main] {
@@ -97,26 +99,60 @@ const WEATHER_STYLES = /* css */`
     flex-shrink: 0;
   }
 
+  [part=forecast-toggle] {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border: 1px solid var(--hrv-color-border);
+    border-radius: var(--hrv-radius-s);
+    background: none;
+    font-size: var(--hrv-font-size-xs);
+    font-weight: var(--hrv-font-weight-medium);
+    color: var(--hrv-color-text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  [part=forecast-toggle]:hover {
+    background: var(--hrv-color-border);
+  }
+  [part=forecast-toggle]:empty { display: none; }
+
   [part=forecast-strip] {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--hrv-spacing-xs);
     width: 100%;
     padding-top: var(--hrv-spacing-xs);
     border-top: 1px solid var(--hrv-color-border);
   }
-
   [part=forecast-strip]:empty {
     display: none;
   }
+
+  [part=forecast-strip][data-mode=daily] {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--hrv-spacing-xs);
+  }
+  [part=forecast-strip][data-mode=daily] [part=forecast-day] {
+    flex: 1;
+    min-width: 0;
+  }
+  [part=forecast-strip][data-mode=hourly] {
+    display: flex;
+    gap: var(--hrv-spacing-xs);
+    overflow-x: auto;
+    scrollbar-width: none;
+    width: 0;
+    min-width: 100%;
+  }
+  [part=forecast-strip][data-mode=hourly]::-webkit-scrollbar { display: none; }
 
   [part=forecast-day] {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    flex: 1;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: 52px;
   }
 
   [part=forecast-day-name] {
@@ -139,6 +175,26 @@ const WEATHER_STYLES = /* css */`
 
   [part=forecast-temp-low] {
     color: var(--hrv-color-text-secondary);
+  }
+
+  [part=forecast-scroll-track] {
+    width: 100%;
+    align-self: stretch;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--hrv-color-border);
+    position: relative;
+    margin-top: 4px;
+    cursor: pointer;
+  }
+  [part=forecast-scroll-track][hidden] { display: none; }
+  [part=forecast-scroll-thumb] {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--hrv-color-text-secondary);
+    transition: left 80ms linear;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -169,6 +225,13 @@ export class WeatherCard extends BaseCard {
   /** @type {HTMLElement|null} */ #windEl     = null;
   /** @type {HTMLElement|null} */ #pressureEl = null;
   /** @type {HTMLElement|null} */ #forecastEl = null;
+  /** @type {HTMLElement|null} */ #tabsEl     = null;
+  /** @type {HTMLElement|null} */ #scrollTrackEl = null;
+  /** @type {HTMLElement|null} */ #scrollThumbEl = null;
+  get #forecastMode() { return this.config._forecastMode ?? "daily"; }
+  set #forecastMode(v) { this.config._forecastMode = v; }
+  #forecastDaily  = null;
+  #forecastHourly = null;
 
   render() {
     this.root.innerHTML = /* html */`
@@ -200,7 +263,9 @@ export class WeatherCard extends BaseCard {
               <span data-value>--</span>
             </span>
           </div>
-          <div part="forecast-strip" role="list" aria-label="${this.i18n.t("weather.forecast")}"></div>
+          <button part="forecast-toggle" type="button"></button>
+          <div part="forecast-strip" data-mode="daily" role="list" aria-label="${this.i18n.t("weather.forecast")}"></div>
+          <div part="forecast-scroll-track" hidden><div part="forecast-scroll-thumb"></div></div>
         </div>
         ${this.renderHistoryZoneHTML()}
         ${this.renderAriaLiveHTML()}
@@ -216,11 +281,18 @@ export class WeatherCard extends BaseCard {
     this.#windEl     = this.root.querySelector("[part=weather-stat][data-stat=wind] [data-value]");
     this.#pressureEl = this.root.querySelector("[part=weather-stat][data-stat=pressure] [data-value]");
     this.#forecastEl = this.root.querySelector("[part=forecast-strip]");
+    this.#tabsEl     = this.root.querySelector("[part=forecast-toggle]");
+    this.#scrollTrackEl = this.root.querySelector("[part=forecast-scroll-track]");
+    this.#scrollThumbEl = this.root.querySelector("[part=forecast-scroll-thumb]");
 
-    this.renderIcon(
-      this.def.icon ?? "mdi:weather-cloudy",
-      "card-icon",
-    );
+    if (this.#forecastEl) {
+      this.#forecastEl.addEventListener("scroll", () => this.#syncScrollThumb(), { passive: true });
+    }
+    if (this.#scrollTrackEl) {
+      this.#scrollTrackEl.addEventListener("pointerdown", (e) => this.#onTrackPointerDown(e));
+    }
+
+    this.renderIcon(this.def.icon ?? "mdi:weather-cloudy", "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
@@ -238,7 +310,7 @@ export class WeatherCard extends BaseCard {
       : condition.replace(/-/g, " ");
     if (this.#condEl) this.#condEl.textContent = condLabel;
 
-    const temp = attributes.temperature;
+    const temp = attributes.temperature ?? attributes.native_temperature;
     const tempUnit = attributes.temperature_unit ?? "";
     if (this.#tempEl) {
       const unitEl = this.#tempEl.querySelector("[part=weather-temp-unit]");
@@ -266,40 +338,124 @@ export class WeatherCard extends BaseCard {
       this.#pressureEl.textContent = p != null ? `${p} ${pu}`.trim() : "--";
     }
 
-    this.#renderForecast(attributes.forecast);
+    const show = (this.config.displayHints ?? this.def.display_hints ?? {}).show_forecast === true;
+    this.#forecastDaily  = show ? (attributes.forecast_daily  ?? attributes.forecast ?? null) : null;
+    this.#forecastHourly = show ? (attributes.forecast_hourly ?? null) : null;
+
+    this.#buildTabs();
+    this.#renderActiveForecast();
 
     this.announceState(
       `${this.def.friendly_name}, ${condLabel}, ${temp != null ? temp : "--"} ${tempUnit}`,
     );
   }
 
-  #renderForecast(forecast) {
-    if (!this.#forecastEl) return;
+  #buildTabs() {
+    if (!this.#tabsEl) return;
+    const hasDaily  = Array.isArray(this.#forecastDaily)  && this.#forecastDaily.length > 0;
+    const hasHourly = Array.isArray(this.#forecastHourly) && this.#forecastHourly.length > 0;
 
-    if (!Array.isArray(forecast) || forecast.length === 0) {
+    if (!hasDaily && !hasHourly) {
+      this.#tabsEl.textContent = "";
+      return;
+    }
+    if (hasDaily && !hasHourly) { this.#forecastMode = "daily"; }
+    if (!hasDaily && hasHourly) { this.#forecastMode = "hourly"; }
+
+    if (hasDaily && hasHourly) {
+      this.#tabsEl.textContent = this.#forecastMode === "daily" ? "Hourly" : "5-Day";
+      this.#tabsEl.onclick = () => {
+        this.#forecastMode = this.#forecastMode === "daily" ? "hourly" : "daily";
+        this.#buildTabs();
+        this.#renderActiveForecast();
+      };
+    } else {
+      this.#tabsEl.textContent = "";
+      this.#tabsEl.onclick = null;
+    }
+  }
+
+  #renderActiveForecast() {
+    if (!this.#forecastEl) return;
+    const data = this.#forecastMode === "hourly" ? this.#forecastHourly : this.#forecastDaily;
+    this.#forecastEl.setAttribute("data-mode", this.#forecastMode);
+
+    if (!Array.isArray(data) || data.length === 0) {
       this.#forecastEl.innerHTML = "";
+      if (this.#scrollTrackEl) this.#scrollTrackEl.hidden = true;
       return;
     }
 
-    const days = forecast.slice(0, 5);
-    this.#forecastEl.innerHTML = days.map(day => {
+    const items = this.#forecastMode === "daily" ? data.slice(0, 5) : data;
+    this.#forecastEl.innerHTML = items.map(day => {
       const dt = new Date(day.datetime);
-      const dayName = _SHORT_DAYS[dt.getDay()] ?? "";
+      let label;
+      if (this.#forecastMode === "hourly") {
+        label = dt.toLocaleTimeString([], { hour: "numeric" });
+      } else {
+        label = _SHORT_DAYS[dt.getDay()] ?? "";
+      }
       const icon = _conditionIcon(day.condition);
-      const hi = day.temperature != null ? Math.round(day.temperature) : "--";
-      const lo = day.templow != null ? Math.round(day.templow) : null;
-      const tempStr = lo != null
-        ? `${hi}/${lo}`
-        : `${hi}`;
+      const hi = (day.temperature ?? day.native_temperature) != null
+        ? Math.round(day.temperature ?? day.native_temperature) : "--";
+      const lo = (day.templow ?? day.native_templow) != null
+        ? Math.round(day.templow ?? day.native_templow) : null;
 
       return /* html */`
         <div part="forecast-day" role="listitem">
-          <span part="forecast-day-name">${_esc(dayName)}</span>
+          <span part="forecast-day-name">${_esc(String(label))}</span>
           ${renderIconSVG(icon, "forecast-icon")}
           <span part="forecast-temps">
             ${_esc(String(hi))}${lo != null ? `/<span part="forecast-temp-low">${_esc(String(lo))}</span>` : ""}
           </span>
         </div>`;
     }).join("");
+
+    if (this.#forecastMode === "hourly") {
+      requestAnimationFrame(() => this.#syncScrollThumb());
+    } else if (this.#scrollTrackEl) {
+      this.#scrollTrackEl.hidden = true;
+    }
+  }
+
+  #syncScrollThumb() {
+    const strip = this.#forecastEl;
+    const track = this.#scrollTrackEl;
+    const thumb = this.#scrollThumbEl;
+    if (!strip || !track || !thumb) return;
+    const ratio = strip.scrollWidth > strip.clientWidth
+      ? strip.clientWidth / strip.scrollWidth : 1;
+    if (ratio >= 1) { track.hidden = true; return; }
+    track.hidden = false;
+    const trackW = track.clientWidth;
+    const thumbW = Math.max(20, ratio * trackW);
+    const maxLeft = trackW - thumbW;
+    const scrollRatio = strip.scrollLeft / (strip.scrollWidth - strip.clientWidth);
+    thumb.style.width = `${thumbW}px`;
+    thumb.style.left  = `${scrollRatio * maxLeft}px`;
+  }
+
+  #onTrackPointerDown(e) {
+    const strip = this.#forecastEl;
+    const track = this.#scrollTrackEl;
+    const thumb = this.#scrollThumbEl;
+    if (!strip || !track || !thumb) return;
+    e.preventDefault();
+    const trackRect = track.getBoundingClientRect();
+    const thumbW = parseFloat(thumb.style.width) || 20;
+    const scrollTo = (clientX) => {
+      const relX = clientX - trackRect.left - thumbW / 2;
+      const maxLeft = trackRect.width - thumbW;
+      const r = Math.max(0, Math.min(1, relX / maxLeft));
+      strip.scrollLeft = r * (strip.scrollWidth - strip.clientWidth);
+    };
+    scrollTo(e.clientX);
+    const onMove = (ev) => scrollTo(ev.clientX);
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   }
 }

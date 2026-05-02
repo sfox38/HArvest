@@ -77,7 +77,8 @@ export class InputNumberCard extends BaseCard {
 
   render() {
     const isWritable  = this.def.capabilities === "read-write";
-    const hasSlider   = this.def.supported_features?.includes("slider") ?? true;
+    const displayMode = this.config.displayHints?.display_mode ?? null;
+    const hasSlider   = displayMode === "buttons" ? false : (this.def.supported_features?.includes("slider") ?? true);
     const min  = this.def.feature_config?.min  ?? 0;
     const max  = this.def.feature_config?.max  ?? 100;
     const step = this.def.feature_config?.step ?? 1;

@@ -141,9 +141,11 @@ export class MediaPlayerCard extends BaseCard {
 
   render() {
     const isWritable  = this.def.capabilities === "read-write";
-    const hasVolume   = this.def.supported_features?.includes("volume_set");
-    const hasPrevNext = this.def.supported_features?.includes("previous_track");
-    const hasSource   = this.def.supported_features?.includes("select_source");
+    const hints       = this.config.displayHints ?? {};
+    const showTransport = hints.show_transport !== false;
+    const hasVolume   = hints.show_volume !== false && this.def.supported_features?.includes("volume_set");
+    const hasPrevNext = showTransport && this.def.supported_features?.includes("previous_track");
+    const hasSource   = hints.show_source !== false && this.def.supported_features?.includes("select_source");
 
     this.root.innerHTML = /* html */`
       <style>${this.getSharedStyles()}${MEDIA_STYLES}</style>
@@ -157,6 +159,7 @@ export class MediaPlayerCard extends BaseCard {
           <span part="media-title"></span>
           <span part="state-label"></span>
           ${isWritable ? /* html */`
+            ${showTransport ? /* html */`
             <div class="hrv-media-controls">
               ${hasPrevNext ? /* html */`
                 <button part="prev-button" class="hrv-media-btn" type="button"
@@ -176,6 +179,7 @@ export class MediaPlayerCard extends BaseCard {
                 </button>
               ` : ""}
             </div>
+            ` : ""}
             ${hasVolume ? /* html */`
               <div class="hrv-volume-row">
                 <button part="mute-button" class="hrv-media-btn" type="button"
