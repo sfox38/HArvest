@@ -33,7 +33,7 @@ After restarting, go to **Settings > Devices and Services > Add Integration**, s
 Embedding a light card on an HTML page:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/sfox38/harvest/widget/dist/harvest.min.js"></script>
+<script src="/harvest.min.js"></script>
 <script>HArvest.config({ haUrl: "https://ha.example.com", token: "hwt_..." })</script>
 <hrv-card entity="light.bedroom_main"></hrv-card>
 ```
