@@ -164,19 +164,20 @@ function buildWordPressSnippetFromState(
 
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="stepper">
+    <div className="stepper" role="list" aria-label="Wizard steps">
       {STEP_LABELS.map((label, i) => {
         const stepNum = i + 1;
         const state = stepNum < current ? "done" : stepNum === current ? "active" : "pending";
         return (
           <React.Fragment key={label}>
-            <div className="step" data-state={state}>
-              <span className="step-num">
+            <div className="step" data-state={state} role="listitem" aria-current={state === "active" ? "step" : undefined}>
+              <span className="step-num" aria-hidden="true">
                 {state === "done" ? <Icon name="check" size={11} /> : stepNum}
               </span>
               <span className="step-label">{label}</span>
+              <span className="sr-only">{`Step ${stepNum}: ${label}${state === "done" ? " (completed)" : state === "active" ? " (current)" : ""}`}</span>
             </div>
-            {i < STEP_LABELS.length - 1 && <div className="step-line" />}
+            {i < STEP_LABELS.length - 1 && <div className="step-line" aria-hidden="true" />}
           </React.Fragment>
         );
       })}
@@ -411,12 +412,15 @@ function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[];
   return (
     <div className="col" style={{ gap: 4 }}>
       <label style={{ fontSize: 12, fontWeight: 600 }}>Theme</label>
-      <div className="theme-strip">
+      <div className="theme-strip" role="radiogroup" aria-label="Widget theme">
         {themes.map(t => (
           <button
             key={t.theme_id}
             className={`theme-strip-item${selectedId === t.theme_id ? " selected" : ""}`}
             onClick={() => onChange(themeIdToUrl(t.theme_id))}
+            role="radio"
+            aria-checked={selectedId === t.theme_id}
+            aria-label={t.name}
           >
             <div className="theme-thumb-wrap">
               {thumbUrls[t.theme_id] ? (
@@ -558,18 +562,18 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
       {state.entities.length > 0 && (
         <div
           className="entities-list-scroll"
-          role="listbox"
-          aria-label="Entity list"
+          role="list"
+          aria-label="Selected entities"
           style={{ maxHeight: multiMode ? 260 : undefined }}
         >
           {state.entities.map(e => {
             const domain = e.entity_id.split(".")[0];
             const isSelected = e.entity_id === activePreviewId;
-            const isExpanded = state.mode === "single" || expandedCompanions.has(e.entity_id);
+            const isExpanded = expandedCompanions.has(e.entity_id);
             const companionCount = e.companions.length;
             const friendly = getEntityCache().find(c => c.entity_id === e.entity_id)?.friendly_name;
             return (
-              <div key={e.entity_id}>
+              <div key={e.entity_id} role="listitem">
                 <button
                   className={`entity-list-row${isSelected ? " selected" : ""}`}
                   onClick={() => {
@@ -578,8 +582,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                       setExpandedCompanions(e.companions.length > 0 ? new Set([e.entity_id]) : new Set());
                     }
                   }}
-                  aria-selected={isSelected}
-                  role="option"
+                  aria-pressed={isSelected}
                   data-entity-id={e.entity_id}
                   type="button"
                 >
@@ -667,7 +670,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
 
       {/* Live entity preview */}
       {activePreviewId && (
-        <div className="col" style={{ gap: 8 }}>
+        <div className="col" style={{ gap: 8 }} role="region" aria-label="Entity preview" aria-live="polite">
           <label style={{ fontSize: 12, fontWeight: 600 }}>Preview</label>
           <div style={{ display: "flex", justifyContent: "center" }}>
             <WizardEntityPreview

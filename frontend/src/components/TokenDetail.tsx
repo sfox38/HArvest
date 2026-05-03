@@ -725,7 +725,7 @@ function EntityPreview({
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   if (!ready || !serverDef) return <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>;
-  return <div ref={containerRef} className="theme-preview-widget" style={{ display: "flex", justifyContent: "center", minHeight: 100, padding: "12px 0" }} />;
+  return <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entity preview" style={{ display: "flex", justifyContent: "center", minHeight: 100, padding: "12px 0" }} />;
 }
 
 function hasFeature(cap: ThemeCapabilities | null, domain: string, feature: string): boolean {
@@ -757,6 +757,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
   const [attrLoading, setAttrLoading] = useState<Set<string>>(new Set());
   const [haActionEntities, setHaActionEntities] = useState<import("../types").HAEntity[]>([]);
   const [entityDetail, setEntityDetail] = useState<Record<string, HAEntityDetail>>({});
+  const configPanelRef = useRef<HTMLDivElement>(null);
   const [localEntities, setLocalEntities] = useState<Token["entities"] | null>(null);
   const [companionInputs, setCompanionInputs] = useState<Record<string, string>>({});
 
@@ -1111,7 +1112,13 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               <button
                 key={e.entity_id}
                 className={`entity-list-row${isSelected ? " selected" : ""}`}
-                onClick={() => setSelectedEntityId(isSelected ? null : e.entity_id)}
+                onClick={() => {
+                  const next = isSelected ? null : e.entity_id;
+                  setSelectedEntityId(next);
+                  if (next && window.innerWidth <= 720) {
+                    requestAnimationFrame(() => configPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+                  }
+                }}
                 aria-selected={isSelected}
                 role="option"
                 data-entity-id={e.entity_id}
@@ -1148,7 +1155,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
         </div>
       </div>
 
-      <div className="entities-config-panel">
+      <div className="entities-config-panel" ref={configPanelRef}>
         <div className="entity-config-section">
           <div className="entity-config-title">Theme</div>
           <input
@@ -1301,53 +1308,54 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             </div>
 
-            <div className="entity-setting-row" style={{ justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <label className="entity-setting-label" style={{ marginBottom: 0 }}>Access</label>
-                <div className="segmented-toggle">
-                  <button
-                    className={selectedEntity.capabilities === "read" ? "active" : ""}
-                    onClick={() => toggleCap(selectedEntity.entity_id, "read")}
-                    disabled={!canEdit}
-                    type="button"
-                  >Read only</button>
-                  <button
-                    className={selectedEntity.capabilities === "read-write" ? "active" : ""}
-                    onClick={() => toggleCap(selectedEntity.entity_id, "read-write")}
-                    disabled={!canEdit}
-                    type="button"
-                  >Control</button>
-                </div>
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Access</label>
+              <div className="segmented-toggle" role="group" aria-label="Access level" style={{ marginLeft: "auto" }}>
+                <button
+                  className={selectedEntity.capabilities === "read" ? "active" : ""}
+                  aria-pressed={selectedEntity.capabilities === "read"}
+                  onClick={() => toggleCap(selectedEntity.entity_id, "read")}
+                  disabled={!canEdit}
+                  type="button"
+                >Read only</button>
+                <button
+                  className={selectedEntity.capabilities === "read-write" ? "active" : ""}
+                  aria-pressed={selectedEntity.capabilities === "read-write"}
+                  onClick={() => toggleCap(selectedEntity.entity_id, "read-write")}
+                  disabled={!canEdit}
+                  type="button"
+                >Control</button>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <label className="entity-setting-label" style={{ marginBottom: 0, minWidth: "auto", whiteSpace: "nowrap" }}>Always use</label>
-                <div className="segmented-toggle">
-                  {(["auto", "light", "dark"] as const).map(scheme => (
-                    <button
-                      key={scheme}
-                      className={selectedEntity.color_scheme === scheme ? "active" : ""}
-                      onClick={() => updateColorScheme(selectedEntity.entity_id, scheme)}
-                      disabled={!canEdit}
-                      type="button"
-                    >
-                      {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
-                    </button>
-                  ))}
-                </div>
+            </div>
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Always use</label>
+              <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
+                {(["auto", "light", "dark"] as const).map(scheme => (
+                  <button
+                    key={scheme}
+                    className={selectedEntity.color_scheme === scheme ? "active" : ""}
+                    aria-pressed={selectedEntity.color_scheme === scheme}
+                    onClick={() => updateColorScheme(selectedEntity.entity_id, scheme)}
+                    disabled={!canEdit}
+                    type="button"
+                  >
+                    {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="entity-setting-group">
-              <button className="entity-setting-group-title" onClick={() => setShowCompanions(!showCompanions)} type="button">
+              <button className="entity-setting-group-title" onClick={() => setShowCompanions(!showCompanions)} type="button" aria-expanded={showCompanions}>
                 Companions ({selectedGroup?.companions.length ?? 0})
                 {" "}<Icon name={showCompanions ? "chevron-up" : "chevron-down"} size={10} />
               </button>
               {showCompanions && (
                 <div style={{ paddingTop: 4 }}>
                   {selectedGroup?.companions.map(c => (
-                    <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                      <span style={{ flex: 1, fontSize: 12 }} className="mono">{c.entity_id}</span>
-                      {c.alias && <span className="muted" style={{ fontSize: 10 }}>alias: {c.alias}</span>}
+                    <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, minWidth: 0 }}>
+                      <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }} className="mono" title={c.entity_id}>{c.entity_id}</span>
+                      {c.alias && <span className="muted" style={{ fontSize: 10, flexShrink: 0 }}>alias: {c.alias}</span>}
                       {canEdit && (
                         <button
                           onClick={() => removeCompanion(c.entity_id)}

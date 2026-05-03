@@ -2227,6 +2227,15 @@ button.entity-setting-group-title:focus-visible {
   max-height: 280px;
   overflow-y: auto;
 }
+.autocomplete-dropdown-inline {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  margin-top: 4px;
+  box-shadow: none;
+  border-radius: var(--radius-lg);
+}
 
 .autocomplete-item {
   padding: 8px 12px;
@@ -2581,29 +2590,34 @@ button.entity-setting-group-title:focus-visible {
   .widget-hide-sm { display: none !important; }
   .widget-thumb { width: 32px !important; height: 32px !important; }
 
-  /* Anchor the wizard near the top on mobile, let the overlay itself scroll,
-     and keep the slack OUTSIDE the card so the wizard fits the screen. */
+  /* Full-screen wizard on mobile */
   .overlay {
-    padding: 10px 10px 60vh;
-    align-items: flex-start;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    padding: 0;
+    align-items: stretch;
   }
   .wizard {
-    border-radius: var(--radius-xl) !important;
-    max-height: none !important;
+    width: 100% !important;
+    max-height: 100% !important;
+    height: 100%;
+    border-radius: 0 !important;
+    animation: none !important;
   }
   .wizard-body {
     padding: 16px !important;
-    overflow: visible !important;
   }
-  .content { padding-bottom: 60vh; }
+  .content { padding-bottom: 80px; }
   .wizard-head { padding: 12px 16px !important; }
   .wizard-foot { padding: 10px 14px !important; }
   .widgets-grid { grid-template-columns: 1fr !important; }
 
-  .step-label { display: none; }
+  .step-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
   .step-line { width: 10px; margin: 0 4px; }
+
+  .entity-list-delete { opacity: 1; }
+  .wizard-companion-badge { min-width: 44px; min-height: 44px; }
+  .autocomplete-item { min-height: 44px; }
+
+  .display-settings-row { flex-wrap: wrap; }
 
   .stat-value { font-size: 24px !important; }
 
