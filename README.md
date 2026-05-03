@@ -24,7 +24,7 @@ HArvest creates a secure bridge between your Home Assistant instance and any web
 
 ## Installation
 
-HArvest installs as a custom HACS repository. Open HACS, add `https://github.com/sfox38/harvest` as a custom repository (category: Integration), then download and restart HA. Full steps in the [installation guide](https://sfox38.github.io/HArvest/installation.html).
+HArvest installs as a custom HACS repository. Open HACS, add `https://github.com/sfox38/HArvest` as a custom repository (category: Integration), then download and restart HA. Full steps in the [installation guide](https://sfox38.github.io/HArvest/installation.html).
 
 After restarting, go to **Settings > Devices and Services > Add Integration**, search for **HArvest**, and select it. The HArvest panel appears in your sidebar.
 
