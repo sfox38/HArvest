@@ -37,6 +37,7 @@
           <div class="nav-section-label">Customization</div>
           <a class="nav-item" href="theming.html">Theming</a>
           <a class="nav-item" href="entities.html">Entity types</a>
+          <a class="nav-item" href="custom-cards.html">Custom cards</a>
         </div>
         <div class="nav-section">
           <div class="nav-section-label">Reference</div>
@@ -69,6 +70,7 @@
             <li><a href="#tier3">Tier 3 - Blocked domains</a></li>
             <li><a href="#companions">Companion-eligible domains</a></li>
             <li><a href="#allowed-services">Allowed service calls</a></li>
+            <li><a href="#custom-domains">Custom domains</a></li>
           </ol>
         </div>
 
@@ -179,6 +181,8 @@
         </ul>
 
         <p>Some examples of Tier 2 domains: <code>number</code>, <code>select</code>, <code>text</code>, <code>date</code>, <code>time</code>, <code>event</code>, <code>calendar</code>.</p>
+
+        <p>By default, Tier 2 domains are display-only. However, admins can enable commands for any Tier 2 domain by registering its allowed services in the panel under <strong>Settings &gt; Custom Domains</strong>. See the <a href="#custom-domains">Custom domains</a> section for details.</p>
         </section>
 
         <section>
@@ -241,7 +245,7 @@
         <section>
         <h2 id="allowed-services">Allowed service calls</h2>
 
-        <p>HArvest enforces an explicit whitelist of allowed service calls. Any command not on this list is rejected by the integration before it reaches HA, regardless of what the widget requests. This is a fixed server-side list - it cannot be expanded by page-level code or custom renderers.</p>
+        <p>HArvest enforces an explicit whitelist of allowed service calls. Any command not on this list is rejected by the integration before it reaches HA, regardless of what the widget requests. The table below covers all built-in Tier 1 domains. Page-level code and custom renderers cannot modify this list, but admins can extend it for additional domains using <strong>Settings &gt; Custom Domains</strong> in the panel. See <a href="#custom-domains">Custom domains</a> below.</p>
 
         <div class="table-wrap">
           <table>
@@ -261,6 +265,30 @@
               <tr><td><code>harvest_action</code></td><td><code>trigger</code> (executes the pre-configured service call defined in the panel)</td></tr>
             </tbody>
           </table>
+        </div>
+        </section>
+
+        <section>
+        <h2 id="custom-domains">Custom domains</h2>
+
+        <p>The built-in allowed services table covers Tier 1 domains only. For any Tier 2 domain, admins can register allowed services in the HArvest panel under <strong>Settings &gt; Custom Domains</strong>. This is useful when a developer builds a custom card renderer (via <code>HArvest.registerRenderer()</code>) for a domain like <code>vacuum</code>, <code>humidifier</code>, or <code>valve</code> and needs commands to work.</p>
+
+        <p>To register a custom domain:</p>
+        <ol>
+          <li>Open the HArvest panel and go to <strong>Settings &gt; Custom Domains</strong>.</li>
+          <li>Select a domain from the dropdown. Only Tier 2 domains appear here; Tier 1 domains already have built-in service lists and Tier 3 domains are blocked entirely.</li>
+          <li>Toggle on the specific HA services you want to allow for that domain.</li>
+          <li>Save. Commands for those services are now permitted for entities in that domain.</li>
+        </ol>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Important</span>
+          <p>Registering a custom domain only opens the server-side command whitelist. You still need a custom renderer (registered via <code>HArvest.registerRenderer()</code>) to provide the UI controls that send those commands. Without a custom renderer, the domain's entities will continue to use the generic card, which only shows state and a basic toggle.</p>
+        </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Tip</span>
+          <p>Only enable the services your renderer actually uses. Each allowed service is a potential action a visitor can trigger, so keep the list minimal.</p>
         </div>
         </section>
 

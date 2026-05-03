@@ -234,6 +234,22 @@ export interface HaEventBusConfig {
   harvest_auth_failure: boolean;
 }
 
+export interface CustomDomainEntry {
+  domain: string;
+  allowed_services: string[];
+}
+
+export interface DomainServicesResponse {
+  domain: string;
+  services: { service: string }[];
+}
+
+export interface AvailableDomain {
+  domain: string;
+  has_services: boolean;
+  services: string[];
+}
+
 export interface IntegrationConfig {
   auth_timeout_seconds: number;
   max_entities_per_token: number;
@@ -259,6 +275,8 @@ export interface IntegrationConfig {
     max_lifetime_minutes: number;
   };
   ha_event_bus: HaEventBusConfig;
+  custom_domains: CustomDomainEntry[];
+  available_domains?: AvailableDomain[];
   platform_version?: string;
 }
 

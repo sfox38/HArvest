@@ -385,5 +385,8 @@ export const api = {
       );
       return Object.keys(state.attributes).filter(k => k !== "friendly_name").sort();
     },
+
+    availableDomains: (): Promise<import("./types").AvailableDomain[]> =>
+      api.config.get().then(c => c.available_domains ?? []),
   },
 };

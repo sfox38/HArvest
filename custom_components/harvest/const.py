@@ -52,6 +52,7 @@ CONF_HA_EVENT_BUS = "ha_event_bus"
 CONF_OVERRIDE_HOST = "override_host"
 CONF_WIDGET_SCRIPT_URL = "widget_script_url"
 CONF_KILL_SWITCH = "kill_switch"
+CONF_CUSTOM_DOMAINS = "custom_domains"
 
 # Default values matching SPEC.md Section 19
 DEFAULTS: dict[str, object] = {
@@ -102,6 +103,7 @@ DEFAULTS: dict[str, object] = {
     "default_on_error": "message",
     "default_offline_text": "",
     "default_error_text": "",
+    CONF_CUSTOM_DOMAINS: [],
 }
 
 # Attribute denylist - keys containing these strings are stripped from state_updates.

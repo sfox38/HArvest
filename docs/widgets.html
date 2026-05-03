@@ -37,6 +37,7 @@
           <div class="nav-section-label">Customization</div>
           <a class="nav-item" href="theming.html">Theming</a>
           <a class="nav-item" href="entities.html">Entity types</a>
+          <a class="nav-item" href="custom-cards.html">Custom cards</a>
         </div>
         <div class="nav-section">
           <div class="nav-section-label">Reference</div>
@@ -271,6 +272,11 @@ if (card) {
 
         <pre><code class="language-javascript">HArvest.registerRenderer("light", MyCustomLightCard);
 HArvest.registerRenderer("sensor.temperature", MyTempCard);  // device class specific</code></pre>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Commands require server-side registration</span>
+          <p>Registering a renderer only handles the display side. If your renderer sends commands (service calls) for a Tier 2 domain, the HA admin must also register that domain's allowed services in the panel under <strong>Settings &gt; Custom Domains</strong>. Without this step, commands will be rejected with <code>HRV_PERMISSION_DENIED</code>. Tier 1 domains already have built-in service lists and do not need this step. See <a href="entities.html#custom-domains">Entity types - Custom domains</a> for details.</p>
+        </div>
 
         <h3>HArvest.renderers</h3>
         <p>An object exposing all built-in renderer classes so you can extend them:</p>

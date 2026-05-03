@@ -37,7 +37,7 @@ from .const import (
     ERR_TOKEN_INACTIVE,
     WS_PATH,
 )
-from .entity_compatibility import validate_action
+from .entity_compatibility import get_custom_domains, validate_action
 from .entity_definition import build_entity_definition, filter_attributes, get_blocked_data_keys
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager
@@ -727,8 +727,9 @@ class HarvestWsView(HomeAssistantView):
         # Companions with read capability are never allowed to send commands.
         # (Checked above by capability check - read-only entities are blocked.)
 
-        # Validate action against ALLOWED_SERVICES.
-        err = validate_action(domain, action)
+        # Validate action against ALLOWED_SERVICES + custom domains.
+        custom_domains = get_custom_domains(self._hass)
+        err = validate_action(domain, action, custom_domains)
         if err is not None:
             await ack_error(err, f"Action '{action}' not permitted for domain '{domain}'")
             return
@@ -748,7 +749,18 @@ class HarvestWsView(HomeAssistantView):
             return
 
         # Strip unknown data keys, then strip keys blocked by exclude_attributes.
-        allowed_keys = _ALLOWED_DATA_KEYS.get(domain, set())
+        allowed_keys = _ALLOWED_DATA_KEYS.get(domain)
+        if allowed_keys is None:
+            svc_registry = self._hass.services.async_services()
+            domain_map = svc_registry.get(domain, {})
+            svc_schema = domain_map.get(action)
+            if svc_schema and hasattr(svc_schema, "schema") and svc_schema.schema:
+                try:
+                    allowed_keys = {str(k) for k in svc_schema.schema.schema.keys()} - {"entity_id"}
+                except Exception:
+                    allowed_keys = set()
+            else:
+                allowed_keys = set()
         blocked_keys = get_blocked_data_keys(ea.exclude_attributes) if ea.exclude_attributes else set()
         clean_data = {k: v for k, v in data.items() if k in allowed_keys and k not in blocked_keys}
 

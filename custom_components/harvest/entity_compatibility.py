@@ -109,17 +109,38 @@ def validate_entity(domain: str) -> str | None:
     return None
 
 
-def validate_action(domain: str, action: str) -> str | None:
+def validate_action(
+    domain: str,
+    action: str,
+    custom_domains: list[dict] | None = None,
+) -> str | None:
     """Return HRV_PERMISSION_DENIED if action is not allowed for domain, else None."""
-    allowed = ALLOWED_SERVICES.get(domain, set())
-    if action not in allowed:
-        return ERR_PERMISSION_DENIED
-    return None
+    allowed = ALLOWED_SERVICES.get(domain)
+    if allowed is not None:
+        return None if action in allowed else ERR_PERMISSION_DENIED
+    if custom_domains:
+        for entry in custom_domains:
+            if entry.get("domain") == domain:
+                if action in entry.get("allowed_services", []):
+                    return None
+                return ERR_PERMISSION_DENIED
+    return ERR_PERMISSION_DENIED
 
 
 def is_companion_allowed(domain: str) -> bool:
     """Return True if the domain is permitted as a companion entity."""
     return domain in COMPANION_ALLOWED_DOMAINS
+
+
+def get_custom_domains(hass) -> list[dict]:
+    """Read the custom_domains allowlist from the live config entry."""
+    from .const import DOMAIN, DEFAULTS
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return []
+    entry = entries[0]
+    merged = {**DEFAULTS, **entry.data, **entry.options}
+    return merged.get("custom_domains", [])
 
 
 def get_blocked_reason(domain: str) -> str | None:

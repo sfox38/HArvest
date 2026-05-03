@@ -1820,6 +1820,19 @@ class HarvestConfigView(HomeAssistantView):
         # default_session are always fully populated even after partial saves.
         merged = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
         merged["platform_version"] = PLATFORM_VERSION
+        from .entity_compatibility import TIER1_DOMAINS, TIER3_DOMAINS
+        all_domains = {s.domain for s in self._hass.states.async_all()}
+        available = sorted(all_domains - set(TIER1_DOMAINS) - set(TIER3_DOMAINS))
+        svc_registry = self._hass.services.async_services()
+        domain_list = []
+        for d in available:
+            svc_map = svc_registry.get(d, {})
+            domain_list.append({
+                "domain": d,
+                "has_services": bool(svc_map),
+                "services": sorted(svc_map.keys()) if svc_map else [],
+            })
+        merged["available_domains"] = domain_list
         return self.json(merged)
 
     async def patch(self, request: web.Request) -> web.Response:
@@ -1902,6 +1915,36 @@ class HarvestConfigView(HomeAssistantView):
             filtered["default_error_text"] = _validate_display_text(
                 filtered["default_error_text"], "default_error_text",
             )
+        if "custom_domains" in filtered:
+            from .entity_compatibility import TIER1_DOMAINS, TIER3_DOMAINS
+            raw_cd = filtered["custom_domains"]
+            if not isinstance(raw_cd, list):
+                raise web.HTTPBadRequest(reason="custom_domains must be a list.")
+            validated: list[dict] = []
+            seen: set[str] = set()
+            for cd_entry in raw_cd:
+                if not isinstance(cd_entry, dict) or "domain" not in cd_entry:
+                    raise web.HTTPBadRequest(reason="Each custom domain entry must have a 'domain' key.")
+                cd_domain = str(cd_entry["domain"]).strip().lower()
+                if not re.fullmatch(r"[a-z][a-z0-9_]*", cd_domain):
+                    raise web.HTTPBadRequest(reason=f"Invalid domain name: {cd_domain}")
+                if cd_domain in TIER1_DOMAINS:
+                    raise web.HTTPBadRequest(reason=f"Domain '{cd_domain}' is already a built-in domain.")
+                if cd_domain in TIER3_DOMAINS:
+                    raise web.HTTPBadRequest(reason=f"Domain '{cd_domain}' is blocked and cannot be added.")
+                if cd_domain in seen:
+                    raise web.HTTPBadRequest(reason=f"Duplicate domain: {cd_domain}")
+                seen.add(cd_domain)
+                raw_services = cd_entry.get("allowed_services", [])
+                if not isinstance(raw_services, list):
+                    raise web.HTTPBadRequest(reason=f"allowed_services for {cd_domain} must be a list.")
+                services = [str(s).strip().lower() for s in raw_services if str(s).strip()]
+                if not services:
+                    raise web.HTTPBadRequest(
+                        reason=f"Domain '{cd_domain}' must specify at least one allowed service."
+                    )
+                validated.append({"domain": cd_domain, "allowed_services": services})
+            filtered["custom_domains"] = validated
 
         # Deep-merge the incoming partial update over the current full config.
         current = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
@@ -1915,6 +1958,14 @@ class HarvestConfigView(HomeAssistantView):
 
         from .const import PLATFORM_VERSION
         updated["platform_version"] = PLATFORM_VERSION
+        from .entity_compatibility import TIER1_DOMAINS, TIER3_DOMAINS
+        all_domains = {s.domain for s in self._hass.states.async_all()}
+        avail = sorted(all_domains - set(TIER1_DOMAINS) - set(TIER3_DOMAINS))
+        svc_registry = self._hass.services.async_services()
+        updated["available_domains"] = [
+            {"domain": d, "has_services": bool(svc_registry.get(d)), "services": sorted(svc_registry.get(d, {}).keys())}
+            for d in avail
+        ]
         return self.json(updated)
 
 

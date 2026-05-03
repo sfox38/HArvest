@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Building Custom Cards - HArvest Docs</title>
+  <link rel="stylesheet" href="harvest-docs.css">
+  <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
+</head>
+<body>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <img src="logo.png" alt="HArvest logo">
+        <div>
+          <div class="sidebar-logo-text">HArvest</div>
+          <span class="sidebar-logo-version">v0.9.2 documentation</span>
+        </div>
+      </div>
+      <div class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-label">Getting started</div>
+          <a class="nav-item" href="index.html">Introduction</a>
+          <a class="nav-item" href="installation.html">Installation</a>
+          <a class="nav-item" href="quickstart.html">Quick setup</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Using HArvest</div>
+          <a class="nav-item" href="panel.html">Panel guide</a>
+          <a class="nav-item" href="widgets.html">Widget reference</a>
+          <a class="nav-item" href="wordpress.html">WordPress</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Customization</div>
+          <a class="nav-item" href="theming.html">Theming</a>
+          <a class="nav-item" href="entities.html">Entity types</a>
+          <a class="nav-item active" href="custom-cards.html">Custom cards</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-label">Reference</div>
+          <a class="nav-item" href="security.html">Security</a>
+          <a class="nav-item" href="ha-entities.html">HA entities</a>
+          <a class="nav-item" href="reference.html">Full reference</a>
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <button class="theme-toggle" id="themeToggle">Dark mode</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="page-label">Customization</div>
+          <h1>Building custom cards</h1>
+          <p class="lead">A complete guide to creating a custom card renderer for any Home Assistant entity domain, from first line of code to working widget. Uses a robot vacuum as the running example.</p>
+        </div>
+
+        <div class="toc">
+          <div class="toc-title">On this page</div>
+          <ol>
+            <li><a href="#overview">How it works</a></li>
+            <li><a href="#prerequisites">Prerequisites</a></li>
+            <li><a href="#basecard-api">The BaseCard API</a></li>
+            <li><a href="#write-renderer">Writing a renderer</a></li>
+            <li><a href="#packs">Creating a renderer pack</a></li>
+            <li><a href="#admin-setup">Admin setup: enabling commands</a></li>
+            <li><a href="#embed">Embedding on a page</a></li>
+            <li><a href="#commands">Sending commands</a></li>
+            <li><a href="#optimistic-ui">Optimistic UI</a></li>
+            <li><a href="#css-parts">CSS parts and theming</a></li>
+            <li><a href="#gestures">Gesture handling</a></li>
+            <li><a href="#companions">Companions, history, and accessibility</a></li>
+            <li><a href="#dev-testing">Development and testing</a></li>
+            <li><a href="#complete-example">Complete example: vacuum card</a></li>
+            <li><a href="#checklist">Checklist</a></li>
+          </ol>
+        </div>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="overview">How it works</h2>
+
+        <p>HArvest groups Home Assistant entity domains into three tiers:</p>
+
+        <ul>
+          <li><strong>Tier 1</strong> - domains with built-in card renderers (light, switch, climate, fan, cover, etc.). Commands are pre-approved in a server-side whitelist.</li>
+          <li><strong>Tier 2</strong> - all other domains (vacuum, humidifier, valve, siren, etc.). These display with the generic card by default. A custom renderer can replace the generic card for any Tier 2 domain.</li>
+          <li><strong>Tier 3</strong> - blocked domains (lock, alarm_control_panel, camera, etc.). Cannot be used with HArvest at all.</li>
+        </ul>
+
+        <p>Building a custom card has two sides:</p>
+        <ol>
+          <li><strong>Display</strong> - write a renderer class that extends <code>BaseCard</code> and package it as a renderer pack. The pack is uploaded through the HArvest panel and automatically loaded by the widget for any token that uses the associated theme. No script tags are needed on the embedding page.</li>
+          <li><strong>Commands</strong> - the HA admin registers allowed services for the domain in the HArvest panel under Settings. This opens the server-side whitelist so the card's commands are accepted.</li>
+        </ol>
+
+        <p>Neither side requires changes to the HArvest integration source code. The renderer pack is managed through the panel, and the service allowlist is configured in Settings.</p>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Renderer packs vs. standalone scripts</span>
+          <p>Custom cards are delivered as <strong>renderer packs</strong>. A pack is a JavaScript file uploaded through the HArvest panel and tied to a theme. When a token uses that theme, the widget automatically fetches and loads the pack. The person embedding the widget does not need to add any extra <code>&lt;script&gt;</code> tags.</p>
+          <p>During development, you can use <code>HArvest.registerRenderer()</code> with a local <code>&lt;script&gt;</code> tag for faster iteration. But for production, always package your renderer as a pack. This guide covers both approaches, with pack delivery as the primary path.</p>
+        </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="prerequisites">Prerequisites</h2>
+
+        <ul>
+          <li>A running Home Assistant instance with the HArvest integration installed.</li>
+          <li>An entity in the domain you want to build a card for (e.g. <code>vacuum.roomba</code>).</li>
+          <li>A HArvest token that includes the entity (Tier 2 entities are already available in the entity picker).</li>
+          <li>Access to the HArvest panel to upload the renderer pack and configure custom domain services.</li>
+          <li>Basic familiarity with JavaScript classes and the DOM API.</li>
+        </ul>
+
+        <p>No build tools are required. Custom renderers are vanilla JavaScript. They are uploaded as renderer packs through the HArvest panel and loaded automatically by the widget.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="basecard-api">The BaseCard API</h2>
+
+        <p>Every renderer extends <code>BaseCard</code>, which provides the constructor, lifecycle hooks, and helper methods. The widget instantiates your class when an entity definition arrives from the server.</p>
+
+        <h3>Constructor</h3>
+
+        <p>You do not write a constructor unless you need to initialize private fields. The base constructor receives four arguments, available as instance properties:</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>this.def</code></td>
+                <td>Object</td>
+                <td>The entity definition from the server. Contains <code>entity_id</code>, <code>domain</code>, <code>friendly_name</code>, <code>capabilities</code> (<code>"read"</code> or <code>"read-write"</code>), <code>supported_features</code> (array of strings), <code>feature_config</code> (domain-specific ranges and options), <code>icon</code>, <code>icon_state_map</code>, <code>display_hints</code>, <code>gesture_config</code>, <code>companions</code>, and more.</td>
+              </tr>
+              <tr>
+                <td><code>this.root</code></td>
+                <td>ShadowRoot</td>
+                <td>The shadow DOM root. Write all HTML and CSS here. Fully isolated from the host page.</td>
+              </tr>
+              <tr>
+                <td><code>this.config</code></td>
+                <td>Object</td>
+                <td>Card configuration. Includes <code>tokenId</code>, <code>haUrl</code>, <code>entity</code>, <code>alias</code>, <code>lang</code>, <code>colorScheme</code>, <code>gestureConfig</code>, <code>displayHints</code>, and the <code>card</code> back-reference (used to send commands).</td>
+              </tr>
+              <tr>
+                <td><code>this.i18n</code></td>
+                <td>Object</td>
+                <td>Translation helper. Call <code>this.i18n.t("key")</code> to get the translated string for the current language.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Required methods</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>When called</th><th>What to do</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>render()</code></td>
+                <td>Once, when the entity definition arrives.</td>
+                <td>Build the full shadow DOM structure. Set <code>this.root.innerHTML</code> with your HTML template, query elements, attach event handlers, and call <code>this.renderCompanions()</code> at the end.</td>
+              </tr>
+              <tr>
+                <td><code>applyState(state, attributes)</code></td>
+                <td>On every state update from the server (and immediately after <code>render()</code>).</td>
+                <td>Update DOM elements to reflect the current state. <code>state</code> is a string (<code>"on"</code>, <code>"off"</code>, <code>"cleaning"</code>, <code>"unavailable"</code>, etc.). <code>attributes</code> is an object with all entity attributes.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Optional methods</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>predictState(action, data)</code></td>
+                <td>Return <code>{ state, attributes }</code> for optimistic UI, or <code>null</code> to skip. Called immediately when a command is sent, before the server confirms.</td>
+              </tr>
+              <tr>
+                <td><code>destroy()</code></td>
+                <td>Cleanup when the card is removed. Clear timers, cancel listeners.</td>
+              </tr>
+              <tr>
+                <td><code>updateCompanionState(entityId, state, attributes)</code></td>
+                <td>Override default companion pill rendering with custom logic.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Inherited helpers</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>getSharedStyles()</code></td><td>Returns a CSS string with card layout defaults, companion zone styles, history graph styles, and error/stale indicator styles. Include in your <code>&lt;style&gt;</code> tag.</td></tr>
+              <tr><td><code>renderIcon(iconName, partName)</code></td><td>Inject an MDI SVG icon into the element with <code>part="&lt;partName&gt;"</code>. Caches internally and skips re-render if unchanged.</td></tr>
+              <tr><td><code>resolveIcon(name, fallback)</code></td><td>Returns <code>name</code> if the icon is in the bundled set, otherwise returns <code>fallback</code>.</td></tr>
+              <tr><td><code>isFocused(element)</code></td><td>Returns true if <code>element</code> has focus in the shadow root. Use in <code>applyState()</code> to avoid overwriting user input (e.g. while dragging a slider).</td></tr>
+              <tr><td><code>renderCompanionZoneHTML()</code></td><td>Returns the HTML for the companion pill zone. Empty string if no companions configured.</td></tr>
+              <tr><td><code>renderCompanions()</code></td><td>Populates the companion zone with pill elements. Call at the end of <code>render()</code>.</td></tr>
+              <tr><td><code>renderHistoryZoneHTML()</code></td><td>Returns the HTML for the history graph placeholder. Empty string if history is not configured.</td></tr>
+              <tr><td><code>renderAriaLiveHTML()</code></td><td>Returns a screen-reader announcement region. Include in your template.</td></tr>
+              <tr><td><code>announceState(text)</code></td><td>Push text to the aria-live region for screen reader users.</td></tr>
+              <tr><td><code>_attachGestureHandlers(element, callbacks, actionConfig)</code></td><td>Attach tap, hold, and double-tap handlers. See <a href="#gestures">Gesture handling</a>.</td></tr>
+              <tr><td><code>_runAction(actionConfig)</code></td><td>Execute a gesture action (toggle, trigger-action, call-service, none).</td></tr>
+              <tr><td><code>debounce(fn, ms)</code></td><td>Returns a debounced version of a function. Useful for slider input handlers.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="write-renderer">Writing a renderer</h2>
+
+        <p>A minimal renderer needs two methods: <code>render()</code> to build the DOM, and <code>applyState()</code> to update it. The class extends <code>BaseCard</code>, which is available at <code>HArvest.renderers.BaseCard</code> inside a renderer pack. Here is a stripped-down vacuum card to illustrate the pattern:</p>
+
+<pre><code class="language-javascript">class VacuumCard extends HArvest.renderers.BaseCard {
+  #statusEl = null;
+  #startBtn = null;
+  #stopBtn  = null;
+
+  render() {
+    const isWritable = this.def.capabilities === "read-write";
+
+    this.root.innerHTML = `
+      &lt;style&gt;
+        ${this.getSharedStyles()}
+        [part=card-body] {
+          display: flex;
+          align-items: center;
+          gap: var(--hrv-spacing-s);
+        }
+        [part=status] {
+          font-size: var(--hrv-font-size-s);
+          color: var(--hrv-color-text-secondary);
+        }
+        button[part] {
+          padding: var(--hrv-spacing-xs) var(--hrv-spacing-m);
+          border: none;
+          border-radius: var(--hrv-radius-m);
+          font-size: var(--hrv-font-size-s);
+          font-weight: var(--hrv-font-weight-medium);
+          font-family: inherit;
+          cursor: pointer;
+          transition: opacity var(--hrv-transition-speed);
+        }
+        button[part]:hover { opacity: 0.88; }
+        button[part]:disabled { opacity: 0.4; cursor: not-allowed; }
+        [part=start-btn] {
+          background: var(--hrv-color-success);
+          color: var(--hrv-color-text-inverse);
+        }
+        [part=stop-btn] {
+          background: var(--hrv-color-error);
+          color: var(--hrv-color-text-inverse);
+        }
+      &lt;/style&gt;
+      &lt;div part="card"&gt;
+        &lt;div part="card-header"&gt;
+          &lt;span part="card-icon" aria-hidden="true"&gt;&lt;/span&gt;
+          &lt;span part="card-name"&gt;${this._esc(this.def.friendly_name)}&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;div part="card-body"&gt;
+          &lt;span part="status"&gt;&lt;/span&gt;
+          ${isWritable ? `
+            &lt;button part="start-btn" type="button"&gt;Start&lt;/button&gt;
+            &lt;button part="stop-btn" type="button"&gt;Stop&lt;/button&gt;
+          ` : ""}
+        &lt;/div&gt;
+        ${this.renderAriaLiveHTML()}
+        ${this.renderCompanionZoneHTML()}
+        &lt;div part="stale-indicator" aria-hidden="true"&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    `;
+
+    this.#statusEl = this.root.querySelector("[part=status]");
+    this.#startBtn = this.root.querySelector("[part=start-btn]");
+    this.#stopBtn  = this.root.querySelector("[part=stop-btn]");
+
+    this.renderIcon(
+      this.resolveIcon("mdi:robot-vacuum", "mdi:help-circle"),
+      "card-icon",
+    );
+
+    if (this.#startBtn) {
+      this.#startBtn.addEventListener("click", () =&gt; {
+        this.config.card?.sendCommand("start", {});
+      });
+    }
+
+    if (this.#stopBtn) {
+      this.#stopBtn.addEventListener("click", () =&gt; {
+        this.config.card?.sendCommand("stop", {});
+      });
+    }
+
+    this.renderCompanions();
+  }
+
+  applyState(state, attributes) {
+    const label = state.replace(/_/g, " ");
+    if (this.#statusEl) this.#statusEl.textContent = label;
+
+    const cleaning = state === "cleaning";
+    if (this.#startBtn) this.#startBtn.disabled = cleaning;
+    if (this.#stopBtn) this.#stopBtn.disabled = !cleaning;
+
+    const battery = attributes.battery_level;
+    if (battery != null &amp;&amp; this.#statusEl) {
+      this.#statusEl.textContent = `${label} - ${battery}%`;
+    }
+
+    this.announceState(`${this.def.friendly_name}, ${label}`);
+  }
+
+  _esc(str) {
+    return String(str ?? "")
+      .replace(/&amp;/g, "&amp;amp;")
+      .replace(/&lt;/g, "&amp;lt;")
+      .replace(/&gt;/g, "&amp;gt;")
+      .replace(/"/g, "&amp;quot;");
+  }
+}</code></pre>
+
+        <h3>Key patterns</h3>
+
+        <ul>
+          <li><strong>Check <code>capabilities</code></strong> - if the entity is read-only, do not render buttons, sliders, or any interactive controls. Only show state.</li>
+          <li><strong>Include shared styles</strong> - call <code>this.getSharedStyles()</code> at the start of your <code>&lt;style&gt;</code> block. This provides the card layout, companion zone, history graph, and error state styles.</li>
+          <li><strong>Use <code>part</code> attributes</strong> - every meaningful element should have a <code>part="..."</code> attribute so theme authors can target it with <code>::part()</code> selectors.</li>
+          <li><strong>Include the standard zones</strong> - your template should include <code>renderAriaLiveHTML()</code>, <code>renderCompanionZoneHTML()</code>, and a <code>&lt;div part="stale-indicator"&gt;</code>. These enable accessibility, companion pills, and the stale-data indicator.</li>
+          <li><strong>Call <code>renderCompanions()</code></strong> - at the end of <code>render()</code>, this populates the companion zone.</li>
+          <li><strong>Escape user text</strong> - always escape <code>friendly_name</code> and other user-provided strings before inserting into HTML.</li>
+          <li><strong>Guard slider updates</strong> - in <code>applyState()</code>, use <code>this.isFocused(element)</code> before updating slider values to avoid overwriting while the user is dragging.</li>
+        </ul>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="packs">Creating a renderer pack</h2>
+
+        <p>A renderer pack is a JavaScript file that bundles one or more renderer classes and registers them with HArvest. Packs are the standard way to deliver custom cards. They are uploaded through the HArvest panel and tied to a theme. When a token uses that theme, the widget automatically fetches and loads the pack - the person embedding the widget does not need to add any extra script tags.</p>
+
+        <h3>Pack structure</h3>
+
+        <p>A pack is wrapped in an IIFE (immediately invoked function expression) that accesses <code>BaseCard</code> from the global <code>HArvest</code> object and registers the renderers under a pack key:</p>
+
+<pre><code class="language-javascript">(function () {
+  "use strict";
+  const HArvest = window.HArvest;
+  if (!HArvest || !HArvest.renderers || !HArvest.renderers.BaseCard) {
+    console.warn("[MyPack] HArvest not loaded.");
+    return;
+  }
+
+  const BaseCard = HArvest.renderers.BaseCard;
+
+  class VacuumCard extends BaseCard {
+    render() { /* ... */ }
+    applyState(state, attributes) { /* ... */ }
+  }
+
+  // Register under the pack key (resolved automatically by the widget)
+  HArvest._packs = HArvest._packs || {};
+  const _packKey = (document.currentScript &amp;&amp; document.currentScript.dataset.packId)
+    || window.__HARVEST_PACK_ID__
+    || "my-pack";
+
+  HArvest._packs[_packKey] = {
+    "vacuum": VacuumCard,
+    _capabilities: {
+      vacuum: { features: ["start", "stop", "fan_speed"] },
+    },
+  };
+})();</code></pre>
+
+        <h3>Key points</h3>
+
+        <ul>
+          <li>The pack key (<code>_packKey</code>) is resolved automatically by the widget. Use the boilerplate above as-is.</li>
+          <li>Each entry in the pack object maps a domain key (e.g. <code>"vacuum"</code>) to a renderer class. You can register multiple domains in one pack.</li>
+          <li>You can also register for a specific device class: <code>"sensor.temperature": MyTempCard</code>.</li>
+          <li>The <code>_capabilities</code> object declares what features the pack's renderers support. The server uses this to populate <code>supported_features</code> in the entity definition.</li>
+          <li>Registration is last-write-wins. If the key matches a built-in renderer, the pack renderer takes priority for tokens using this pack's theme.</li>
+        </ul>
+
+        <h3>Uploading the pack</h3>
+
+        <ol>
+          <li>In the HArvest panel, go to <strong>Themes</strong>.</li>
+          <li>Create or edit a theme and enable <strong>Renderer pack</strong>.</li>
+          <li>Upload or paste your pack JavaScript in the pack code editor.</li>
+          <li>Assign the theme to a token. Any widget using that token will automatically load the pack.</li>
+        </ol>
+
+        <h3>Lookup order</h3>
+
+        <p>When the widget needs a renderer for a domain, it checks in this order:</p>
+        <ol>
+          <li>The active pack's registry (if the token's theme has a renderer pack).</li>
+          <li>The global renderer registry (built-in renderers and any <code>registerRenderer()</code> calls).</li>
+          <li>The generic card fallback.</li>
+        </ol>
+
+        <p>This means pack renderers only affect tokens using that pack's theme. Other tokens continue to use the built-in renderers, keeping everything isolated.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="admin-setup">Admin setup: enabling commands</h2>
+
+        <p>Registering a renderer only handles the display side. By default, the server rejects all commands for Tier 2 domains because they are not in the built-in service whitelist. If your card sends commands (like <code>start</code>, <code>stop</code>, <code>set_fan_speed</code>), the HA admin must register the domain's allowed services in the HArvest panel.</p>
+
+        <ol>
+          <li>Open the HArvest panel in Home Assistant and go to <strong>Settings</strong>.</li>
+          <li>Scroll to the <strong>Custom Domains</strong> card.</li>
+          <li>Select the domain from the dropdown (e.g. <code>vacuum</code>). The list shows all Tier 2 domains that have entities in your HA instance.</li>
+          <li>Toggle on the services your renderer needs (e.g. <code>start</code>, <code>stop</code>, <code>pause</code>, <code>return_to_base</code>). The available services come directly from HA's service registry for that domain.</li>
+          <li>Click <strong>Add</strong>. The domain and its allowed services are saved immediately.</li>
+        </ol>
+
+        <p>Once registered, commands for those services are accepted by the server. Commands for services that were not toggled on are still rejected with <code>HRV_PERMISSION_DENIED</code>.</p>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">Security note</span>
+          <p>Only enable the specific services your renderer actually uses. This follows the principle of least privilege. You can always add more services later if needed. Tier 3 domains (lock, alarm, camera, etc.) cannot be added as custom domains regardless of this setting.</p>
+        </div>
+
+        <h3>Read-only cards</h3>
+
+        <p>If your card only displays state and never sends commands, you do not need to register any custom domain services. The generic card already shows state for all Tier 2 domains. Your custom renderer replaces the visual presentation without requiring any server-side changes.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="embed">Embedding on a page</h2>
+
+        <p>Because your renderer is delivered as a pack, the embedding page needs nothing beyond the standard HArvest setup. The widget automatically loads the pack when it connects and finds the token's theme has a renderer pack. No extra script tags, no manual registration.</p>
+
+<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
+&lt;/script&gt;
+
+&lt;!-- Custom element mode --&gt;
+&lt;hrv-card entity="vacuum.roomba"&gt;&lt;/hrv-card&gt;
+
+&lt;!-- Data attribute mode --&gt;
+&lt;div class="hrv-mount" data-entity="vacuum.roomba"&gt;&lt;/div&gt;
+
+&lt;!-- With alias --&gt;
+&lt;hrv-card alias="dJ5x3Apd"&gt;&lt;/hrv-card&gt;</code></pre>
+
+        <p>The token must include the entity with <code>read-write</code> capability if you want commands to work. For display-only cards, <code>read</code> capability is sufficient.</p>
+
+        <h3>Mixing with built-in cards</h3>
+
+        <p>Custom cards work alongside built-in cards on the same page with no conflicts. They share the same token and WebSocket connection:</p>
+
+<pre><code class="language-html">&lt;hrv-group&gt;
+  &lt;hrv-card entity="light.living_room"&gt;&lt;/hrv-card&gt;
+  &lt;hrv-card entity="climate.thermostat"&gt;&lt;/hrv-card&gt;
+  &lt;hrv-card entity="vacuum.roomba"&gt;&lt;/hrv-card&gt;
+&lt;/hrv-group&gt;</code></pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="commands">Sending commands</h2>
+
+        <p>Commands are sent through the card's back-reference to the HrvCard element:</p>
+
+<pre><code class="language-javascript">this.config.card?.sendCommand(action, data);</code></pre>
+
+        <p>The <code>action</code> is the HA service name (e.g. <code>"start"</code>, <code>"set_fan_speed"</code>). The <code>data</code> is an object with the service call data (e.g. <code>{ fan_speed: "max" }</code>). The domain is inferred from the entity.</p>
+
+        <p>The server validates the command against two checks:</p>
+
+        <ol>
+          <li><strong>Service whitelist</strong> - the action must be in the built-in <code>ALLOWED_SERVICES</code> list (for Tier 1 domains) or the admin-registered custom domains list (for Tier 2). If not, the command is rejected with <code>HRV_PERMISSION_DENIED</code>.</li>
+          <li><strong>Data key filtering</strong> - for Tier 1 domains, only keys in the hardcoded <code>_ALLOWED_DATA_KEYS</code> map are forwarded. For custom domains, the server queries HA's service schema to determine which data keys the service accepts. Unknown keys are silently stripped.</li>
+        </ol>
+
+        <p>If the entity's capability is <code>"read"</code>, all commands are rejected regardless of the whitelist.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="optimistic-ui">Optimistic UI</h2>
+
+        <p>Implement <code>predictState()</code> to update the UI immediately when a command is sent, without waiting for the server round-trip. This makes the card feel responsive.</p>
+
+<pre><code class="language-javascript">predictState(action, data) {
+  if (action === "start") return { state: "cleaning", attributes: {} };
+  if (action === "stop")  return { state: "idle",     attributes: {} };
+  if (action === "return_to_base") return { state: "returning", attributes: {} };
+  return null;  // No prediction - wait for server
+}</code></pre>
+
+        <p>When <code>predictState()</code> returns a non-null value, <code>applyState()</code> is called immediately with the predicted state. The real state from the server overwrites it when it arrives (typically within a few hundred milliseconds).</p>
+
+        <p>Return <code>null</code> for commands where the outcome is ambiguous or depends on external factors.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="css-parts">CSS parts and theming</h2>
+
+        <p>HArvest uses shadow DOM for style isolation. Theme authors and page designers can target elements inside your card using <code>::part()</code> selectors. Every meaningful element in your renderer should have a <code>part="..."</code> attribute.</p>
+
+        <h3>Standard parts</h3>
+
+        <p>These parts are used by all built-in renderers. Your custom card should include them where applicable so that themes work consistently:</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Part</th><th>Element</th></tr></thead>
+            <tbody>
+              <tr><td><code>card</code></td><td>Outermost container</td></tr>
+              <tr><td><code>card-header</code></td><td>Header row (icon + name)</td></tr>
+              <tr><td><code>card-icon</code></td><td>Entity icon</td></tr>
+              <tr><td><code>card-name</code></td><td>Entity friendly name</td></tr>
+              <tr><td><code>card-body</code></td><td>Main content area</td></tr>
+              <tr><td><code>state-label</code></td><td>State text</td></tr>
+              <tr><td><code>stale-indicator</code></td><td>Stale data indicator (styled by shared styles)</td></tr>
+              <tr><td><code>companion-zone</code></td><td>Companion entity pills (rendered by <code>renderCompanions()</code>)</td></tr>
+              <tr><td><code>history-graph</code></td><td>History graph (rendered by shared styles)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Add domain-specific parts for controls unique to your card (e.g. <code>part="start-btn"</code>, <code>part="battery-bar"</code>). Theme authors can target these with:</p>
+
+<pre><code class="language-css">hrv-card::part(start-btn) {
+  background: #22c55e;
+  border-radius: 20px;
+}</code></pre>
+
+        <h3>CSS custom properties</h3>
+
+        <p>Use HArvest's CSS custom properties for colours, spacing, typography, and card structure. This ensures your card adapts to theme changes and dark mode automatically. The full list is on the <a href="theming.html">Theming</a> page. The most commonly used:</p>
+
+<pre><code class="language-css">/* Colours */
+var(--hrv-color-primary)            /* Accent colour */
+var(--hrv-color-surface)            /* Card background */
+var(--hrv-color-text)               /* Primary text */
+var(--hrv-color-text-secondary)     /* Muted text */
+var(--hrv-color-state-on)           /* Active/on state */
+var(--hrv-color-state-off)          /* Inactive/off state */
+var(--hrv-color-success)            /* Positive actions */
+var(--hrv-color-error)              /* Negative actions / errors */
+var(--hrv-color-text-inverse)       /* Text on coloured backgrounds */
+
+/* Spacing and sizing */
+var(--hrv-spacing-xs)  /* 4px */    var(--hrv-spacing-s)  /* 8px */
+var(--hrv-spacing-m)   /* 16px */   var(--hrv-spacing-l)  /* 24px */
+var(--hrv-radius-s)    /* 4px */    var(--hrv-radius-m)   /* 8px */
+var(--hrv-radius-l)    /* 12px */
+
+/* Typography */
+var(--hrv-font-size-xs)   /* 11px */  var(--hrv-font-size-s)   /* 13px */
+var(--hrv-font-size-m)    /* 15px */  var(--hrv-font-size-l)   /* 18px */
+var(--hrv-font-weight-medium) /* 500 */
+var(--hrv-font-weight-bold)   /* 700 */
+
+/* Card structure */
+var(--hrv-card-background)      var(--hrv-card-radius)
+var(--hrv-card-shadow)          var(--hrv-card-padding)
+var(--hrv-transition-speed)  /* 150ms */</code></pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="gestures">Gesture handling</h2>
+
+        <p>For the primary interactive element of your card, use <code>_attachGestureHandlers()</code> instead of plain click listeners. This integrates with the server-configured gesture system (tap, hold, double-tap) and respects <code>prefers-reduced-motion</code>.</p>
+
+<pre><code class="language-javascript">this._attachGestureHandlers(this.#startBtn, {
+  onTap: () =&gt; {
+    // Check if server has a custom tap action configured
+    const tap = this.config.gestureConfig?.tap;
+    if (tap) { this._runAction(tap); return; }
+    // Default behaviour
+    this.config.card?.sendCommand("start", {});
+  },
+});</code></pre>
+
+        <p>For secondary controls (individual buttons, sliders), plain click or input listeners are fine. Gesture handlers are most useful for the card's primary action element.</p>
+
+        <p>Gesture timing: hold fires after 500ms of continuous contact, double-tap fires when two taps occur within 250ms.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="companions">Companions, history, and accessibility</h2>
+
+        <h3>Companion entities</h3>
+
+        <p>Companion pills (small secondary entities displayed inside the card) are handled automatically. Include <code>this.renderCompanionZoneHTML()</code> in your template and call <code>this.renderCompanions()</code> at the end of <code>render()</code>. The base class handles the rest.</p>
+
+        <h3>History graphs</h3>
+
+        <p>Include <code>this.renderHistoryZoneHTML()</code> in your template between the card body and the companion zone. If the admin configures a history graph for the entity, it renders automatically.</p>
+
+        <h3>Accessibility</h3>
+
+        <ul>
+          <li>Include <code>this.renderAriaLiveHTML()</code> in your template.</li>
+          <li>Call <code>this.announceState(text)</code> in <code>applyState()</code> to push state changes to screen readers.</li>
+          <li>Use <code>aria-label</code> on interactive elements. The helper <code>this.setAriaLabel(el, label)</code> is available.</li>
+          <li>All CSS animations must respect <code>prefers-reduced-motion</code>. Use a media query:</li>
+        </ul>
+
+<pre><code class="language-css">@media (prefers-reduced-motion: reduce) {
+  .spin-animation { animation: none; }
+}</code></pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="dev-testing">Development and testing</h2>
+
+        <p>During development, uploading a pack after every change is slow. For faster iteration, you can use <code>HArvest.registerRenderer()</code> with a local script tag. This registers the renderer globally (not scoped to a theme) so you can test it immediately.</p>
+
+<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+&lt;script src="vacuum-card.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
+&lt;/script&gt;</code></pre>
+
+        <p>Inside your development script, register the class directly:</p>
+
+<pre><code class="language-javascript">class VacuumCard extends HArvest.renderers.BaseCard {
+  render() { /* ... */ }
+  applyState(state, attributes) { /* ... */ }
+}
+HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
+
+        <p>This approach requires a <code>&lt;script&gt;</code> tag on the embedding page, which is fine for local testing. Once your renderer is working, wrap it in the pack IIFE format (see <a href="#packs">Creating a renderer pack</a>) and upload it through the panel. The pack format is the production delivery mechanism; the person embedding your widget should never need to add script tags for custom cards.</p>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Device class registrations</span>
+          <p>Both packs and standalone registration support device-class-specific keys: <code>HArvest.registerRenderer("sensor.temperature", MyTempCard)</code>. This overrides the renderer only for sensors with <code>device_class: "temperature"</code>, leaving other sensors on their default renderer.</p>
+        </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="complete-example">Complete example: vacuum card</h2>
+
+        <p>This is a full, working vacuum card packaged as a renderer pack. It displays state, battery level, and fan speed, with start, stop, and return-to-base buttons. Copy this code into the pack editor in the HArvest panel (Themes, enable Renderer pack, paste code).</p>
+
+<pre><code class="language-javascript">/**
+ * vacuum-pack.js - HArvest renderer pack for robot vacuums.
+ *
+ * Displays current status, battery level, and fan speed.
+ * Controls: Start, Stop, Return to base.
+ *
+ * Admin setup: register "vacuum" in Settings &gt; Custom Domains
+ * with services: start, stop, pause, return_to_base, set_fan_speed
+ */
+
+(function () {
+  "use strict";
+  const HArvest = window.HArvest;
+  if (!HArvest || !HArvest.renderers || !HArvest.renderers.BaseCard) {
+    console.warn("[VacuumPack] HArvest not loaded.");
+    return;
+  }
+  const BaseCard = HArvest.renderers.BaseCard;
+
+  function esc(str) {
+    return String(str ?? "")
+      .replace(/&amp;/g, "&amp;amp;").replace(/&lt;/g, "&amp;lt;")
+      .replace(/&gt;/g, "&amp;gt;").replace(/"/g, "&amp;quot;");
+  }
+
+  const STYLES = `
+    [part=card-body] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--hrv-spacing-s);
+    }
+    [part=status-row] {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    [part=status] {
+      font-size: var(--hrv-font-size-m);
+      font-weight: var(--hrv-font-weight-medium);
+      text-transform: capitalize;
+    }
+    [part=battery] {
+      font-size: var(--hrv-font-size-s);
+      color: var(--hrv-color-text-secondary);
+    }
+    [part=fan-speed] {
+      font-size: var(--hrv-font-size-xs);
+      color: var(--hrv-color-text-secondary);
+    }
+    [part=controls] {
+      display: flex;
+      gap: var(--hrv-spacing-xs);
+      flex-wrap: wrap;
+    }
+    [part=controls] button {
+      flex: 1;
+      min-width: 60px;
+      padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
+      border: 1px solid var(--hrv-color-border);
+      border-radius: var(--hrv-radius-m);
+      background: var(--hrv-color-surface-alt);
+      color: var(--hrv-color-text);
+      font-size: var(--hrv-font-size-xs);
+      font-weight: var(--hrv-font-weight-medium);
+      font-family: inherit;
+      cursor: pointer;
+      transition: opacity var(--hrv-transition-speed),
+                  background var(--hrv-transition-speed);
+    }
+    [part=controls] button:hover { opacity: 0.85; }
+    [part=controls] button:disabled { opacity: 0.4; cursor: not-allowed; }
+    [part=controls] button[data-active=true] {
+      background: var(--hrv-color-primary);
+      color: var(--hrv-color-on-primary);
+      border-color: var(--hrv-color-primary);
+    }
+    [part=card][data-state=cleaning] [part=status] {
+      color: var(--hrv-color-success);
+    }
+    [part=card][data-state=error] [part=status] {
+      color: var(--hrv-color-error);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition-duration: 0s !important; }
+    }
+  `;
+
+  class VacuumCard extends BaseCard {
+    #statusEl  = null;
+    #batteryEl = null;
+    #fanEl     = null;
+    #startBtn  = null;
+    #stopBtn   = null;
+    #dockBtn   = null;
+    #cardEl    = null;
+
+    render() {
+      const w = this.def.capabilities === "read-write";
+
+      this.root.innerHTML = `
+        &lt;style&gt;${this.getSharedStyles()}${STYLES}&lt;/style&gt;
+        &lt;div part="card"&gt;
+          &lt;div part="card-header"&gt;
+            &lt;span part="card-icon" aria-hidden="true"&gt;&lt;/span&gt;
+            &lt;span part="card-name"&gt;${esc(this.def.friendly_name)}&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;div part="card-body"&gt;
+            &lt;div part="status-row"&gt;
+              &lt;span part="status"&gt;&lt;/span&gt;
+              &lt;span part="battery"&gt;&lt;/span&gt;
+            &lt;/div&gt;
+            &lt;div part="fan-speed"&gt;&lt;/div&gt;
+            ${w ? `
+              &lt;div part="controls"&gt;
+                &lt;button part="start-btn" type="button"&gt;Start&lt;/button&gt;
+                &lt;button part="stop-btn" type="button"&gt;Stop&lt;/button&gt;
+                &lt;button part="dock-btn" type="button"&gt;Dock&lt;/button&gt;
+              &lt;/div&gt;
+            ` : ""}
+          &lt;/div&gt;
+          ${this.renderHistoryZoneHTML()}
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          &lt;div part="stale-indicator" aria-hidden="true"&gt;&lt;/div&gt;
+        &lt;/div&gt;
+      `;
+
+      this.#cardEl    = this.root.querySelector("[part=card]");
+      this.#statusEl  = this.root.querySelector("[part=status]");
+      this.#batteryEl = this.root.querySelector("[part=battery]");
+      this.#fanEl     = this.root.querySelector("[part=fan-speed]");
+      this.#startBtn  = this.root.querySelector("[part=start-btn]");
+      this.#stopBtn   = this.root.querySelector("[part=stop-btn]");
+      this.#dockBtn   = this.root.querySelector("[part=dock-btn]");
+
+      this.renderIcon(
+        this.resolveIcon("mdi:robot-vacuum", "mdi:help-circle"),
+        "card-icon",
+      );
+
+      if (this.#startBtn) {
+        this.#startBtn.addEventListener("click", () =&gt; {
+          this.config.card?.sendCommand("start", {});
+        });
+      }
+      if (this.#stopBtn) {
+        this.#stopBtn.addEventListener("click", () =&gt; {
+          this.config.card?.sendCommand("stop", {});
+        });
+      }
+      if (this.#dockBtn) {
+        this.#dockBtn.addEventListener("click", () =&gt; {
+          this.config.card?.sendCommand("return_to_base", {});
+        });
+      }
+
+      this.renderCompanions();
+    }
+
+    applyState(state, attributes) {
+      const label = state.replace(/_/g, " ");
+      if (this.#statusEl) this.#statusEl.textContent = label;
+      if (this.#cardEl) this.#cardEl.setAttribute("data-state", state);
+
+      const battery = attributes.battery_level;
+      if (this.#batteryEl) {
+        this.#batteryEl.textContent = battery != null ? `${battery}%` : "";
+      }
+
+      const fan = attributes.fan_speed;
+      if (this.#fanEl) {
+        this.#fanEl.textContent = fan ? `Fan: ${fan}` : "";
+      }
+
+      const cleaning  = state === "cleaning";
+      const docked    = state === "docked";
+      const returning = state === "returning";
+
+      if (this.#startBtn) {
+        this.#startBtn.disabled = cleaning;
+        this.#startBtn.setAttribute("data-active", String(cleaning));
+      }
+      if (this.#stopBtn) {
+        this.#stopBtn.disabled = !cleaning;
+      }
+      if (this.#dockBtn) {
+        this.#dockBtn.disabled = docked || returning;
+        this.#dockBtn.setAttribute("data-active", String(returning));
+      }
+
+      this.announceState(
+        `${this.def.friendly_name}, ${label}` +
+        (battery != null ? `, battery ${battery} percent` : ""),
+      );
+    }
+
+    predictState(action, _data) {
+      if (action === "start")          return { state: "cleaning",  attributes: {} };
+      if (action === "stop")           return { state: "idle",      attributes: {} };
+      if (action === "return_to_base") return { state: "returning", attributes: {} };
+      return null;
+    }
+  }
+
+  // Pack registration
+  HArvest._packs = HArvest._packs || {};
+  const _packKey = (document.currentScript &amp;&amp; document.currentScript.dataset.packId)
+    || window.__HARVEST_PACK_ID__
+    || "vacuum-pack";
+
+  HArvest._packs[_packKey] = {
+    "vacuum": VacuumCard,
+    _capabilities: {
+      vacuum: { features: ["start", "stop", "return_to_base", "fan_speed"] },
+    },
+  };
+})();</code></pre>
+
+        <h3>Setup steps</h3>
+
+        <ol>
+          <li>In the HArvest panel, go to <strong>Themes</strong>. Create or edit a theme, enable <strong>Renderer pack</strong>, and paste the code above into the pack editor.</li>
+          <li>Add <code>vacuum.roomba</code> to a HArvest token with <code>read-write</code> capability. Assign the theme you just configured.</li>
+          <li>In <strong>Settings &gt; Custom Domains</strong>, select <code>vacuum</code> and enable: <code>start</code>, <code>stop</code>, <code>pause</code>, <code>return_to_base</code>, <code>set_fan_speed</code>.</li>
+          <li>Embed the widget on a page. No extra script tags are needed - the pack loads automatically:</li>
+        </ol>
+
+<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  HArvest.config({
+    haUrl: "https://myhome.example.com",
+    token: "hwt_a3F9bC2d114eF5A6b7c8dE",
+  });
+&lt;/script&gt;
+
+&lt;hrv-card entity="vacuum.roomba"&gt;&lt;/hrv-card&gt;</code></pre>
+
+        <p>The widget fetches the pack from the server because the token's theme has a renderer pack enabled. The vacuum card renders automatically with no additional setup on the embedding page.</p>
+        </section>
+
+        <!-- ============================================================ -->
+        <section>
+        <h2 id="checklist">Checklist</h2>
+
+        <p>Before shipping your custom card:</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Check</th><th>Details</th></tr></thead>
+            <tbody>
+              <tr><td>Read-only mode</td><td>Card renders cleanly when <code>capabilities</code> is <code>"read"</code> (no buttons, sliders, or interactive controls).</td></tr>
+              <tr><td>Unavailable state</td><td><code>applyState("unavailable", {})</code> disables controls and shows a clear status.</td></tr>
+              <tr><td>Part attributes</td><td>Every meaningful element has a <code>part="..."</code> so themes can target it.</td></tr>
+              <tr><td>Shared styles</td><td><code>getSharedStyles()</code> is included in the style tag.</td></tr>
+              <tr><td>Companion zone</td><td><code>renderCompanionZoneHTML()</code> in template, <code>renderCompanions()</code> called at end of <code>render()</code>.</td></tr>
+              <tr><td>Accessibility</td><td><code>renderAriaLiveHTML()</code> in template, <code>announceState()</code> called in <code>applyState()</code>, interactive elements have <code>aria-label</code>.</td></tr>
+              <tr><td>Stale indicator</td><td><code>&lt;div part="stale-indicator"&gt;</code> included in template.</td></tr>
+              <tr><td>Reduced motion</td><td>Animations are disabled when <code>prefers-reduced-motion: reduce</code> is set.</td></tr>
+              <tr><td>HTML escaping</td><td>User-provided strings (friendly name, state text) are escaped before insertion.</td></tr>
+              <tr><td>Slider focus guard</td><td>If you have sliders, <code>isFocused()</code> is checked in <code>applyState()</code> before updating values.</td></tr>
+              <tr><td>Pack format</td><td>Renderer is wrapped in the IIFE pack format with proper <code>_packKey</code> resolution and <code>_capabilities</code> declaration.</td></tr>
+              <tr><td>Custom domain registered</td><td>Admin has registered the domain's services in Settings if the card sends commands.</td></tr>
+              <tr><td>CSS custom properties</td><td>Colours, spacing, and typography use <code>--hrv-*</code> variables, not hardcoded values.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <script src="harvest-docs.js"></script>
+</body>
+</html>

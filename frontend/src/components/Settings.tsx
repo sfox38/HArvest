@@ -6,7 +6,7 @@
  * Integration Info card at the bottom.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { IntegrationConfig, HaEventBusConfig, PanelStats } from "../types";
 import type { AppTheme } from "../App";
 import { api } from "../api";
@@ -371,6 +371,130 @@ function TrustedProxiesField({ value, onChange }: TrustedProxiesFieldProps) {
 }
 
 // ---------------------------------------------------------------------------
+// CustomDomainsField
+// ---------------------------------------------------------------------------
+
+interface CustomDomainsFieldProps {
+  value: import("../types").CustomDomainEntry[];
+  availableDomains: import("../types").AvailableDomain[];
+  onChange: (v: import("../types").CustomDomainEntry[]) => Promise<void>;
+}
+
+function CustomDomainsField({ value, availableDomains, onChange }: CustomDomainsFieldProps) {
+  const [selectedDomain, setSelectedDomain] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const addedSet = new Set(value.map(e => e.domain));
+  const eligibleDomains = availableDomains.filter(d => d.has_services && !addedSet.has(d.domain));
+
+  const currentServices = useMemo(() => {
+    if (!selectedDomain) return [];
+    const found = availableDomains.find(d => d.domain === selectedDomain);
+    return found?.services ?? [];
+  }, [selectedDomain, availableDomains]);
+
+  const onDomainSelect = useCallback((domain: string) => {
+    setSelectedDomain(domain);
+    setSelected(new Set());
+    setErr("");
+  }, []);
+
+  const addDomain = useCallback(async () => {
+    if (!selected.size || !selectedDomain) return;
+    setSaving(true);
+    try {
+      await onChange([...value, {
+        domain: selectedDomain,
+        allowed_services: Array.from(selected),
+      }]);
+      setSelectedDomain("");
+      setSelected(new Set());
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [value, onChange, selectedDomain, selected]);
+
+  const removeDomain = useCallback(async (domain: string) => {
+    setSaving(true);
+    try {
+      await onChange(value.filter(e => e.domain !== domain));
+    } finally {
+      setSaving(false);
+    }
+  }, [value, onChange]);
+
+  const toggleService = (svc: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(svc)) next.delete(svc); else next.add(svc);
+      return next;
+    });
+  };
+
+  return (
+    <div style={{ fontSize: 14 }}>
+      {value.map(entry => (
+        <div key={entry.domain} className="row" style={{ justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+            <span style={{ fontWeight: 600 }}>{entry.domain}</span>
+            <span className="muted" style={{ fontSize: 12 }}>{entry.allowed_services.join(", ")}</span>
+          </div>
+          <button
+            className="btn btn-icon"
+            style={{ flexShrink: 0 }}
+            onClick={() => removeDomain(entry.domain)}
+            aria-label={`Remove ${entry.domain}`}
+          >
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      ))}
+
+      <div style={{ marginTop: value.length ? 12 : 0 }}>
+        <select
+          className="input"
+          value={selectedDomain}
+          onChange={e => onDomainSelect(e.target.value)}
+          style={{ fontSize: 13 }}
+        >
+          <option value="">
+            {eligibleDomains.length ? "Select a domain..." : "No custom domains available"}
+          </option>
+          {eligibleDomains.map(d => (
+            <option key={d.domain} value={d.domain}>{d.domain}</option>
+          ))}
+        </select>
+        {err && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 4 }}>{err}</div>}
+
+        {currentServices.length > 0 && (
+          <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 6, background: "var(--bg-raised)", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Select allowed services:</div>
+            {currentServices.map(svc => (
+              <div key={svc} className="row" style={{ justifyContent: "space-between", padding: "4px 0" }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{svc}</span>
+                <Toggle checked={selected.has(svc)} onChange={() => toggleService(svc)} />
+              </div>
+            ))}
+            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+              <button className="btn btn-sm btn-primary" onClick={addDomain} disabled={!selected.size || saving}>
+                {saving ? <Spinner size={12} /> : "Add"}
+              </button>
+              <button className="btn btn-sm" onClick={() => { setSelectedDomain(""); setSelected(new Set()); }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ThemeToggle
 // ---------------------------------------------------------------------------
 
@@ -589,6 +713,21 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             onChange={v => patch({ widget_script_url: v })}
           />
         </dl>
+      </Card>
+
+      {/* Custom Domains */}
+      <Card
+        title={<span className="row" style={{ gap: 8 }}><Icon name="puzzle" size={14} /> Custom domains</span>}
+      >
+        <div className="settings-field-hint" style={{ marginBottom: 12 }}>
+          Allow command execution for custom entity domains with third-party card renderers.
+          Built-in and blocked domains cannot be added.
+        </div>
+        <CustomDomainsField
+          value={config.custom_domains ?? []}
+          availableDomains={config.available_domains ?? []}
+          onChange={async (v) => { await patch({ custom_domains: v }); }}
+        />
       </Card>
 
       {/* Sessions */}
