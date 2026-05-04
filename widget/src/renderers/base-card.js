@@ -284,33 +284,7 @@ const HISTORY_CSS = /* css */`
 // Gesture CSS
 // ---------------------------------------------------------------------------
 
-const GESTURE_CSS = /* css */`
-  [data-gesture-hold=pending] {
-    position: relative;
-    overflow: hidden;
-  }
-  [data-gesture-hold=pending]::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: currentColor;
-    opacity: 0;
-    animation: hrv-hold-fill ${HOLD_MS}ms linear forwards;
-    pointer-events: none;
-    z-index: 1;
-  }
-  @keyframes hrv-hold-fill {
-    0%   { opacity: 0; }
-    100% { opacity: 0.12; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    [data-gesture-hold=pending]::before {
-      animation: none;
-      opacity: 0.06;
-    }
-  }
-`;
+const GESTURE_CSS = ``;
 
 // ---------------------------------------------------------------------------
 // BaseCard

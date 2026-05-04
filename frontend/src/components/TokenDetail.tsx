@@ -1345,6 +1345,24 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             </div>
 
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Layout</label>
+              <div className="segmented-toggle" role="group" aria-label="Card layout" style={{ marginLeft: "auto" }}>
+                {(["horizontal", "vertical"] as const).map(l => (
+                  <button
+                    key={l}
+                    className={(selectedEntity.display_hints?.layout ?? "horizontal") === l ? "active" : ""}
+                    aria-pressed={(selectedEntity.display_hints?.layout ?? "horizontal") === l}
+                    onClick={() => updateDisplayHint(selectedEntity.entity_id, "layout", l === "horizontal" ? null : l)}
+                    disabled={!canEdit}
+                    type="button"
+                  >
+                    {l.charAt(0).toUpperCase() + l.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="entity-setting-group">
               <button className="entity-setting-group-title" onClick={() => setShowCompanions(!showCompanions)} type="button" aria-expanded={showCompanions}>
                 Companions ({selectedGroup?.companions.length ?? 0})

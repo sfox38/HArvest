@@ -470,10 +470,15 @@ class HarvestWsView(HomeAssistantView):
         # --- Step 4a.2: Send renderer pack URL if token has one ---
         if token.renderer_pack:
             pack_mgr = self._resolve_pack_manager()
-            if pack_mgr and pack_mgr.agreed and pack_mgr.get_pack_path(token.renderer_pack):
+            pack_path = pack_mgr.get_pack_path(token.renderer_pack) if pack_mgr and pack_mgr.agreed else None
+            if pack_path:
+                try:
+                    mtime = int(pack_path.stat().st_mtime)
+                except OSError:
+                    mtime = 0
                 await ws.send_json({
                     "type": "renderer_pack",
-                    "url": f"/api/harvest/packs/{token.renderer_pack}.js",
+                    "url": f"/api/harvest/packs/{token.renderer_pack}.js?v={mtime}",
                 })
 
         # --- Steps 4b/6/7: Initial state, message loop, and cleanup ---

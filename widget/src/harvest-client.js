@@ -749,7 +749,8 @@ export class HarvestClient {
     let resolve;
     this.#packLoadPromise = new Promise(r => { resolve = r; });
     const script = document.createElement("script");
-    script.src = this.#haUrl + msg.url + "?_=" + Date.now();
+    const sep = msg.url.includes("?") ? "&" : "?";
+    script.src = this.#haUrl + msg.url + sep + "_=" + Date.now();
     script.dataset.packId = packId;
     script.onload = () => {
       document.head.removeChild(script);
