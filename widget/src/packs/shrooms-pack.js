@@ -54,6 +54,19 @@
     if (shell) shell.setAttribute("data-collapsed", String(collapsed));
   }
 
+  function _makeAccessibleButton(el, label) {
+    if (!el) return;
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "0");
+    el.setAttribute("aria-label", label);
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        el.click();
+      }
+    });
+  }
+
   function _applyCompanionTooltips(root) {
     root.querySelectorAll("[part=companion]").forEach((el) => {
       el.title = el.getAttribute("aria-label") ?? "Companion";
@@ -145,6 +158,11 @@
     }
     .shroom-state-item[data-tappable=true] {
       cursor: pointer;
+    }
+    .shroom-state-item[role=button]:focus-visible {
+      outline: 2px solid var(--hrv-color-primary, #6366f1);
+      outline-offset: 2px;
+      border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
     }
 
     .shroom-icon-shape {
@@ -289,6 +307,17 @@
       opacity: 0;
       z-index: 1;
     }
+    .shroom-slider-input:focus-visible ~ .shroom-slider-focus-ring,
+    .shroom-slider-wrap:focus-within .shroom-slider-focus-ring {
+      box-shadow: inset 0 0 0 2px var(--hrv-color-primary, #6366f1);
+    }
+    .shroom-slider-focus-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      transition: box-shadow 150ms ease;
+    }
   `;
 
   // ---------------------------------------------------------------------------
@@ -315,6 +344,10 @@
     }
     .shroom-btn:hover {
       background: var(--hrv-ex-shroom-btn-bg-active, rgba(0,0,0,0.10));
+    }
+    .shroom-btn:focus-visible {
+      outline: 2px solid var(--hrv-color-primary, #6366f1);
+      outline-offset: 2px;
     }
     .shroom-btn:disabled {
       opacity: 0.4;
@@ -429,8 +462,9 @@
         "card-icon",
       );
 
+      const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
-        const stateItem = this.root.querySelector(".shroom-state-item");
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Toggle`);
         this._attachGestureHandlers(stateItem, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
@@ -452,6 +486,11 @@
 
       if (this.#secondaryEl) {
         this.#secondaryEl.textContent = _capitalize(state);
+      }
+
+      const stateItem = this.root.querySelector(".shroom-state-item");
+      if (stateItem?.hasAttribute("role")) {
+        stateItem.setAttribute("aria-pressed", String(this.#isOn));
       }
 
       const iconName = this.#isOn
@@ -609,7 +648,9 @@
                   <div class="shroom-slider-edge" style="left:0%;display:none"></div>
                   <input type="range" class="shroom-slider-input" min="0" max="100"
                     step="1" value="0"
-                    aria-label="${_esc(this.def.friendly_name)} level">
+                    aria-label="${_esc(this.def.friendly_name)} level"
+                    aria-valuetext="0%">
+                  <div class="shroom-slider-focus-ring"></div>
                 </div>
                 ${modeCount > 1 ? /* html */`
                   <div class="shroom-light-mode-btns">
@@ -644,8 +685,9 @@
         this.renderIcon(_LIGHT_MODE_ICONS[btn.dataset.mode] ?? "mdi:help-circle", `light-mode-${btn.dataset.mode}`);
       }
 
+      const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
-        const stateItem = this.root.querySelector(".shroom-state-item");
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Toggle`);
         this._attachGestureHandlers(stateItem, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
@@ -728,6 +770,19 @@
       }
 
       this.#updateSliderDisplay();
+
+      const stateItem = this.root.querySelector(".shroom-state-item");
+      if (stateItem?.hasAttribute("role")) {
+        stateItem.setAttribute("aria-pressed", String(this.#isOn));
+      }
+
+      if (this.#slider) {
+        const mode = LIGHT_MODES[this.#mode] ?? "brightness";
+        const val = parseInt(this.#slider.value, 10);
+        if (mode === "brightness") this.#slider.setAttribute("aria-valuetext", `${val}%`);
+        else if (mode === "temp") this.#slider.setAttribute("aria-valuetext", `${val}K`);
+        else this.#slider.setAttribute("aria-valuetext", `${val}`);
+      }
 
       const iconName = this.#isOn
         ? this.resolveIcon(this.def.icon, "mdi:lightbulb")
@@ -1112,7 +1167,9 @@
                       <div class="shroom-slider-cover" style="left:0%"></div>
                       <input type="range" class="shroom-slider-input" min="0" max="100"
                         step="1" value="0"
-                        aria-label="${_esc(this.def.friendly_name)} speed">
+                        aria-label="${_esc(this.def.friendly_name)} speed"
+                        aria-valuetext="0%">
+                      <div class="shroom-slider-focus-ring"></div>
                     </div>
                   </div>
                 ` : ""}
@@ -1162,8 +1219,9 @@
 
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:fan"), "card-icon");
 
+      const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
-        const stateItem = this.root.querySelector(".shroom-state-item");
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Toggle`);
         this._attachGestureHandlers(stateItem, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
@@ -1177,6 +1235,7 @@
         this.#slider.addEventListener("input", () => {
           const val = parseInt(this.#slider.value, 10);
           this.#percentage = val;
+          this.#slider.setAttribute("aria-valuetext", `${val}%`);
           this.#updateSliderVisuals();
           this.#sendValue();
         });
@@ -1524,6 +1583,7 @@
         }
         if (this.#hasToggle) {
           this.#toggle.setAttribute("data-on", String(this.#isOn));
+          this.#toggle.setAttribute("aria-pressed", String(this.#isOn));
           this.#toggle.textContent = this.#isOn ? "On" : "Off";
           this.#toggle.title = this.#isOn ? "On - click to turn off" : "Off - click to turn on";
         }
@@ -1581,8 +1641,9 @@
 
       _applyIconColor(this.#iconEl, "harvest_action", false);
 
+      const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
-        const stateItem = this.root.querySelector(".shroom-state-item");
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Trigger`);
         this._attachGestureHandlers(stateItem, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
@@ -1608,9 +1669,7 @@
       const iconName = this.def.icon_state_map?.[state] ?? this.resolveIcon(this.def.icon, "mdi:play");
       this.renderIcon(iconName, "card-icon");
 
-      if (isTriggered) {
-        this.announceState(`${this.def.friendly_name}, ${this.i18n.t("state.triggered")}`);
-      }
+      this.announceState(`${this.def.friendly_name}, ${_capitalize(state)}`);
     }
 
     predictState(action, _data) {
@@ -1675,7 +1734,9 @@
                 <div class="shroom-slider-cover" style="left:0%"></div>
                 <input type="range" class="shroom-slider-input"
                   min="${this.#min}" max="${this.#max}" step="${this.#step}" value="${this.#min}"
-                  aria-label="${_esc(this.def.friendly_name)} value">
+                  aria-label="${_esc(this.def.friendly_name)} value"
+                  aria-valuetext="${this.#min}${this.def.unit_of_measurement ? ` ${_esc(this.def.unit_of_measurement)}` : ""}">
+                <div class="shroom-slider-focus-ring"></div>
               </div>
             </div>
           ` : ""}
@@ -1695,8 +1756,10 @@
       _applyIconColor(this.#iconEl, "input_number", true);
 
       if (this.#slider) {
+        const unit = this.def.unit_of_measurement ?? "";
         this.#slider.addEventListener("input", () => {
           this.#value = parseFloat(this.#slider.value);
+          this.#slider.setAttribute("aria-valuetext", `${this.#value}${unit ? ` ${unit}` : ""}`);
           this.#syncVisuals();
           this.#sendDebounce();
         });
@@ -1848,11 +1911,12 @@
           ${isWritable ? /* html */`
             <div class="shroom-select-shell">
               <button class="shroom-select-current" type="button"
-                aria-label="${_esc(this.def.friendly_name)}">
+                aria-label="${_esc(this.def.friendly_name)}"
+                aria-haspopup="listbox" aria-expanded="false">
                 <span class="shroom-select-label">-</span>
                 <span class="shroom-select-arrow" aria-hidden="true">&#9660;</span>
               </button>
-              <div class="shroom-select-dropdown" hidden></div>
+              <div class="shroom-select-dropdown" role="listbox" hidden></div>
             </div>
           ` : ""}
           ${this.renderAriaLiveHTML()}
@@ -1874,6 +1938,29 @@
           if (this.#isOpen) this.#closeDropdown();
           else this.#openDropdown();
         });
+        this.#selectedBtn.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && this.#isOpen) {
+            this.#closeDropdown();
+            this.#selectedBtn.focus();
+          }
+        });
+        this.root.addEventListener("keydown", (e) => {
+          if (!this.#isOpen) return;
+          if (e.key === "Escape") {
+            this.#closeDropdown();
+            this.#selectedBtn.focus();
+          } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            const opts = [...this.#dropdown.querySelectorAll("[role=option]")];
+            const focused = this.root.activeElement;
+            let idx = opts.indexOf(focused);
+            idx = e.key === "ArrowDown" ? Math.min(idx + 1, opts.length - 1) : Math.max(idx - 1, 0);
+            opts[idx]?.focus();
+          }
+        });
+        document.addEventListener("click", (e) => {
+          if (this.#isOpen && !this.root.host.contains(e.target)) this.#closeDropdown();
+        });
       }
 
       this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -1885,7 +1972,8 @@
       if (!this.#dropdown || !this.#options.length) return;
 
       this.#dropdown.innerHTML = this.#options.map(opt => /* html */`
-        <button class="shroom-select-option" type="button"
+        <button class="shroom-select-option" type="button" role="option"
+          aria-selected="${opt === this.#current}"
           data-active="${opt === this.#current}">
           ${_esc(opt)}
         </button>
@@ -1903,6 +1991,7 @@
       const card = this.root.querySelector("[part=card]");
       if (card) card.style.overflow = "visible";
       this.#dropdown.removeAttribute("hidden");
+      if (this.#selectedBtn) this.#selectedBtn.setAttribute("aria-expanded", "true");
 
       const btnRect = this.#selectedBtn.getBoundingClientRect();
       const spaceBelow = window.innerHeight - btnRect.bottom;
@@ -1920,6 +2009,7 @@
 
     #closeDropdown() {
       this.#dropdown?.setAttribute("hidden", "");
+      if (this.#selectedBtn) this.#selectedBtn.setAttribute("aria-expanded", "false");
       const shell = this.root.querySelector(".shroom-select-shell");
       if (shell) shell.style.overflow = "";
       const card = this.root.querySelector("[part=card]");
@@ -1938,7 +2028,9 @@
 
       if (this.#isOpen) {
         this.#dropdown?.querySelectorAll(".shroom-select-option").forEach((btn, i) => {
-          btn.setAttribute("data-active", String(this.#options[i] === state));
+          const isActive = String(this.#options[i] === state);
+          btn.setAttribute("data-active", isActive);
+          btn.setAttribute("aria-selected", isActive);
         });
       }
 
@@ -2088,7 +2180,9 @@
                     <div class="shroom-slider-edge" style="left:0%"></div>
                     <input type="range" class="shroom-slider-input" min="0" max="100"
                       step="1" value="0"
-                      aria-label="${_esc(this.def.friendly_name)} position">
+                      aria-label="${_esc(this.def.friendly_name)} position"
+                      aria-valuetext="0%">
+                    <div class="shroom-slider-focus-ring"></div>
                   </div>
                 </div>
               ` : ""}
@@ -2109,7 +2203,7 @@
                 </div>
               ` : ""}
               ${hasPosition && hasButtons ? /* html */`
-                <button class="shroom-cover-toggle-btn" type="button" title="Controls" aria-label="Toggle cover controls">
+                <button class="shroom-cover-toggle-btn" type="button" title="Controls" aria-label="Toggle cover controls" aria-expanded="false">
                   <svg viewBox="0 0 24 24"><path d="M12,18.17L8.83,15L7.42,16.41L12,21L16.59,16.41L15.17,15M12,5.83L15.17,9L16.58,7.59L12,3L7.41,7.59L8.83,9L12,5.83Z"/></svg>
                 </button>
               ` : ""}
@@ -2151,6 +2245,8 @@
       const toggleBtn = this.root.querySelector(".shroom-cover-toggle-btn");
       toggleBtn?.addEventListener("click", () => {
         this.#showingButtons = !this.#showingButtons;
+        toggleBtn.setAttribute("aria-expanded", String(this.#showingButtons));
+        toggleBtn.setAttribute("aria-label", this.#showingButtons ? "Show position slider" : "Show cover buttons");
         this.#syncViews();
       });
 
@@ -2270,8 +2366,9 @@
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:remote"), "card-icon");
       _applyIconColor(this.#iconEl, "remote", false);
 
+      const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
-        const stateItem = this.root.querySelector(".shroom-state-item");
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Send command`);
         this._attachGestureHandlers(stateItem, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
@@ -2812,36 +2909,36 @@
               ${hasFeats ? /* html */`
                 <div class="shroom-climate-feat-view" hidden>
                   ${hints.show_hvac_modes !== false && this.#hvacModes.length ? /* html */`
-                    <button class="shroom-climate-feat-btn" data-feat="mode" type="button" title="Change HVAC mode">
+                    <button class="shroom-climate-feat-btn" data-feat="mode" type="button" title="Change HVAC mode" aria-label="Change HVAC mode" aria-haspopup="listbox" aria-expanded="false">
                       <span class="shroom-climate-feat-label">Mode</span>
                       <span class="shroom-climate-feat-value">-</span>
                     </button>
                   ` : ""}
                   ${hasPreset && this.#presetModes.length ? /* html */`
-                    <button class="shroom-climate-feat-btn" data-feat="preset" type="button" title="Change preset">
+                    <button class="shroom-climate-feat-btn" data-feat="preset" type="button" title="Change preset" aria-label="Change preset" aria-haspopup="listbox" aria-expanded="false">
                       <span class="shroom-climate-feat-label">Preset</span>
                       <span class="shroom-climate-feat-value">-</span>
                     </button>
                   ` : ""}
                   ${hasFan && this.#fanModes.length ? /* html */`
-                    <button class="shroom-climate-feat-btn" data-feat="fan" type="button" title="Change fan mode">
+                    <button class="shroom-climate-feat-btn" data-feat="fan" type="button" title="Change fan mode" aria-label="Change fan mode" aria-haspopup="listbox" aria-expanded="false">
                       <span class="shroom-climate-feat-label">Fan</span>
                       <span class="shroom-climate-feat-value">-</span>
                     </button>
                   ` : ""}
                   ${hasSwing && this.#swingModes.length ? /* html */`
-                    <button class="shroom-climate-feat-btn" data-feat="swing" type="button" title="Change swing mode">
+                    <button class="shroom-climate-feat-btn" data-feat="swing" type="button" title="Change swing mode" aria-label="Change swing mode" aria-haspopup="listbox" aria-expanded="false">
                       <span class="shroom-climate-feat-label">Swing</span>
                       <span class="shroom-climate-feat-value">-</span>
                     </button>
                   ` : ""}
                 </div>
-                <button class="shroom-climate-toggle-btn" type="button" title="Settings" aria-label="Toggle climate settings">
+                <button class="shroom-climate-toggle-btn" type="button" title="Settings" aria-label="Toggle climate settings" aria-expanded="false">
                   <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.04 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
                 </button>
               ` : ""}
             </div>
-            <div class="shroom-climate-dropdown" hidden></div>
+            <div class="shroom-climate-dropdown" role="listbox" hidden></div>
           ` : ""}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
@@ -2867,8 +2964,9 @@
 
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:thermostat"), "card-icon");
 
+      const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
-        const stateItem = this.root.querySelector(".shroom-state-item");
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Toggle`);
         this._attachGestureHandlers(stateItem, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
@@ -2890,6 +2988,7 @@
         this.#toggleBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           this.#showingFeats = !this.#showingFeats;
+          this.#toggleBtn.setAttribute("aria-expanded", String(this.#showingFeats));
           this.#syncViews();
         });
       }
@@ -2948,7 +3047,8 @@
       if (!options.length || !this.#dropdown) return;
 
       this.#dropdown.innerHTML = options.map(opt => /* html */`
-        <button class="shroom-climate-dd-option" data-active="${opt === current}" type="button">
+        <button class="shroom-climate-dd-option" data-active="${opt === current}" role="option"
+          aria-selected="${opt === current}" type="button">
           ${_esc(_capitalize(opt))}
         </button>
       `).join("");
@@ -2961,6 +3061,8 @@
         });
       });
 
+      const featBtn = this.root.querySelector(`[data-feat="${feat}"]`);
+      if (featBtn) featBtn.setAttribute("aria-expanded", "true");
       this.#dropdown.removeAttribute("hidden");
 
       const onOutside = (e) => {
@@ -2976,6 +3078,9 @@
     #closeDropdown() {
       this.#activeFeat = null;
       this.#dropdown?.setAttribute("hidden", "");
+      this.root.querySelectorAll(".shroom-climate-feat-btn").forEach(btn => {
+        btn.setAttribute("aria-expanded", "false");
+      });
       if (this.#outsideListener) {
         document.removeEventListener("pointerdown", this.#outsideListener, true);
         this.#outsideListener = null;
@@ -3178,23 +3283,23 @@
           ${isWritable ? /* html */`
             <div class="shroom-mp-bar" hidden>
               <div class="shroom-mp-transport-view">
-                <button class="shroom-mp-btn" data-role="power" type="button" title="Power">
+                <button class="shroom-mp-btn" data-role="power" type="button" title="Power" aria-label="Power">
                   <span part="power-icon" aria-hidden="true"></span>
                 </button>
                 ${hasPrevNext ? /* html */`
-                  <button class="shroom-mp-btn" data-role="prev" type="button" title="Previous">
+                  <button class="shroom-mp-btn" data-role="prev" type="button" title="Previous" aria-label="Previous track">
                     <span part="prev-icon" aria-hidden="true"></span>
                   </button>
                 ` : ""}
-                <button class="shroom-mp-btn" data-role="play" type="button" title="Play">
+                <button class="shroom-mp-btn" data-role="play" type="button" title="Play" aria-label="Play">
                   <span part="play-icon" aria-hidden="true"></span>
                 </button>
                 ${hasPrevNext ? /* html */`
-                  <button class="shroom-mp-btn" data-role="next" type="button" title="Next">
+                  <button class="shroom-mp-btn" data-role="next" type="button" title="Next" aria-label="Next track">
                     <span part="next-icon" aria-hidden="true"></span>
                   </button>
                 ` : ""}
-                <button class="shroom-mp-btn" data-role="volume" type="button" title="Volume">
+                <button class="shroom-mp-btn" data-role="volume" type="button" title="Volume" aria-label="Volume controls">
                   <span part="vol-icon" aria-hidden="true"></span>
                 </button>
               </div>
@@ -3207,7 +3312,9 @@
                     <div class="shroom-slider-cover" style="left:0%"></div>
                     <input type="range" class="shroom-slider-input" min="0" max="100"
                       step="1" value="0"
-                      aria-label="${_esc(this.def.friendly_name)} volume">
+                      aria-label="${_esc(this.def.friendly_name)} volume"
+                      aria-valuetext="0%">
+                    <div class="shroom-slider-focus-ring"></div>
                   </div>
                   <button class="shroom-mp-btn" data-role="vol-up" type="button" title="Volume up" aria-label="Volume up">
                     <svg viewBox="0 0 24 24"><path d="M3,9H7L12,4V20L7,15H3V9M14,11H17V8H19V11H22V13H19V16H17V13H14V11Z"/></svg>
@@ -3330,7 +3437,9 @@
       if (this.#playBtn) {
         const iconName = isPlaying ? "mdi:pause" : "mdi:play";
         this.renderIcon(iconName, "play-icon");
-        this.#playBtn.title = isPlaying ? "Pause" : "Play";
+        const playLabel = isPlaying ? "Pause" : "Play";
+        this.#playBtn.title = playLabel;
+        this.#playBtn.setAttribute("aria-label", playLabel);
       }
 
       if (attributes.volume_level !== undefined) {
@@ -3565,20 +3674,20 @@
               <span class="shroom-weather-temp">--<span class="shroom-weather-unit"></span></span>
             </div>
             <div class="shroom-weather-stats">
-              <span class="shroom-weather-stat" data-stat="humidity">
+              <span class="shroom-weather-stat" data-stat="humidity" aria-label="Humidity">
                 ${_statSvg(_HUMIDITY_PATH)}
                 <span data-value>--</span>
               </span>
-              <span class="shroom-weather-stat" data-stat="wind">
+              <span class="shroom-weather-stat" data-stat="wind" aria-label="Wind speed">
                 ${_statSvg(_WIND_PATH)}
                 <span data-value>--</span>
               </span>
-              <span class="shroom-weather-stat" data-stat="pressure">
+              <span class="shroom-weather-stat" data-stat="pressure" aria-label="Pressure">
                 ${_statSvg(_PRESSURE_PATH)}
                 <span data-value>--</span>
               </span>
             </div>
-            <button class="shroom-forecast-toggle" type="button"></button>
+            <button class="shroom-forecast-toggle" type="button" aria-label="Toggle forecast view"></button>
             <div class="shroom-forecast-strip" data-mode="daily" role="list"></div>
           </div>
           ${this.renderHistoryZoneHTML()}
