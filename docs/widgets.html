@@ -410,6 +410,9 @@ document.querySelector("hrv-card[entity='light.bedroom']")
         </div>
 
         <p>The <code>on-error</code> setting (for WebSocket or auth errors, not entity-unavailable) follows the same options but without <code>last-state</code>.</p>
+
+        <h3>Mobile and background tabs</h3>
+        <p>Mobile browsers suspend background tabs and close WebSocket connections after a few seconds. When you switch back to the page, HArvest detects the tab is visible again and reconnects immediately, bypassing the normal backoff delay. During brief disconnects (under 30 seconds), cards continue showing their cached state without any stale indicator. If the disconnect lasts longer than 30 seconds, the "Last known state" banner appears until the connection is restored.</p>
         </section>
 
       </div>

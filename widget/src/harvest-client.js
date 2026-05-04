@@ -23,6 +23,10 @@ const AUTH_DEBOUNCE_MS = 50;
 // Maximum consecutive re-auth failures before entering permanent HRV_AUTH_FAILED.
 const MAX_REAUTH_ATTEMPTS = 3;
 
+// Grace period before showing "Last known state" after disconnect.
+// During this window the cached state is displayed normally.
+const STALE_GRACE_MS = 30_000;
+
 // Set by beforeunload so WS close during page teardown skips stale UI flash.
 // Reset by pageshow in case the user cancels navigation (e.g. "Leave site?" dialog).
 let _pageUnloading = false;
@@ -100,6 +104,7 @@ export class HarvestClient {
   /** @type {ReturnType<typeof setTimeout>|null} */ #authDebounceTimer = null;
   /** @type {ReturnType<typeof setTimeout>|null} */ #reconnectTimer = null;
   /** @type {ReturnType<typeof setTimeout>|null} */ #heartbeatTimer = null;
+  /** @type {ReturnType<typeof setTimeout>|null} */ #staleGraceTimer = null;
 
   /** @type {number} */ #reconnectAttempt = 0;
   /** @type {number} */ #reauthAttempts = 0;
@@ -140,7 +145,11 @@ export class HarvestClient {
     this.#haUrl = haUrl.replace(/\/$/, ""); // strip trailing slash
     this.#tokenId = tokenId;
     this.#tokenSecret = tokenSecret ?? null;
+    this.#visibilityHandler = () => this.#onVisibilityChange();
+    document.addEventListener("visibilitychange", this.#visibilityHandler);
   }
+
+  /** @type {() => void} */ #visibilityHandler;
 
   // -------------------------------------------------------------------------
   // Public API
@@ -315,9 +324,12 @@ export class HarvestClient {
     clearTimeout(this.#authDebounceTimer);
     clearTimeout(this.#reconnectTimer);
     clearTimeout(this.#heartbeatTimer);
+    clearTimeout(this.#staleGraceTimer);
     this.#authDebounceTimer = null;
     this.#reconnectTimer = null;
     this.#heartbeatTimer = null;
+    this.#staleGraceTimer = null;
+    document.removeEventListener("visibilitychange", this.#visibilityHandler);
     if (this.#ws) {
       this.#ws.onclose = null; // suppress reconnect on deliberate destroy
       this.#ws.close();
@@ -460,7 +472,9 @@ export class HarvestClient {
 
   /**
    * Schedule a reconnect attempt with exponential backoff and 20% jitter.
-   * All cards are set to HRV_STALE while disconnected.
+   * Cards keep showing cached state during a grace period. After
+   * STALE_GRACE_MS without a successful reconnect, cards are set to
+   * HRV_STALE to show the "Last known state" indicator.
    */
   #scheduleReconnect() {
     const baseDelay = RECONNECT_DELAYS[Math.min(this.#reconnectAttempt, RECONNECT_DELAYS.length - 1)];
@@ -469,8 +483,15 @@ export class HarvestClient {
 
     this.#reconnectAttempt++;
 
-    for (const card of this.#cards.values()) {
-      card.setErrorState?.("HRV_STALE");
+    if (!this.#staleGraceTimer) {
+      this.#staleGraceTimer = setTimeout(() => {
+        this.#staleGraceTimer = null;
+        if (!this.#ws || this.#ws.readyState !== WebSocket.OPEN) {
+          for (const card of this.#cards.values()) {
+            card.setErrorState?.("HRV_STALE");
+          }
+        }
+      }, STALE_GRACE_MS);
     }
 
     this.#reconnectTimer = setTimeout(() => {
@@ -490,6 +511,26 @@ export class HarvestClient {
       console.warn("[HArvest] Heartbeat timeout - reconnecting");
       this.#ws?.close();
     }, HEARTBEAT_TIMEOUT_MS);
+  }
+
+  /**
+   * Page visibility change handler. When the page becomes visible and the
+   * WebSocket is dead, cancel any pending backoff timer and reconnect
+   * immediately. Mobile browsers suspend tabs when backgrounded; this
+   * ensures the connection is restored as soon as the user returns.
+   */
+  #onVisibilityChange() {
+    if (document.visibilityState !== "visible") return;
+    if (this.#permanentFailure) return;
+    if (this.#ws && this.#ws.readyState === WebSocket.OPEN) return;
+
+    // Cancel pending backoff reconnect and connect now.
+    if (this.#reconnectTimer) {
+      clearTimeout(this.#reconnectTimer);
+      this.#reconnectTimer = null;
+    }
+    this.#reconnectAttempt = 0;
+    this.#openConnection();
   }
 
   /**
@@ -529,6 +570,10 @@ export class HarvestClient {
     this.#absoluteExpiresAt = msg.absolute_expires_at ? new Date(msg.absolute_expires_at) : null;
     this.#renewalCount = 0;
     this.#maxRenewals = msg.max_renewals ?? null;
+
+    clearTimeout(this.#staleGraceTimer);
+    this.#staleGraceTimer = null;
+
     console.debug("[HArvest] auth_ok: session=" + msg.session_id);
   }
 
