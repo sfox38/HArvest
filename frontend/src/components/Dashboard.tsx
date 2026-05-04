@@ -55,7 +55,7 @@ function Stat({ label, value, spark, sparkColor, icon }: StatProps) {
 // Dashboard
 // ---------------------------------------------------------------------------
 
-export function Dashboard({ onOpenWizard, onNavigate, onNavigateActivity, onSelectToken }: DashboardProps) {
+export function Dashboard({ onOpenWizard: _onOpenWizard, onNavigate, onNavigateActivity, onSelectToken }: DashboardProps) {
   const [stats,   setStats]   = useState<PanelStats | null>(null);
   const [buckets, setBuckets] = useState<HourlyBucket[]>([]);
   const [events,  setEvents]  = useState<ActivityEvent[]>([]);

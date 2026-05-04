@@ -50,6 +50,7 @@
     }
   },
   "variables": {
+    "--hrv-card-min-width": "260px",
     "--hrv-color-primary": "#ff9800",
     "--hrv-color-primary-dim": "rgba(255,152,0,0.12)",
     "--hrv-color-on-primary": "#ffffff",

@@ -213,10 +213,11 @@ export class FanCard extends BaseCard {
 
   render() {
     const isWritable   = this.def.capabilities === "read-write";
-    const hasOscillate = this.def.supported_features?.includes("oscillate");
-    const hasDirection = this.def.supported_features?.includes("direction");
-    const hasPreset    = this.def.supported_features?.includes("preset_mode")
-                      || (this.def.feature_config?.preset_modes?.length > 0);
+    const hints = this.config.displayHints ?? this.def.display_hints ?? {};
+    const hasOscillate = hints.show_oscillate !== false && this.def.supported_features?.includes("oscillate");
+    const hasDirection = hints.show_direction !== false && this.def.supported_features?.includes("direction");
+    const hasPreset    = hints.show_presets !== false && (this.def.supported_features?.includes("preset_mode")
+                      || (this.def.feature_config?.preset_modes?.length > 0));
     const presetModes  = this.def.feature_config?.preset_modes ?? [];
     const step         = this.#percentageStep;
 
@@ -392,7 +393,7 @@ export class FanCard extends BaseCard {
     this.#lastAttrs  = { ...attributes };
     this.#isOn       = state === "on";
     this.#presetMode = attributes.preset_mode ?? null;
-    if (attributes.percentage !== undefined) this.#percentage = attributes.percentage;
+    this.#percentage = attributes.percentage ?? (this.#isOn ? 100 : 0);
 
     const isUnavailable = state === "unavailable" || state === "unknown";
     const label = this.i18n.t(`state.${state}`) !== `state.${state}`
@@ -412,9 +413,9 @@ export class FanCard extends BaseCard {
       this.#toggleBtn.disabled = isUnavailable;
     }
 
-    if (this.#speedSlider && !this.isFocused(this.#speedSlider) && attributes.percentage !== undefined) {
-      this.#speedSlider.value = String(attributes.percentage);
-      if (this.#speedValue) this.#speedValue.textContent = `${attributes.percentage}%`;
+    if (this.#speedSlider && !this.isFocused(this.#speedSlider)) {
+      this.#speedSlider.value = String(this.#percentage);
+      if (this.#speedValue) this.#speedValue.textContent = `${this.#percentage}%`;
     }
 
     if (this.#cycleBtn) {

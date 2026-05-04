@@ -162,6 +162,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     if (selectedTheme.capabilities) {
       obj.capabilities = selectedTheme.capabilities;
     }
+    if (selectedTheme.pack_settings?.length) {
+      obj.pack_settings = selectedTheme.pack_settings;
+    }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
       obj.dark_variables = selectedTheme.dark_variables;
@@ -242,7 +245,15 @@ export function Themes({ onSelectToken }: ThemesProps) {
           author: "",
           version: "1.0",
           renderer_pack: selectedTheme.renderer_pack,
+          capabilities: selectedTheme.capabilities ?? undefined,
+          pack_settings: selectedTheme.pack_settings?.length ? selectedTheme.pack_settings : undefined,
         });
+        if (selectedTheme.renderer_pack && selectedTheme.has_pack) {
+          try {
+            const src = await api.packs.getCode(selectedTheme.theme_id);
+            if (src?.code) await api.packs.updateCode(theme.theme_id, src.code);
+          } catch (_e) { /* pack copy is best-effort */ }
+        }
         const updated = await reload();
         if (updated) {
           setSelected(theme.theme_id);
@@ -254,6 +265,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
           };
           if (theme.renderer_pack) obj.renderer_pack = true;
           if (theme.capabilities) obj.capabilities = theme.capabilities;
+          if (theme.pack_settings?.length) obj.pack_settings = theme.pack_settings;
           obj.variables = theme.variables;
           if (Object.keys(theme.dark_variables ?? {}).length > 0) obj.dark_variables = theme.dark_variables;
           setEditedJson(JSON.stringify(obj, null, 2));
@@ -291,6 +303,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     }
     if (selectedTheme.capabilities) {
       obj.capabilities = selectedTheme.capabilities;
+    }
+    if (selectedTheme.pack_settings?.length) {
+      obj.pack_settings = selectedTheme.pack_settings;
     }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
@@ -396,6 +411,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
           dark_variables: parsed.dark_variables ?? {},
           renderer_pack: !!parsed.renderer_pack,
           capabilities: parsed.capabilities ?? null,
+          pack_settings: parsed.pack_settings ?? [],
         });
         setDirty(false);
         setParsedVars(null);
@@ -427,6 +443,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     }
     if (selectedTheme.capabilities) {
       obj.capabilities = selectedTheme.capabilities;
+    }
+    if (selectedTheme.pack_settings?.length) {
+      obj.pack_settings = selectedTheme.pack_settings;
     }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {

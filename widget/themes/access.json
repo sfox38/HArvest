@@ -4,6 +4,7 @@
   "version": "1.0",
   "harvest_version": 1,
   "variables": {
+    "--hrv-card-min-width":        "260px",
     "--hrv-color-primary":         "#0047ab",
     "--hrv-color-primary-dim":     "#d6e4f0",
     "--hrv-color-on-primary":      "#ffffff",

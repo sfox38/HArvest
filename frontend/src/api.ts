@@ -22,7 +22,6 @@ import type {
   HAEntity,
   HAEntityDetail,
   ThemeDefinition,
-  RendererPack,
   PacksResponse,
 } from "./types";
 
@@ -244,10 +243,10 @@ export const api = {
     get: (themeId: string): Promise<ThemeDefinition> =>
       _get<ThemeDefinition>(`/themes/${themeId}`),
 
-    create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; renderer_pack?: boolean; capabilities?: unknown }): Promise<ThemeDefinition> =>
+    create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; renderer_pack?: boolean; capabilities?: unknown; pack_settings?: string[] }): Promise<ThemeDefinition> =>
       _post<ThemeDefinition>("/themes", data),
 
-    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; variables: Record<string, string>; dark_variables: Record<string, string>; renderer_pack: boolean; capabilities: unknown }>): Promise<ThemeDefinition> =>
+    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; variables: Record<string, string>; dark_variables: Record<string, string>; renderer_pack: boolean; capabilities: unknown; pack_settings: string[] }>): Promise<ThemeDefinition> =>
       _patch<ThemeDefinition>(`/themes/${themeId}`, data),
 
     delete: (themeId: string): Promise<void> =>

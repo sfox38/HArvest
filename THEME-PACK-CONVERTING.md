@@ -120,10 +120,12 @@ Every pack follows this structure:
 The pack ID can come from `window.__HARVEST_PACK_ID__` (set by the panel preview) or from `document.currentScript.dataset.packId` (set via a `data-pack-id` attribute on the `<script>` tag). Always fall back to a hardcoded default.
 
 ```javascript
-const _packKey = (document.currentScript && document.currentScript.dataset.packId)
-  || window.__HARVEST_PACK_ID__
+const _packKey = window.__HARVEST_PACK_ID__
+  || (document.currentScript && document.currentScript.dataset.packId)
   || "pack-name";
 ```
+
+`window.__HARVEST_PACK_ID__` must be checked first. The panel preview sets this global before injecting the script, and it is the only mechanism that works for duplicated packs. `document.currentScript.dataset.packId` is a fallback for direct `<script>` tag loading.
 
 ---
 
@@ -201,6 +203,9 @@ Common display hint keys used across domains:
 | `show_rgb` | `boolean` | Light: show RGB color slider (default: true) |
 | `show_forecast` | `boolean` | Weather: show forecast section |
 | `animate` | `boolean` | Fan: animate icon spin |
+| `show_oscillate` | `boolean` | Fan: show oscillate button (default: true) |
+| `show_direction` | `boolean` | Fan: show direction button (default: true) |
+| `show_presets` | `boolean` | Fan: show preset mode pills (default: true) |
 | `show_hvac_modes` | `boolean` | Climate: show HVAC mode controls (default: true) |
 | `show_presets` | `boolean` | Climate: show preset controls (default: true) |
 | `show_fan_mode` | `boolean` | Climate: show fan mode controls (default: true) |
@@ -1267,3 +1272,5 @@ Practical lessons learned from converting HA custom cards into HArvest renderer 
 33. **Hide slider shading overlays for non-brightness modes.** Light cards often use a semi-transparent cover overlay to shade the unfilled portion of the brightness slider. When the same slider element is reused for color temperature or hue modes (which have their own gradient backgrounds), the shading overlay must be hidden. Set `cover.style.display = "none"` for color/temp modes and restore it for brightness mode. Otherwise the overlay clashes with the gradient and produces muddy colors.
 
 34. **Drop-down menus need drop-up detection.** For cards that render dropdown menus (input_select, climate mode pickers), check available space below the trigger button using `getBoundingClientRect()` and `window.innerHeight`. If the dropdown would overflow the viewport, position it above the button instead. Set `bottom: calc(100% + 4px)` and `top: auto` for drop-up, or `top: calc(100% + 4px)` and `bottom: auto` for drop-down.
+
+35. **Some fans are stateless - ask the user before assuming.** Not all fans report accurate state. Many RF-controlled devices (ceiling fans with RF remotes, Bond Bridge fans, etc.) provide no real feedback - HA reports default or assumed values for power, speed, oscillation, direction, and preset mode regardless of the actual state. Other fans (smart fans with Wi-Fi, Zigbee, or Z-Wave) report accurate state for everything. When building a fan renderer, do not assume one way or the other. Ask the user whether their target fans provide state feedback. For stateless fans, all commands are fire-and-forget: power on/off, speed changes, oscillate, direction, and preset mode. Buttons should never visually reflect attribute values (no `data-active` from attributes, no color or text changes based on state). Each click sends the command; the button always looks neutral. This applies to `applyState()` only - click handlers still send the correct command payloads. For fans with real state feedback, it is safe to reflect attributes visually.

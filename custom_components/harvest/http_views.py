@@ -1382,6 +1382,8 @@ class HarvestThemesView(HomeAssistantView):
 
         raw_cap = body.get("capabilities")
         capabilities = raw_cap if isinstance(raw_cap, dict) else None
+        raw_ps = body.get("pack_settings")
+        pack_settings = list(raw_ps) if isinstance(raw_ps, list) else None
         theme = await self._theme_manager.create(
             name=name,
             variables=variables,
@@ -1391,6 +1393,7 @@ class HarvestThemesView(HomeAssistantView):
             version=str(body.get("version", "1.0")),
             has_renderer_pack=bool(body.get("renderer_pack", False)),
             capabilities=capabilities,
+            pack_settings=pack_settings,
         )
         d = theme_to_api_dict(theme)
         d["has_pack"] = False
@@ -1542,6 +1545,9 @@ class HarvestThemeDetailView(HomeAssistantView):
         if "capabilities" in body:
             raw_cap = body["capabilities"]
             updates["capabilities"] = raw_cap if isinstance(raw_cap, dict) else None
+        if "pack_settings" in body:
+            raw_ps = body["pack_settings"]
+            updates["pack_settings"] = list(raw_ps) if isinstance(raw_ps, list) else []
 
         try:
             theme = await self._theme_manager.update(theme_id, updates)

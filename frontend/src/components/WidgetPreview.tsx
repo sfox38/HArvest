@@ -5,7 +5,7 @@
  * Used by the Themes tab, Wizard Step 5, and TokenDetail ThemeEditor.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { ThemeDefinition, HAEntityDetail } from "../types";
 import { api, getHaDarkMode } from "../api";
 import { Toggle } from "./Toggle";
@@ -97,9 +97,11 @@ export function detectFeatures(domain: string, attrs: Record<string, unknown>): 
   }
 
   if (domain === "fan") {
-    if ("oscillating" in attrs) out.oscillating = true;
-    if ("direction" in attrs) out.direction = true;
-    if (Array.isArray(attrs.preset_modes) && attrs.preset_modes.length > 0) out.preset_mode = true;
+    const fanBits = Number(attrs.supported_features ?? 0);
+    if (fanBits & 1) out.percentage = true;
+    if (fanBits & 2) out.oscillating = true;
+    if (fanBits & 4) out.direction = true;
+    if (fanBits & 8) out.preset_mode = true;
   }
 
   if (domain === "cover") {
@@ -603,7 +605,7 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
             max={100}
             value={bgTone}
             onChange={ev => setBgTone(Number(ev.target.value))}
-            orient="vertical"
+            {...{ orient: "vertical" } as React.InputHTMLAttributes<HTMLInputElement>}
             aria-label="Preview background tone"
             title="Adjust preview background tone"
             className="preview-bg-slider"

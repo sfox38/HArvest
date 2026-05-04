@@ -585,6 +585,7 @@ const HOURS_OPTIONS = [1, 6, 12, 24, 48, 72, 168];
 
 const ATTR_HINT_MAP: Record<string, Record<string, string>> = {
   light: { show_brightness: "brightness", show_color_temp: "color_temp", show_rgb: "rgb_color" },
+  fan: { show_oscillate: "oscillating", show_direction: "direction", show_presets: "preset_mode" },
   climate: { show_hvac_modes: "hvac_modes", show_presets: "preset_modes", show_fan_mode: "fan_modes", show_swing_mode: "swing_modes" },
   cover: { show_position: "current_position", show_tilt: "current_tilt_position" },
   media_player: { show_volume: "volume_level", show_source: "source_list" },
@@ -653,7 +654,7 @@ function EntityPreview({
       color_scheme: entityAccess.color_scheme ?? undefined,
       exclude_attributes: entityAccess.exclude_attributes ?? undefined,
       display_hints: entityAccess.display_hints ?? undefined,
-      gesture_config: entityAccess.gesture_config ?? undefined,
+      gesture_config: (entityAccess.gesture_config ?? undefined) as Record<string, unknown> | undefined,
       companion_ids: companions.map(c => c.entity_id),
     }).then(result => {
       if (!cancelled) setServerDef(result);
@@ -1221,7 +1222,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                       max={100}
                       value={previewBgTone}
                       onChange={ev => setPreviewBgTone(Number(ev.target.value))}
-                      orient="vertical"
+                      {...{ orient: "vertical" } as React.InputHTMLAttributes<HTMLInputElement>}
                       aria-label="Preview background tone"
                       title="Adjust preview background tone"
                       className="preview-bg-slider"
@@ -1441,7 +1442,13 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            {selectedDomain === "fan" && (
+            {selectedDomain === "fan" && (() => {
+              const fanDetail = entityDetail[selectedEntity.entity_id];
+              const fanBits = Number(fanDetail?.attributes?.supported_features ?? 0);
+              const fanHasOscillate = !!(fanBits & 2);
+              const fanHasDirection = !!(fanBits & 4);
+              const fanHasPresets = !!(fanBits & 8);
+              return (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Fan settings</div>
                 <div className="settings-toggle-grid">
@@ -1453,6 +1460,36 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                     />
                     <span>Animated</span>
                   </label>
+                  {fanHasOscillate && (
+                    <label className="settings-toggle-item">
+                      <Toggle
+                        checked={selectedEntity.display_hints?.show_oscillate !== false}
+                        onChange={v => updateDisplayHint(selectedEntity.entity_id, "show_oscillate", v ? null : false)}
+                        disabled={!canEdit}
+                      />
+                      <span>Oscillate</span>
+                    </label>
+                  )}
+                  {fanHasDirection && (
+                    <label className="settings-toggle-item">
+                      <Toggle
+                        checked={selectedEntity.display_hints?.show_direction !== false}
+                        onChange={v => updateDisplayHint(selectedEntity.entity_id, "show_direction", v ? null : false)}
+                        disabled={!canEdit}
+                      />
+                      <span>Direction</span>
+                    </label>
+                  )}
+                  {fanHasPresets && (
+                    <label className="settings-toggle-item">
+                      <Toggle
+                        checked={selectedEntity.display_hints?.show_presets !== false}
+                        onChange={v => updateDisplayHint(selectedEntity.entity_id, "show_presets", v ? null : false)}
+                        disabled={!canEdit}
+                      />
+                      <span>Presets</span>
+                    </label>
+                  )}
                 </div>
                 <div className="entity-setting-row" style={{ paddingTop: 4 }}>
                   <label className="entity-setting-label">Display mode</label>
@@ -1470,7 +1507,8 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                   </select>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {selectedDomain === "climate" && (hasFeature(packCap, "climate", "hvac_modes") || hasFeature(packCap, "climate", "presets") || hasFeature(packCap, "climate", "fan_mode") || hasFeature(packCap, "climate", "swing_mode")) && (
               <div className="entity-setting-group">

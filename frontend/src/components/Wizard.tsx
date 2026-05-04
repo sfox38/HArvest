@@ -710,7 +710,7 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
   });
   const hasDropdown = dropdownItems.length > 0;
 
-  const applyUrl = (url: string, newOrigin: string, path: string | null) => {
+  const applyUrl = (url: string, newOrigin: string, _path: string | null) => {
     const differentHost = !!baseOrigin && baseOrigin !== newOrigin;
     const newList = differentHost
       ? [url]

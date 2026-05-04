@@ -536,7 +536,7 @@ export class HrvCard extends HTMLElement {
     // Unlike the live path, this is just an initial default - the user can
     // collapse/expand interactively and state changes will not reset it.
     if (this.shadowRoot) {
-      for (const shell of this.shadowRoot.querySelectorAll(".ndl-controls-shell")) {
+      for (const shell of this.shadowRoot.querySelectorAll("[data-collapsed]")) {
         shell.setAttribute("data-collapsed", "false");
       }
     }

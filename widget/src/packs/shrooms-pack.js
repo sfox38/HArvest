@@ -970,11 +970,13 @@
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
+      justify-content: center;
     }
     .shroom-fan-step-dots {
       display: flex;
       gap: 6px;
       align-items: center;
+      justify-content: center;
     }
     .shroom-fan-step-dot {
       width: 32px;
@@ -1066,11 +1068,12 @@
       _applyLayout(this);
       const isWritable = this.def.capabilities === "read-write";
       const features = this.def.supported_features ?? [];
-      const displayMode = (this.config.displayHints ?? this.def.display_hints ?? {}).display_mode ?? null;
+      const hints = this.config.displayHints ?? this.def.display_hints ?? {};
+      const displayMode = hints.display_mode ?? null;
       let hasSpeed = features.includes("set_speed");
-      const hasOscillate = features.includes("oscillate");
-      const hasDirection = features.includes("direction");
-      const hasPreset = features.includes("preset_mode");
+      const hasOscillate = hints.show_oscillate !== false && features.includes("oscillate");
+      const hasDirection = hints.show_direction !== false && features.includes("direction");
+      const hasPreset = hints.show_presets !== false && features.includes("preset_mode");
 
       if (displayMode === "on-off") hasSpeed = false;
 
@@ -1308,24 +1311,25 @@
     }
 
     #applyStepDotsState() {
+      const halfStep = this.#percentageStep / 2;
       this.root.querySelectorAll(".shroom-fan-step-dot").forEach((dot) => {
         const dotPct = Number(dot.getAttribute("data-pct"));
-        dot.setAttribute("data-active", String(this.#isOn && this.#percentage >= dotPct));
+        dot.setAttribute("data-active", String(this.#isOn && this.#percentage >= dotPct - halfStep));
       });
     }
 
     #applyFeatureState() {
       if (this.#oscBtn) {
-        this.#oscBtn.setAttribute("aria-pressed", String(this.#oscillating));
-        this.#oscBtn.textContent = this.#oscillating ? "Oscillate: On" : "Oscillate";
+        this.#oscBtn.setAttribute("aria-pressed", "false");
+        this.#oscBtn.textContent = "Oscillate";
       }
       if (this.#dirBtn) {
-        this.#dirBtn.textContent = _capitalize(this.#direction);
-        this.#dirBtn.setAttribute("aria-label", `Direction: ${this.#direction}`);
+        this.#dirBtn.textContent = "Direction";
+        this.#dirBtn.setAttribute("aria-label", "Direction");
       }
       if (this.#presetBtn) {
-        this.#presetBtn.textContent = this.#presetMode ? _capitalize(this.#presetMode) : "Preset";
-        this.#presetBtn.setAttribute("data-active", String(!!this.#presetMode));
+        this.#presetBtn.textContent = "Preset";
+        this.#presetBtn.setAttribute("data-active", "false");
       }
     }
 
@@ -2620,6 +2624,7 @@
       flex: 1;
       flex-wrap: wrap;
       gap: 6px;
+      justify-content: center;
     }
     .shroom-climate-feat-view[hidden] { display: none; }
     .shroom-climate-feat-btn {

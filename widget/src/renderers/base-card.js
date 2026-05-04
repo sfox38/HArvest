@@ -111,7 +111,15 @@ const SHARED_CSS_VARS = /* css */`
 
     display: block;
     position: relative;
+    min-width: var(--hrv-card-min-width, 180px);
+    overflow: hidden;
+    box-sizing: border-box;
+    contain: inline-size;
     font-family: var(--hrv-font-family);
+  }
+
+  :host([preview]) {
+    contain: none;
   }
 
   /* Dark mode overrides - applied when no explicit theme is set */
@@ -195,6 +203,7 @@ const CARD_BASE_CSS = /* css */`
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
+    min-width: 0;
   }
 
   [part=state-label] {

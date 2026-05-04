@@ -13,6 +13,7 @@
     "media_player": { "features": ["transport", "volume", "source"] }
   },
   "variables": {
+    "--hrv-card-min-width":        "300px",
     "--hrv-color-primary":         "#3E3F29",
     "--hrv-color-primary-dim":     "#C8C8B8",
     "--hrv-color-on-primary":      "#F1F0E4",

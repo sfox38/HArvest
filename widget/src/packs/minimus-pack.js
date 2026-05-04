@@ -1114,11 +1114,12 @@
     render() {
       const isWritable   = this.def.capabilities === "read-write";
       const features     = this.def.supported_features ?? [];
-      const displayMode  = (this.config.displayHints ?? this.def.display_hints ?? {}).display_mode ?? null;
+      const hints        = this.config.displayHints ?? this.def.display_hints ?? {};
+      const displayMode  = hints.display_mode ?? null;
       let hasSpeed       = features.includes("set_speed");
-      const hasOscillate = features.includes("oscillate");
-      const hasDirection = features.includes("direction");
-      const hasPreset    = features.includes("preset_mode");
+      const hasOscillate = hints.show_oscillate !== false && features.includes("oscillate");
+      const hasDirection = hints.show_direction !== false && features.includes("direction");
+      const hasPreset    = hints.show_presets !== false && features.includes("preset_mode");
 
       if (displayMode === "on-off") hasSpeed = false;
 
@@ -4720,7 +4721,7 @@
   // ---------------------------------------------------------------------------
 
   HArvest._packs = HArvest._packs || {};
-  const _packKey = (document.currentScript && document.currentScript.dataset.packId) || "minimus";
+  const _packKey = window.__HARVEST_PACK_ID__ || (document.currentScript && document.currentScript.dataset.packId) || "minimus";
   HArvest._packs[_packKey] = {
     "light":          DialLightCard,
     "fan":            FanCard,

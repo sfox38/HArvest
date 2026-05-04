@@ -65,7 +65,7 @@ function SessionRow({ session: s, tokenLabel, onTerminate, onSelectToken }: Sess
 
         {/* Origin */}
         <div className="sess-col muted" style={{ fontSize: 12 }}>
-          <Icon name="globe" size={11} style={{ marginRight: 4 }} />
+          <span style={{ marginRight: 4, display: "inline-flex" }}><Icon name="globe" size={11} /></span>
           {s.origin || "-"}
         </div>
 
