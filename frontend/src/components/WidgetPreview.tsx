@@ -421,7 +421,7 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
     const stored = _ls.get("hrv_preview_color_mode");
     return (stored === "light" || stored === "dark" || stored === "auto") ? stored : "auto";
   });
-  const [bgTone, setBgTone] = useState(0);
+  const [bgGray, setBgGray] = useState<number | null>(null);
   const [features, setFeatures] = useState<Record<string, boolean>>(defaultFeatures(_initRenderer));
   const [graphType, setGraphType] = useState<GraphType>(() => {
     const stored = _ls.get("hrv_preview_graph_type") as GraphType | null;
@@ -509,7 +509,6 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
   const graphOptions = GRAPH_DOMAINS[effectiveDomain];
 
   const themeObj = { variables, dark_variables: darkVariables ?? {} };
-  const usesDark = colorMode === "dark" || (colorMode === "auto" && getHaDarkMode());
 
   return (
     <div className="col" style={{ gap: 12 }}>
@@ -587,13 +586,7 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
           className="theme-preview-stage"
           style={{
             flex: 1,
-            background: (() => {
-              const toneColor = usesDark
-                ? (darkVariables?.["--hrv-color-surface"] ?? variables?.["--hrv-color-surface"] ?? "#1a1a2e")
-                : "#1a1a2e";
-              if (bgTone === 0) return "transparent";
-              return `color-mix(in srgb, ${toneColor} ${bgTone}%, transparent)`;
-            })(),
+            background: bgGray == null ? undefined : `rgb(${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)})`,
           }}
         >
           <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} packId={packId} />
@@ -603,8 +596,8 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
             type="range"
             min={0}
             max={100}
-            value={bgTone}
-            onChange={ev => setBgTone(Number(ev.target.value))}
+            value={bgGray ?? 50}
+            onChange={ev => setBgGray(Number(ev.target.value))}
             {...{ orient: "vertical" } as React.InputHTMLAttributes<HTMLInputElement>}
             aria-label="Preview background tone"
             title="Adjust preview background tone"

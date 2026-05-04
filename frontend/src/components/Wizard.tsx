@@ -445,6 +445,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
   const [expandedCompanions, setExpandedCompanions] = useState<Set<string>>(new Set());
   const [previewEntityId, setPreviewEntityId] = useState<string | null>(null);
+  const [bgGray, setBgGray] = useState<number | null>(null);
   const entitiesRef = useRef(state.entities);
   entitiesRef.current = state.entities;
   const [themes, setThemes] = useState<ThemeDefinition[]>([]);
@@ -672,13 +673,36 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
       {activePreviewId && (
         <div className="col" style={{ gap: 8 }} role="region" aria-label="Entity preview" aria-live="polite">
           <label style={{ fontSize: 12, fontWeight: 600 }}>Preview</label>
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <WizardEntityPreview
-              entityId={activePreviewId}
-              capability={state.capability}
-              theme={selectedTheme}
-              companions={state.entities.find(e => e.entity_id === activePreviewId)?.companions}
-            />
+          <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
+            <div
+              className="theme-preview-stage"
+              style={{
+                flex: 1,
+                display: "flex",
+                justifyContent: "center",
+                background: bgGray == null ? undefined : `rgb(${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)})`,
+              }}
+            >
+              <WizardEntityPreview
+                entityId={activePreviewId}
+                capability={state.capability}
+                theme={selectedTheme}
+                companions={state.entities.find(e => e.entity_id === activePreviewId)?.companions}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={bgGray ?? 50}
+                onChange={ev => setBgGray(Number(ev.target.value))}
+                {...{ orient: "vertical" } as React.InputHTMLAttributes<HTMLInputElement>}
+                aria-label="Preview background tone"
+                title="Adjust preview background tone"
+                className="preview-bg-slider"
+              />
+            </div>
           </div>
         </div>
       )}
