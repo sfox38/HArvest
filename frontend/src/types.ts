@@ -201,6 +201,7 @@ export interface ThemeDefinition {
   created_by: string;
   created_at: string;
   capabilities: ThemeCapabilities | null;
+  pack_settings: string[];
 }
 
 // ---------------------------------------------------------------------------

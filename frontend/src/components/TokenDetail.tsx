@@ -799,6 +799,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
   const currentThemeId = themeUrlToId(token.theme_url ?? "");
   const selectedTheme = themes.find(t => t.theme_id === currentThemeId) ?? null;
   const packCap = selectedTheme?.capabilities ?? null;
+  const packSettings = selectedTheme?.pack_settings ?? [];
 
   const selectedEntity = selectedEntityId
     ? entities.find(e => e.entity_id === selectedEntityId && !e.companion_of) ?? null
@@ -1345,6 +1346,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             </div>
 
+            {packSettings.includes("layout") && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Layout</label>
               <div className="segmented-toggle" role="group" aria-label="Card layout" style={{ marginLeft: "auto" }}>
@@ -1362,6 +1364,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 ))}
               </div>
             </div>
+            )}
 
             <div className="entity-setting-group">
               <button className="entity-setting-group-title" onClick={() => setShowCompanions(!showCompanions)} type="button" aria-expanded={showCompanions}>

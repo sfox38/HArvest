@@ -56,6 +56,14 @@ class PackManager:
             author="HArvest",
             is_bundled=True,
         )
+        self._bundled["shrooms"] = PackDefinition(
+            pack_id="shrooms",
+            name="Shrooms",
+            description="Mushroom-inspired renderers: horizontal layout, circular icon shapes, pill sliders.",
+            version="1.0",
+            author="HArvest",
+            is_bundled=True,
+        )
 
         raw = await self._consent_store.async_load()
         if raw:

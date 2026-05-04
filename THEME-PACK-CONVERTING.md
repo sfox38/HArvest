@@ -158,6 +158,28 @@ HArvest._packs[_packKey] = {
 | `display_modes` | `string[]` | Lists the display mode strings the pack's renderer supports for that domain. The Entity Settings UI only shows these modes in the display mode selector. |
 | `features` | `string[]` | Lists the feature toggles the pack's renderer supports for that domain. The Entity Settings UI only shows toggles for these features. |
 
+### Pack-level settings (`pack_settings` in theme JSON)
+
+Domain capabilities cover per-domain options. For card settings that apply across all domains (such as layout orientation), declare them in the theme JSON's top-level `pack_settings` array:
+
+```json
+{
+  "renderer_pack": true,
+  "pack_settings": ["layout"],
+  "capabilities": { ... }
+}
+```
+
+The panel reads `pack_settings` from the active theme and shows or hides universal card controls accordingly. If `pack_settings` is absent or empty, those controls are hidden.
+
+Currently supported values:
+
+| Value | Effect |
+|-------|--------|
+| `"layout"` | Shows the Layout (Horizontal/Vertical) segmented toggle in Entity Settings |
+
+Add `"layout"` if your pack reads `display_hints.layout` and applies it (e.g. via `:host([data-layout=vertical])` CSS and `_applyLayout(this)` in `render()`). Omit it if your pack has a fixed layout.
+
 ### How renderers consume display options
 
 Renderers read selected display options from two sources, merged with a fallback pattern:

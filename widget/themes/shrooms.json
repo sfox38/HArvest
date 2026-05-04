@@ -1,9 +1,10 @@
 {
   "name": "Shrooms",
   "author": "Inspired by Mushroom Cards by Paul Bottein (https://github.com/piitaya/lovelace-mushroom)",
-  "version": "1.00",
+  "version": "1.0.0",
   "harvest_version": 1,
   "renderer_pack": true,
+  "pack_settings": ["layout"],
   "capabilities": {
     "fan": {
       "display_modes": [

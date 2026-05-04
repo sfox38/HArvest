@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 _THEMES_DIR = Path(__file__).parent / "themes"
 _USER_THEMES_DIR = _THEMES_DIR / "user"
 
-_BUNDLED_IDS = {"default", "glass", "access", "minimus"}
+_BUNDLED_IDS = {"default", "glass", "access", "minimus", "shrooms"}
 
 _MAX_THUMBNAIL_BYTES = 512 * 1024  # 500 KB
 _ALLOWED_THUMBNAIL_TYPES = {".png", ".jpg", ".jpeg"}
@@ -45,6 +45,7 @@ class ThemeDefinition:
     created_by: str = ""
     is_bundled: bool = False
     capabilities: dict | None = None
+    pack_settings: list[str] = dataclasses.field(default_factory=list)
 
 
 class ThemeManager:
@@ -63,7 +64,7 @@ class ThemeManager:
         """
         self._bundled = {}
         results: dict[str, str | None] = {}
-        for filename in ("default.json", "glass.json", "access.json", "minimus.json"):
+        for filename in ("default.json", "glass.json", "access.json", "minimus.json", "shrooms.json"):
             path = _THEMES_DIR / filename
             theme_id = filename.removesuffix(".json")
             try:
@@ -81,6 +82,7 @@ class ThemeManager:
                     dark_variables=raw.get("dark_variables", {}),
                     has_renderer_pack=bool(raw.get("renderer_pack", False)),
                     capabilities=raw.get("capabilities") or None,
+                    pack_settings=list(raw.get("pack_settings") or []),
                     created_by="system",
                     created_at="",
                     is_bundled=True,
@@ -164,6 +166,7 @@ class ThemeManager:
         version: str = "1.0",
         has_renderer_pack: bool = False,
         capabilities: dict | None = None,
+        pack_settings: list[str] | None = None,
     ) -> ThemeDefinition:
         """Create and persist a new user theme."""
         theme = ThemeDefinition(
@@ -176,6 +179,7 @@ class ThemeManager:
             dark_variables=dark_variables or {},
             has_renderer_pack=has_renderer_pack,
             capabilities=capabilities or None,
+            pack_settings=list(pack_settings or []),
             created_by=created_by,
             created_at=datetime.now(tz=timezone.utc).isoformat(),
             is_bundled=False,
@@ -192,7 +196,7 @@ class ThemeManager:
         if theme is None:
             raise KeyError(f"Theme not found: {theme_id}")
 
-        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer_pack", "capabilities"}
+        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer_pack", "capabilities", "pack_settings"}
         for field, value in updates.items():
             if field in _UPDATABLE:
                 setattr(theme, field, value)
@@ -287,6 +291,8 @@ def _theme_to_dict(theme: ThemeDefinition) -> dict:
     }
     if theme.capabilities:
         d["capabilities"] = theme.capabilities
+    if theme.pack_settings:
+        d["pack_settings"] = theme.pack_settings
     return d
 
 
@@ -302,6 +308,7 @@ def _theme_from_dict(d: dict) -> ThemeDefinition:
         dark_variables=d.get("dark_variables", {}),
         has_renderer_pack=bool(d.get("renderer_pack", False)),
         capabilities=d.get("capabilities") or None,
+        pack_settings=list(d.get("pack_settings") or []),
         created_by=d.get("created_by", ""),
         created_at=d.get("created_at", ""),
         is_bundled=False,
@@ -314,6 +321,7 @@ def theme_to_api_dict(theme: ThemeDefinition, has_thumbnail: bool = False) -> di
     d["is_bundled"] = theme.is_bundled
     d["has_thumbnail"] = has_thumbnail
     d["capabilities"] = theme.capabilities
+    d["pack_settings"] = theme.pack_settings
     return d
 
 
