@@ -43,6 +43,38 @@ const _DOMAIN_FALLBACK = {
 };
 const DOUBLE_TAP_MS = 250;
 
+// Device-class-aware on/off labels for binary_sensor entities.
+const _BINARY_SENSOR_DC_LABELS = {
+  door:         { on: "Open",        off: "Closed" },
+  window:       { on: "Open",        off: "Closed" },
+  opening:      { on: "Open",        off: "Closed" },
+  garage_door:  { on: "Open",        off: "Closed" },
+  motion:       { on: "Detected",    off: "Clear" },
+  occupancy:    { on: "Occupied",    off: "Clear" },
+  presence:     { on: "Home",        off: "Away" },
+  moisture:     { on: "Wet",         off: "Dry" },
+  smoke:        { on: "Detected",    off: "Clear" },
+  gas:          { on: "Detected",    off: "Clear" },
+  carbon_monoxide: { on: "Detected", off: "Clear" },
+  lock:         { on: "Unlocked",    off: "Locked" },
+  tamper:       { on: "Tampered",    off: "Clear" },
+  vibration:    { on: "Vibrating",   off: "Still" },
+  sound:        { on: "Sound",       off: "Silent" },
+  connectivity: { on: "Connected",   off: "Disconnected" },
+  plug:         { on: "Plugged in",  off: "Unplugged" },
+  power:        { on: "Detected",    off: "No power" },
+  battery:      { on: "Low",         off: "Normal" },
+  battery_charging: { on: "Charging", off: "Not charging" },
+  cold:         { on: "Cold",        off: "Normal" },
+  heat:         { on: "Hot",         off: "Normal" },
+  light:        { on: "Light",       off: "No light" },
+  moving:       { on: "Moving",      off: "Stopped" },
+  problem:      { on: "Problem",     off: "OK" },
+  running:      { on: "Running",     off: "Not running" },
+  safety:       { on: "Unsafe",      off: "Safe" },
+  update:       { on: "Update",      off: "Up to date" },
+};
+
 // ---------------------------------------------------------------------------
 // Shared CSS custom property defaults
 // These values are overridden by the theme system (ThemeLoader.apply()) when
@@ -110,6 +142,7 @@ const SHARED_CSS_VARS = /* css */`
     --hrv-card-border:         none;
 
     display: block;
+    width: 100%;
     position: relative;
     min-width: var(--hrv-card-min-width, 180px);
     overflow: hidden;
@@ -441,6 +474,29 @@ export class BaseCard {
   }
 
   /**
+   * Return a human-friendly state label, considering binary_sensor device_class.
+   * Accepts optional overrides for domain/deviceClass (used by companion pills).
+   *
+   * @param {string} state
+   * @param {string|null} [domain]
+   * @param {string|null} [deviceClass]
+   * @returns {string}
+   */
+  formatStateLabel(state, domain, deviceClass) {
+    const d = domain ?? this.def.domain;
+    const dc = deviceClass ?? this.def.device_class;
+    if (d === "binary_sensor" && dc) {
+      const dcMap = _BINARY_SENSOR_DC_LABELS[dc];
+      if (dcMap && (state === "on" || state === "off")) {
+        return dcMap[state];
+      }
+    }
+    const key = `state.${state}`;
+    const localized = this.i18n.t(key);
+    return localized !== key ? localized : state;
+  }
+
+  /**
    * Return the HTML placeholder for the companion zone. Include this in the
    * template returned by render() so renderCompanions() has somewhere to write.
    *
@@ -506,6 +562,7 @@ export class BaseCard {
     if (!pill) return;
 
     pill.dataset.domain = def.domain ?? "";
+    pill.dataset.deviceClass = def.device_class ?? "";
     if (def.icon_state_map) {
       pill.dataset.iconStateMap = JSON.stringify(def.icon_state_map);
     }
@@ -537,9 +594,9 @@ export class BaseCard {
   updateCompanionState(entityId, state, _attributes) {
     const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
     if (!pill) return;
-    const label = this.i18n.t(`state.${state}`) !== `state.${state}`
-      ? this.i18n.t(`state.${state}`)
-      : state;
+    const label = this.formatStateLabel(
+      state, pill.dataset.domain || null, pill.dataset.deviceClass || null,
+    );
     const stateEl = pill.querySelector("[part=companion-state]");
     if (stateEl) stateEl.textContent = label;
     const name = pill.getAttribute("aria-label")?.replace(/ - .*$/, "") ?? entityId;

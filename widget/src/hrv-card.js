@@ -55,7 +55,7 @@ function _resolveColorScheme(cs) {
   const computed = getComputedStyle(document.documentElement).colorScheme || "";
   if (computed === "light") return "light";
   if (computed === "dark") return "dark";
-  return "auto";
+  return "light";
 }
 
 // ---------------------------------------------------------------------------
@@ -197,10 +197,15 @@ export class HrvCard extends HTMLElement {
     this.#config.hours = hints.hours ?? 24;
     this.#config.period = hints.period ?? 10;
     this.#config.animate = !!hints.animate;
-    this.#config.colorScheme = def.color_scheme ?? "auto";
+    // Entity-level color_scheme overrides token-level only if explicitly set.
+    // "auto" means "defer to token_config", not "reset to auto".
+    const entityCS = def.color_scheme ?? "auto";
+    if (entityCS !== "auto") {
+      this.#config.colorScheme = entityCS;
+    }
     this.#config.displayHints = hints;
 
-    // Reflect per-entity color scheme on the host element and re-apply theme.
+    // Reflect color scheme on the host element and re-apply theme.
     const csNow = _resolveColorScheme(this.#config.colorScheme || _pageConfig.colorScheme || "");
     if (csNow === "light" || csNow === "dark") {
       this.setAttribute("data-color-scheme", csNow);

@@ -28,8 +28,10 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SRC_ENTRY = resolve(__dirname, "src/harvest-entry.js");
 const DIST_DIR  = resolve(__dirname, "dist");
-const PACK_ENTRY = resolve(__dirname, "src/packs/minimus-pack.js");
-const PACK_OUT   = resolve(__dirname, "../custom_components/harvest/packs/minimus.js");
+const PACKS = [
+  { entry: resolve(__dirname, "src/packs/minimus-pack.js"), out: resolve(__dirname, "../custom_components/harvest/packs/minimus.js") },
+  { entry: resolve(__dirname, "src/packs/shrooms-pack.js"), out: resolve(__dirname, "../custom_components/harvest/packs/shrooms.js") },
+];
 
 // Post-build copy destinations for the widget bundle.
 const WIDGET_COPIES = [
@@ -91,34 +93,34 @@ async function build() {
   }
 
   // Build renderer packs
-  const packResult = await esbuild.build({
-    entryPoints: [PACK_ENTRY],
-    bundle:      false,
-    minify:      true,
-    format:      "iife",
-    target:      ["es2020"],
-    charset:     "utf8",
-    write:       false,
-    logLevel:    "info",
-  });
+  for (const pack of PACKS) {
+    const packResult = await esbuild.build({
+      entryPoints: [pack.entry],
+      bundle:      false,
+      minify:      true,
+      format:      "iife",
+      target:      ["es2020"],
+      charset:     "utf8",
+      write:       false,
+      logLevel:    "info",
+    });
 
-  if (packResult.errors.length > 0) {
-    console.error("Pack build failed:", packResult.errors);
-    process.exit(1);
-  }
+    if (packResult.errors.length > 0) {
+      console.error("Pack build failed:", packResult.errors);
+      process.exit(1);
+    }
 
-  const packBytes = packResult.outputFiles[0].contents;
-  writeFileSync(PACK_OUT, packBytes);
+    const packBytes = packResult.outputFiles[0].contents;
+    writeFileSync(pack.out, packBytes);
 
-  for (const dest of PACK_COPIES) {
-    mkdirSync(dirname(dest), { recursive: true });
-    copyFileSync(PACK_OUT, dest);
-  }
+    for (const dest of PACK_COPIES) {
+      mkdirSync(dirname(dest), { recursive: true });
+      copyFileSync(pack.out, dest);
+    }
 
-  const pkb = (packBytes.byteLength / 1024).toFixed(1);
-  console.log(`Pack: ${pkb} KB  packs/minimus.js`);
-  for (const dest of PACK_COPIES) {
-    console.log(`  -> ${dest.replace(resolve(__dirname, ".."), "..")}`);
+    const name = pack.out.split("/").pop();
+    const pkb = (packBytes.byteLength / 1024).toFixed(1);
+    console.log(`Pack: ${pkb} KB  packs/${name}`);
   }
 }
 

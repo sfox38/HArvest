@@ -29,6 +29,7 @@ const _INACTIVE_STATES = new Set([
   "locked", "jammed", "locking", "unlocking",
 ]);
 
+
 const _DOMAIN_FALLBACK_ICON = {
   light: "mdi:lightbulb",
   switch: "mdi:toggle-switch",
@@ -48,6 +49,7 @@ const _DOMAIN_FALLBACK_ICON = {
 
 const BADGE_STYLES = /* css */`
   :host {
+    width: auto !important;
     min-width: unset !important;
     display: inline-block !important;
     contain: none !important;
@@ -56,16 +58,14 @@ const BADGE_STYLES = /* css */`
   [part=badge] {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 12px 4px 8px;
-    border-radius: 999px;
+    gap: 8px;
+    padding: 6px 12px 6px 8px;
+    border-radius: 14px;
     background: var(--hrv-card-background, var(--hrv-color-surface, #fff));
     box-shadow: var(--hrv-card-shadow, 0 1px 3px rgba(0,0,0,0.1));
     border: var(--hrv-card-border, 1px solid var(--hrv-color-border, #e5e7eb));
     font-family: var(--hrv-font-family, system-ui, -apple-system, sans-serif);
-    font-size: var(--hrv-font-size-s, 13px);
     color: var(--hrv-color-text, #111827);
-    height: 36px;
     box-sizing: border-box;
     white-space: nowrap;
     overflow: hidden;
@@ -90,22 +90,34 @@ const BADGE_STYLES = /* css */`
     height: 100%;
   }
 
+  [part=badge-text] {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
   [part=badge-name] {
+    font-size: 11px;
     font-weight: var(--hrv-font-weight-medium, 500);
+    line-height: 1.3;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: 140px;
   }
 
   [part=badge-state] {
+    font-size: 10px;
+    line-height: 1.3;
     color: var(--hrv-color-text-secondary, #6b7280);
-    font-size: var(--hrv-font-size-xs, 11px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
   }
 
-  [part=badge-dot] {
-    color: var(--hrv-color-border, #e5e7eb);
-    font-size: 8px;
-    line-height: 1;
+  [part=badge-text].single [part=badge-name],
+  [part=badge-text].single [part=badge-state] {
+    font-size: 12px;
   }
 
   .sr-only {
@@ -146,14 +158,17 @@ export class BadgeCard extends BaseCard {
     const showState = hints.badge_show_state !== false;
     const nameCls = showName ? "" : " sr-only";
     const stateCls = showState ? "" : " sr-only";
+    const singleLine = (showName && !showState) || (!showName && showState);
+    const textCls = singleLine ? " single" : "";
 
     this.root.innerHTML = /* html */`
       <style>${this.getSharedStyles()}${BADGE_STYLES}</style>
       <div part="badge" aria-label="${_esc(this.def.friendly_name)}" title="${_esc(this.def.friendly_name)}">
         ${showIcon ? '<span part="badge-icon" aria-hidden="true"></span>' : ""}
-        <span part="badge-name" class="${nameCls}">${_esc(this.def.friendly_name)}</span>
-        ${showName && showState ? '<span part="badge-dot" aria-hidden="true">&middot;</span>' : ""}
-        <span part="badge-state" class="${stateCls}" aria-live="polite"></span>
+        <span part="badge-text" class="${textCls}">
+          <span part="badge-name" class="${nameCls}">${_esc(this.def.friendly_name)}</span>
+          <span part="badge-state" class="${stateCls}" aria-live="polite"></span>
+        </span>
       </div>
       ${this.renderAriaLiveHTML()}
     `;
@@ -188,13 +203,9 @@ export class BadgeCard extends BaseCard {
 
     const uom = attributes?.unit_of_measurement
       ?? this.def.unit_of_measurement ?? "";
-    const domainKey = `${this.def.domain}.${state}`;
-    const domainLocalized = this.i18n.t(domainKey);
-    const stateKey = `state.${state}`;
-    const stateLocalized = this.i18n.t(stateKey);
-    const label = domainLocalized !== domainKey ? domainLocalized
-      : stateLocalized !== stateKey ? stateLocalized : state;
-    const stateText = uom ? `${state} ${uom}` : label;
+
+    const label = this.formatStateLabel(state);
+    const stateText = uom ? `${label} ${uom}` : label;
 
     if (this.#stateEl) {
       this.#stateEl.textContent = stateText;

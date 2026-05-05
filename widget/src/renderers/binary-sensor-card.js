@@ -65,9 +65,7 @@ export class BinarySensorCard extends BaseCard {
 
   applyState(state, _attributes) {
     const isOn = state === "on";
-    const label = this.i18n.t(`state.${state}`) !== `state.${state}`
-      ? this.i18n.t(`state.${state}`)
-      : state;
+    const label = this.formatStateLabel(state);
 
     if (this.#stateLabel) this.#stateLabel.textContent = label;
 
