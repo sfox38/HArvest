@@ -38,7 +38,7 @@ from .const import (
     WS_PATH,
 )
 from .entity_compatibility import get_custom_domains, validate_action
-from .entity_definition import build_entity_definition, filter_attributes, get_blocked_data_keys
+from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes, get_blocked_data_keys
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager
 from .rate_limiter import RateLimiter
@@ -538,24 +538,28 @@ class HarvestWsView(HomeAssistantView):
                 await ws.send_json({"type": "entity_removed", "entity_id": outgoing_id, "msg_id": None})
                 continue
 
+            is_badge = ea is not None and ea.capabilities == "badge"
+
             # Fetch initial forecast only when show_forecast is explicitly enabled.
             if (
-                forecast_cache is not None
+                not is_badge
+                and forecast_cache is not None
                 and real_id.startswith("weather.")
                 and ea is not None
                 and ea.display_hints.get("show_forecast") is True
             ):
                 await self._fetch_initial_forecast(real_id, forecast_cache)
 
-            # Companion outgoing refs for this entity's definition.
-            companion_refs = [
-                outgoing_ids.get(comp_ea.entity_id, comp_ea.entity_id)
-                for comp_ea in token.entities
-                if comp_ea.companion_of == real_id
-            ]
-
             # entity_definition
-            defn = build_entity_definition(self._hass, real_id, ea, companions=companion_refs)
+            if is_badge:
+                defn = build_badge_definition(self._hass, real_id, ea)
+            else:
+                companion_refs = [
+                    outgoing_ids.get(comp_ea.entity_id, comp_ea.entity_id)
+                    for comp_ea in token.entities
+                    if comp_ea.companion_of == real_id
+                ]
+                defn = build_entity_definition(self._hass, real_id, ea, companions=companion_refs)
             if defn is not None:
                 defn = dict(defn)
                 defn["type"] = "entity_definition"
@@ -1015,6 +1019,18 @@ class HarvestWsView(HomeAssistantView):
         outgoing_id = outgoing_ids.get(real_id, real_id)
 
         ea = _find_entity_access(real_id, token)
+
+        if ea is not None and ea.capabilities == "badge":
+            await ws.send_json({
+                "type": "history_data",
+                "entity_id": outgoing_id,
+                "hours": 0,
+                "period": 0,
+                "points": [],
+                "msg_id": msg_id,
+            })
+            return
+
         ea_hints = ea.display_hints if ea else {}
         hours = msg.get("hours", ea_hints.get("hours", 24))
         hours = max(1, min(hours, 168))
@@ -1223,6 +1239,21 @@ class HarvestWsView(HomeAssistantView):
         Injects cached forecast data for weather entities after filtering.
         Updates session.last_sent_attributes after building.
         """
+        ea = _find_entity_access(real_id, token)
+        if ea is not None and ea.capabilities == "badge":
+            badge_attrs: dict = {}
+            uom = state.attributes.get("unit_of_measurement")
+            if uom is not None:
+                badge_attrs["unit_of_measurement"] = uom
+            return {
+                "type": "state_update",
+                "entity_id": outgoing_id,
+                "state": state.state,
+                "attributes": badge_attrs,
+                "initial": is_initial,
+                "msg_id": None,
+            }
+
         raw_attrs = dict(state.attributes)
 
         # Filter via token denylist and per-entity exclusions.

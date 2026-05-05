@@ -3,7 +3,7 @@
  *
  * Used when entity capabilities === "badge". Renders a minimal
  * inline indicator with optional icon, name, and state text.
- * Supports gestures but no companions, history, or stale indicator.
+ * No companions, history, gestures, or stale indicator.
  */
 
 import { BaseCard } from "./base-card.js";
@@ -29,10 +29,28 @@ const _INACTIVE_STATES = new Set([
   "locked", "jammed", "locking", "unlocking",
 ]);
 
+const _DOMAIN_FALLBACK_ICON = {
+  light: "mdi:lightbulb",
+  switch: "mdi:toggle-switch",
+  input_boolean: "mdi:toggle-switch",
+  fan: "mdi:fan",
+  sensor: "mdi:gauge",
+  binary_sensor: "mdi:radiobox-blank",
+  climate: "mdi:thermostat",
+  media_player: "mdi:cast",
+  cover: "mdi:window-shutter",
+  timer: "mdi:timer",
+  remote: "mdi:remote",
+  input_number: "mdi:numeric",
+  input_select: "mdi:format-list-bulleted",
+  harvest_action: "mdi:play-circle-outline",
+};
+
 const BADGE_STYLES = /* css */`
   :host {
     min-width: unset !important;
     display: inline-block !important;
+    contain: none !important;
   }
 
   [part=badge] {
@@ -90,6 +108,18 @@ const BADGE_STYLES = /* css */`
     line-height: 1;
   }
 
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     [part=badge], [part=badge-icon] { transition: none; }
   }
@@ -107,32 +137,36 @@ function _esc(str) {
 export class BadgeCard extends BaseCard {
   /** @type {HTMLElement|null} */ #iconEl = null;
   /** @type {HTMLElement|null} */ #stateEl = null;
+  /** @type {HTMLElement|null} */ #badgeEl = null;
 
   render() {
     const hints = this.def.display_hints ?? {};
     const showIcon = hints.badge_show_icon !== false;
     const showName = hints.badge_show_name !== false;
     const showState = hints.badge_show_state !== false;
+    const nameCls = showName ? "" : " sr-only";
+    const stateCls = showState ? "" : " sr-only";
 
     this.root.innerHTML = /* html */`
       <style>${this.getSharedStyles()}${BADGE_STYLES}</style>
-      <div part="badge" aria-label="${_esc(this.def.friendly_name)}">
+      <div part="badge" aria-label="${_esc(this.def.friendly_name)}" title="${_esc(this.def.friendly_name)}">
         ${showIcon ? '<span part="badge-icon" aria-hidden="true"></span>' : ""}
-        ${showName ? `<span part="badge-name">${_esc(this.def.friendly_name)}</span>` : ""}
+        <span part="badge-name" class="${nameCls}">${_esc(this.def.friendly_name)}</span>
         ${showName && showState ? '<span part="badge-dot" aria-hidden="true">&middot;</span>' : ""}
-        ${showState ? '<span part="badge-state" aria-live="polite"></span>' : ""}
+        <span part="badge-state" class="${stateCls}" aria-live="polite"></span>
       </div>
       ${this.renderAriaLiveHTML()}
     `;
 
     this.#iconEl = this.root.querySelector("[part=badge-icon]");
     this.#stateEl = this.root.querySelector("[part=badge-state]");
+    this.#badgeEl = this.root.querySelector("[part=badge]");
 
     if (showIcon) {
-      this.renderIcon(this.def.icon ?? "mdi:help-circle", "badge-icon");
+      const fb = _DOMAIN_FALLBACK_ICON[this.def.domain] ?? "mdi:help-circle";
+      this.renderIcon(this.resolveIcon(this.def.icon, fb), "badge-icon");
     }
 
-    this._attachGestureHandlers(this.root.querySelector("[part=badge]"));
   }
 
   applyState(state, attributes) {
@@ -146,17 +180,28 @@ export class BadgeCard extends BaseCard {
         : "#9ca3af";
       this.#iconEl.style.color = color;
 
-      const iconName = this.def.icon_state_map?.[state]
-        ?? this.def.icon ?? "mdi:help-circle";
-      this.renderIcon(iconName, "badge-icon");
+      const fb = _DOMAIN_FALLBACK_ICON[this.def.domain] ?? "mdi:help-circle";
+      const rawIcon = this.def.icon_state_map?.[state]
+        ?? this.def.icon ?? fb;
+      this.renderIcon(this.resolveIcon(rawIcon, fb), "badge-icon");
     }
 
+    const uom = attributes?.unit_of_measurement
+      ?? this.def.unit_of_measurement ?? "";
+    const domainKey = `${this.def.domain}.${state}`;
+    const domainLocalized = this.i18n.t(domainKey);
+    const stateKey = `state.${state}`;
+    const stateLocalized = this.i18n.t(stateKey);
+    const label = domainLocalized !== domainKey ? domainLocalized
+      : stateLocalized !== stateKey ? stateLocalized : state;
+    const stateText = uom ? `${state} ${uom}` : label;
+
     if (this.#stateEl) {
-      const uom = attributes?.unit_of_measurement
-        ?? this.def.unit_of_measurement ?? "";
-      const localized = this.i18n.t(`state.${state}`);
-      const label = localized !== `state.${state}` ? localized : state;
-      this.#stateEl.textContent = uom ? `${state} ${uom}` : label;
+      this.#stateEl.textContent = stateText;
+    }
+
+    if (this.#badgeEl) {
+      this.#badgeEl.title = `${this.def.friendly_name}: ${stateText}`;
     }
 
     this.announceState(`${this.def.friendly_name}, ${state}`);

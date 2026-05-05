@@ -35,6 +35,7 @@ import { HarvestActionCard }      from "./harvest-action-card.js";
 import { TimerCard }              from "./timer-card.js";
 import { WeatherCard }            from "./weather-card.js";
 import { GenericCard }            from "./generic-card.js";
+import { BadgeCard }              from "./badge-card.js";
 
 /**
  * Built-in renderer registry.
@@ -73,6 +74,9 @@ const _registry = new Map([
 
   // Virtual domain
   ["harvest_action",          HarvestActionCard],
+
+  // Badge - capability-routed, not domain-routed
+  ["badge",                   BadgeCard],
 
   // Tier 2 fallback
   ["generic",                 GenericCard],
@@ -141,4 +145,5 @@ export {
   TimerCard,
   WeatherCard,
   GenericCard,
+  BadgeCard,
 };

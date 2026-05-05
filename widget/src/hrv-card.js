@@ -234,8 +234,10 @@ export class HrvCard extends HTMLElement {
     }
     this.#config.companions = this.#companions;
 
-    const RendererClass = this.#client?._getPackRenderer?.(def.domain, def.device_class ?? null)
-      || lookupRenderer(def.domain, def.device_class ?? null);
+    const RendererClass = def.capabilities === "badge"
+      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getPackRenderer?.(def.domain, def.device_class ?? null)
+        || lookupRenderer(def.domain, def.device_class ?? null));
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
 
@@ -379,8 +381,10 @@ export class HrvCard extends HTMLElement {
   #rebuildRenderer() {
     if (!this.#entityDef || !this.#renderer) return;
     this.#renderer.destroy?.();
-    const Cls = this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
-      || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null);
+    const Cls = this.#entityDef.capabilities === "badge"
+      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
+        || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null));
     this.#renderer = new Cls(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
     if (this.#lastState !== null) {
@@ -403,8 +407,10 @@ export class HrvCard extends HTMLElement {
 
   _reRender() {
     if (!this.#entityDef || !this.#renderer) return;
-    const NewRenderer = this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
-      || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null);
+    const NewRenderer = this.#entityDef.capabilities === "badge"
+      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
+        || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null));
     if (NewRenderer === this.#renderer.constructor) return;
     this.#renderer.destroy?.();
     this.#renderer = new NewRenderer(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
@@ -517,15 +523,24 @@ export class HrvCard extends HTMLElement {
 
     // Check pack renderer first, then fall back to global registry.
     let RendererClass = null;
+    const isBadge = entityDef.capabilities === "badge";
     if (packId) {
       const pack = window.HArvest?._packs?.[packId];
       if (pack) {
-        const dc = entityDef.device_class ?? null;
-        const specificKey = dc ? `${entityDef.domain}.${dc}` : null;
-        RendererClass = (specificKey && pack[specificKey]) || pack[entityDef.domain] || null;
+        if (isBadge) {
+          RendererClass = pack["badge"] || null;
+        } else {
+          const dc = entityDef.device_class ?? null;
+          const specificKey = dc ? `${entityDef.domain}.${dc}` : null;
+          RendererClass = (specificKey && pack[specificKey]) || pack[entityDef.domain] || null;
+        }
       }
     }
-    if (!RendererClass) RendererClass = lookupRenderer(entityDef.domain, entityDef.device_class ?? null);
+    if (!RendererClass) {
+      RendererClass = isBadge
+        ? lookupRenderer("badge", null)
+        : lookupRenderer(entityDef.domain, entityDef.device_class ?? null);
+    }
     this.#renderer = new RendererClass(entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
 

@@ -730,7 +730,7 @@ function EntityPreview({
   return (
     <>
       {(!ready || !serverDef) && <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>}
-      <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entity preview" style={{ display: ready && serverDef ? "flex" : "none", justifyContent: "center", minHeight: 100, padding: "12px 0" }} />
+      <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entity preview" style={{ display: ready && serverDef ? "flex" : "none", justifyContent: "center", alignItems: "center", minHeight: 100, padding: "12px 0" }} />
     </>
   );
 }
@@ -918,11 +918,31 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
     patchEntities(entities.filter(e => e.entity_id !== entityId));
   };
 
-  const toggleCap = (entityId: string, newCap: "read" | "read-write") => {
+  const toggleCap = (entityId: string, newCap: "badge" | "read" | "read-write") => {
     if (!canEdit) return;
-    patchEntities(entities.map(en =>
-      en.entity_id === entityId ? { ...en, capabilities: newCap } : en
-    ));
+    const entity = entities.find(e => e.entity_id === entityId);
+    if (!entity) return;
+    const wasBadge = entity.capabilities === "badge";
+    const toBadge = newCap === "badge";
+    let updated = entities.map(en => {
+      if (en.entity_id === entityId) {
+        const hints = { ...(en.display_hints ?? {}) };
+        if (wasBadge && !toBadge) {
+          delete hints.badge_show_icon;
+          delete hints.badge_show_name;
+          delete hints.badge_show_state;
+          delete hints.badge_icon_color;
+        }
+        const result = { ...en, capabilities: newCap, display_hints: hints };
+        if (toBadge) result.gesture_config = {};
+        return result;
+      }
+      return en;
+    });
+    if (toBadge) {
+      updated = updated.filter(en => en.companion_of !== entityId);
+    }
+    patchEntities(updated);
   };
 
   const saveNameOverride = () => {
@@ -1348,6 +1368,13 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               <label className="entity-setting-label">Access</label>
               <div className="segmented-toggle" role="group" aria-label="Access level" style={{ marginLeft: "auto" }}>
                 <button
+                  className={selectedEntity.capabilities === "badge" ? "active" : ""}
+                  aria-pressed={selectedEntity.capabilities === "badge"}
+                  onClick={() => toggleCap(selectedEntity.entity_id, "badge")}
+                  disabled={!canEdit}
+                  type="button"
+                >Badge</button>
+                <button
                   className={selectedEntity.capabilities === "read" ? "active" : ""}
                   aria-pressed={selectedEntity.capabilities === "read"}
                   onClick={() => toggleCap(selectedEntity.entity_id, "read")}
@@ -1363,6 +1390,69 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 >Control</button>
               </div>
             </div>
+            {selectedEntity.capabilities === "badge" && (
+              <div className="entity-setting-group">
+                <div className="entity-setting-group-title">Badge settings</div>
+                <div className="settings-toggle-grid">
+                  <label className="settings-toggle-item">
+                    <Toggle
+                      checked={selectedEntity.display_hints?.badge_show_icon !== false}
+                      onChange={v => updateDisplayHint(selectedEntity.entity_id, "badge_show_icon", v ? null : false)}
+                      disabled={!canEdit}
+                    />
+                    <span>Show icon</span>
+                  </label>
+                  <label className="settings-toggle-item">
+                    <Toggle
+                      checked={selectedEntity.display_hints?.badge_show_name !== false}
+                      onChange={v => updateDisplayHint(selectedEntity.entity_id, "badge_show_name", v ? null : false)}
+                      disabled={!canEdit}
+                    />
+                    <span>Show name</span>
+                  </label>
+                  <label className="settings-toggle-item">
+                    <Toggle
+                      checked={selectedEntity.display_hints?.badge_show_state !== false}
+                      onChange={v => updateDisplayHint(selectedEntity.entity_id, "badge_show_state", v ? null : false)}
+                      disabled={!canEdit}
+                    />
+                    <span>Show state</span>
+                  </label>
+                </div>
+                <div className="entity-setting-row" style={{ paddingTop: 4 }}>
+                  <label className="entity-setting-label">Icon color</label>
+                  <div className="badge-color-swatches" role="radiogroup" aria-label="Icon color">
+                    {([
+                      ["red", "#ef4444"], ["orange", "#f97316"], ["amber", "#f59e0b"],
+                      ["yellow", "#eab308"], ["green", "#22c55e"], ["teal", "#14b8a6"],
+                      ["cyan", "#06b6d4"], ["blue", "#3b82f6"], ["indigo", "#6366f1"],
+                      ["purple", "#a855f7"], ["pink", "#ec4899"], ["grey", "#9ca3af"],
+                    ] as const).map(([name, hex]) => (
+                      <button
+                        key={name}
+                        type="button"
+                        className="badge-color-swatch"
+                        style={{ background: hex }}
+                        aria-pressed={selectedEntity.display_hints?.badge_icon_color === name}
+                        onClick={() => updateDisplayHint(selectedEntity.entity_id, "badge_icon_color", name)}
+                        disabled={!canEdit}
+                        title={name.charAt(0).toUpperCase() + name.slice(1)}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      className="badge-color-swatch-auto"
+                      aria-pressed={!selectedEntity.display_hints?.badge_icon_color || selectedEntity.display_hints?.badge_icon_color === "auto"}
+                      onClick={() => updateDisplayHint(selectedEntity.entity_id, "badge_icon_color", null)}
+                      disabled={!canEdit}
+                      title="Auto"
+                    >(Auto)</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedEntity.capabilities !== "badge" && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Always use</label>
               <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
@@ -1380,8 +1470,9 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 ))}
               </div>
             </div>
+            )}
 
-            {packSettings.includes("layout") && (
+            {selectedEntity.capabilities !== "badge" && packSettings.includes("layout") && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Layout</label>
               <div className="segmented-toggle" role="group" aria-label="Card layout" style={{ marginLeft: "auto" }}>
@@ -1401,6 +1492,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
             </div>
             )}
 
+            {selectedEntity.capabilities !== "badge" && (
             <div className="entity-setting-group">
               <button className="entity-setting-group-title" onClick={() => setShowCompanions(!showCompanions)} type="button" aria-expanded={showCompanions}>
                 Companions ({selectedGroup?.companions.length ?? 0})
@@ -1437,8 +1529,9 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 </div>
               )}
             </div>
+            )}
 
-            {selectedDomain === "light" && (hasFeature(packCap, "light", "brightness") || hasFeature(packCap, "light", "color_temp") || hasFeature(packCap, "light", "rgb")) && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "light" && (hasFeature(packCap, "light", "brightness") || hasFeature(packCap, "light", "color_temp") || hasFeature(packCap, "light", "rgb")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Light settings</div>
                 <div className="settings-toggle-grid">
@@ -1476,7 +1569,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            {selectedDomain === "fan" && (() => {
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "fan" && (() => {
               const fanDetail = entityDetail[selectedEntity.entity_id];
               const fanBits = Number(fanDetail?.attributes?.supported_features ?? 0);
               const fanHasOscillate = !!(fanBits & 2);
@@ -1544,7 +1637,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               );
             })()}
 
-            {selectedDomain === "climate" && (hasFeature(packCap, "climate", "hvac_modes") || hasFeature(packCap, "climate", "presets") || hasFeature(packCap, "climate", "fan_mode") || hasFeature(packCap, "climate", "swing_mode")) && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "climate" && (hasFeature(packCap, "climate", "hvac_modes") || hasFeature(packCap, "climate", "presets") || hasFeature(packCap, "climate", "fan_mode") || hasFeature(packCap, "climate", "swing_mode")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Climate settings</div>
                 <div className="settings-toggle-grid">
@@ -1592,7 +1685,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            {selectedDomain === "cover" && (hasFeature(packCap, "cover", "position") || hasFeature(packCap, "cover", "tilt")) && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "cover" && (hasFeature(packCap, "cover", "position") || hasFeature(packCap, "cover", "tilt")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Cover settings</div>
                 <div className="settings-toggle-grid">
@@ -1620,7 +1713,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            {selectedDomain === "media_player" && (hasFeature(packCap, "media_player", "transport") || hasFeature(packCap, "media_player", "volume") || hasFeature(packCap, "media_player", "source")) && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "media_player" && (hasFeature(packCap, "media_player", "transport") || hasFeature(packCap, "media_player", "volume") || hasFeature(packCap, "media_player", "source")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Media player settings</div>
                 <div className="settings-toggle-grid">
@@ -1658,7 +1751,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            {selectedDomain === "weather" && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "weather" && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Weather settings</div>
                 <div className="settings-toggle-grid">
@@ -1674,7 +1767,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            {HISTORY_DOMAINS.has(selectedDomain) && (
+            {selectedEntity.capabilities !== "badge" && HISTORY_DOMAINS.has(selectedDomain) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Graph settings</div>
                 <div className="entity-graph-settings">
@@ -1717,7 +1810,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            {selectedDomain === "input_number" && hasFeature(packCap, "input_number", "buttons") && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "input_number" && hasFeature(packCap, "input_number", "buttons") && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Display mode</div>
                 <div className="segmented-toggle">
@@ -1737,6 +1830,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
+            {selectedEntity.capabilities !== "badge" && (
             <div className="entity-setting-group">
               <div className="entity-setting-group-title">
                 Exclude attributes
@@ -1776,7 +1870,9 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 <div className="muted" style={{ fontSize: 12 }}>Entity not found in HA.</div>
               )}
             </div>
+            )}
 
+            {selectedEntity.capabilities !== "badge" && (
             <div className="entity-setting-group">
               <div className="entity-setting-group-title">Gestures</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -1826,6 +1922,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 })}
               </div>
             </div>
+            )}
           </div>
           );
         })()}

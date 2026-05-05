@@ -52,7 +52,7 @@ export interface GestureConfig {
 export interface EntityAccess {
   entity_id: string;
   alias: string | null;
-  capabilities: "read" | "read-write";
+  capabilities: "badge" | "read" | "read-write";
   exclude_attributes: string[];
   companion_of: string | null;
   gesture_config: GestureConfig;

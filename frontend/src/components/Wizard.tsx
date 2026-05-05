@@ -22,7 +22,7 @@ import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl,
 // ---------------------------------------------------------------------------
 
 interface WizardMemory {
-  capability: "read" | "read-write";
+  capability: "badge" | "read" | "read-write";
   originMode: "specific" | "any";
   expiryOption: string;
   themeUrl: string;
@@ -52,7 +52,7 @@ interface WizardState {
   entities: SelectedEntity[];
   label: string;
   labelAutoset: boolean;
-  capability: "read" | "read-write";
+  capability: "badge" | "read" | "read-write";
   originMode: "specific" | "any";
   originUrls: string[];
   expiryOption: "never" | "30d" | "90d" | "1y" | "custom";
@@ -283,7 +283,7 @@ const _MOCK_WEATHER_FORECAST_HOURLY = [
 
 function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
   entityId: string;
-  capability: "read" | "read-write";
+  capability: "badge" | "read" | "read-write";
   theme: ThemeDefinition | null;
   companions?: { entity_id: string; alias: string | null }[];
 }) {
@@ -590,6 +590,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                   <div className="widget-thumb" style={{ width: 24, height: 24 }}>
                     <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={12} />
                   </div>
+                  {state.capability !== "badge" && (
                   <span
                     role="button"
                     tabIndex={0}
@@ -601,6 +602,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                   >
                     +{companionCount > 0 ? companionCount : ""}
                   </span>
+                  )}
                   <div className="entity-list-id">
                     {friendly && friendly !== e.entity_id && <span className="entity-list-name">{friendly}</span>}
                     <span className="entity-list-eid mono">{e.entity_id}</span>
@@ -617,7 +619,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                     <Icon name="close" size={10} />
                   </span>
                 </button>
-                {isExpanded && (
+                {state.capability !== "badge" && isExpanded && (
                   <CompanionPicker
                     companions={e.companions}
                     excludeIds={primaryIds}
@@ -656,6 +658,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
             <div className="col" style={{ gap: 4 }}>
               <label style={{ fontSize: 12, fontWeight: 600 }}>Permissions</label>
               <div className="segmented" role="group" aria-label="Capability">
+                <button aria-pressed={state.capability === "badge"} onClick={() => { onChange({ capability: "badge", entities: state.entities.map(e => ({ ...e, companions: [] })) }); saveMemory({ capability: "badge" }); }}>Badge</button>
                 <button aria-pressed={state.capability === "read"} onClick={() => { onChange({ capability: "read" }); saveMemory({ capability: "read" }); }}>View only</button>
                 <button aria-pressed={state.capability === "read-write"} onClick={() => { onChange({ capability: "read-write" }); saveMemory({ capability: "read-write" }); }}>Control</button>
               </div>
@@ -1206,7 +1209,7 @@ export function Wizard({ onClose }: WizardProps) {
           exclude_attributes: [] as string[],
           companion_of: null as string | null,
         }]));
-        const companionMap = new Map<string, { entity_id: string; alias: string | null; capabilities: "read" | "read-write"; exclude_attributes: string[]; companion_of: string | null }>();
+        const companionMap = new Map<string, { entity_id: string; alias: string | null; capabilities: "badge" | "read" | "read-write"; exclude_attributes: string[]; companion_of: string | null }>();
         for (const e of wState.entities) {
           for (const c of e.companions) {
             if (!primaryMap.has(c.entity_id) && !companionMap.has(c.entity_id)) {

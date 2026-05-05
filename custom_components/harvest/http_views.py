@@ -23,7 +23,7 @@ from homeassistant.core import HomeAssistant
 from .activity_store import ActivityStore, TokenLifecycleEvent
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
-from .entity_definition import build_entity_definition, filter_attributes
+from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager, ServiceCall
 from .session_manager import SessionManager
@@ -174,7 +174,7 @@ def _parse_session_config(raw: dict) -> SessionConfig:
     )
 
 
-_VALID_CAPABILITIES = ("read", "read-write")
+_VALID_CAPABILITIES = ("badge", "read", "read-write")
 _ENTITY_ID_RE = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 
 
@@ -620,14 +620,17 @@ class HarvestTokenDetailView(HomeAssistantView):
                 if ea is None:
                     continue
                 out_id = session.outgoing_ids.get(real_id, ea.alias or real_id)
-                companion_refs = [
-                    session.outgoing_ids.get(comp_ea.entity_id, comp_ea.alias or comp_ea.entity_id)
-                    for comp_ea in token.entities
-                    if comp_ea.companion_of == real_id
-                ]
-                defn = build_entity_definition(
-                    self._hass, real_id, ea, companions=companion_refs
-                )
+                if ea.capabilities == "badge":
+                    defn = build_badge_definition(self._hass, real_id, ea)
+                else:
+                    companion_refs = [
+                        session.outgoing_ids.get(comp_ea.entity_id, comp_ea.alias or comp_ea.entity_id)
+                        for comp_ea in token.entities
+                        if comp_ea.companion_of == real_id
+                    ]
+                    defn = build_entity_definition(
+                        self._hass, real_id, ea, companions=companion_refs
+                    )
                 if defn is None:
                     continue
                 defn = dict(defn)
@@ -2118,9 +2121,12 @@ class HarvestEntityDefinitionView(HomeAssistantView):
         companion_raw = params.get("companion_ids", "")
         companion_ids = [c.strip() for c in companion_raw.split(",") if c.strip()] if companion_raw else None
 
-        definition = build_entity_definition(
-            self._hass, entity_id, entity_access, companions=companion_ids,
-        )
+        if entity_access.capabilities == "badge":
+            definition = build_badge_definition(self._hass, entity_id, entity_access)
+        else:
+            definition = build_entity_definition(
+                self._hass, entity_id, entity_access, companions=companion_ids,
+            )
         if definition is None:
             raise web.HTTPNotFound(text=f"Entity {entity_id} not found")
 

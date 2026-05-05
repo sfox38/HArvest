@@ -38,9 +38,7 @@ const WIDGET_COPIES = [
 ];
 
 // Post-build copy destinations for pack files.
-const PACK_COPIES = [
-  resolve(__dirname, "../wordpress/assets/packs/minimus.js"),
-];
+const PACK_COPIES = [];
 
 const isWatch = process.argv.includes("--watch");
 

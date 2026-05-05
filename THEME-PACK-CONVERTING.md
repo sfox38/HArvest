@@ -113,6 +113,7 @@ Every pack follows this structure:
     "remote":         RemoteCard,
     "harvest_action": HarvestActionCard,
     "generic":        GenericCard,      // fallback for unknown domains
+    "badge":          BadgeCard,       // compact pill indicator for badge capability
   };
 })();
 ```
@@ -215,6 +216,10 @@ Common display hint keys used across domains:
 | `show_transport` | `boolean` | Media player: show transport controls (default: true) |
 | `show_volume` | `boolean` | Media player: show volume controls (default: true) |
 | `show_source` | `boolean` | Media player: show source selector (default: true) |
+| `badge_show_icon` | `boolean` | Badge: show icon in pill (default: true) |
+| `badge_show_name` | `boolean` | Badge: show entity name in pill (default: true) |
+| `badge_show_state` | `boolean` | Badge: show state text in pill (default: true) |
+| `badge_icon_color` | `string` | Badge: icon color when active. Values: `"auto"`, `"red"`, `"orange"`, `"amber"`, `"yellow"`, `"green"`, `"teal"`, `"cyan"`, `"blue"`, `"indigo"`, `"purple"`, `"pink"`, `"grey"`. Default: `"auto"` (uses `--hrv-color-primary`). Inactive states always use grey (`#9ca3af`). |
 
 Boolean hints default to `true` when absent. Check with `!== false` rather than `=== true` so that missing keys are treated as enabled.
 
@@ -295,7 +300,7 @@ The entity definition is sent once per entity when the WebSocket connection is e
   domain:             "light",
   device_class:       "ceiling" | null,
   friendly_name:      "Bedroom Light",
-  capabilities:       "read-write" | "read",
+  capabilities:       "badge" | "read-write" | "read",
   supported_features: ["brightness", "color_temp", "rgb_color"],
   feature_config:     { min_brightness: 0, max_brightness: 255, ... },
   icon:               "mdi:lightbulb",
@@ -500,7 +505,17 @@ sendCommand("turn_off", {})
 
 ## Card template pattern
 
-Every card's `render()` method should follow this structure:
+Badge entities (`def.capabilities === "badge"`) skip the full card template entirely and use the `BadgeCard` renderer registered under the `"badge"` key in the pack registry. The badge renderer is a separate class that renders a compact pill (icon + name + state). See the built-in `BadgeCard` in `widget/src/renderers/badge-card.js` as a reference implementation. Badges do not support gestures, companions, or history.
+
+Pack badge implementations must follow these rules:
+
+- **`:host` overrides:** Set `min-width: unset !important`, `display: inline-block !important`, and `contain: none !important`. The `contain` override is critical; without it the inline-block pill collapses to zero width because the shared base styles set `contain: inline-size`.
+- **Icon resolution:** Use `this.resolveIcon(iconName, fallback)` instead of passing icon names directly to `renderIcon`. The entity definition may contain HA registry icons that are not in the widget's MDI bundle. Provide a domain-specific fallback (e.g., `"mdi:lightbulb"` for light) so the badge shows a sensible icon when the bundled set lacks the exact name.
+- **Accessibility:** Always render name and state elements in the DOM, even when `badge_show_name` or `badge_show_state` is false. Use a `.sr-only` CSS class to visually hide them while keeping them available to screen readers. Add a `title` attribute on the `[part=badge]` element and update it in `applyState` with the current name and state for hover tooltips.
+- **State label i18n:** Try the domain-specific i18n key first (`this.i18n.t(\`${this.def.domain}.${state}\`)`), then fall back to the generic key (`state.${state}`), then the raw state string. Weather states (e.g., `partlycloudy`) use domain-specific keys like `weather.partlycloudy` rather than `state.*`.
+- **No gestures:** Do not call `this._attachGestureHandlers()`. The server omits `gesture_config` from badge definitions and the panel hides the gesture settings when badge is selected.
+
+Every non-badge card's `render()` method should follow this structure:
 
 ```javascript
 render() {
@@ -1105,12 +1120,13 @@ For each domain, create a class extending BaseCard. Follow these principles:
 
 1. **Preview toggles**: Toggle every feature on and off. Controls must appear and disappear.
 2. **Read-only mode**: Switch to Read capability. All interactive controls must vanish.
-3. **Custom entity**: Select a real entity from the HA instance. Verify real attributes render correctly.
-4. **Graph toggle**: For sensor/binary_sensor/input_number, toggle graph types.
-5. **Dark mode**: Switch color modes. Verify readability.
-6. **Companion dots**: Add companions to the entity in the token config. Verify they appear.
-7. **Click every control**: Every button, slider, and selector must produce visible feedback (via `predictState` in preview, via server response in live mode).
-8. **Gesture overrides**: Configure a tap gesture to "Do nothing" on a toggle-type entity. Verify tapping no longer toggles. Configure a hold gesture. Verify holding fires the configured action instead of doing nothing.
+3. **Badge mode**: Switch to Badge capability. Verify the card renders as a compact pill (icon + name + state). Toggle show icon/name/state and change icon color in badge settings. Verify companions and gestures sections are hidden. Test with a weather entity to confirm the state label shows a friendly name (e.g., "Partly cloudy") rather than the raw slug.
+4. **Custom entity**: Select a real entity from the HA instance. Verify real attributes render correctly.
+5. **Graph toggle**: For sensor/binary_sensor/input_number, toggle graph types.
+6. **Dark mode**: Switch color modes. Verify readability.
+7. **Companion dots**: Add companions to the entity in the token config. Verify they appear.
+8. **Click every control**: Every button, slider, and selector must produce visible feedback (via `predictState` in preview, via server response in live mode).
+9. **Gesture overrides**: Configure a tap gesture to "Do nothing" on a toggle-type entity. Verify tapping no longer toggles. Configure a hold gesture. Verify holding fires the configured action instead of doing nothing.
 
 ### Step 7: Minify and sync
 

@@ -370,6 +370,65 @@ def build_entity_definition(
     }
 
 
+def build_badge_definition(
+    hass: HomeAssistant,
+    entity_id: str,
+    entity_access: "EntityAccess",
+) -> dict | None:
+    """Build a minimal entity_definition for badge capability.
+
+    Returns only the fields needed for a compact badge display:
+    identity, icon, name, unit, and display hints.
+    Omits supported_features, feature_config, companions, color_scheme,
+    and gesture_config (badges do not support gestures).
+    """
+    state = hass.states.get(entity_id)
+    if state is None:
+        return None
+
+    domain = entity_id.split(".")[0]
+    attrs = state.attributes
+
+    registry = er.async_get(hass)
+    entry = registry.async_get(entity_id)
+
+    device_class: str | None = None
+    if entry is not None:
+        device_class = entry.device_class or entry.original_device_class
+    if device_class is None:
+        device_class = attrs.get("device_class")
+
+    if entity_access.name_override:
+        friendly_name: str = entity_access.name_override
+    else:
+        friendly_name = attrs.get("friendly_name") or ""
+        if not friendly_name and entry is not None:
+            friendly_name = entry.name or entry.original_name or entity_id
+
+    if entity_access.icon_override:
+        icon_state_map = {"*": entity_access.icon_override}
+        current_icon = entity_access.icon_override
+    else:
+        icon_state_map = build_icon_state_map(domain, state, entry, device_class)
+        current_icon = (
+            icon_state_map.get(state.state)
+            or icon_state_map.get("*", "mdi:help-circle")
+        )
+
+    unit_of_measurement: str | None = attrs.get("unit_of_measurement")
+
+    return {
+        "entity_id": entity_id,
+        "domain": domain,
+        "device_class": device_class,
+        "friendly_name": friendly_name,
+        "icon": current_icon,
+        "icon_state_map": icon_state_map,
+        "unit_of_measurement": unit_of_measurement,
+        "display_hints": entity_access.display_hints or {},
+    }
+
+
 def decode_supported_features(domain: str, bitmask: int) -> list[str]:
     """Translate a HA supported_features bitmask to a list of feature strings.
 
