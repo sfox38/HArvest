@@ -209,6 +209,10 @@ const _loadedPacks = new Set<string>();
 const _loadingPacks = new Map<string, Promise<void>>();
 const _packCacheBust = new Map<string, string>();
 
+export function isPackLoaded(packId: string): boolean {
+  return _loadedPacks.has(packId);
+}
+
 export function loadPackScript(packId: string): Promise<void> {
   if (_loadedPacks.has(packId)) return Promise.resolve();
   const existing = _loadingPacks.get(packId);

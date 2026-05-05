@@ -12,7 +12,7 @@ import { api } from "../api";
 import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, Hint, EventRow, fmtRel, EntityAutocomplete, useThemeThumbs } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
-import { loadWidgetScript, loadPackScript, generateMockHistory } from "./WidgetPreview";
+import { loadWidgetScript, loadPackScript, isPackLoaded, generateMockHistory } from "./WidgetPreview";
 
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 import { loadEntityCache, getEntityCache } from "../entityCache";
@@ -639,6 +639,7 @@ function EntityPreview({
   const packId = theme?.renderer_pack ? theme.theme_id : undefined;
 
   useEffect(() => {
+    if (packId && !isPackLoaded(packId)) setReady(false);
     loadWidgetScript()
       .then(() => packId ? loadPackScript(packId) : Promise.resolve())
       .then(() => setReady(true))
