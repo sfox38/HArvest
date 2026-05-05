@@ -301,6 +301,7 @@ HArvest.renderers.InputSelectCard
 HArvest.renderers.HarvestActionCard
 HArvest.renderers.TimerCard
 HArvest.renderers.WeatherCard
+HArvest.renderers.BadgeCard      // compact pill for badge capability
 HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
 
         <h3>HArvest.track.anyState(callback)</h3>
@@ -339,7 +340,7 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
           </table>
         </div>
 
-        <p>There is no per-card companion limit; the 50-entity token budget is the only constraint. Companions with "read" capability never trigger service calls regardless of the domain, even if the domain normally allows control.</p>
+        <p>There is no per-card companion limit; the 50-entity token budget is the only constraint. Companions with "read" capability never trigger service calls regardless of the domain, even if the domain normally allows control. Badge entities cannot have companions.</p>
         </section>
 
         <section>

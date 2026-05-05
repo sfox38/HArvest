@@ -435,7 +435,7 @@ hrv-card::part(brightness-slider) {
               <tr><td><code>friendly_name</code></td><td>string</td><td>Human-readable name</td></tr>
               <tr><td><code>domain</code></td><td>string</td><td>Entity domain (light, fan, etc.)</td></tr>
               <tr><td><code>device_class</code></td><td>string | null</td><td>HA device class if set</td></tr>
-              <tr><td><code>capabilities</code></td><td>"read" | "read-write"</td><td>Whether the token allows control</td></tr>
+              <tr><td><code>capabilities</code></td><td>"badge" | "read" | "read-write"</td><td>Whether the token allows control. Badge entities are routed to the badge renderer, not the domain renderer.</td></tr>
               <tr><td><code>supported_features</code></td><td>string[]</td><td>Feature flags (e.g. ["brightness", "color_temp"])</td></tr>
               <tr><td><code>feature_config</code></td><td>object</td><td>Feature-specific config (e.g. min/max color temp)</td></tr>
               <tr><td><code>gesture_config</code></td><td>object</td><td>Tap/hold/double-tap action config</td></tr>

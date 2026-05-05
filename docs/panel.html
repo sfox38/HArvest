@@ -169,12 +169,14 @@
               <tr><td>Icon</td><td>icon picker</td><td>Replaces the auto-detected icon with any icon from the widget's built-in set (~113 icons). Click the icon button to the left of the Display name field to open the picker. Select an icon, or use "Reset to default" to clear the override.</td></tr>
               <tr><td>Display name</td><td>text input</td><td>Overrides the entity's Home Assistant friendly name. Leave blank to use the HA name.</td></tr>
               <tr><td>Force color scheme</td><td>Auto, Light, Dark</td><td>Forces the widget card to render in that color scheme regardless of the visitor's system settings. Auto follows the page's color scheme.</td></tr>
-              <tr><td>Access</td><td>Read + Control, Read only</td><td>Whether the widget can send commands (e.g. toggle a light) or only display state</td></tr>
+              <tr><td>Access</td><td>Badge, Read only, Read + Control</td><td>Badge renders a compact pill indicator (icon, name, state) with no controls, companions, or gestures. Read only displays a full card without controls. Read + Control displays a full card that can send commands (e.g. toggle a light).</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p><strong>Domain-specific controls</strong> appear based on the entity's domain and what the active theme's renderer pack supports. If the current theme has no renderer pack, only universal settings are shown.</p>
+        <p><strong>Badge settings:</strong> when Access is set to Badge, domain-specific controls, companions, and gestures are hidden. In their place, badge-specific settings appear: <strong>Show icon</strong>, <strong>Show name</strong>, and <strong>Show state</strong> toggles, plus an <strong>Icon color</strong> picker with color swatches (Auto, Red, Orange, Amber, Yellow, Green, Teal, Cyan, Blue, Indigo, Purple, Pink, Grey). Auto derives the color from the entity's domain.</p>
+
+        <p><strong>Domain-specific controls</strong> appear based on the entity's domain and what the active theme's renderer pack supports. If the current theme has no renderer pack, only universal settings are shown. These controls are hidden when Access is Badge.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Domain</th><th>Available controls</th></tr></thead>
@@ -190,11 +192,11 @@
           </table>
         </div>
 
-        <p><strong>Companions:</strong> add or remove companion entities that display inside the selected entity's card. Companion entities do not appear in the left entity list. This section auto-opens when companions already exist.</p>
+        <p><strong>Companions:</strong> add or remove companion entities that display inside the selected entity's card. Companion entities do not appear in the left entity list. This section auto-opens when companions already exist. Hidden when Access is Badge.</p>
 
         <p><strong>Excluded attributes:</strong> a grid of toggles for each attribute the entity exposes. Excluding an attribute prevents it from being sent to the widget. These toggles are linked to the domain-specific controls above: disabling "Show brightness" for a light also excludes the brightness attribute, and vice versa.</p>
 
-        <p><strong>Gestures:</strong> maps tap, hold, and double-tap interactions on the card to actions:</p>
+        <p><strong>Gestures:</strong> maps tap, hold, and double-tap interactions on the card to actions. Hidden when Access is Badge.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Gesture</th><th>Available actions</th></tr></thead>

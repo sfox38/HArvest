@@ -81,7 +81,7 @@
         <section>
         <h2 id="model">Security model</h2>
 
-        <p>HArvest's security boundary is the <em>token</em>. A token grants access to a specific, server-defined list of entities with a specific capability (view only or control). The HA long-lived access token (your HA credentials) never leaves the server. Visitors interact only with the HArvest WebSocket proxy, which forwards only the exact service calls the integration permits.</p>
+        <p>HArvest's security boundary is the <em>token</em>. A token grants access to a specific, server-defined list of entities with a specific capability (badge, view only, or control). The HA long-lived access token (your HA credentials) never leaves the server. Visitors interact only with the HArvest WebSocket proxy, which forwards only the exact service calls the integration permits.</p>
 
         <p>Tokens are independent - compromising one doesn't affect others. They can be revoked instantly from the panel, dropping all active sessions for that token within seconds.</p>
 
@@ -117,7 +117,7 @@
         <p>All security options are configured per-token in the widget detail screen or wizard.</p>
 
         <h3>Capability</h3>
-        <p>Set per entity in the token. <strong>View only</strong> - state updates only, no service calls. <strong>Control</strong> - state updates plus allowed service calls for that domain.</p>
+        <p>Set per entity in the token. <strong>Badge</strong> - compact pill indicator, state only, no service calls, no companions, no gestures. <strong>View only</strong> - full card, state updates only, no service calls. <strong>Control</strong> - full card, state updates plus allowed service calls for that domain.</p>
 
         <h3>Excluded attributes</h3>
         <p>Per entity. Prevents specific HA state attributes from being sent to the widget. Useful for hiding location coordinates, internal IDs, or other attributes you don't want visible in network traffic.</p>
@@ -207,9 +207,9 @@
 
         <p>Recommended practices by use case:</p>
 
-        <h3>Read-only public widgets (sensor displays, status boards)</h3>
+        <h3>Badge or read-only public widgets (sensor displays, status boards)</h3>
         <ul>
-          <li>Set capability to <strong>Read</strong> for all entities</li>
+          <li>Set capability to <strong>Badge</strong> (minimal pill indicator) or <strong>Read</strong> (full card) for all entities</li>
           <li>Add an origin restriction for the embedding website</li>
           <li>Set an expiry date (90 days and rotate, or use a schedule)</li>
           <li>Use entity aliases to avoid exposing real entity IDs in page source</li>

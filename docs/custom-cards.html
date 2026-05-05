@@ -141,7 +141,7 @@
               <tr>
                 <td><code>this.def</code></td>
                 <td>Object</td>
-                <td>The entity definition from the server. Contains <code>entity_id</code>, <code>domain</code>, <code>friendly_name</code>, <code>capabilities</code> (<code>"read"</code> or <code>"read-write"</code>), <code>supported_features</code> (array of strings), <code>feature_config</code> (domain-specific ranges and options), <code>icon</code>, <code>icon_state_map</code>, <code>display_hints</code>, <code>gesture_config</code>, <code>companions</code>, and more.</td>
+                <td>The entity definition from the server. Contains <code>entity_id</code>, <code>domain</code>, <code>friendly_name</code>, <code>capabilities</code> (<code>"badge"</code>, <code>"read"</code>, or <code>"read-write"</code>), <code>supported_features</code> (array of strings), <code>feature_config</code> (domain-specific ranges and options), <code>icon</code>, <code>icon_state_map</code>, <code>display_hints</code>, <code>gesture_config</code>, <code>companions</code>, and more. Badge entities receive a minimal definition (no <code>gesture_config</code>, <code>companions</code>, or <code>supported_features</code>).</td>
               </tr>
               <tr>
                 <td><code>this.root</code></td>
@@ -344,7 +344,7 @@
         <h3>Key patterns</h3>
 
         <ul>
-          <li><strong>Check <code>capabilities</code></strong> - if the entity is read-only, do not render buttons, sliders, or any interactive controls. Only show state.</li>
+          <li><strong>Check <code>capabilities</code></strong> - if the entity is <code>"read"</code>, do not render buttons, sliders, or any interactive controls. Only show state. Badge entities (<code>"badge"</code>) are routed to the badge renderer, not your card, so you do not need to handle that case.</li>
           <li><strong>Include shared styles</strong> - call <code>this.getSharedStyles()</code> at the start of your <code>&lt;style&gt;</code> block. This provides the card layout, companion zone, history graph, and error state styles.</li>
           <li><strong>Use <code>part</code> attributes</strong> - every meaningful element should have a <code>part="..."</code> attribute so theme authors can target it with <code>::part()</code> selectors.</li>
           <li><strong>Include the standard zones</strong> - your template should include <code>renderAriaLiveHTML()</code>, <code>renderCompanionZoneHTML()</code>, and a <code>&lt;div part="stale-indicator"&gt;</code>. These enable accessibility, companion pills, and the stale-data indicator.</li>
@@ -470,7 +470,7 @@
 &lt;!-- With alias --&gt;
 &lt;hrv-card alias="dJ5x3Apd"&gt;&lt;/hrv-card&gt;</code></pre>
 
-        <p>The token must include the entity with <code>read-write</code> capability if you want commands to work. For display-only cards, <code>read</code> capability is sufficient.</p>
+        <p>The token must include the entity with <code>read-write</code> capability if you want commands to work. For display-only cards, <code>read</code> capability is sufficient. For compact status indicators, use <code>badge</code> capability - the entity renders as a pill and does not use your custom renderer.</p>
 
         <h3>Mixing with built-in cards</h3>
 
@@ -500,7 +500,7 @@
           <li><strong>Data key filtering</strong> - for Tier 1 domains, only keys in the hardcoded <code>_ALLOWED_DATA_KEYS</code> map are forwarded. For custom domains, the server queries HA's service schema to determine which data keys the service accepts. Unknown keys are silently stripped.</li>
         </ol>
 
-        <p>If the entity's capability is <code>"read"</code>, all commands are rejected regardless of the whitelist.</p>
+        <p>If the entity's capability is <code>"read"</code> or <code>"badge"</code>, all commands are rejected regardless of the whitelist.</p>
         </section>
 
         <!-- ============================================================ -->

@@ -202,7 +202,7 @@
               <tr><td>Display name</td><td>string | null</td><td>null</td><td>Overrides the entity's HA friendly name in the widget. Null = use HA name.</td></tr>
               <tr><td>Icon</td><td>mdi:&lt;name&gt; | null</td><td>null</td><td>Overrides the auto-detected icon for all states. Null = use domain default.</td></tr>
               <tr><td>Force color scheme</td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Forces the widget card into light or dark mode regardless of the visitor's OS setting.</td></tr>
-              <tr><td>Capability</td><td>"read" | "read-write"</td><td>"read-write"</td><td>"read" is view only; "read-write" enables control (service calls).</td></tr>
+              <tr><td>Capability</td><td>"badge" | "read" | "read-write"</td><td>"read-write"</td><td>"badge" renders a compact pill indicator with no controls, companions, or gestures. "read" is a full card, view only. "read-write" is a full card with control (service calls).</td></tr>
               <tr><td>Alias</td><td>string | null</td><td>null</td><td>8-character random alias. Generated in the wizard, or manually in the detail screen.</td></tr>
               <tr><td>Exclude attributes</td><td>string list</td><td>-</td><td>HA attribute names to strip before sending to widget. Bidirectionally linked with domain-specific display controls.</td></tr>
               <tr><td>Graph type</td><td>"line" | "bar" | null</td><td>null</td><td>History graph for sensors and input_number. Null = no graph. Stored in <code>display_hints.graph</code>.</td></tr>
@@ -211,9 +211,13 @@
               <tr><td>Fan display mode</td><td>"auto" | "on-off" | "continuous" | "stepped" | "cycle"</td><td>"auto"</td><td>Controls which fan speed UI is shown. "auto" lets the renderer decide based on the entity's features. Stored in <code>display_hints.display_mode</code>. Only visible when the active theme pack supports it.</td></tr>
               <tr><td>Animate fan</td><td>boolean</td><td>false</td><td>Spin the fan icon when entity is on. Stored in <code>display_hints.animate</code>.</td></tr>
               <tr><td>Companions</td><td>entity list</td><td>-</td><td>Companion entities displayed inside this card. Managed in the Entity Settings card; do not appear in the entity list. 50-entity token budget applies. See <a href="entities.html#companions">companion eligibility</a>.</td></tr>
-              <tr><td>Gesture: tap</td><td>action | null</td><td>null</td><td>Action on single tap: toggle, trigger a Harvest Action, or no action.</td></tr>
-              <tr><td>Gesture: hold</td><td>action | null</td><td>null</td><td>Action on hold.</td></tr>
-              <tr><td>Gesture: double tap</td><td>action | null</td><td>null</td><td>Action on double tap.</td></tr>
+              <tr><td>Badge: show icon</td><td>boolean</td><td>true</td><td>Show icon in badge pill. Only visible when capability is <code>"badge"</code>. Stored in <code>display_hints.badge_show_icon</code>.</td></tr>
+              <tr><td>Badge: show name</td><td>boolean</td><td>true</td><td>Show name in badge pill. Stored in <code>display_hints.badge_show_name</code>.</td></tr>
+              <tr><td>Badge: show state</td><td>boolean</td><td>true</td><td>Show state in badge pill. Stored in <code>display_hints.badge_show_state</code>.</td></tr>
+              <tr><td>Badge: icon color</td><td>string</td><td>"auto"</td><td>Icon color when entity is active. Auto derives from domain. Options: auto, red, orange, amber, yellow, green, teal, cyan, blue, indigo, purple, pink, grey. Stored in <code>display_hints.badge_icon_color</code>.</td></tr>
+              <tr><td>Gesture: tap</td><td>action | null</td><td>null</td><td>Action on single tap: toggle, trigger a Harvest Action, or no action. Not available for badge entities.</td></tr>
+              <tr><td>Gesture: hold</td><td>action | null</td><td>null</td><td>Action on hold. Not available for badge entities.</td></tr>
+              <tr><td>Gesture: double tap</td><td>action | null</td><td>null</td><td>Action on double tap. Not available for badge entities.</td></tr>
             </tbody>
           </table>
         </div>
