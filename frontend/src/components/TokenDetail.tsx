@@ -727,8 +727,12 @@ function EntityPreview({
   }, [ready, cardKey, serverDef, JSON.stringify(themeObj)]);
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
-  if (!ready || !serverDef) return <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>;
-  return <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entity preview" style={{ display: "flex", justifyContent: "center", minHeight: 100, padding: "12px 0" }} />;
+  return (
+    <>
+      {(!ready || !serverDef) && <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>}
+      <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entity preview" style={{ display: ready && serverDef ? "flex" : "none", justifyContent: "center", minHeight: 100, padding: "12px 0" }} />
+    </>
+  );
 }
 
 function hasFeature(cap: ThemeCapabilities | null, domain: string, feature: string): boolean {
