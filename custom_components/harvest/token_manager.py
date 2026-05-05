@@ -29,6 +29,7 @@ from .const import (
     CONF_MAX_ENTITIES_HARD_CAP,
     CONF_MAX_ENTITIES_PER_TOKEN,
     DEFAULTS,
+    ERR_ENTITY_INCOMPATIBLE,
     ERR_ENTITY_NOT_IN_TOKEN,
     ERR_IP_DENIED,
     ERR_ORIGIN_DENIED,
@@ -577,20 +578,28 @@ class TokenManager:
                 if normalised not in token.origins.allow_paths:
                     return token, ERR_ORIGIN_DENIED
 
-        # 8. Resolve entity refs - skip unresolvable or incompatible refs
-        # instead of rejecting the entire auth. Only fail if zero refs resolve.
+        # 8. Resolve entity refs - partial scope by design.
+        # Unresolvable and Tier 3 refs are silently dropped rather than
+        # rejecting the whole auth. This allows a page with mixed cards
+        # (some valid, some stale or incompatible) to still connect.
+        # Empty entity_refs=[] also passes; subscription is gated later.
+        # Only fail if entity_refs was non-empty and zero refs resolved.
         from .entity_compatibility import get_support_tier  # local import to avoid circular dep
         valid_count = 0
+        tier3_count = 0
         for ref in entity_refs:
             resolved = self._resolve_entity_ref(ref, token)
             if resolved is None:
                 continue
             domain = resolved.entity_id.split(".")[0]
             if get_support_tier(domain) == 3:
+                tier3_count += 1
                 continue
             valid_count += 1
 
         if valid_count == 0 and len(entity_refs) > 0:
+            if tier3_count > 0:
+                return token, ERR_ENTITY_INCOMPATIBLE
             return token, ERR_ENTITY_NOT_IN_TOKEN
 
         # 10. HMAC signature.
@@ -691,8 +700,13 @@ class TokenManager:
         Note: the secret is stored as plaintext in HA's local .storage/ file.
         Previous documentation claiming it was stored as a hash was incorrect -
         HMAC verification is impossible without the original secret.
+
+        Security: no nonce store - replay is possible within the 60s window.
+        Accepted tradeoff; see security.md section 5.14.
         """
         if not isinstance(timestamp, int):
+            return False
+        if not isinstance(nonce, str) or not isinstance(signature, str):
             return False
         now_ts = int(datetime.now(tz=timezone.utc).timestamp())
         if abs(now_ts - timestamp) > 60:
@@ -726,7 +740,7 @@ class TokenManager:
         """Return True if source_ip falls within any of the allowed CIDR ranges."""
         try:
             addr = ip_address(source_ip)
-        except AddressValueError:
+        except (ValueError, AddressValueError):
             return False
         for cidr in allowed_ips:
             try:
@@ -794,6 +808,7 @@ class TokenManager:
                 companion_of=e.get("companion_of"),
                 gesture_config=e.get("gesture_config", {}),
                 name_override=e.get("name_override"),
+                icon_override=e.get("icon_override"),
                 color_scheme=e.get("color_scheme", "auto"),
                 display_hints=_migrate_display_hints(e),
             )

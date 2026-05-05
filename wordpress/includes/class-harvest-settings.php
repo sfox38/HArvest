@@ -54,7 +54,7 @@ class Harvest_Settings {
 
         register_setting( 'harvest_settings_group', 'harvest_widget_custom_url', [
             'type'              => 'string',
-            'sanitize_callback' => 'esc_url_raw',
+            'sanitize_callback' => [ self::class, 'sanitize_custom_url' ],
             'default'           => '',
         ] );
 
@@ -65,13 +65,17 @@ class Harvest_Settings {
     // ---------------------------------------------------------------------------
 
     public static function sanitize_ha_url( string $url ): string {
-        $url = esc_url_raw( trim( $url ) );
+        $url = esc_url_raw( trim( $url ), [ 'http', 'https' ] );
         // Strip trailing slash so the URL is consistent across the plugin.
         return rtrim( $url, '/' );
     }
 
     public static function sanitize_widget_source( string $source ): string {
         return in_array( $source, [ 'bundled', 'custom' ], true ) ? $source : 'bundled';
+    }
+
+    public static function sanitize_custom_url( string $url ): string {
+        return esc_url_raw( trim( $url ), [ 'http', 'https' ] );
     }
 
     // ---------------------------------------------------------------------------

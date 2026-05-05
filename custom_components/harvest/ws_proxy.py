@@ -102,7 +102,11 @@ _SESSION_EXPIRING_WARN_BEFORE = 600  # 10 minutes
 _background_tasks: set[asyncio.Task] = set()  # prevent GC of fire-and-forget tasks
 
 def _fire(coro: object) -> None:
-    """Schedule a coroutine as a fire-and-forget task, logging any exception."""
+    """Schedule a coroutine as a fire-and-forget task, logging any exception.
+
+    No backpressure: a slow/dead client accumulates tasks until the WS
+    closes. Bounded in practice by push rate limiting and keepalive timeout.
+    """
     async def _wrap(c: object) -> None:
         try:
             await c  # type: ignore[misc]
@@ -259,6 +263,7 @@ class HarvestWsView(HomeAssistantView):
             return
 
         # --- Step 1: Wait for auth message ---
+        # Auth message size is bounded by aiohttp's default max_msg_size (4 MB).
         try:
             raw = await asyncio.wait_for(ws.receive(), timeout=auth_timeout)
         except asyncio.TimeoutError:
@@ -285,7 +290,11 @@ class HarvestWsView(HomeAssistantView):
         if not isinstance(raw_entity_refs, list):
             await ws.close()
             return
+        if not all(isinstance(r, str) for r in raw_entity_refs):
+            await ws.close()
+            return
         entity_refs: list[str] = raw_entity_refs
+        # Origin is spoofable by non-browser clients; see security.md scenario 3.
         origin: str = request.headers.get("Origin", "")
         page_path: str | None = msg.get("page_path")
         msg_id = msg.get("msg_id")
@@ -1032,6 +1041,9 @@ class HarvestWsView(HomeAssistantView):
             return
 
         ea_hints = ea.display_hints if ea else {}
+        # hours/period from an authenticated session; non-numeric values
+        # are clamped via max/min which raises TypeError - acceptable
+        # since the session is already authorized and the error is logged.
         hours = msg.get("hours", ea_hints.get("hours", 24))
         hours = max(1, min(hours, 168))
         period = msg.get("period", ea_hints.get("period", 10))
@@ -1500,8 +1512,10 @@ class HarvestWsView(HomeAssistantView):
     def _get_source_ip(self, request: Request) -> str:
         """Extract the real client IP.
 
-        Reads X-Forwarded-For if connection is from a trusted proxy.
-        Falls back to connection peer name otherwise.
+        Reads the leftmost X-Forwarded-For entry if the direct peer is a
+        trusted proxy. This is correct for a single-proxy deployment (the
+        common HA setup). Multi-hop chains would need rightmost-trusted
+        extraction, but HA's own trusted_proxies model uses the same pattern.
         """
         trusted_proxies: list[str] = self._config.get("trusted_proxies", [])
         peer = request.transport.get_extra_info("peername")

@@ -171,6 +171,11 @@ class HarvestActionManager:
         Fire-and-forget: returns immediately without waiting for service completion.
         Logs each call at debug level with the session origin for audit.
         If a service call fails, it is logged but does not affect subsequent calls.
+
+        Security: this method does NOT verify session/token authorization.
+        The caller (ws_proxy._is_permitted_gesture_harvest_action) must gate
+        access before invoking trigger(). Service calls bypass ALLOWED_SERVICES
+        because harvest_actions are admin-defined server-side mappings.
         """
         action = self._actions.get(action_id)
         if action is None:

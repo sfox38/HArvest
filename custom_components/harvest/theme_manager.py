@@ -223,8 +223,15 @@ class ThemeManager:
 
     # -- Thumbnail helpers ---------------------------------------------------
 
+    @staticmethod
+    def _safe_theme_id(theme_id: str) -> bool:
+        """Return True if theme_id is safe for use in filesystem paths."""
+        return bool(theme_id) and "/" not in theme_id and "\\" not in theme_id and ".." not in theme_id
+
     def get_thumbnail_path(self, theme_id: str) -> Path | None:
         """Return the path to a theme's thumbnail, or None if no thumbnail exists."""
+        if not self._safe_theme_id(theme_id):
+            return None
         if theme_id in self._bundled:
             for ext in (".png", ".jpg", ".jpeg"):
                 path = _THEMES_DIR / f"{theme_id}{ext}"
@@ -247,6 +254,8 @@ class ThemeManager:
 
     def save_thumbnail(self, theme_id: str, data: bytes, extension: str) -> Path:
         """Save a thumbnail image for a user theme. Returns the saved path."""
+        if not self._safe_theme_id(theme_id):
+            raise ValueError(f"Invalid theme id: {theme_id}")
         if theme_id in self._bundled:
             raise ValueError("Cannot modify bundled theme thumbnails.")
         if theme_id not in self._user:
@@ -267,6 +276,8 @@ class ThemeManager:
 
     def delete_thumbnail(self, theme_id: str) -> bool:
         """Delete a user theme's thumbnail. Returns True if a file was removed."""
+        if not self._safe_theme_id(theme_id):
+            return False
         for ext in (".png", ".jpg", ".jpeg"):
             path = _USER_THEMES_DIR / f"{theme_id}{ext}"
             if path.is_file():

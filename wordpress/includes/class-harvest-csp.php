@@ -68,9 +68,12 @@ class Harvest_Csp {
                 $script_origin
             );
         } else {
-            // No existing CSP header from WordPress. Add a minimal one that
-            // permits the WebSocket and pack script loading without restricting
-            // anything else.
+            // No existing CSP header from WordPress. Add a minimal permissive
+            // baseline. 'unsafe-inline' is required because renderer packs
+            // inject inline scripts during dynamic loading. This weakens
+            // script-src but is the accepted tradeoff for pack extensibility.
+            // When a site already has a stricter CSP, add_to_directive()
+            // only appends origins - it does not add 'unsafe-inline'.
             // Apply the same validation as add_to_directive() before interpolation.
             $valid_ws     = ! preg_match( '/[\s;,]/', $ws_url );
             $valid_script = ! preg_match( '/[\s;,]/', $script_origin );
@@ -95,6 +98,8 @@ class Harvest_Csp {
      * @return string Updated policy string.
      */
     private static function add_to_directive( string $policy, string $directive, string $url ): string {
+        // Regex-based CSP parsing is inherently fragile. Acceptable here
+        // because both $directive and $url are admin-supplied, validated values.
         // Reject URLs containing characters that could break the CSP header.
         if ( preg_match( '/[\s;,]/', $url ) ) {
             return $policy;

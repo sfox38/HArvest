@@ -33,7 +33,10 @@ class Harvest_Shortcode {
     // [harvest] shortcode
     // ---------------------------------------------------------------------------
 
-    public static function render( array|string $atts = [] ): string {
+    /**
+     * @param array|string $atts Shortcode attributes.
+     */
+    public static function render( $atts = [] ): string {
         $atts = (array) $atts;
         $atts = shortcode_atts(
             [
@@ -114,7 +117,11 @@ class Harvest_Shortcode {
     // [harvest_group] shortcode
     // ---------------------------------------------------------------------------
 
-    public static function render_group( array|string $atts = [], string $content = '' ): string {
+    /**
+     * @param array|string $atts    Shortcode attributes.
+     * @param string       $content Enclosed content.
+     */
+    public static function render_group( $atts = [], $content = '' ): string {
         $atts = (array) $atts;
         $atts = shortcode_atts(
             [

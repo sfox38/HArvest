@@ -1647,7 +1647,20 @@ class HarvestThemeThumbnailView(HomeAssistantView):
         filename = field.filename or "upload.png"
         from pathlib import PurePosixPath
         ext = PurePosixPath(filename).suffix.lower()
-        data = await field.read(decode=False)
+        max_size = 512 * 1024  # 500 KB
+        chunks: list[bytes] = []
+        size = 0
+        while True:
+            chunk = await field.read_chunk(8192)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > max_size:
+                raise web.HTTPRequestEntityTooLarge(
+                    max_size=max_size, actual_size=size
+                )
+            chunks.append(chunk)
+        data = b"".join(chunks)
         try:
             self._theme_manager.save_thumbnail(theme_id, data, ext)
         except (ValueError, KeyError) as exc:

@@ -78,6 +78,7 @@ class ActivityStore:
         self._config = config
         self._db_path: Path = Path(hass.config.config_dir) / ACTIVITY_DB_FILENAME
         self._db: aiosqlite.Connection | None = None
+        # Queue is unbounded; rate limiting upstream caps ingest volume.
         self._write_queue: asyncio.Queue = asyncio.Queue()
         self._flush_task: asyncio.Task | None = None
         self._retention_days: int = config.get(

@@ -107,9 +107,10 @@ class RateLimiter:
         return False, bucket.seconds_until_available()
 
     def check_auth_for_token(self, token_id: str) -> bool:
-        """Return True if the token is under its auth attempt limit.
+        """Check and consume one auth attempt slot for a token.
 
         Uses a fixed 60-second window. The counter is reset when the window expires.
+        Increments the counter on success to prevent concurrent bypass.
         """
         limit: int = self._config.get(
             CONF_MAX_AUTH_PER_TOKEN, DEFAULTS[CONF_MAX_AUTH_PER_TOKEN]
@@ -118,11 +119,13 @@ class RateLimiter:
         count, window_start = self._auth_token_counters.get(token_id, (0, now))
 
         if now - window_start >= _AUTH_WINDOW_SECONDS:
-            # Window expired - reset.
-            self._auth_token_counters[token_id] = (0, now)
+            self._auth_token_counters[token_id] = (1, now)
             return True
 
-        return count < limit
+        if count < limit:
+            self._auth_token_counters[token_id] = (count + 1, window_start)
+            return True
+        return False
 
     def record_auth_attempt(self, token_id: str) -> None:
         """Record a failed auth attempt for a token.
