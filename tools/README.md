@@ -68,11 +68,13 @@ Custom Lovelace cards (Bubble, Mushroom, etc.) are handled as follows:
 
 ### Limitations
 
-- HA `button` card type is treated as unsupported (HArvest uses `harvest_action` instead)
-- Tier 3 entities (cameras, locks, scripts, automations, etc.) are excluded
+- HA `button` card type is unsupported for security reasons (HArvest uses `harvest_action` instead)
+- Tier 3 entities (cameras, locks, scripts, automations, etc.) are excluded for security reasons
 - Companions are not auto-detected; configure them in the HArvest panel after conversion
 - Conditional card logic is dropped (the inner card is rendered unconditionally)
-- Template-based custom cards (mushroom-template-card, etc.) cannot render dynamic content
+- Template-based custom cards (mushroom-template-card, etc.) are unsupported
+- It's not going to be a perfect 1:1 match, but it can get you most of the way there and you can manually edit as needed
+- Requires Python installed on your computer
 
 ---
 

@@ -46,13 +46,7 @@ The HArvest wizard generates the exact snippet you need.
 
 ## Dashboard converter
 
-Already have a Lovelace dashboard? The converter tool recreates it as an HArvest HTML page automatically:
-
-```
-python tools/lovelace_convert.py
-```
-
-It connects to your HA instance, pulls the dashboard config, creates tokens for each tab, and generates a complete HTML file preserving your layout, sections, and badges. No external dependencies required.
+Already have a Lovelace dashboard? Check out our [Tools](https://github.com/sfox38/HArvest/tools/README.md) to learn about our dashboard conversion tool. It connects to your HA instance, pulls the dashboard config, creates tokens for each tab, and generates a complete HTML file preserving your layout, sections, and badges. No external dependencies required.
 
 ## Documentation
 
