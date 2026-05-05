@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Token, TokenUpdate, Session, ActivityPage, ThemeDefinition, ThemeCapabilities, HAEntityDetail } from "../types";
 import { validateLabel, DEFAULT_WIDGET_SCRIPT_URL } from "../types";
-import { api, getHaDarkMode } from "../api";
+import { api } from "../api";
 import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, Hint, EventRow, fmtRel, EntityAutocomplete, useThemeThumbs } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
@@ -577,6 +577,7 @@ interface EntitiesEditorProps {
   setSaving: (v: boolean) => void;
   setToken: (t: Token) => void;
   setError: (e: string) => void;
+  setSavedMsg?: (msg: string) => void;
 }
 
 const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "lock"]);
@@ -738,7 +739,7 @@ function hasFeature(cap: ThemeCapabilities | null, domain: string, feature: stri
   return list.includes(feature);
 }
 
-function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError, bare }: EntitiesEditorProps & { bare?: boolean }) {
+function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError, setSavedMsg, bare }: EntitiesEditorProps & { bare?: boolean }) {
   const [addInput, setAddInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -752,7 +753,8 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
   const [nameInput, setNameInput] = useState("");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [iconFilter, setIconFilter] = useState("");
-  const [previewBgTone, setPreviewBgTone] = useState(0);
+  const [previewBgGray, setPreviewBgGray] = useState<number | null>(null);
+  const [entitySnippetAlias, setEntitySnippetAlias] = useState(false);
   const [showCompanions, setShowCompanions] = useState(false);
   const [attrCache, setAttrCache] = useState<Record<string, string[]>>({});
   const [attrLoading, setAttrLoading] = useState<Set<string>>(new Set());
@@ -1192,22 +1194,49 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
           </div>
         </div>
 
-        {selectedEntity && selectedDomain && (
+        {selectedEntity && selectedDomain && (() => {
+          const friendlyName = getEntityCache().find(c => c.entity_id === selectedEntity.entity_id)?.friendly_name;
+          const entitySnippet = entitySnippetAlias && selectedEntity.alias
+            ? `<hrv-card alias="${selectedEntity.alias}"></hrv-card>`
+            : `<hrv-card entity="${selectedEntity.entity_id}"></hrv-card>`;
+          const copyEntitySnippet = () => {
+            doCopy(entitySnippet);
+            setSavedMsg?.("Copied to clipboard");
+          };
+          return (
           <div className="entity-config-section">
-            <div className="entity-config-title">{selectedEntity.entity_id}</div>
+            <div className="entity-config-title">
+              {friendlyName && friendlyName !== selectedEntity.entity_id
+                ? <><span className="entity-config-friendly">{friendlyName}</span> <span className="entity-config-eid">({selectedEntity.entity_id})</span></>
+                : selectedEntity.entity_id}
+            </div>
+
+            <div className="entity-snippet-row">
+              <pre
+                className="entity-snippet-code"
+                onClick={ev => {
+                  copyEntitySnippet();
+                  const target = ev.currentTarget;
+                  requestAnimationFrame(() => {
+                    const sel = window.getSelection();
+                    if (sel) { const range = document.createRange(); range.selectNodeContents(target); sel.removeAllRanges(); sel.addRange(range); }
+                  });
+                }}
+                title="Click to copy"
+              >{entitySnippet}</pre>
+              <div className="entity-snippet-alias">
+                <Toggle checked={entitySnippetAlias} onChange={setEntitySnippetAlias} disabled={!selectedEntity.alias} />
+                <span>Alias</span>
+              </div>
+            </div>
 
             {entityDetail[selectedEntity.entity_id] && (() => {
-              const isDark = selectedEntity.color_scheme === "dark" ||
-                (selectedEntity.color_scheme === "auto" && getHaDarkMode());
-              const surfaceColor = isDark
-                ? (selectedTheme?.dark_variables?.["--hrv-color-surface"] ?? selectedTheme?.variables?.["--hrv-color-surface"] ?? "#1a1a2e")
-                : "#1a1a2e";
-              const bgColor = previewBgTone === 0
-                ? "transparent"
-                : `color-mix(in srgb, ${surfaceColor} ${previewBgTone}%, transparent)`;
+              const bgColor = previewBgGray == null
+                ? undefined
+                : `rgb(${Math.round(previewBgGray * 2.55)},${Math.round(previewBgGray * 2.55)},${Math.round(previewBgGray * 2.55)})`;
               return (
                 <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
-                  <div style={{ flex: 1, borderRadius: 8, background: bgColor, transition: "background 0.15s" }}>
+                  <div className="entity-preview-stage" style={{ flex: 1, borderRadius: 8, background: bgColor, transition: "background 0.15s" }}>
                     <EntityPreview
                       entity={entityDetail[selectedEntity.entity_id]}
                       entityAccess={selectedEntity}
@@ -1220,8 +1249,8 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                       type="range"
                       min={0}
                       max={100}
-                      value={previewBgTone}
-                      onChange={ev => setPreviewBgTone(Number(ev.target.value))}
+                      value={previewBgGray ?? 50}
+                      onChange={ev => setPreviewBgGray(Number(ev.target.value))}
                       {...{ orient: "vertical" } as React.InputHTMLAttributes<HTMLInputElement>}
                       aria-label="Preview background tone"
                       title="Adjust preview background tone"
@@ -1793,7 +1822,8 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {!selectedEntity && grouped.length > 0 && (
           <div className="entity-config-section" style={{ textAlign: "center", color: "var(--ink-4)" }}>
@@ -2677,9 +2707,10 @@ interface ConfigTabCardProps {
   setError: (e: string | null) => void;
   hmacSecret: string | null;
   setHmacSecret: (s: string | null) => void;
+  setSavedMsg: (msg: string) => void;
 }
 
-function ConfigTabCard({ token, tokenId, readonly, saving, setSaving, setToken, setError, hmacSecret, setHmacSecret }: ConfigTabCardProps) {
+function ConfigTabCard({ token, tokenId, readonly, saving, setSaving, setToken, setError, hmacSecret, setHmacSecret, setSavedMsg }: ConfigTabCardProps) {
   const primaryCount = token.entities.filter(e => !e.companion_of).length;
   const [activeTab, setActiveTab] = useState<ConfigTab>(() => primaryCount === 0 ? "entities" : "entities");
 
@@ -2710,7 +2741,7 @@ function ConfigTabCard({ token, tokenId, readonly, saving, setSaving, setToken, 
         ))}
       </div>
       {effectiveTab === "entities" && (
-        <EntitiesEditor bare token={token} readonly={readonly} saving={saving} setSaving={setSaving} setToken={wrap} setError={setError} />
+        <EntitiesEditor bare token={token} readonly={readonly} saving={saving} setSaving={setSaving} setToken={wrap} setError={setError} setSavedMsg={setSavedMsg} />
       )}
       {effectiveTab === "embed" && !readonly && (
         <CodeSection bare token={token} setToken={wrap} setError={setError} hmacSecret={hmacSecret} />
@@ -2758,11 +2789,14 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
   const [savedMsg,      setSavedMsg]      = useState("");
   const prevSaving = useRef(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showSavedMsg = useCallback((msg: string) => {
+    setSavedMsg(msg);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSavedMsg(""), 2200);
+  }, []);
   useEffect(() => {
     if (prevSaving.current && !saving && !error) {
-      setSavedMsg("Changes saved");
-      if (savedTimer.current) clearTimeout(savedTimer.current);
-      savedTimer.current = setTimeout(() => setSavedMsg(""), 2200);
+      showSavedMsg("Changes saved");
     }
     if (saving) { setSavedMsg(""); setError(null); }
     prevSaving.current = saving;
@@ -2920,7 +2954,7 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
             Created {fmtDateLong(token.created_at)} by {token.created_by_name ?? token.created_by}
             {" - "}{token.entities.length} {token.entities.length === 1 ? "entity" : "entities"}
           </div>
-          {savedMsg && <span className={`detail-header-saved save-indicator ${savedMsg ? "visible" : ""}`} key={savedMsg + Date.now()}>&#10003; Saved</span>}
+          {savedMsg && <span className={`detail-header-saved save-indicator ${savedMsg ? "visible" : ""}`} key={savedMsg + Date.now()}>&#10003; {savedMsg}</span>}
         </div>
       </div>
 
@@ -2934,6 +2968,7 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
         setError={setError}
         hmacSecret={hmacSecret}
         setHmacSecret={setHmacSecret}
+        setSavedMsg={showSavedMsg}
       />
 
       {confirmPause && (
