@@ -212,7 +212,7 @@ interface ConfirmDialogProps {
   message: string;
   confirmLabel?: string;
   confirmDestructive?: boolean;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -227,6 +227,8 @@ export function ConfirmDialog({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
+  const [busy, setBusy] = useState(false);
+  const ids = useId();
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -246,25 +248,34 @@ export function ConfirmDialog({
     return () => document.removeEventListener("keydown", trap);
   }, []);
 
+  const handleConfirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await onConfirm(); }
+    finally { setBusy(false); }
+  };
+
   return (
-    <div className="overlay" onClick={onCancel} role="presentation">
+    <div className="overlay" onClick={busy ? undefined : onCancel} role="presentation">
       <div
         ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="confirm-title"
-        aria-describedby="confirm-msg"
+        aria-labelledby={`${ids}-title`}
+        aria-describedby={`${ids}-msg`}
         className="dialog"
         onClick={e => e.stopPropagation()}
       >
-        <h3 id="confirm-title" className="dialog-title">{title}</h3>
-        <p id="confirm-msg" className="dialog-body">{message}</p>
+        <h3 id={`${ids}-title`} className="dialog-title">{title}</h3>
+        <p id={`${ids}-msg`} className="dialog-body">{message}</p>
         <div className="dialog-actions">
-          <button onClick={onCancel} className="btn btn-ghost">Cancel</button>
+          <button onClick={onCancel} className="btn btn-ghost" disabled={busy}>Cancel</button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
+            disabled={busy}
             className={`btn ${confirmDestructive ? "btn-danger" : "btn-primary"}`}
           >
+            {busy && <Spinner size={14} />}
             {confirmLabel}
           </button>
         </div>
