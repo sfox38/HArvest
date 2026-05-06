@@ -580,7 +580,7 @@ interface EntitiesEditorProps {
   setSavedMsg?: (msg: string) => void;
 }
 
-const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "lock"]);
+const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor"]);
 const HISTORY_DOMAINS = new Set(["sensor", "input_number", "binary_sensor"]);
 const HOURS_OPTIONS = [1, 6, 12, 24, 48, 72, 168];
 
@@ -724,6 +724,16 @@ function EntityPreview({
       Object.keys(opts).length ? opts as never : undefined,
     );
     cardRef.current = card;
+
+    for (const c of companions) {
+      api.entities.getDefinition(c.entity_id, { capabilities: c.capabilities }).then(result => {
+        const el = cardRef.current as HTMLElement & { _receiveCompanionDefinition?: (id: string, def: Record<string, unknown>) => void; _receiveCompanionState?: (id: string, s: string, a: Record<string, unknown>) => void } | null;
+        if (!el) return;
+        el._receiveCompanionDefinition?.(c.entity_id, result.definition);
+        el._receiveCompanionState?.(c.entity_id, result.state, result.attributes);
+      }).catch(() => {});
+    }
+
     return () => { container.innerHTML = ""; cardRef.current = null; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, cardKey, serverDef, themeJson]);
@@ -891,11 +901,10 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
       const result = await api.tokens.generateAlias(companionEntityId);
       alias = result.alias;
     } catch { /* alias stays null */ }
-    const defaultCap = entities[0]?.capabilities ?? "read";
     const updated = [...entities, {
       entity_id: companionEntityId,
       alias,
-      capabilities: defaultCap,
+      capabilities: "read" as const,
       exclude_attributes: [] as string[],
       companion_of: primaryEntityId,
       gesture_config: {},
@@ -943,6 +952,8 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
     });
     if (toBadge) {
       updated = updated.filter(en => en.companion_of !== entityId);
+    } else if (newCap === "read") {
+      updated = updated.map(en => en.companion_of === entityId ? { ...en, capabilities: "read" } : en);
     }
     patchEntities(updated);
   };
@@ -1505,6 +1516,17 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                     <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, minWidth: 0 }}>
                       <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }} className="mono" title={c.entity_id}>{c.entity_id}</span>
                       {c.alias && <span className="muted" style={{ fontSize: 10, flexShrink: 0 }}>alias: {c.alias}</span>}
+                      {selectedEntity.capabilities === "read-write" && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 4 }}>
+                        <Toggle
+                          checked={c.capabilities === "read"}
+                          onChange={v => patchEntities(entities.map(en => en.entity_id === c.entity_id ? { ...en, capabilities: v ? "read" : "read-write" } : en))}
+                          disabled={!canEdit}
+                          size="small"
+                        />
+                        <span style={{ fontSize: 10, whiteSpace: "nowrap" }} className="muted">Read only</span>
+                      </label>
+                      )}
                       {canEdit && (
                         <button
                           onClick={() => removeCompanion(c.entity_id)}

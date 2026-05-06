@@ -77,7 +77,7 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
 
 COMPANION_ALLOWED_DOMAINS: frozenset[str] = frozenset({
     "light", "switch", "binary_sensor",
-    "input_boolean", "cover", "remote", "lock",
+    "input_boolean", "cover", "remote", "fan", "sensor",
 })
 
 

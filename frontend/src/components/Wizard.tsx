@@ -44,7 +44,7 @@ function saveMemory(m: Partial<WizardMemory>) {
 interface SelectedEntity {
   entity_id: string;
   alias: string | null;
-  companions: { entity_id: string; alias: string | null }[];
+  companions: { entity_id: string; alias: string | null; read_only?: boolean }[];
 }
 
 interface WizardState {
@@ -73,7 +73,7 @@ interface WizardProps {
 
 const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Design", "Origin", "Expiry", "Done"];
-const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "lock"]);
+const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor"]);
 
 const DOMAIN_ICON: Record<string, string> = {
   light: "lightbulb", switch: "power", input_boolean: "power",
@@ -190,12 +190,13 @@ function StepIndicator({ current }: { current: number }) {
 // ---------------------------------------------------------------------------
 
 interface CompanionPickerProps {
-  companions: { entity_id: string; alias: string | null }[];
+  companions: { entity_id: string; alias: string | null; read_only?: boolean }[];
   excludeIds: string[];
-  onChange: (c: { entity_id: string; alias: string | null }[]) => void;
+  parentCapability: "badge" | "read" | "read-write";
+  onChange: (c: { entity_id: string; alias: string | null; read_only?: boolean }[]) => void;
 }
 
-function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerProps) {
+function CompanionPicker({ companions, excludeIds, parentCapability, onChange }: CompanionPickerProps) {
   const [input, setInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
   const canAdd = true;
@@ -211,7 +212,7 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
       alias = result.alias;
     } catch { /* alias stays null */ }
     finally { setLoadingAlias(null); }
-    onChange([...companions, { entity_id: entityId, alias }]);
+    onChange([...companions, { entity_id: entityId, alias, read_only: true }]);
   };
 
   const removeCompanion = (entityId: string) => {
@@ -222,7 +223,7 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
     <div className="col" style={{ gap: 6, paddingLeft: 12, borderLeft: "2px solid var(--divider)", marginTop: 2 }}>
       <div className="muted" style={{ fontSize: 11 }}>
         Companions ({companions.length}) - secondary entities shown alongside this card.
-        Allowed domains: light, switch, lock, cover, binary sensor, input boolean, remote.
+        Allowed domains: light, switch, cover, binary sensor, input boolean, remote, fan, sensor.
       </div>
       {canAdd && (
         <EntityAutocomplete
@@ -241,8 +242,18 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
       )}
       {companions.map(c => (
         <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ flex: 1, fontSize: 12 }}>{c.entity_id}</span>
-          {c.alias && <span className="muted" style={{ fontSize: 10 }}>alias: {c.alias}</span>}
+          <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c.entity_id}</span>
+          {c.alias && <span className="muted" style={{ fontSize: 10, flexShrink: 0 }}>alias: {c.alias}</span>}
+          {parentCapability === "read-write" && (
+          <label className="companion-read-only-toggle" style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 4 }}>
+            <Toggle
+              checked={c.read_only !== false}
+              onChange={v => onChange(companions.map(comp => comp.entity_id === c.entity_id ? { ...comp, read_only: v } : comp))}
+              size="small"
+            />
+            <span style={{ fontSize: 10, whiteSpace: "nowrap" }} className="muted">Read only</span>
+          </label>
+          )}
           <button
             onClick={() => removeCompanion(c.entity_id)}
             className="btn btn-sm btn-ghost"
@@ -285,7 +296,7 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
   entityId: string;
   capability: "badge" | "read" | "read-write";
   theme: ThemeDefinition | null;
-  companions?: { entity_id: string; alias: string | null }[];
+  companions?: { entity_id: string; alias: string | null; read_only?: boolean }[];
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement | null>(null);
@@ -339,7 +350,7 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
     if (companions.length > 0) {
       entityDef.preview_companions = companions.map(c => ({
         entity_id: c.entity_id,
-        capabilities: capability,
+        capabilities: c.read_only !== false ? "read" : capability === "badge" ? "read" : capability,
         domain: c.entity_id.split(".")[0],
       }));
     }
@@ -370,6 +381,16 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
       Object.keys(opts).length ? opts as never : undefined,
     );
     cardRef.current = card;
+
+    // Fetch companion definitions so preview pills show real icons.
+    for (const c of companions) {
+      api.entities.getDefinition(c.entity_id, { capabilities: "read" }).then(result => {
+        const el = cardRef.current as HTMLElement & { _receiveCompanionDefinition?: (id: string, def: Record<string, unknown>) => void; _receiveCompanionState?: (id: string, s: string, a: Record<string, unknown>) => void } | null;
+        if (!el) return;
+        el._receiveCompanionDefinition?.(c.entity_id, result.definition);
+        el._receiveCompanionState?.(c.entity_id, result.state, result.attributes);
+      }).catch(() => {});
+    }
   }, [ready, cardKey, serverDef, defMatchesEntity, themeJson]);
 
   useEffect(() => {
@@ -498,7 +519,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
     onChange(updates);
   };
 
-  const updateCompanions = (entityId: string, companions: { entity_id: string; alias: string | null }[]) => {
+  const updateCompanions = (entityId: string, companions: { entity_id: string; alias: string | null; read_only?: boolean }[]) => {
     onChange({ entities: state.entities.map(e => e.entity_id === entityId ? { ...e, companions } : e) });
   };
 
@@ -624,6 +645,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                   <CompanionPicker
                     companions={e.companions}
                     excludeIds={primaryIds}
+                    parentCapability={state.capability}
                     onChange={cs => updateCompanions(e.entity_id, cs)}
                   />
                 )}
@@ -660,7 +682,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
               <label style={{ fontSize: 12, fontWeight: 600 }}>Permissions</label>
               <div className="segmented" role="group" aria-label="Capability">
                 <button aria-pressed={state.capability === "badge"} onClick={() => { onChange({ capability: "badge", entities: state.entities.map(e => ({ ...e, companions: [] })) }); saveMemory({ capability: "badge" }); }}>Badge</button>
-                <button aria-pressed={state.capability === "read"} onClick={() => { onChange({ capability: "read" }); saveMemory({ capability: "read" }); }}>View only</button>
+                <button aria-pressed={state.capability === "read"} onClick={() => { onChange({ capability: "read", entities: state.entities.map(e => ({ ...e, companions: e.companions.map(c => ({ ...c, read_only: true })) })) }); saveMemory({ capability: "read" }); }}>View only</button>
                 <button aria-pressed={state.capability === "read-write"} onClick={() => { onChange({ capability: "read-write" }); saveMemory({ capability: "read-write" }); }}>Control</button>
               </div>
             </div>
@@ -1217,7 +1239,7 @@ export function Wizard({ onClose }: WizardProps) {
               companionMap.set(c.entity_id, {
                 entity_id: c.entity_id,
                 alias: c.alias,
-                capabilities: wState.capability,
+                capabilities: c.read_only !== false ? "read" : wState.capability === "badge" ? "read" : wState.capability,
                 exclude_attributes: [],
                 companion_of: e.entity_id,
               });
