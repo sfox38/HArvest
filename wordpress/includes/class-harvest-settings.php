@@ -64,18 +64,17 @@ class Harvest_Settings {
     // Sanitization callbacks
     // ---------------------------------------------------------------------------
 
-    public static function sanitize_ha_url( string $url ): string {
-        $url = esc_url_raw( trim( $url ), [ 'http', 'https' ] );
-        // Strip trailing slash so the URL is consistent across the plugin.
+    public static function sanitize_ha_url( ?string $url ): string {
+        $url = esc_url_raw( trim( $url ?? '' ), [ 'http', 'https' ] );
         return rtrim( $url, '/' );
     }
 
-    public static function sanitize_widget_source( string $source ): string {
+    public static function sanitize_widget_source( ?string $source ): string {
         return in_array( $source, [ 'bundled', 'custom' ], true ) ? $source : 'bundled';
     }
 
-    public static function sanitize_custom_url( string $url ): string {
-        return esc_url_raw( trim( $url ), [ 'http', 'https' ] );
+    public static function sanitize_custom_url( ?string $url ): string {
+        return esc_url_raw( trim( $url ?? '' ), [ 'http', 'https' ] );
     }
 
     // ---------------------------------------------------------------------------
@@ -135,11 +134,7 @@ class Harvest_Settings {
                                     name="harvest_widget_source"
                                     value="bundled"
                                     <?php checked( $source, 'bundled' ); ?>>
-                                <?php printf(
-                                    /* translators: %s: version number */
-                                    esc_html__( 'Use bundled version (harvest.js v%s)', 'harvest' ),
-                                    esc_html( HARVEST_VERSION )
-                                ); ?>
+                                <?php esc_html_e( 'Use bundled version (harvest.min.js)', 'harvest' ); ?>
                             </label>
                             <br>
                             <label>
@@ -149,16 +144,28 @@ class Harvest_Settings {
                                     <?php checked( $source, 'custom' ); ?>>
                                 <?php esc_html_e( 'Use custom URL', 'harvest' ); ?>
                             </label>
-                            <?php if ( $source === 'custom' ) : ?>
-                            <br>
-                            <input
-                                type="url"
-                                name="harvest_widget_custom_url"
-                                value="<?php echo esc_attr( get_option( 'harvest_widget_custom_url' ) ); ?>"
-                                class="regular-text"
-                                placeholder="https://example.com/harvest.min.js"
-                            >
-                            <?php endif; ?>
+                            <span id="harvest-custom-url-wrap"
+                                style="<?php echo $source === 'custom' ? '' : 'display:none;'; ?>">
+                                <br>
+                                <input
+                                    type="url"
+                                    name="harvest_widget_custom_url"
+                                    value="<?php echo esc_attr( get_option( 'harvest_widget_custom_url' ) ); ?>"
+                                    class="regular-text"
+                                    placeholder="https://example.com/harvest.min.js"
+                                >
+                            </span>
+                            <script>
+                            document.addEventListener('DOMContentLoaded', function(){
+                                var radios = document.querySelectorAll('input[name="harvest_widget_source"]');
+                                var wrap = document.getElementById('harvest-custom-url-wrap');
+                                for (var i = 0; i < radios.length; i++) {
+                                    radios[i].addEventListener('change', function(){
+                                        wrap.style.display = this.value === 'custom' ? '' : 'none';
+                                    });
+                                }
+                            });
+                            </script>
                             <p class="description">
                                 <?php esc_html_e(
                                     'Bundled is recommended for stability. Custom URL lets you serve the widget from your own host.',

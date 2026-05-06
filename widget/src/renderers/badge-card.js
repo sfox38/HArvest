@@ -51,8 +51,10 @@ const BADGE_STYLES = /* css */`
   :host {
     width: auto !important;
     min-width: unset !important;
-    display: inline-block !important;
+    display: inline-flex !important;
     contain: none !important;
+    vertical-align: top !important;
+    overflow: visible !important;
   }
 
   [part=badge] {

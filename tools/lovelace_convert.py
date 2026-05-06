@@ -414,6 +414,24 @@ def cleanup_converted_tokens(url: str, llat: str) -> int:
     return deleted
 
 
+def generate_aliases(url: str, llat: str, specs: list[TokenSpec]) -> None:
+    """Request an alias from HA for each entity in every spec."""
+    for spec in specs:
+        for entity_dict in spec.entities:
+            eid = entity_dict.get("entity_id", "")
+            try:
+                status, body = _request(
+                    "POST", f"{url}/api/harvest/alias", llat,
+                    body={"entity_id": eid},
+                )
+                if status == 200:
+                    alias = json.loads(body).get("alias", "")
+                    if alias:
+                        entity_dict["alias"] = alias
+            except Exception:
+                pass
+
+
 def create_token(url: str, llat: str, spec: TokenSpec, theme_url: str,
                  origin: str | None, dry_run: bool) -> str | None:
     if dry_run:
@@ -1380,6 +1398,12 @@ def main() -> None:
                         print("  Keeping (new ones will fail if names collide).")
         except Exception:
             pass
+
+    if not dry_run:
+        entity_count = sum(len(s.entities) for s in token_specs)
+        print(f"  Generating aliases for {entity_count} entities...", end=" ", flush=True)
+        generate_aliases(ha_url, llat, token_specs)
+        print("OK")
 
     print(f"  Creating {len(token_specs)} token(s)...")
 

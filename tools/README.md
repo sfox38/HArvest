@@ -31,7 +31,7 @@ The script walks you through each step interactively:
 8. Specify the path to your `harvest.min.js` file
 9. Tokens are created (one per tab) and the HTML file is written
 
-Use `--dry-run` to preview everything without actually creating tokens. The output HTML will contain placeholder token IDs that you can replace later.
+Use `--dry-run` to preview everything without actually creating tokens. The output dashboard HTML will contain only placeholder token IDs that you can replace later.
 
 ### What it produces
 
@@ -51,7 +51,7 @@ A complete, self-contained HTML file with:
 
 All created tokens are prefixed with `Converted: ` so they are easily identifiable in the HArvest panel. On subsequent runs, the script offers to delete all existing `Converted:` tokens before creating new ones.
 
-Auto-chunking: if a tab exceeds 50 entities, it is split into multiple tokens (e.g. "Converted: Fox House (1/2)", "Converted: Fox House (2/2)").
+Auto-chunking: if a tab exceeds 50 entities, it is split into multiple tokens (e.g. "Converted: Smith House (1/2)", "Converted: Smith House (2/2)").
 
 ### Badge visibility
 
@@ -70,11 +70,13 @@ Custom Lovelace cards (Bubble, Mushroom, etc.) are handled as follows:
 
 - HA `button` card type is unsupported for security reasons (HArvest uses `harvest_action` instead)
 - Tier 3 entities (cameras, locks, scripts, automations, etc.) are excluded for security reasons
+- Style and appearance is not copied, instead your cards will be assigned a HArvest theme
 - Companions are not auto-detected; configure them in the HArvest panel after conversion
-- Conditional card logic is dropped (the inner card is rendered unconditionally)
+- Conditional card logic is dropped
+- Interactions (Tap Action) are not copied over
 - Template-based custom cards (mushroom-template-card, etc.) are unsupported
-- It's not going to be a perfect 1:1 match, but it can get you most of the way there and you can manually edit as needed
 - Requires Python installed on your computer
+- It's not going to be a perfect 1:1 match, but it can get you most of the way there and you can manually edit as needed
 
 ---
 
