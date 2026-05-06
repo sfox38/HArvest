@@ -5,7 +5,7 @@
  * Used by the Themes tab, Wizard Step 5, and TokenDetail ThemeEditor.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { ThemeDefinition, HAEntityDetail } from "../types";
 import { api, getHaDarkMode } from "../api";
 import { Toggle } from "./Toggle";
@@ -369,14 +369,14 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId, c
     };
   }, [ready, cardKey]);
 
-  const themeJson = JSON.stringify(themeObj);
+  const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
   useEffect(() => {
     const card = cardRef.current as (HTMLElement & { applyPreviewTheme?: (v: Record<string, unknown>) => void }) | null;
     if (!card?.applyPreviewTheme) return;
     card.applyPreviewTheme(themeObj);
   }, [themeJson]);
 
-  const stateKey = `${mock.state}:${JSON.stringify(mock.attributes)}`;
+  const stateKey = useMemo(() => `${mock.state}:${JSON.stringify(mock.attributes)}`, [mock.state, mock.attributes]);
   useEffect(() => {
     if (!window.HArvest) return;
     const card = cardRef.current as (HTMLElement & { updatePreviewState?: (s: string, a: Record<string, unknown>) => void }) | null;

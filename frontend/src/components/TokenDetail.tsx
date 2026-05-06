@@ -646,7 +646,8 @@ function EntityPreview({
       .catch(() => setLoadError(true));
   }, [packId]);
 
-  const defKey = `${entity.entity_id}:${JSON.stringify(entityAccess)}:${companions.map(c => c.entity_id).join(",")}`;
+  const entityAccessJson = useMemo(() => JSON.stringify(entityAccess), [entityAccess.capabilities, entityAccess.name_override, entityAccess.icon_override, entityAccess.color_scheme, entityAccess.exclude_attributes, entityAccess.display_hints, entityAccess.gesture_config]);
+  const defKey = `${entity.entity_id}:${entityAccessJson}:${companions.map(c => c.entity_id).join(",")}`;
   useEffect(() => {
     let cancelled = false;
     api.entities.getDefinition(entity.entity_id, {
@@ -672,6 +673,7 @@ function EntityPreview({
   }, [theme?.theme_id]);
 
   const cardKey = `${entity.entity_id}:${entity.state}:${defKey}:${theme?.theme_id ?? ""}`;
+  const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
 
   useEffect(() => {
     if (!ready || !serverDef || !containerRef.current || !window.HArvest) return;
@@ -724,7 +726,7 @@ function EntityPreview({
     cardRef.current = card;
     return () => { container.innerHTML = ""; cardRef.current = null; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, cardKey, serverDef, JSON.stringify(themeObj)]);
+  }, [ready, cardKey, serverDef, themeJson]);
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   return (
@@ -1996,17 +1998,23 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
 function SessionsPanel({ tokenId }: { tokenId: string }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [termAll,  setTermAll]  = useState(false);
 
   const load = useCallback(() => {
-    api.sessions.list(tokenId).then(setSessions).catch(() => {}).finally(() => setLoading(false));
+    let cancelled = false;
+    api.sessions.list(tokenId)
+      .then(s => { if (!cancelled) { setSessions(s); setError(null); } })
+      .catch(e => { if (!cancelled) setError(String(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [tokenId]);
 
   useEffect(() => {
-    load();
+    const cancel = load();
     const id = setInterval(load, 15_000);
-    return () => clearInterval(id);
+    return () => { cancel(); clearInterval(id); };
   }, [load]);
 
   const terminate = async (sid: string) => {
@@ -2020,6 +2028,7 @@ function SessionsPanel({ tokenId }: { tokenId: string }) {
     load();
   };
 
+  if (error && loading) return <p className="muted" style={{ fontSize: 13 }}>Failed to load sessions.</p>;
   if (loading) return <Spinner size={24} />;
 
   return (
@@ -2122,15 +2131,21 @@ function ActivityPanel({ tokenId }: { tokenId: string }) {
   const [page,      setPage]      = useState<ActivityPage | null>(null);
   const [offset,    setOffset]    = useState(0);
   const [dateRange, setDateRange] = useState<ActivityDateRange>("24h");
+  const [error,     setError]     = useState<string | null>(null);
   const LIMIT = 20;
 
   useEffect(() => {
+    let cancelled = false;
     const params: Parameters<typeof api.activity.list>[0] = { token_id: tokenId, offset, limit: LIMIT };
     const since = sinceFor(dateRange);
     if (since) params.since = since;
-    api.activity.list(params).then(setPage).catch(() => {});
+    api.activity.list(params)
+      .then(p => { if (!cancelled) { setPage(p); setError(null); } })
+      .catch(e => { if (!cancelled) setError(String(e)); });
+    return () => { cancelled = true; };
   }, [tokenId, offset, dateRange]);
 
+  if (error && !page) return <p className="muted" style={{ fontSize: 13 }}>Failed to load activity.</p>;
   if (!page) return <Spinner size={24} />;
 
   return (

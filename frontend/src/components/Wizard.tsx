@@ -324,6 +324,7 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
 
   const cardKey = `${entityId}:${capability}:${companionIds.join(",")}:${theme?.theme_id ?? ""}`;
   const defMatchesEntity = serverDef?.definition?.entity_id === entityId;
+  const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
 
   useEffect(() => {
     if (!ready || !serverDef || !defMatchesEntity || !containerRef.current || !window.HArvest) return;
@@ -369,13 +370,13 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
       Object.keys(opts).length ? opts as never : undefined,
     );
     cardRef.current = card;
-  }, [ready, cardKey, serverDef, defMatchesEntity, JSON.stringify(themeObj)]);
+  }, [ready, cardKey, serverDef, defMatchesEntity, themeJson]);
 
   useEffect(() => {
     const card = cardRef.current as (HTMLElement & { applyPreviewTheme?: (v: Record<string, unknown>) => void }) | null;
     if (!card?.applyPreviewTheme) return;
     card.applyPreviewTheme(themeObj);
-  }, [JSON.stringify(themeObj)]);
+  }, [themeJson]);
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   if (!ready && !cardRef.current) return <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>;
