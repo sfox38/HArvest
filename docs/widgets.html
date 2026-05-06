@@ -385,7 +385,7 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
 
         <p>The <code>HArvest.track.anyState()</code> callback receives every state change for every entity on the page. For more targeted tracking, listen on a specific card instance:</p>
 
-        <pre><code class="language-javascript">// Wait for the card to be registered, then attach a listener
+        <pre><code class="language-javascript">// The hrv-card element must be in the DOM before attaching a listener
 document.querySelector("hrv-card[entity='light.bedroom']")
   .addEventListener("hrv-state-change", (event) => {
     const { entityId, state, attributes } = event.detail;
