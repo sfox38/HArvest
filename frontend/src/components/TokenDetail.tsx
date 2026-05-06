@@ -1945,9 +1945,9 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
       )}
 
       {showAgree && (
-        <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="td-pack-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 className="dialog-title">Renderer Pack Warning</h3>
+            <h3 id="td-pack-agree-title" className="dialog-title">Renderer Pack Warning</h3>
             <div className="dialog-body">
               <p>
                 This theme includes a renderer pack that executes JavaScript from your HA instance

@@ -35,6 +35,8 @@ function SessionRow({ session: s, tokenLabel, onTerminate, onSelectToken }: Sess
   return (
     <div
       className={`session-row${open ? " open" : ""}`}
+      role="button"
+      aria-expanded={open}
       tabIndex={0}
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
     >

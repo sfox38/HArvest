@@ -138,7 +138,7 @@
   color-scheme: dark;
 }
 
-.app[data-theme="dark"] .card       { background: #292e2c; }
+.app[data-theme="dark"] .card       { background: var(--bg-2); }
 .app[data-theme="dark"] .card-info  { background: var(--paper); }
 .app[data-theme="dark"] .stat       { background: var(--paper); }
 
@@ -174,7 +174,7 @@
     --on-accent:       #1a1e1c;
     color-scheme: dark;
   }
-  .app:not([data-theme="light"]):not([data-theme="dark"]) .card       { background: #292e2c; }
+  .app:not([data-theme="light"]):not([data-theme="dark"]) .card       { background: var(--bg-2); }
   .app:not([data-theme="light"]):not([data-theme="dark"]) .card-info  { background: var(--paper); }
   .app:not([data-theme="light"]):not([data-theme="dark"]) .stat       { background: var(--paper); }
 }
@@ -713,7 +713,7 @@ button.entity-setting-group-title:focus-visible {
 }
 .segmented-toggle button.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .segmented-toggle button:disabled {
   opacity: 0.5;
@@ -2518,13 +2518,13 @@ button.entity-setting-group-title:focus-visible {
   left: 5px;
   font-size: 16px;
   line-height: 1;
-  color: #fafdfb;
+  color: var(--paper);
   filter: drop-shadow(0 0 1.5px rgba(15, 26, 20, 0.85)) drop-shadow(0 0 1px rgba(15, 26, 20, 0.85));
   pointer-events: none;
   user-select: none;
 }
 .theme-pack-star.pack-missing {
-  color: #f59e0b;
+  color: var(--warn);
   font-size: 15px;
   background: rgba(0, 0, 0, 0.75);
   border-radius: 4px;
@@ -2570,7 +2570,7 @@ button.entity-setting-group-title:focus-visible {
 .theme-code-textarea {
   width: 100%;
   min-height: 400px;
-  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.5;
   padding: 12px;
@@ -2711,12 +2711,12 @@ button.entity-setting-group-title:focus-visible {
   gap: 5px;
   padding: 4px 10px;
   border-radius: 6px;
-  background: var(--warning-weak, rgba(245, 158, 11, 0.12));
-  color: var(--warning, #d97706);
+  background: var(--warn-weak);
+  color: var(--warn);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
-  border: 1px solid var(--warning, #d97706);
+  border: 1px solid var(--warn);
 }
 
 .connectivity-banner svg {
