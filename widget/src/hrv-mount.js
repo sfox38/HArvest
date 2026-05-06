@@ -33,6 +33,15 @@
  */
 
 // ---------------------------------------------------------------------------
+// Global style for badge layout in mount mode
+// ---------------------------------------------------------------------------
+
+const _mountStyle = document.createElement("style");
+_mountStyle.textContent =
+  ".hrv-mount:has(hrv-card[data-hrv-badge]){display:inline-flex;line-height:0}";
+document.head.appendChild(_mountStyle);
+
+// ---------------------------------------------------------------------------
 // Initialisation
 // ---------------------------------------------------------------------------
 

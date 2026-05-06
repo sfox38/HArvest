@@ -239,10 +239,15 @@ export class HrvCard extends HTMLElement {
     }
     this.#config.companions = this.#companions;
 
-    const RendererClass = def.capabilities === "badge"
+    const isBadge = def.capabilities === "badge";
+    const RendererClass = isBadge
       ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
       : (this.#client?._getPackRenderer?.(def.domain, def.device_class ?? null)
         || lookupRenderer(def.domain, def.device_class ?? null));
+
+    if (isBadge) this.setAttribute("data-hrv-badge", "");
+    else this.removeAttribute("data-hrv-badge");
+
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
 

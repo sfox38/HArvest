@@ -1401,7 +1401,7 @@ def main() -> None:
 
     if not dry_run:
         entity_count = sum(len(s.entities) for s in token_specs)
-        print(f"  Generating aliases for {entity_count} entities...", end=" ", flush=True)
+        print(f"  Generating aliases for {entity_count} entities... (be patient)", end=" ", flush=True)
         generate_aliases(ha_url, llat, token_specs)
         print("OK")
 

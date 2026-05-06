@@ -3852,8 +3852,13 @@
     :host {
       width: auto !important;
       min-width: unset !important;
-      display: inline-block !important;
+      display: inline-flex !important;
       contain: none !important;
+      vertical-align: top !important;
+      overflow: visible !important;
+      line-height: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
     }
     [part=badge] {
       display: inline-flex;
