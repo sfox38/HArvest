@@ -378,8 +378,8 @@ def build_badge_definition(
     """Build a minimal entity_definition for badge capability.
 
     Returns only the fields needed for a compact badge display:
-    identity, icon, name, unit, and display hints.
-    Omits supported_features, feature_config, companions, color_scheme,
+    identity, icon, name, unit, color_scheme, and display hints.
+    Omits supported_features, feature_config, companions,
     and gesture_config (badges do not support gestures).
     """
     state = hass.states.get(entity_id)
@@ -425,6 +425,7 @@ def build_badge_definition(
         "icon": current_icon,
         "icon_state_map": icon_state_map,
         "unit_of_measurement": unit_of_measurement,
+        "color_scheme": entity_access.color_scheme,
         "display_hints": entity_access.display_hints or {},
     }
 

@@ -306,13 +306,14 @@ export function generateMockHistory(domain: string, graphType: GraphType, state:
 // RealWidget - renders a single hrv-card preview
 // ---------------------------------------------------------------------------
 
-function RealWidget({ mock, themeObj, capability, features, graphType, packId }: {
+function RealWidget({ mock, themeObj, capability, features, graphType, packId, colorScheme }: {
   mock: MockEntity;
   themeObj: { variables: Record<string, string>; dark_variables: Record<string, string> };
-  capability: "read" | "read-write";
+  capability: "read" | "read-write" | "badge";
   features: Record<string, boolean>;
   graphType: GraphType;
   packId?: string;
+  colorScheme?: "light" | "dark" | "auto";
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement | null>(null);
@@ -332,7 +333,7 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId }:
   }, [packId]);
 
   const featKey = Object.entries(features).filter(([, v]) => v).map(([k]) => k).sort().join(",");
-  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${packId ?? ""}`;
+  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${packId ?? ""}:${colorScheme ?? "auto"}`;
 
   useEffect(() => {
     if (!ready || !containerRef.current || !window.HArvest) return;
@@ -344,7 +345,7 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId }:
     const entityDef = window.HArvest.buildEntityDef(
       { domain: mock.domain, state: mock.state, friendly_name: mock.friendly_name,
         attributes: mock.attributes, unit: mock.unit },
-      { capabilities: capability, features,
+      { capabilities: capability, features, colorScheme: colorScheme ?? "auto",
         ...(mock.domain === "weather" && features.forecast ? { displayHints: { show_forecast: true } } : {}) },
     );
     const attrs = window.HArvest.filterAttributes(mock.attributes);
@@ -392,7 +393,7 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId }:
     <div
       ref={containerRef}
       className="theme-preview-widget"
-      style={{ display: "flex", justifyContent: "center", minHeight: 120 }}
+      style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 120 }}
     />
   );
 }
@@ -418,9 +419,10 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
   const _initEntity   = _ls.get("hrv_preview_entity") ?? "";
 
   const [renderer, setRenderer] = useState(_initRenderer);
-  const [capability, setCapability] = useState<"read" | "read-write">(() =>
-    _ls.get("hrv_preview_capability") === "read" ? "read" : "read-write"
-  );
+  const [capability, setCapability] = useState<"read" | "read-write" | "badge">(() => {
+    const stored = _ls.get("hrv_preview_capability");
+    return stored === "read" || stored === "badge" ? stored : "read-write";
+  });
   const [colorMode, setColorMode] = useState<"light" | "dark" | "auto">(() => {
     const stored = _ls.get("hrv_preview_color_mode");
     return (stored === "light" || stored === "dark" || stored === "auto") ? stored : "auto";
@@ -528,13 +530,14 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
           ))}
         </select>
         <div className="segmented" role="group" aria-label="Capability">
+          <button aria-pressed={capability === "badge"} onClick={() => { setCapability("badge"); _ls.set("hrv_preview_capability", "badge"); }}>Badge</button>
           <button aria-pressed={capability === "read"} onClick={() => { setCapability("read"); _ls.set("hrv_preview_capability", "read"); }}>Read</button>
           <button aria-pressed={capability === "read-write"} onClick={() => { setCapability("read-write"); _ls.set("hrv_preview_capability", "read-write"); }}>Control</button>
         </div>
         <div className="segmented" role="group" aria-label="Color mode">
+          <button aria-pressed={colorMode === "auto"} onClick={() => { setColorMode("auto"); _ls.set("hrv_preview_color_mode", "auto"); }}>Auto</button>
           <button aria-pressed={colorMode === "light"} onClick={() => { setColorMode("light"); _ls.set("hrv_preview_color_mode", "light"); }}>Light</button>
           <button aria-pressed={colorMode === "dark"} onClick={() => { setColorMode("dark"); _ls.set("hrv_preview_color_mode", "dark"); }}>Dark</button>
-          <button aria-pressed={colorMode === "auto"} onClick={() => { setColorMode("auto"); _ls.set("hrv_preview_color_mode", "auto"); }}>Auto</button>
         </div>
       </div>
 
@@ -593,7 +596,7 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
             background: bgGray == null ? undefined : `rgb(${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)})`,
           }}
         >
-          <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} packId={packId} />
+          <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} packId={packId} colorScheme={colorMode} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
           <input

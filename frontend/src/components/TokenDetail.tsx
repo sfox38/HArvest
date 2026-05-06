@@ -730,7 +730,7 @@ function EntityPreview({
   return (
     <>
       {(!ready || !serverDef) && <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>}
-      <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entity preview" style={{ display: ready && serverDef ? "flex" : "none", justifyContent: "center", alignItems: "center", minHeight: 100, padding: "12px 0" }} />
+      <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entity preview" style={{ display: ready && serverDef ? "flex" : "none", justifyContent: "center", alignItems: "center", minHeight: 100, padding: "12px 0", maxWidth: 360, margin: "0 auto" }} />
     </>
   );
 }
@@ -1452,7 +1452,6 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Always use</label>
               <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
@@ -1470,7 +1469,6 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 ))}
               </div>
             </div>
-            )}
 
             {selectedEntity.capabilities !== "badge" && packSettings.includes("layout") && (
             <div className="entity-setting-row">
