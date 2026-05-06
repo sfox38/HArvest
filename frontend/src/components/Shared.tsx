@@ -511,6 +511,8 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
 
   const toggle = () => setOpen(o => !o);
 
+  const origin = ev.origin && ev.origin !== "null" ? ev.origin : null;
+
   const widgetLink = (ev.token_label && ev.token_id && onSelectToken)
     ? (
       <a
@@ -528,19 +530,19 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
   switch (ev.type) {
     case "AUTH_OK":
       title = "Auth OK";
-      sub = <>{widgetLink}{ev.origin ? ` - ${ev.origin}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
       break;
     case "AUTH_FAIL":
       title = "Auth Fail";
-      sub = <>{widgetLink}{ev.origin ? ` from ${ev.origin}` : ""}{ev.code ? ` - ${ev.code}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` from ${origin}` : ""}{ev.code ? ` - ${ev.code}` : ""}</>;
       break;
     case "COMMAND":
       title = <><span className="mono">{ev.action}</span> on <span className="mono">{ev.entity_id}</span></>;
-      sub = <>{widgetLink}{ev.origin ? ` - ${ev.origin}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
       break;
     case "SESSION_END":
       title = "Session ended";
-      sub = <>{widgetLink}{ev.origin ? ` - ${ev.origin}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
       break;
     case "RENEWAL":
       title = "Session renewed";
@@ -560,7 +562,7 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
       break;
     case "SUSPICIOUS_ORIGIN":
       title = "Suspicious origin blocked";
-      sub = ev.origin ? <span className="mono">{ev.origin}</span> : null;
+      sub = origin ? <span className="mono">{origin}</span> : null;
       break;
     case "FLOOD_PROTECTION":
       title = "Flood protection triggered";
@@ -568,7 +570,7 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
       break;
     case "RATE_LIMITED":
       title = "Rate limited";
-      sub = <>{widgetLink}{ev.origin ? ` - ${ev.origin}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
       break;
   }
 
@@ -601,7 +603,7 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
             <dt>Timestamp</dt><dd className="mono">{new Date(ev.timestamp).toLocaleString()}</dd>
             {ev.token_label && <><dt>Widget</dt><dd>{widgetLink}</dd></>}
             {ev.session_id && <><dt>Session</dt><dd className="mono">{ev.session_id}</dd></>}
-            {ev.origin && <><dt>Origin</dt><dd className="mono">{ev.origin}</dd></>}
+            {<><dt>Origin</dt><dd className="mono">{origin ?? "(no origin)"}</dd></>}
             {ev.entity_id && <><dt>Entity</dt><dd className="mono">{ev.entity_id}</dd></>}
             {ev.action && <><dt>Action</dt><dd className="mono">{ev.action}</dd></>}
             {ev.code && <><dt>Error code</dt><dd className="mono">{ev.code}</dd></>}
