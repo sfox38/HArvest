@@ -332,15 +332,16 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
               <tr><td>light</td><td>Toggle on/off</td></tr>
               <tr><td>switch</td><td>Toggle on/off</td></tr>
               <tr><td>input_boolean</td><td>Toggle on/off</td></tr>
+              <tr><td>fan</td><td>Toggle on/off</td></tr>
               <tr><td>binary_sensor</td><td>Read-only state</td></tr>
-              <tr><td>lock</td><td>Read-only state</td></tr>
+              <tr><td>sensor</td><td>Read-only state/value</td></tr>
               <tr><td>cover</td><td>Read-only state/position</td></tr>
               <tr><td>remote</td><td>Read-only power state</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>There is no per-card companion limit; the 50-entity token budget is the only constraint. Companions with "read" capability never trigger service calls regardless of the domain, even if the domain normally allows control. Badge entities cannot have companions.</p>
+        <p>There is no per-card companion limit; the 50-entity token budget is the only constraint. Each companion has a "Read only" toggle (default: on). Read-only companions never trigger service calls regardless of the domain. If the primary card is set to "Read only", all its companions are forced to read-only. Badge entities cannot have companions.</p>
         </section>
 
         <section>

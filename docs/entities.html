@@ -223,11 +223,12 @@
           <table>
             <thead><tr><th>Domain</th><th>Access in companion role</th><th>Typical use</th></tr></thead>
             <tbody>
-              <tr><td><code>binary_sensor</code></td><td>Read-only</td><td>Motion, door/window state, occupancy indicator inside a light card</td></tr>
               <tr><td><code>light</code></td><td>Toggle on/off</td><td>Additional light in the same room shown as a pill</td></tr>
               <tr><td><code>switch</code></td><td>Toggle on/off</td><td>Related switch shown alongside a primary entity</td></tr>
               <tr><td><code>input_boolean</code></td><td>Toggle on/off</td><td>Boolean helper state</td></tr>
-              <tr><td><code>lock</code></td><td>Read-only</td><td>Lock status alongside a cover or light card (display only)</td></tr>
+              <tr><td><code>fan</code></td><td>Toggle on/off</td><td>Fan power state alongside a climate or light card</td></tr>
+              <tr><td><code>binary_sensor</code></td><td>Read-only</td><td>Motion, door/window state, occupancy indicator inside a light card</td></tr>
+              <tr><td><code>sensor</code></td><td>Read-only</td><td>Temperature next to a climate card, power draw next to a switch</td></tr>
               <tr><td><code>cover</code></td><td>Read-only</td><td>Cover position indicator alongside a related entity</td></tr>
               <tr><td><code>remote</code></td><td>Read-only power state</td><td>Remote power status alongside a media player card</td></tr>
             </tbody>
@@ -238,7 +239,7 @@
 
         <div class="callout callout-warn">
           <span class="callout-label">Important</span>
-          <p>Even companion domains listed as "toggle" above are read-only if the token's capability for that entity is set to "read". The companion's capability inherits from its own entity entry in the token.</p>
+          <p>Each companion has a "Read only" toggle that defaults to on. When read-only, the companion shows state but cannot be interacted with, regardless of the domain. If the primary card's access is set to "Read only", all its companions are forced to read-only and the toggle is hidden.</p>
         </div>
         </section>
 
