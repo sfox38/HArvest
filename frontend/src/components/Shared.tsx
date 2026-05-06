@@ -9,7 +9,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo, useId } from "react";
 import type { TokenStatus, ActivityEvent, HAEntity, ThemeDefinition } from "../types";
 import { Icon } from "./Icon";
-import { api } from "../api";
+import { api, isOffline } from "../api";
 import { getEntityCache, loadEntityCache } from "../entityCache";
 
 // ---------------------------------------------------------------------------
@@ -344,6 +344,12 @@ export function EmptyState({ icon = "grid", title, subtitle, action }: EmptyStat
 // ErrorBanner
 // ---------------------------------------------------------------------------
 
+function _isNetworkError(msg: string): boolean {
+  if (isOffline()) return true;
+  const lower = msg.toLowerCase();
+  return lower.includes("networkerror") || lower.includes("failed to fetch") || lower.includes("network request failed");
+}
+
 interface ErrorBannerProps {
   message: string;
   onDismiss?: () => void;
@@ -351,6 +357,7 @@ interface ErrorBannerProps {
 }
 
 export function ErrorBanner({ message, onDismiss, onRetry }: ErrorBannerProps) {
+  if (_isNetworkError(message)) return null;
   if (!onDismiss) {
     return (
       <div role="alert" className="error-banner">
