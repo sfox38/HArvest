@@ -836,9 +836,9 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
             >
               <span className="badge badge-neutral" style={{ fontSize: 10 }}>{e.domain}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.entity_id}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.friendly_name}</div>
                 {e.friendly_name !== e.entity_id && (
-                  <div className="muted" style={{ fontSize: 11 }}>{e.friendly_name}</div>
+                  <div className="muted mono" style={{ fontSize: 11 }}>{e.entity_id}</div>
                 )}
               </div>
             </div>
@@ -864,9 +864,9 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
             >
               <span className="badge badge-neutral" style={{ fontSize: 10 }}>{e.domain}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.entity_id}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.friendly_name}</div>
                 {e.friendly_name !== e.entity_id && (
-                  <div className="muted" style={{ fontSize: 11 }}>{e.friendly_name}</div>
+                  <div className="muted mono" style={{ fontSize: 11 }}>{e.entity_id}</div>
                 )}
               </div>
               <span className="muted" style={{ fontSize: 11 }}>{e.state}</span>
