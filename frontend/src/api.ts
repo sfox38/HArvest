@@ -58,6 +58,49 @@ export function setHass(hass: any): void {
 }
 
 // ---------------------------------------------------------------------------
+// Connectivity state - tracks network reachability of HA
+// ---------------------------------------------------------------------------
+
+let _offline = false;
+let _recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+const _connectivityListeners: Array<(offline: boolean) => void> = [];
+
+export function isOffline(): boolean { return _offline; }
+
+export function onConnectivityChange(cb: (offline: boolean) => void): () => void {
+  _connectivityListeners.push(cb);
+  return () => {
+    const i = _connectivityListeners.indexOf(cb);
+    if (i >= 0) _connectivityListeners.splice(i, 1);
+  };
+}
+
+function _setOffline(v: boolean): void {
+  if (v === _offline) return;
+  _offline = v;
+  _connectivityListeners.forEach(cb => cb(v));
+  if (v && !_recoveryTimer) _startRecoveryPoll();
+  if (!v && _recoveryTimer) { clearTimeout(_recoveryTimer); _recoveryTimer = null; }
+}
+
+function _startRecoveryPoll(): void {
+  let delay = 3000;
+  const poll = () => {
+    fetch(`${BASE}/stats`, {
+      headers: _hass?.auth?.data?.access_token
+        ? { Authorization: `Bearer ${_hass.auth.data.access_token}` }
+        : {},
+    })
+      .then(r => { if (r.ok) _setOffline(false); else throw new Error(); })
+      .catch(() => {
+        delay = Math.min(delay * 1.5, 15000);
+        _recoveryTimer = setTimeout(poll, delay);
+      });
+  };
+  _recoveryTimer = setTimeout(poll, delay);
+}
+
+// ---------------------------------------------------------------------------
 // Core request helper with proactive token refresh and 401 retry
 // ---------------------------------------------------------------------------
 
@@ -84,7 +127,16 @@ async function _doReq<T>(
   if (body !== undefined) opts.body = JSON.stringify(body);
 
   const url = path.startsWith("/api/") ? path : `${BASE}${path}`;
-  const res = await fetch(url, opts);
+
+  let res: Response;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    _setOffline(true);
+    throw err;
+  }
+
+  _setOffline(false);
 
   if (res.status === 401 && !retried && _hass?.auth) {
     await _hass.auth.refreshAccessToken();
