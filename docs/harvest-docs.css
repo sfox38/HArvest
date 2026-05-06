@@ -5,75 +5,97 @@
    ============================================================ */
 
 :root {
-  --bg:             #f0f2f5;
-  --surface:        #ffffff;
-  --surface-alt:    #f8f9fb;
-  --border:         #e2e6ea;
-  --text:           #1a1f2e;
-  --text-2:         #4b5563;
-  --text-3:         #6b7280;
-  --accent:         #6366f1;
-  --accent-dim:     #eef2ff;
-  --accent-text:    #4f46e5;
-  --link:           #4f46e5;
-  --code-bg:        #f3f4f6;
-  --code-border:    #e5e7eb;
-  --code-text:      #1f2937;
-  --pre-bg:         #1e2433;
-  --pre-text:       #e2e8f0;
-  --pre-comment:    #64748b;
-  --pre-keyword:    #818cf8;
-  --pre-string:     #6ee7b7;
+  --bg:             #f4f7f5;
+  --surface:        #fafdfb;
+  --surface-alt:    #f0f4f1;
+  --border:         #dde4df;
+  --text:           #0f1a14;
+  --text-2:         #3b4a42;
+  --text-3:         #6b7a71;
+  --accent:         #2f7d4d;
+  --accent-dim:     #e8f3ec;
+  --accent-text:    #1f5c38;
+  --link:           #1f5c38;
+  --code-bg:        #eef2ef;
+  --code-border:    #dde4df;
+  --code-text:      #0f1a14;
+  --pre-bg:         #0f2018;
+  --pre-text:       #dce7e0;
+  --pre-comment:    #7a8a82;
+  --pre-keyword:    #8ee6b0;
+  --pre-string:     #f0c674;
   --pre-number:     #fbbf24;
-  --tip-bg:         #eff6ff;
-  --tip-border:     #3b82f6;
-  --tip-text:       #1e40af;
-  --warn-bg:        #fffbeb;
-  --warn-border:    #f59e0b;
-  --warn-text:      #92400e;
-  --danger-bg:      #fef2f2;
-  --danger-border:  #ef4444;
-  --danger-text:    #991b1b;
+  --tip-bg:         #e8f0fb;
+  --tip-border:     #2563c2;
+  --tip-text:       #1a4b8c;
+  --warn-bg:        #fdf6e7;
+  --warn-border:    #b7791f;
+  --warn-text:      #7c5310;
+  --danger-bg:      #fbeceb;
+  --danger-border:  #b3261e;
+  --danger-text:    #7a1a15;
   --sidebar-w:      260px;
-  --content-max:    90%;
+  --content-max:    68ch;
   --radius:         8px;
   --radius-lg:      12px;
-  --shadow:         0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md:      0 4px 12px rgba(0,0,0,0.1);
+  --shadow:         0 1px 3px rgba(15, 26, 20, 0.06), 0 1px 2px rgba(15, 26, 20, 0.04);
+  --shadow-md:      0 4px 14px rgba(15, 26, 20, 0.08), 0 1px 3px rgba(15, 26, 20, 0.04);
+  --font-sans:      "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono:      "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 [data-theme="dark"] {
-  --bg:             #101418;
-  --surface:        #161b22;
-  --surface-alt:    #1c2128;
-  --border:         #30363d;
-  --text:           #e6edf3;
-  --text-2:         #8b949e;
-  --text-3:         #6e7681;
-  --accent:         #818cf8;
-  --accent-dim:     #1e1b4b;
-  --accent-text:    #a5b4fc;
-  --link:           #a5b4fc;
-  --code-bg:        #1c2128;
-  --code-border:    #30363d;
-  --code-text:      #e6edf3;
-  --pre-bg:         #0d1117;
-  --pre-text:       #e6edf3;
-  --pre-comment:    #48536b;
-  --pre-keyword:    #a5b4fc;
-  --pre-string:     #6ee7b7;
+  --bg:             #111816;
+  --surface:        #1a2320;
+  --surface-alt:    #232d29;
+  --border:         #2a3531;
+  --text:           #eef3ef;
+  --text-2:         #c8d2cc;
+  --text-3:         #8e9a93;
+  --accent:         #7bc894;
+  --accent-dim:     rgba(123, 200, 148, 0.14);
+  --accent-text:    #a8e0ba;
+  --link:           #a8e0ba;
+  --code-bg:        #232d29;
+  --code-border:    #2a3531;
+  --code-text:      #eef3ef;
+  --pre-bg:         #0f2018;
+  --pre-text:       #dce7e0;
+  --pre-comment:    #7a8a82;
+  --pre-keyword:    #8ee6b0;
+  --pre-string:     #f0c674;
   --pre-number:     #fbbf24;
-  --tip-bg:         #0d1f30;
-  --tip-border:     #3b82f6;
+  --tip-bg:         rgba(111, 168, 236, 0.10);
+  --tip-border:     #6fa8ec;
   --tip-text:       #93c5fd;
-  --warn-bg:        #1c1400;
-  --warn-border:    #f59e0b;
+  --warn-bg:        rgba(224, 180, 94, 0.10);
+  --warn-border:    #e0b45e;
   --warn-text:      #fcd34d;
-  --danger-bg:      #1a0a0a;
-  --danger-border:  #ef4444;
+  --danger-bg:      rgba(230, 122, 114, 0.10);
+  --danger-border:  #e67a72;
   --danger-text:    #fca5a5;
   --shadow:         0 1px 3px rgba(0,0,0,0.3);
-  --shadow-md:      0 4px 12px rgba(0,0,0,0.4);
+  --shadow-md:      0 4px 14px rgba(0,0,0,0.4);
+}
+
+/* ============================================================
+   Font Loading
+   ============================================================ */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/jetbrainsmono/v20/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxTOlOTk6OThhvA.woff2") format("woff2");
 }
 
 /* ============================================================
@@ -85,10 +107,10 @@
 html { font-size: 16px; scroll-behavior: smooth; height: 100%; }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg);
   color: var(--text);
-  line-height: 1.65;
+  line-height: 1.6;
   min-height: 100%;
   -webkit-font-smoothing: antialiased;
 }
@@ -96,7 +118,7 @@ body {
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-img { max-width: 100%; height: auto; }
+img { max-width: 100%; height: auto; border-radius: var(--radius-lg); }
 
 /* ============================================================
    Layout
@@ -137,11 +159,12 @@ img { max-width: 100%; height: auto; }
   width: 32px;
   height: 32px;
   object-fit: contain;
+  border-radius: 0;
 }
 
 .sidebar-logo-text {
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 650;
   color: var(--text);
   letter-spacing: -0.02em;
 }
@@ -219,6 +242,7 @@ img { max-width: 100%; height: auto; }
   border-radius: 20px;
   padding: 4px 10px;
   font-size: 12px;
+  font-family: var(--font-sans);
   color: var(--text-2);
   cursor: pointer;
   display: flex;
@@ -259,11 +283,12 @@ img { max-width: 100%; height: auto; }
   margin-left: var(--sidebar-w);
   flex: 1;
   min-width: 0;
-  padding: 48px 56px 80px;
+  padding: 48px clamp(28px, 4vw, 72px) 80px;
 }
 
 .content-inner {
   max-width: var(--content-max);
+  margin: 0 auto;
 }
 
 /* ============================================================
@@ -271,7 +296,7 @@ img { max-width: 100%; height: auto; }
    ============================================================ */
 
 .page-header {
-  margin-bottom: 40px;
+  margin-bottom: clamp(40px, 5vw, 56px);
   padding-bottom: 24px;
   border-bottom: 1px solid var(--border);
 }
@@ -286,8 +311,8 @@ img { max-width: 100%; height: auto; }
 }
 
 .page-header h1 {
-  font-size: 32px;
-  font-weight: 800;
+  font-size: 2rem;
+  font-weight: 750;
   letter-spacing: -0.03em;
   line-height: 1.15;
   color: var(--text);
@@ -295,15 +320,15 @@ img { max-width: 100%; height: auto; }
 }
 
 .page-header .lead {
-  font-size: 17px;
+  font-size: 1.0625rem;
   color: var(--text-2);
-  line-height: 1.6;
-  max-width: 90%;
+  line-height: 1.55;
+  max-width: 60ch;
 }
 .page-header .leadhero {
-  font-size: 22px;
+  font-size: 1.25rem;
   color: var(--text-2);
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .hero-title {
@@ -313,10 +338,11 @@ img { max-width: 100%; height: auto; }
 }
 
 .hero-title img {
-  width: 64px;
-  height: 64px;
+  width: 120px;
+  height: 120px;
   flex-shrink: 0;
   object-fit: contain;
+  border-radius: 0;
 }
 
 /* ============================================================
@@ -324,9 +350,10 @@ img { max-width: 100%; height: auto; }
    ============================================================ */
 
 h2 {
-  font-size: 22px;
+  font-size: 1.375rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1.2;
   color: var(--text);
   margin: 48px 0 14px;
   padding-top: 0;
@@ -344,16 +371,19 @@ h2::before {
 }
 
 h3 {
-  font-size: 17px;
+  font-size: 1.125rem;
   font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
   color: var(--text);
   margin: 32px 0 10px;
   scroll-margin-top: 20px;
 }
 
 h4 {
-  font-size: 14px;
+  font-size: 0.9375rem;
   font-weight: 650;
+  line-height: 1.3;
   color: var(--text);
   margin: 24px 0 8px;
   text-transform: uppercase;
@@ -376,6 +406,9 @@ li p { margin-bottom: 4px; }
 
 strong { font-weight: 650; color: var(--text); }
 
+/* Section rhythm */
+section + section { margin-top: clamp(48px, 5vw, 72px); }
+
 /* Horizontal rule as section divider */
 hr {
   border: none;
@@ -383,12 +416,22 @@ hr {
   margin: 40px 0;
 }
 
+/* Hero image */
+.hero-img {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  margin: 8px 0 clamp(32px, 4vw, 48px);
+}
+
 /* ============================================================
    Inline Code
    ============================================================ */
 
 code {
-  font-family: "SFMono-Regular", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   background: var(--code-bg);
   color: var(--code-text);
@@ -409,9 +452,10 @@ pre {
   padding: 20px 22px;
   overflow-x: auto;
   margin: 16px 0 20px;
-  font-size: 13.5px;
-  line-height: 1.6;
+  font-size: 0.8125rem;
+  line-height: 1.65;
   border: 1px solid rgba(255,255,255,0.06);
+  max-width: none;
 }
 
 pre code {
@@ -437,7 +481,7 @@ pre[data-lang]::after {
   position: absolute;
   top: 10px;
   right: 14px;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -457,6 +501,7 @@ pre[data-lang]::after {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  max-width: none;
 }
 
 table {
@@ -508,8 +553,6 @@ td code { font-size: 12.5px; }
   border: 1px solid;
   font-size: 14.5px;
   line-height: 1.6;
-  width: fit-content;
-  max-width: 88%;
 }
 
 .callout p:last-child { margin-bottom: 0; }
@@ -527,7 +570,7 @@ td code { font-size: 12.5px; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 8px;
-  color: #fff;
+  color: #fafdfb;
 }
 
 .callout-tip .callout-label    { background: var(--tip-border); }
@@ -559,14 +602,14 @@ td code { font-size: 12.5px; }
   height: 30px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: #fafdfb;
   font-size: 13px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-top: 1px;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 2px 8px rgba(47, 125, 77, 0.3);
 }
 
 .step-body { flex: 1; min-width: 0; }
@@ -632,17 +675,17 @@ td code { font-size: 12.5px; }
   white-space: nowrap;
 }
 
-.badge-green  { background: #dcfce7; color: #166534; }
-.badge-amber  { background: #fef9c3; color: #854d0e; }
-.badge-red    { background: #fee2e2; color: #991b1b; }
-.badge-blue   { background: #dbeafe; color: #1e40af; }
+.badge-green  { background: #e8f3ec; color: #1f5c38; }
+.badge-amber  { background: #fdf6e7; color: #7c5310; }
+.badge-red    { background: #fbeceb; color: #7a1a15; }
+.badge-blue   { background: #e8f0fb; color: #1a4b8c; }
 .badge-purple { background: var(--accent-dim); color: var(--accent-text); }
 .badge-grey   { background: var(--code-bg); color: var(--text-3); border: 1px solid var(--border); }
 
-[data-theme="dark"] .badge-green  { background: #052e16; color: #86efac; }
-[data-theme="dark"] .badge-amber  { background: #1c1400; color: #fcd34d; }
-[data-theme="dark"] .badge-red    { background: #1a0a0a; color: #fca5a5; }
-[data-theme="dark"] .badge-blue   { background: #0c1a2e; color: #93c5fd; }
+[data-theme="dark"] .badge-green  { background: rgba(123, 200, 148, 0.14); color: #a8e0ba; }
+[data-theme="dark"] .badge-amber  { background: rgba(224, 180, 94, 0.10); color: #fcd34d; }
+[data-theme="dark"] .badge-red    { background: rgba(230, 122, 114, 0.10); color: #fca5a5; }
+[data-theme="dark"] .badge-blue   { background: rgba(111, 168, 236, 0.10); color: #93c5fd; }
 
 /* ============================================================
    Attribute Reference Blocks
@@ -658,7 +701,7 @@ td code { font-size: 12.5px; }
 }
 
 .attr-name {
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 15px;
   font-weight: 650;
   color: var(--accent-text);
@@ -673,8 +716,8 @@ td code { font-size: 12.5px; }
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #dc2626;
-  font-family: system-ui, sans-serif;
+  color: var(--danger-border);
+  font-family: var(--font-sans);
 }
 
 .attr-optional {
@@ -683,13 +726,13 @@ td code { font-size: 12.5px; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-3);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .attr-type {
   font-size: 11.5px;
   color: var(--text-3);
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 400;
 }
 
@@ -717,9 +760,7 @@ td code { font-size: 12.5px; }
   border-top: 3px solid var(--accent);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
-  margin: 28px 0 40px;
-  display: inline-block;
-  min-width: 260px;
+  margin: 0 0 clamp(40px, 5vw, 56px);
 }
 
 .toc-title {
@@ -788,8 +829,7 @@ a.nav-card span {
    ============================================================ */
 
 @media (max-width: 860px) {
-  .content { padding: 28px 28px 60px; }
-  .page-header h1 { font-size: 26px; }
+  .page-header h1 { font-size: 1.625rem; }
   .attr-grid { grid-template-columns: 1fr; }
 }
 
@@ -812,19 +852,17 @@ a.nav-card span {
     padding: 60px 20px 60px;
   }
 
-  .page-header h1 { font-size: 22px; }
-  .page-header .lead { font-size: 15px; }
+  .content-inner { margin: 0; }
 
-  h2 { font-size: 19px; }
-  h3 { font-size: 16px; }
+  .page-header h1 { font-size: 1.375rem; }
+  .page-header .lead { font-size: 0.9375rem; }
 
-  pre { font-size: 12px; padding: 14px 16px; }
+  h2 { font-size: 1.1875rem; }
+  h3 { font-size: 1rem; }
 
-  .toc { min-width: unset; width: 100%; }
+  pre { font-size: 0.75rem; padding: 14px 16px; }
 
   .hero-title img { width: 48px; height: 48px; }
-
-  .callout { width: 100%; max-width: 100%; }
 
   thead th, tbody td { padding: 9px 12px; }
 
