@@ -1390,6 +1390,25 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 >Control</button>
               </div>
             </div>
+
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Always use</label>
+              <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
+                {(["auto", "light", "dark"] as const).map(scheme => (
+                  <button
+                    key={scheme}
+                    className={selectedEntity.color_scheme === scheme ? "active" : ""}
+                    aria-pressed={selectedEntity.color_scheme === scheme}
+                    onClick={() => updateColorScheme(selectedEntity.entity_id, scheme)}
+                    disabled={!canEdit}
+                    type="button"
+                  >
+                    {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {selectedEntity.capabilities === "badge" && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Badge settings</div>
@@ -1451,24 +1470,6 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 </div>
               </div>
             )}
-
-            <div className="entity-setting-row">
-              <label className="entity-setting-label">Always use</label>
-              <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
-                {(["auto", "light", "dark"] as const).map(scheme => (
-                  <button
-                    key={scheme}
-                    className={selectedEntity.color_scheme === scheme ? "active" : ""}
-                    aria-pressed={selectedEntity.color_scheme === scheme}
-                    onClick={() => updateColorScheme(selectedEntity.entity_id, scheme)}
-                    disabled={!canEdit}
-                    type="button"
-                  >
-                    {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {selectedEntity.capabilities !== "badge" && packSettings.includes("layout") && (
             <div className="entity-setting-row">
