@@ -860,9 +860,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
 
       {showPackReminder && (
-        <div className="overlay" onClick={() => setShowPackReminder(false)}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="pack-remind-title" onClick={() => setShowPackReminder(false)}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 className="dialog-title">Upload Renderer Pack</h3>
+            <h3 id="pack-remind-title" className="dialog-title">Upload Renderer Pack</h3>
             <div className="dialog-body">
               <p>
                 This theme includes a renderer pack. Select the matching <code>.js</code> file to enable it.
@@ -881,9 +881,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
       )}
 
       {showAgree && (
-        <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="pack-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 className="dialog-title">Renderer Pack Warning</h3>
+            <h3 id="pack-agree-title" className="dialog-title">Renderer Pack Warning</h3>
             <div className="dialog-body">
               <p>
                 This theme includes a renderer pack that executes JavaScript from your HA instance

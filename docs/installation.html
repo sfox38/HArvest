@@ -141,7 +141,7 @@
         <section>
         <h2 id="widget-script">Widget script</h2>
 
-        <p>HACS installs the Home Assistant integration (the panel and WebSocket proxy) but not the widget script. The widget script is a separate JavaScript file called <code>harvest.min.js</code> that runs on your website, the site where visitors see and interact with your widgets.</p>
+        <p>HACS installs the Home Assistant integration (the panel and WebSocket proxy) but not the widget script. The widget script is a separate JavaScript file called <code>harvest.min.js</code> that runs on your website.</p>
 
         <p>You need to place this file on your web server. There are two ways to get it:</p>
 
@@ -164,7 +164,7 @@
 
         <p>Widgets connect from the visitor's browser to your HA instance using a standard HTTPS/WSS connection on port 443. No additional ports, no relay servers.</p>
 
-        <p>If you use one, your reverse proxy (nginx, Caddy, Traefik, etc.) needs to forward WebSocket upgrade headers. Most configurations already do this if HA is working normally. If not, add these to your nginx config:</p>
+        <p>If you use a reverse proxy (nginx, Caddy, Traefik, etc.), it needs to forward WebSocket upgrade headers. Most configurations already do this if HA is working normally. If not, add these to your nginx config:</p>
 
         <pre><code class="language-text">proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection "upgrade";

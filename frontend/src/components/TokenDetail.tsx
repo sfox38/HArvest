@@ -580,7 +580,7 @@ interface EntitiesEditorProps {
   setSavedMsg?: (msg: string) => void;
 }
 
-const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "lock"]);
+const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor"]);
 const HISTORY_DOMAINS = new Set(["sensor", "input_number", "binary_sensor"]);
 const HOURS_OPTIONS = [1, 6, 12, 24, 48, 72, 168];
 
@@ -646,7 +646,8 @@ function EntityPreview({
       .catch(() => setLoadError(true));
   }, [packId]);
 
-  const defKey = `${entity.entity_id}:${JSON.stringify(entityAccess)}:${companions.map(c => c.entity_id).join(",")}`;
+  const entityAccessJson = useMemo(() => JSON.stringify(entityAccess), [entityAccess.capabilities, entityAccess.name_override, entityAccess.icon_override, entityAccess.color_scheme, entityAccess.exclude_attributes, entityAccess.display_hints, entityAccess.gesture_config]);
+  const defKey = `${entity.entity_id}:${entityAccessJson}:${companions.map(c => `${c.entity_id}:${c.capabilities}`).join(",")}`;
   useEffect(() => {
     let cancelled = false;
     api.entities.getDefinition(entity.entity_id, {
@@ -672,6 +673,7 @@ function EntityPreview({
   }, [theme?.theme_id]);
 
   const cardKey = `${entity.entity_id}:${entity.state}:${defKey}:${theme?.theme_id ?? ""}`;
+  const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
 
   useEffect(() => {
     if (!ready || !serverDef || !containerRef.current || !window.HArvest) return;
@@ -722,9 +724,19 @@ function EntityPreview({
       Object.keys(opts).length ? opts as never : undefined,
     );
     cardRef.current = card;
+
+    for (const c of companions) {
+      api.entities.getDefinition(c.entity_id, { capabilities: c.capabilities }).then(result => {
+        const el = cardRef.current as HTMLElement & { _receiveCompanionDefinition?: (id: string, def: Record<string, unknown>) => void; _receiveCompanionState?: (id: string, s: string, a: Record<string, unknown>) => void } | null;
+        if (!el) return;
+        el._receiveCompanionDefinition?.(c.entity_id, result.definition);
+        el._receiveCompanionState?.(c.entity_id, result.state, result.attributes);
+      }).catch(() => {});
+    }
+
     return () => { container.innerHTML = ""; cardRef.current = null; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, cardKey, serverDef, JSON.stringify(themeObj)]);
+  }, [ready, cardKey, serverDef, themeJson]);
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   return (
@@ -889,11 +901,10 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
       const result = await api.tokens.generateAlias(companionEntityId);
       alias = result.alias;
     } catch { /* alias stays null */ }
-    const defaultCap = entities[0]?.capabilities ?? "read";
     const updated = [...entities, {
       entity_id: companionEntityId,
       alias,
-      capabilities: defaultCap,
+      capabilities: "read" as const,
       exclude_attributes: [] as string[],
       companion_of: primaryEntityId,
       gesture_config: {},
@@ -941,6 +952,8 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
     });
     if (toBadge) {
       updated = updated.filter(en => en.companion_of !== entityId);
+    } else if (newCap === "read") {
+      updated = updated.map(en => en.companion_of === entityId ? { ...en, capabilities: "read" } : en);
     }
     patchEntities(updated);
   };
@@ -1390,6 +1403,25 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                 >Control</button>
               </div>
             </div>
+
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Always use</label>
+              <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
+                {(["auto", "light", "dark"] as const).map(scheme => (
+                  <button
+                    key={scheme}
+                    className={selectedEntity.color_scheme === scheme ? "active" : ""}
+                    aria-pressed={selectedEntity.color_scheme === scheme}
+                    onClick={() => updateColorScheme(selectedEntity.entity_id, scheme)}
+                    disabled={!canEdit}
+                    type="button"
+                  >
+                    {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {selectedEntity.capabilities === "badge" && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Badge settings</div>
@@ -1452,24 +1484,6 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
-            <div className="entity-setting-row">
-              <label className="entity-setting-label">Always use</label>
-              <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
-                {(["auto", "light", "dark"] as const).map(scheme => (
-                  <button
-                    key={scheme}
-                    className={selectedEntity.color_scheme === scheme ? "active" : ""}
-                    aria-pressed={selectedEntity.color_scheme === scheme}
-                    onClick={() => updateColorScheme(selectedEntity.entity_id, scheme)}
-                    disabled={!canEdit}
-                    type="button"
-                  >
-                    {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {selectedEntity.capabilities !== "badge" && packSettings.includes("layout") && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Layout</label>
@@ -1502,6 +1516,17 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
                     <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, minWidth: 0 }}>
                       <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }} className="mono" title={c.entity_id}>{c.entity_id}</span>
                       {c.alias && <span className="muted" style={{ fontSize: 10, flexShrink: 0 }}>alias: {c.alias}</span>}
+                      {selectedEntity.capabilities === "read-write" && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 4 }}>
+                        <Toggle
+                          checked={c.capabilities === "read"}
+                          onChange={v => patchEntities(entities.map(en => en.entity_id === c.entity_id ? { ...en, capabilities: v ? "read" : "read-write" } : en))}
+                          disabled={!canEdit}
+                          size="small"
+                        />
+                        <span style={{ fontSize: 10, whiteSpace: "nowrap" }} className="muted">Read only</span>
+                      </label>
+                      )}
                       {canEdit && (
                         <button
                           onClick={() => removeCompanion(c.entity_id)}
@@ -1944,9 +1969,9 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
       )}
 
       {showAgree && (
-        <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="td-pack-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 className="dialog-title">Renderer Pack Warning</h3>
+            <h3 id="td-pack-agree-title" className="dialog-title">Renderer Pack Warning</h3>
             <div className="dialog-body">
               <p>
                 This theme includes a renderer pack that executes JavaScript from your HA instance
@@ -1995,17 +2020,23 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
 function SessionsPanel({ tokenId }: { tokenId: string }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [termAll,  setTermAll]  = useState(false);
 
   const load = useCallback(() => {
-    api.sessions.list(tokenId).then(setSessions).catch(() => {}).finally(() => setLoading(false));
+    let cancelled = false;
+    api.sessions.list(tokenId)
+      .then(s => { if (!cancelled) { setSessions(s); setError(null); } })
+      .catch(e => { if (!cancelled) setError(String(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [tokenId]);
 
   useEffect(() => {
-    load();
+    const cancel = load();
     const id = setInterval(load, 15_000);
-    return () => clearInterval(id);
+    return () => { cancel(); clearInterval(id); };
   }, [load]);
 
   const terminate = async (sid: string) => {
@@ -2019,6 +2050,7 @@ function SessionsPanel({ tokenId }: { tokenId: string }) {
     load();
   };
 
+  if (error && loading) return <p className="muted" style={{ fontSize: 13 }}>Failed to load sessions.</p>;
   if (loading) return <Spinner size={24} />;
 
   return (
@@ -2121,15 +2153,21 @@ function ActivityPanel({ tokenId }: { tokenId: string }) {
   const [page,      setPage]      = useState<ActivityPage | null>(null);
   const [offset,    setOffset]    = useState(0);
   const [dateRange, setDateRange] = useState<ActivityDateRange>("24h");
+  const [error,     setError]     = useState<string | null>(null);
   const LIMIT = 20;
 
   useEffect(() => {
+    let cancelled = false;
     const params: Parameters<typeof api.activity.list>[0] = { token_id: tokenId, offset, limit: LIMIT };
     const since = sinceFor(dateRange);
     if (since) params.since = since;
-    api.activity.list(params).then(setPage).catch(() => {});
+    api.activity.list(params)
+      .then(p => { if (!cancelled) { setPage(p); setError(null); } })
+      .catch(e => { if (!cancelled) setError(String(e)); });
+    return () => { cancelled = true; };
   }, [tokenId, offset, dateRange]);
 
+  if (error && !page) return <p className="muted" style={{ fontSize: 13 }}>Failed to load activity.</p>;
   if (!page) return <Spinner size={24} />;
 
   return (

@@ -8,7 +8,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import type { Screen } from "./types";
-import { api, getHaDarkMode, onHaDarkModeChange } from "./api";
+import { api, getHaDarkMode, onHaDarkModeChange, isOffline, onConnectivityChange } from "./api";
 import { Dashboard }   from "./components/Dashboard";
 import { TokenList }   from "./components/TokenList";
 import { ActivityLog } from "./components/ActivityLog";
@@ -71,6 +71,8 @@ export function App() {
   const [haDark, setHaDark] = useState<boolean>(getHaDarkMode);
   // Kill switch: when active, all sessions are blocked.
   const [killSwitch, setKillSwitch] = useState(false);
+  // Network connectivity: true when HA is unreachable.
+  const [offline, setOffline] = useState(isOffline);
 
   // Persist theme choice and apply data-theme attribute.
   useEffect(() => {
@@ -79,6 +81,9 @@ export function App() {
 
   // Subscribe to HA dark mode changes for "auto" mode.
   useEffect(() => onHaDarkModeChange(setHaDark), []);
+
+  // Subscribe to connectivity changes.
+  useEffect(() => onConnectivityChange(setOffline), []);
 
   // Fetch kill switch state on mount.
   useEffect(() => {
@@ -127,6 +132,12 @@ export function App() {
             </div>
             <span className="brand-name">HArvest</span>
           </button>
+          {offline && (
+            <div className="connectivity-banner" role="status" aria-live="polite">
+              <Icon name="refresh" size={13} />
+              <span>Reconnecting...</span>
+            </div>
+          )}
           <div className="appbar-actions">
             {killSwitch && (
               <span className="kill-switch-indicator" title="Kill switch is active - all sessions blocked">

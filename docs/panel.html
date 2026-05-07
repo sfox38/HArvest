@@ -192,7 +192,7 @@
           </table>
         </div>
 
-        <p><strong>Companions:</strong> add or remove companion entities that display inside the selected entity's card. Companion entities do not appear in the left entity list. This section auto-opens when companions already exist. Hidden when Access is Badge.</p>
+        <p><strong>Companions:</strong> add or remove companion entities that display inside the selected entity's card. Companion entities do not appear in the left entity list. This section auto-opens when companions already exist. Hidden when Access is Badge. Each companion has a small "Read only" toggle (default: on). Disable it to allow visitors to interact with the companion (e.g. toggle a light). The toggle only appears when the primary entity's Access is set to Control; read-only primaries force all companions to read-only.</p>
 
         <p><strong>Excluded attributes:</strong> a grid of toggles for each attribute the entity exposes. Excluding an attribute prevents it from being sent to the widget. These toggles are linked to the domain-specific controls above: disabling "Show brightness" for a light also excludes the brightness attribute, and vice versa.</p>
 
@@ -224,7 +224,7 @@
         <p>Token secret for HMAC-signed auth, IP allowlists, and session lifetime limits. See the <a href="security.html">Security page</a> for details on each option.</p>
 
         <h3>Widget Info tab</h3>
-        <p>Usage stats (total sessions, commands, last connection time), a live list of active sessions with the ability to end individual sessions, and a recent activity feed for this widget. This is the same session and activity data that was previously shown in the right sidebar.</p>
+        <p>Usage stats (total sessions, commands, last connection time), a live list of active sessions with the ability to end individual sessions, and a recent activity feed for this widget.</p>
 
         <h2 id="wizard">Widget wizard</h2>
 
@@ -250,7 +250,7 @@
 
         <h2 id="themes">Themes</h2>
 
-        <p>Theme management lives inside each widget's Entities tab. There is no separate global Themes screen. Each widget picks its own theme, and theme selection affects all entities within that widget.</p>
+        <p>Theme selection is per-widget, managed in each widget's Entities tab. Each widget picks its own theme, and the selection affects all entities within that widget. Creating and editing themes happens in the dedicated Themes tab.</p>
 
         <p>HArvest ships five bundled themes (Default, Glass, Access, Minimus, Shrooms) and supports unlimited custom themes and user-contributed themes.</p>
 
@@ -265,7 +265,7 @@
         <p>Some themes include a renderer pack, which replaces the default card renderers with custom designs. When a pack theme is active, the domain-specific controls in the entity settings card are filtered to show only options the pack supports. Switching between themes preserves your display settings; options the new theme does not support are hidden but kept in storage.</p>
 
         <h3>Custom themes</h3>
-        <p>Custom themes are created and managed from the global Settings screen. The theme JSON editor lets you modify CSS variables, preview changes in real time, and export themes as JSON files. See the <a href="theming.html">Theming page</a> for the full theme JSON format and variable reference.</p>
+        <p>Custom themes are created and managed in the Themes tab. The theme JSON editor lets you modify CSS variables, preview changes in real time, and export themes as JSON files. See the <a href="theming.html">Theming page</a> for the full theme JSON format and variable reference.</p>
 
         <h3>Sharing themes</h3>
         <p>Any theme can be exported as a JSON file. Custom themes can be imported on any HArvest instance. This is how third-party themes are distributed: the theme author exports their JSON file and shares it, and other users import it.</p>

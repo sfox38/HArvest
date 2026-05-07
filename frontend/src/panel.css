@@ -138,7 +138,7 @@
   color-scheme: dark;
 }
 
-.app[data-theme="dark"] .card       { background: #292e2c; }
+.app[data-theme="dark"] .card       { background: var(--bg-2); }
 .app[data-theme="dark"] .card-info  { background: var(--paper); }
 .app[data-theme="dark"] .stat       { background: var(--paper); }
 
@@ -174,7 +174,7 @@
     --on-accent:       #1a1e1c;
     color-scheme: dark;
   }
-  .app:not([data-theme="light"]):not([data-theme="dark"]) .card       { background: #292e2c; }
+  .app:not([data-theme="light"]):not([data-theme="dark"]) .card       { background: var(--bg-2); }
   .app:not([data-theme="light"]):not([data-theme="dark"]) .card-info  { background: var(--paper); }
   .app:not([data-theme="light"]):not([data-theme="dark"]) .stat       { background: var(--paper); }
 }
@@ -713,7 +713,7 @@ button.entity-setting-group-title:focus-visible {
 }
 .segmented-toggle button.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .segmented-toggle button:disabled {
   opacity: 0.5;
@@ -2518,13 +2518,13 @@ button.entity-setting-group-title:focus-visible {
   left: 5px;
   font-size: 16px;
   line-height: 1;
-  color: #fafdfb;
+  color: var(--paper);
   filter: drop-shadow(0 0 1.5px rgba(15, 26, 20, 0.85)) drop-shadow(0 0 1px rgba(15, 26, 20, 0.85));
   pointer-events: none;
   user-select: none;
 }
 .theme-pack-star.pack-missing {
-  color: #f59e0b;
+  color: var(--warn);
   font-size: 15px;
   background: rgba(0, 0, 0, 0.75);
   border-radius: 4px;
@@ -2570,7 +2570,7 @@ button.entity-setting-group-title:focus-visible {
 .theme-code-textarea {
   width: 100%;
   min-height: 400px;
-  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.5;
   padding: 12px;
@@ -2705,6 +2705,28 @@ button.entity-setting-group-title:focus-visible {
    Kill switch indicator
    ============================================================ */
 
+.connectivity-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--warn-weak);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--warn);
+}
+
+.connectivity-banner svg {
+  animation: connectivity-spin 1.2s linear infinite;
+}
+
+@keyframes connectivity-spin {
+  to { transform: rotate(360deg); }
+}
+
 .kill-switch-indicator {
   display: inline-flex;
   align-items: center;
@@ -2783,6 +2805,22 @@ button.entity-setting-group-title:focus-visible {
 
 .toggle input:checked + .toggle-track .toggle-thumb {
   transform: translateX(16px);
+}
+
+.toggle-sm .toggle-track {
+  width: 28px;
+  height: 16px;
+}
+
+.toggle-sm .toggle-thumb {
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+}
+
+.toggle-sm input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(12px);
 }
 
 /* ============================================================

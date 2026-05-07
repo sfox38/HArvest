@@ -244,7 +244,7 @@ hrv-card::part(brightness-slider) {
   }
 }</code></pre>
 
-        <p>If <code>dark_variables</code> is omitted entirely, the same values are used in both modes. A theme that only specifies light-mode colors will look identical in dark mode.</p>
+        <p>If <code>dark_variables</code> is omitted entirely, the same values are used in both modes.</p>
 
         <h2 id="parts">Named parts (::part() selectors)</h2>
 
@@ -359,7 +359,7 @@ hrv-card::part(brightness-slider) {
 
         <h2 id="bundled-themes">Bundled themes</h2>
 
-        <p>HArvest ships four themes. They're available in the panel theme picker without any import needed.</p>
+        <p>HArvest ships five themes. They're available in the panel theme picker without any import needed.</p>
 
         <div class="table-wrap">
           <table>
@@ -419,14 +419,14 @@ hrv-card::part(brightness-slider) {
           <table>
             <thead><tr><th>Method</th><th>When called</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>render(definition, shadowRoot)</code></td><td>Once, on card creation</td><td>Build the shadow DOM. Set up event listeners. Called when the entity definition arrives.</td></tr>
+              <tr><td><code>render()</code></td><td>Once, on card creation</td><td>Build the shadow DOM using <code>this.root</code> and <code>this.def</code>. Set up event listeners. Called when the entity definition arrives.</td></tr>
               <tr><td><code>applyState(state, attributes)</code></td><td>Every state change</td><td>Update the UI to reflect the new entity state. Should be fast - avoid full re-renders.</td></tr>
               <tr><td><code>predictState(action, data)</code></td><td>When user triggers an action</td><td>Optional. Return an optimistic state object for instant UI feedback before the server confirms the action. Return <code>null</code> to skip.</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>The <code>definition</code> object passed to <code>render()</code>:</p>
+        <p>The entity definition is available as <code>this.def</code> inside <code>render()</code>:</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
@@ -449,13 +449,12 @@ hrv-card::part(brightness-slider) {
 
         <h3>Extending a built-in renderer</h3>
         <pre><code class="language-javascript">class MyLightCard extends HArvest.renderers.LightCard {
-  render(definition, shadowRoot) {
-    super.render(definition, shadowRoot);
-    // Add something after the standard controls
+  render() {
+    super.render();
     const note = document.createElement("p");
     note.textContent = "Custom footer text";
     note.style.cssText = "font-size: 11px; opacity: 0.6; margin-top: 8px;";
-    shadowRoot.querySelector("[part=card-body]").appendChild(note);
+    this.root.querySelector("[part=card-body]").appendChild(note);
   }
 }
 
@@ -465,8 +464,8 @@ HArvest.registerRenderer("light", MyLightCard);</code></pre>
         <pre><code class="language-javascript">class MinimalLightCard extends HArvest.renderers.BaseCard {
   #toggleBtn = null;
 
-  render(definition, shadowRoot) {
-    shadowRoot.innerHTML = `
+  render() {
+    this.root.innerHTML = `
       &lt;style&gt;
         :host {
           display: block;
@@ -492,14 +491,14 @@ HArvest.registerRenderer("light", MyLightCard);</code></pre>
         }
       &lt;/style&gt;
       &lt;div part="card"&gt;
-        &lt;div part="card-name" class="name"&gt;${definition.friendly_name}&lt;/div&gt;
+        &lt;div part="card-name" class="name"&gt;${this.def.friendly_name}&lt;/div&gt;
         &lt;button part="toggle-button" type="button"&gt;Toggle&lt;/button&gt;
       &lt;/div&gt;
     `;
 
-    this.#toggleBtn = shadowRoot.querySelector("[part=toggle-button]");
+    this.#toggleBtn = this.root.querySelector("[part=toggle-button]");
     this.#toggleBtn.addEventListener("click", () =&gt; {
-      this.sendCommand("toggle");
+      this.config.card?.sendCommand("toggle");
     });
   }
 
@@ -526,13 +525,14 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
           <table>
             <thead><tr><th>Method / Property</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>this.sendCommand(action, data)</code></td><td>Send a service call to HA via the WebSocket. Data is merged with entity_id automatically.</td></tr>
+              <tr><td><code>this.config.card?.sendCommand(action, data)</code></td><td>Send a service call to HA via the WebSocket. Data is merged with entity_id automatically.</td></tr>
               <tr><td><code>this.renderIcon(mdiIconPath, partName)</code></td><td>Render an MDI SVG icon path into a <code>[part=partName]</code> element.</td></tr>
               <tr><td><code>this.renderCompanionZoneHTML()</code></td><td>Returns HTML string for the companion entity zone container.</td></tr>
               <tr><td><code>this.renderCompanions()</code></td><td>Populates the companion zone after <code>render()</code> has run.</td></tr>
               <tr><td><code>this.getSharedStyles()</code></td><td>Returns the shared base CSS string (resets, variable declarations, stale overlay).</td></tr>
               <tr><td><code>this.debounce(fn, ms)</code></td><td>Returns a debounced version of <code>fn</code>. Use for slider inputs.</td></tr>
-              <tr><td><code>this.def</code></td><td>The entity definition object (same as the <code>definition</code> param to <code>render()</code>).</td></tr>
+              <tr><td><code>this.root</code></td><td>The card's shadow root. Use to build and query the shadow DOM in <code>render()</code>.</td></tr>
+              <tr><td><code>this.def</code></td><td>The entity definition object, available once <code>render()</code> is called.</td></tr>
               <tr><td><code>this.lastState</code></td><td>Last known entity state string.</td></tr>
               <tr><td><code>this.lastAttributes</code></td><td>Last known entity attributes object.</td></tr>
               <tr><td><code>this.i18n.t(key)</code></td><td>Translate a string key to the current language.</td></tr>
@@ -565,7 +565,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
 
   // Define your renderer classes
   class DialLightCard extends HArvest.renderers.BaseCard {
-    render(definition, shadowRoot) {
+    render() {
       // ... custom dial-based light UI
     }
     applyState(state, attributes) {
@@ -574,7 +574,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
   }
 
   class MinimalFanCard extends HArvest.renderers.BaseCard {
-    render(definition, shadowRoot) {
+    render() {
       // ... compact fan card
     }
     applyState(state, attributes) {

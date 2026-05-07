@@ -9,7 +9,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo, useId } from "react";
 import type { TokenStatus, ActivityEvent, HAEntity, ThemeDefinition } from "../types";
 import { Icon } from "./Icon";
-import { api } from "../api";
+import { api, isOffline } from "../api";
 import { getEntityCache, loadEntityCache } from "../entityCache";
 
 // ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ interface ConfirmDialogProps {
   message: string;
   confirmLabel?: string;
   confirmDestructive?: boolean;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -227,6 +227,8 @@ export function ConfirmDialog({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
+  const [busy, setBusy] = useState(false);
+  const ids = useId();
 
   useEffect(() => {
     const el = dialogRef.current;
@@ -246,25 +248,34 @@ export function ConfirmDialog({
     return () => document.removeEventListener("keydown", trap);
   }, []);
 
+  const handleConfirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await onConfirm(); }
+    finally { setBusy(false); }
+  };
+
   return (
-    <div className="overlay" onClick={onCancel} role="presentation">
+    <div className="overlay" onClick={busy ? undefined : onCancel} role="presentation">
       <div
         ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="confirm-title"
-        aria-describedby="confirm-msg"
+        aria-labelledby={`${ids}-title`}
+        aria-describedby={`${ids}-msg`}
         className="dialog"
         onClick={e => e.stopPropagation()}
       >
-        <h3 id="confirm-title" className="dialog-title">{title}</h3>
-        <p id="confirm-msg" className="dialog-body">{message}</p>
+        <h3 id={`${ids}-title`} className="dialog-title">{title}</h3>
+        <p id={`${ids}-msg`} className="dialog-body">{message}</p>
         <div className="dialog-actions">
-          <button onClick={onCancel} className="btn btn-ghost">Cancel</button>
+          <button onClick={onCancel} className="btn btn-ghost" disabled={busy}>Cancel</button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
+            disabled={busy}
             className={`btn ${confirmDestructive ? "btn-danger" : "btn-primary"}`}
           >
+            {busy && <Spinner size={14} />}
             {confirmLabel}
           </button>
         </div>
@@ -344,6 +355,12 @@ export function EmptyState({ icon = "grid", title, subtitle, action }: EmptyStat
 // ErrorBanner
 // ---------------------------------------------------------------------------
 
+function _isNetworkError(msg: string): boolean {
+  if (isOffline()) return true;
+  const lower = msg.toLowerCase();
+  return lower.includes("networkerror") || lower.includes("failed to fetch") || lower.includes("network request failed");
+}
+
 interface ErrorBannerProps {
   message: string;
   onDismiss?: () => void;
@@ -351,6 +368,7 @@ interface ErrorBannerProps {
 }
 
 export function ErrorBanner({ message, onDismiss, onRetry }: ErrorBannerProps) {
+  if (_isNetworkError(message)) return null;
   if (!onDismiss) {
     return (
       <div role="alert" className="error-banner">
@@ -504,6 +522,8 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
 
   const toggle = () => setOpen(o => !o);
 
+  const origin = ev.origin && ev.origin !== "null" ? ev.origin : null;
+
   const widgetLink = (ev.token_label && ev.token_id && onSelectToken)
     ? (
       <a
@@ -521,19 +541,19 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
   switch (ev.type) {
     case "AUTH_OK":
       title = "Auth OK";
-      sub = <>{widgetLink}{ev.origin ? ` - ${ev.origin}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
       break;
     case "AUTH_FAIL":
       title = "Auth Fail";
-      sub = <>{widgetLink}{ev.origin ? ` from ${ev.origin}` : ""}{ev.code ? ` - ${ev.code}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` from ${origin}` : ""}{ev.code ? ` - ${ev.code}` : ""}</>;
       break;
     case "COMMAND":
       title = <><span className="mono">{ev.action}</span> on <span className="mono">{ev.entity_id}</span></>;
-      sub = <>{widgetLink}{ev.origin ? ` - ${ev.origin}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
       break;
     case "SESSION_END":
       title = "Session ended";
-      sub = <>{widgetLink}{ev.origin ? ` - ${ev.origin}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
       break;
     case "RENEWAL":
       title = "Session renewed";
@@ -553,7 +573,7 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
       break;
     case "SUSPICIOUS_ORIGIN":
       title = "Suspicious origin blocked";
-      sub = ev.origin ? <span className="mono">{ev.origin}</span> : null;
+      sub = origin ? <span className="mono">{origin}</span> : null;
       break;
     case "FLOOD_PROTECTION":
       title = "Flood protection triggered";
@@ -561,7 +581,7 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
       break;
     case "RATE_LIMITED":
       title = "Rate limited";
-      sub = <>{widgetLink}{ev.origin ? ` - ${ev.origin}` : ""}</>;
+      sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
       break;
   }
 
@@ -594,7 +614,7 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
             <dt>Timestamp</dt><dd className="mono">{new Date(ev.timestamp).toLocaleString()}</dd>
             {ev.token_label && <><dt>Widget</dt><dd>{widgetLink}</dd></>}
             {ev.session_id && <><dt>Session</dt><dd className="mono">{ev.session_id}</dd></>}
-            {ev.origin && <><dt>Origin</dt><dd className="mono">{ev.origin}</dd></>}
+            {<><dt>Origin</dt><dd className="mono">{origin ?? "(no origin)"}</dd></>}
             {ev.entity_id && <><dt>Entity</dt><dd className="mono">{ev.entity_id}</dd></>}
             {ev.action && <><dt>Action</dt><dd className="mono">{ev.action}</dd></>}
             {ev.code && <><dt>Error code</dt><dd className="mono">{ev.code}</dd></>}
@@ -816,9 +836,9 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
             >
               <span className="badge badge-neutral" style={{ fontSize: 10 }}>{e.domain}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.entity_id}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.friendly_name}</div>
                 {e.friendly_name !== e.entity_id && (
-                  <div className="muted" style={{ fontSize: 11 }}>{e.friendly_name}</div>
+                  <div className="muted mono" style={{ fontSize: 11 }}>{e.entity_id}</div>
                 )}
               </div>
             </div>
@@ -844,9 +864,9 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
             >
               <span className="badge badge-neutral" style={{ fontSize: 10 }}>{e.domain}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.entity_id}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{e.friendly_name}</div>
                 {e.friendly_name !== e.entity_id && (
-                  <div className="muted" style={{ fontSize: 11 }}>{e.friendly_name}</div>
+                  <div className="muted mono" style={{ fontSize: 11 }}>{e.entity_id}</div>
                 )}
               </div>
               <span className="muted" style={{ fontSize: 11 }}>{e.state}</span>

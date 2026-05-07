@@ -561,6 +561,14 @@ export class BaseCard {
     const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
     if (!pill) return;
 
+    const shouldBeInteractive = (def.capabilities ?? "read") === "read-write";
+    const isCurrentlyInteractive = pill.hasAttribute("data-interactive");
+
+    if (shouldBeInteractive !== isCurrentlyInteractive) {
+      this._rebuildCompanionPill(entityId, def);
+      return;
+    }
+
     pill.dataset.domain = def.domain ?? "";
     pill.dataset.deviceClass = def.device_class ?? "";
     if (def.icon_state_map) {
@@ -575,12 +583,62 @@ export class BaseCard {
       }
     }
     if (def.friendly_name) {
-      // Preserve any existing state suffix (e.g. " - on") when updating the name.
       const existing = pill.getAttribute("aria-label") ?? "";
       const stateSuffix = existing.match(/ - (.+)$/)?.[0] ?? "";
       pill.setAttribute("aria-label", `${def.friendly_name}${stateSuffix}`);
       pill.title = `${def.friendly_name}${stateSuffix}`;
     }
+  }
+
+  _rebuildCompanionPill(entityId, def) {
+    const zone = this.root.querySelector("[part=companion-zone]");
+    const oldPill = zone?.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
+    if (!zone || !oldPill) return;
+
+    const companion = this.config.companions?.find((c) => c.entityId === entityId);
+    const isInteractive = (def.capabilities ?? "read") === "read-write";
+    const pill = document.createElement(isInteractive ? "button" : "div");
+    pill.className = "hrv-companion";
+    pill.setAttribute("part", "companion");
+    pill.setAttribute("data-entity", entityId);
+    pill.dataset.domain = def.domain ?? "";
+    pill.dataset.deviceClass = def.device_class ?? "";
+    if (def.icon_state_map) {
+      pill.dataset.iconStateMap = JSON.stringify(def.icon_state_map);
+    }
+
+    if (isInteractive) {
+      pill.type = "button";
+      pill.setAttribute("data-interactive", "true");
+      this._attachGestureHandlers(pill, {
+        onTap: () => {
+          this.config.card?._sendCompanionCommand(entityId, "toggle", {});
+        },
+      }, {});
+    }
+
+    const iconWrap = document.createElement("span");
+    iconWrap.setAttribute("part", "companion-icon");
+    const domainFallback = _DOMAIN_FALLBACK[def.domain] ?? "mdi:circle-small";
+    const icon = def.icon ? _resolveIcon(def.icon, domainFallback) : "mdi:help-circle";
+    iconWrap.innerHTML = renderIconSVG(icon, "companion-icon-svg");
+
+    const stateEl = document.createElement("span");
+    stateEl.setAttribute("part", "companion-state");
+    stateEl.className = "hrv-companion__state";
+
+    const oldState = oldPill.querySelector("[part=companion-state]");
+    if (oldState) stateEl.innerHTML = oldState.innerHTML;
+
+    pill.appendChild(iconWrap);
+    pill.appendChild(stateEl);
+
+    if (def.friendly_name) {
+      pill.setAttribute("aria-label", def.friendly_name);
+      pill.title = def.friendly_name;
+    }
+
+    zone.replaceChild(pill, oldPill);
   }
 
   /**
