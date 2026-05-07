@@ -647,7 +647,7 @@ function EntityPreview({
   }, [packId]);
 
   const entityAccessJson = useMemo(() => JSON.stringify(entityAccess), [entityAccess.capabilities, entityAccess.name_override, entityAccess.icon_override, entityAccess.color_scheme, entityAccess.exclude_attributes, entityAccess.display_hints, entityAccess.gesture_config]);
-  const defKey = `${entity.entity_id}:${entityAccessJson}:${companions.map(c => c.entity_id).join(",")}`;
+  const defKey = `${entity.entity_id}:${entityAccessJson}:${companions.map(c => `${c.entity_id}:${c.capabilities}`).join(",")}`;
   useEffect(() => {
     let cancelled = false;
     api.entities.getDefinition(entity.entity_id, {
