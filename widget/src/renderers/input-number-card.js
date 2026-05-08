@@ -133,6 +133,7 @@ export class InputNumberCard extends BaseCard {
       if (this.#numberInput) this.#numberInput.value = String(v);
       this.#sendDebounce(v);
     });
+    this.guardSlider(this.#slider, this.#sendDebounce);
 
     this.#numberInput?.addEventListener("input", (e) => {
       const v = parseFloat(e.target.value);
@@ -147,7 +148,7 @@ export class InputNumberCard extends BaseCard {
   applyState(state, _attributes) {
     const value = parseFloat(state);
     if (!isNaN(value)) {
-      if (this.#slider      && !this.isFocused(this.#slider))      this.#slider.value      = String(value);
+      if (this.#slider      && !this.isSliderActive(this.#slider)) this.#slider.value      = String(value);
       if (this.#numberInput && !this.isFocused(this.#numberInput)) this.#numberInput.value = String(value);
     }
     if (this.#stateLabel && this.def.capabilities !== "read-write") {

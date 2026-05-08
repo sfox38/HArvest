@@ -2470,7 +2470,11 @@ button.entity-setting-group-title:focus-visible {
   flex: 1;
   min-width: 0;
   scrollbar-width: thin;
+  cursor: grab;
+  user-select: none;
 }
+.theme-strip.drag-scrolling { cursor: grabbing; }
+.theme-strip.drag-scrolling .theme-strip-item { pointer-events: none; }
 .theme-strip::-webkit-scrollbar { height: 4px; }
 .theme-strip::-webkit-scrollbar-thumb { background: var(--divider); border-radius: 2px; }
 

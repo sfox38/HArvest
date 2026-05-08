@@ -321,6 +321,7 @@ export class FanCard extends BaseCard {
         if (this.#speedValue) this.#speedValue.textContent = `${val}%`;
         this.#speedDebounce(val);
       });
+      this.guardSlider(this.#speedSlider, this.#speedDebounce);
     }
 
     if (this.#cycleBtn) {
@@ -413,7 +414,7 @@ export class FanCard extends BaseCard {
       this.#toggleBtn.disabled = isUnavailable;
     }
 
-    if (this.#speedSlider && !this.isFocused(this.#speedSlider)) {
+    if (this.#speedSlider && !this.isSliderActive(this.#speedSlider)) {
       this.#speedSlider.value = String(this.#percentage);
       if (this.#speedValue) this.#speedValue.textContent = `${this.#percentage}%`;
     }

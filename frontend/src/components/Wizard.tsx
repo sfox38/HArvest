@@ -10,11 +10,11 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { Token, ThemeDefinition } from "../types";
 import { validateLabel as validateLabelWiz, DEFAULT_WIDGET_SCRIPT_URL } from "../types";
 import { api } from "../api";
-import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, useThemeThumbs } from "./Shared";
+import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, useThemeThumbs, useDragScroll } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { loadWidgetScript, loadPackScript } from "./WidgetPreview";
-import { getEntityCache, loadEntityCache } from "../entityCache";
+import { getEntityCache, loadEntityCache, useEntityCache } from "../entityCache";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 
 // ---------------------------------------------------------------------------
@@ -401,7 +401,7 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   if (!ready && !cardRef.current) return <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>;
-  return <div ref={containerRef} className="theme-preview-widget" style={{ display: "flex", justifyContent: "center", minHeight: 100 }} />;
+  return <div ref={containerRef} className="theme-preview-widget" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 100 }} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -428,13 +428,14 @@ function themeUrlToId(url: string): string {
 function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[]; themeUrl: string; onChange: (url: string) => void }) {
   const thumbUrls = useThemeThumbs(themes);
   const selectedId = themeUrlToId(themeUrl);
+  const stripRef = useDragScroll<HTMLDivElement>();
 
   if (themes.length === 0) return null;
 
   return (
     <div className="col" style={{ gap: 4 }}>
       <label style={{ fontSize: 12, fontWeight: 600 }}>Theme</label>
-      <div className="theme-strip" role="radiogroup" aria-label="Widget theme">
+      <div ref={stripRef} className="theme-strip" role="radiogroup" aria-label="Widget theme">
         {themes.map(t => (
           <button
             key={t.theme_id}
@@ -475,8 +476,9 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
   const selectedThemeId = themeUrlToId(state.themeUrl);
   const selectedTheme = themes.find(t => t.theme_id === selectedThemeId) ?? null;
 
+  const entityCacheList = useEntityCache();
   useEffect(() => {
-    if (getEntityCache().length === 0) loadEntityCache();
+    if (entityCacheList.length === 0) loadEntityCache();
   }, []);
 
   const atEntityLimit = state.mode !== "single" && state.entities.length >= maxEntities;

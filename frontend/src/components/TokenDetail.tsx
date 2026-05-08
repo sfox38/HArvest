@@ -9,13 +9,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Token, TokenUpdate, Session, ActivityPage, ThemeDefinition, ThemeCapabilities, HAEntityDetail } from "../types";
 import { validateLabel, DEFAULT_WIDGET_SCRIPT_URL } from "../types";
 import { api } from "../api";
-import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, Hint, EventRow, fmtRel, EntityAutocomplete, useThemeThumbs } from "./Shared";
+import { StatusBadge, ConfirmDialog, Spinner, ErrorBanner, Card, Hint, EventRow, fmtRel, EntityAutocomplete, useThemeThumbs, useDragScroll } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { loadWidgetScript, loadPackScript, isPackLoaded, generateMockHistory } from "./WidgetPreview";
 
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
-import { loadEntityCache, getEntityCache } from "../entityCache";
+import { loadEntityCache, getEntityCache, useEntityCache } from "../entityCache";
 import { WIDGET_ICONS, WIDGET_ICON_NAMES } from "../widgetIcons";
 
 // ---------------------------------------------------------------------------
@@ -780,8 +780,10 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
   const configPanelRef = useRef<HTMLDivElement>(null);
   const [localEntities, setLocalEntities] = useState<Token["entities"] | null>(null);
   const [companionInputs, setCompanionInputs] = useState<Record<string, string>>({});
+  const entityCacheList = useEntityCache();
+  const themeStripRef = useDragScroll<HTMLDivElement>();
 
-  useEffect(() => { if (getEntityCache().length === 0) loadEntityCache(); }, []);
+  useEffect(() => { if (entityCacheList.length === 0) loadEntityCache(); }, []);
   useEffect(() => {
     api.entities.list()
       .then(list => setHaActionEntities(list.filter(e => e.domain === "harvest_action")))
@@ -1208,7 +1210,7 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
             placeholder="Filter themes..."
             style={{ marginBottom: 8 }}
           />
-          <div className="theme-strip">
+          <div ref={themeStripRef} className="theme-strip">
             {filteredThemes.map(t => (
               <button
                 key={t.theme_id}

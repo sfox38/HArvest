@@ -163,6 +163,7 @@ export class CoverCard extends BaseCard {
       if (this.#positionValue) this.#positionValue.textContent = `${val}%`;
       this.#positionDebounce(val);
     });
+    this.guardSlider(this.#positionSlider, this.#positionDebounce);
 
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -180,7 +181,7 @@ export class CoverCard extends BaseCard {
     const isMoving = state === "opening" || state === "closing";
     if (this.#stopBtn) this.#stopBtn.disabled = !isMoving;
 
-    if (this.#positionSlider && !this.isFocused(this.#positionSlider) && attributes.current_position !== undefined) {
+    if (this.#positionSlider && !this.isSliderActive(this.#positionSlider) && attributes.current_position !== undefined) {
       this.#positionSlider.value = String(attributes.current_position);
       if (this.#positionValue) this.#positionValue.textContent = `${attributes.current_position}%`;
     }

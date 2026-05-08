@@ -704,7 +704,7 @@ class TokenManager:
         Security: no nonce store - replay is possible within the 60s window.
         Accepted tradeoff; see security.md section 5.14.
         """
-        if not isinstance(timestamp, int):
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool):
             return False
         if not isinstance(nonce, str) or not isinstance(signature, str):
             return False

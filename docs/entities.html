@@ -167,6 +167,11 @@
 
         <h3>harvest_action</h3>
         <p>A virtual entity domain for safe, panel-configured button actions. Each action is a pre-defined service call or automation trigger set up in the HArvest panel's Actions tab. The card renders as a full-width trigger button. Actions run with HA's full permissions but only execute the specific service calls you configured - visitors can't invoke arbitrary HA services.</p>
+
+        <div class="callout callout-warn">
+          <span class="callout-label">harvest_action bypasses the service whitelist</span>
+          <p>Normal entities can only call services listed in <a href="#allowed-services">ALLOWED_SERVICES</a>. Harvest actions are different: they can call <em>any</em> HA service, including services in Tier 3 domains (lock, alarm, script, etc.). This is by design - they are admin-defined server-side mappings that give you full flexibility. The tradeoff is that a misconfigured action could expose a high-risk service to public visitors. Review your action definitions carefully, especially if they target security-sensitive domains.</p>
+        </div>
         </section>
 
         <section>

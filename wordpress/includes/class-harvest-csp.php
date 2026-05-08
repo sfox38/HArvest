@@ -100,6 +100,8 @@ class Harvest_Csp {
     private static function add_to_directive( string $policy, string $directive, string $url ): string {
         // Regex-based CSP parsing is inherently fragile. Acceptable here
         // because both $directive and $url are admin-supplied, validated values.
+        // Edge case: if an existing directive contains 'none', appending a URL
+        // produces e.g. "'none' wss://..." which browsers treat as 'none' wins.
         // Reject URLs containing characters that could break the CSP header.
         if ( preg_match( '/[\s;,]/', $url ) ) {
             return $policy;
