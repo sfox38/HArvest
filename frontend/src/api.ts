@@ -386,7 +386,7 @@ export const api = {
       _get<HAEntity[]>("/entities"),
 
     get: (entityId: string): Promise<HAEntityDetail> =>
-      _doReq<HAEntityDetail>("GET", `/api/states/${entityId}`),
+      _doReq<HAEntityDetail>("GET", `/api/states/${encodeURIComponent(entityId)}`),
 
     getDefinition: (entityId: string, params?: {
       capabilities?: string;

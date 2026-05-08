@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { ThemeDefinition, Token, PacksResponse } from "../types";
 import { api } from "../api";
-import { Card, ConfirmDialog, Spinner, ErrorBanner, useThemeThumbs } from "./Shared";
+import { Card, ConfirmDialog, Spinner, ErrorBanner, useThemeThumbs, useDragScroll } from "./Shared";
 import { Icon } from "./Icon";
 import { WidgetPreview, clearPackCache } from "./WidgetPreview";
 
@@ -65,6 +65,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const themeStripRef = useDragScroll<HTMLDivElement>();
 
   // Code editor state
   const [editedJson, setEditedJson] = useState("");
@@ -575,7 +576,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
               {reloading ? "Reloading..." : "Reload"}
             </button>
           </div>
-          <div className="theme-strip">
+          <div ref={themeStripRef} className="theme-strip">
             {themes.map(t => (
               <button
                 key={t.theme_id}

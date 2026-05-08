@@ -92,7 +92,7 @@
           <li>Visitors can only access entities explicitly listed in their token</li>
           <li>Write access is separate from read access and must be explicitly granted</li>
           <li>Tier 3 domains (alarm panels, locks, cameras, scripts, automations) are blocked at token creation time - they cannot be added regardless of capability setting</li>
-          <li>Only service calls in the <a href="entities.html#allowed-services">allowed services whitelist</a> can be executed</li>
+          <li>Only service calls in the <a href="entities.html#allowed-services">allowed services whitelist</a> can be executed (exception: <code>harvest_action</code> entities bypass this whitelist - see <a href="entities.html#harvest_action">harvest_action</a>)</li>
           <li>Tokens can be restricted to specific websites, IP ranges, and time windows</li>
           <li>All auth events and service calls are logged with session, origin, and entity details</li>
           <li>Tokens can be paused or revoked instantly, dropping all active connections</li>
@@ -134,7 +134,8 @@
 
         <div class="callout callout-warn">
           <span class="callout-label">Token secret storage</span>
-          <p>The token secret is stored as plaintext in HA's <code>.storage/harvest_tokens</code> file on your HA instance. This is by design - HMAC verification requires the plaintext secret. The security claim is that the secret is not exposed in public HTML, not that it's never stored on the server.</p>
+          <p>The token secret is stored as plaintext in HA's <code>.storage/harvest_tokens</code> file on your HA instance. This is by design - HMAC verification requires the plaintext secret.</p>
+          <p>The secret also appears as a <code>data-token-secret</code> attribute in the rendered HTML of any page that uses the <code>token-secret</code> shortcode parameter (WordPress) or <code>token-secret</code> attribute (standalone embed). Anyone who views the page source can read it. The security value of HMAC is that copying the token ID alone is not sufficient to connect from a different page - the attacker also needs the per-page secret. It is not a hidden credential.</p>
         </div>
 
         <h2 id="origin-restriction">Origin restriction</h2>

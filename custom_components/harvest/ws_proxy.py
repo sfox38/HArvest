@@ -143,7 +143,13 @@ _ALLOWED_DATA_KEYS: dict[str, set[str]] = {
 
 
 class HarvestWsView(HomeAssistantView):
-    """WebSocket endpoint. requires_auth = False (uses its own token-based auth)."""
+    """WebSocket endpoint for public widget connections.
+
+    requires_auth is False because this endpoint uses HArvest's own
+    token-based auth flow (token ID + optional HMAC), not HA user sessions.
+    Rate limiting, origin checks, and HMAC verification are handled
+    internally by the message loop.
+    """
 
     url = WS_PATH
     name = "api:harvest:ws"
@@ -539,6 +545,8 @@ class HarvestWsView(HomeAssistantView):
         If entity does not exist, send entity_removed instead.
         """
         for real_id in entity_ids:
+            # ea can be None if the token was edited between auth and this
+            # call (race). Safe to default to read-only in that case.
             ea = _find_entity_access(real_id, token)
             outgoing_id = outgoing_ids.get(real_id, real_id)
 
@@ -1041,12 +1049,15 @@ class HarvestWsView(HomeAssistantView):
             return
 
         ea_hints = ea.display_hints if ea else {}
-        # hours/period from an authenticated session; non-numeric values
-        # are clamped via max/min which raises TypeError - acceptable
-        # since the session is already authorized and the error is logged.
-        hours = msg.get("hours", ea_hints.get("hours", 24))
+        try:
+            hours = int(msg.get("hours", ea_hints.get("hours", 24)))
+        except (TypeError, ValueError):
+            hours = 24
         hours = max(1, min(hours, 168))
-        period = msg.get("period", ea_hints.get("period", 10))
+        try:
+            period = int(msg.get("period", ea_hints.get("period", 10)))
+        except (TypeError, ValueError):
+            period = 10
         period = max(1, period)
         hours_in_minutes = hours * 60
         if period >= hours_in_minutes:
@@ -1116,6 +1127,9 @@ class HarvestWsView(HomeAssistantView):
 
         One listener per entity per session. Stored in listener_unsubs for cleanup.
         Also subscribes to weather forecast updates for weather entities.
+
+        Note: this creates O(sessions * entities) listeners on the HA event bus.
+        Acceptable at expected scale (tens of sessions, dozens of entities each).
         """
         for real_id in entity_ids:
             if real_id in listener_unsubs:

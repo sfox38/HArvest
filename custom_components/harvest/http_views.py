@@ -1771,7 +1771,13 @@ class HarvestPackDetailView(HomeAssistantView):
 
 
 class HarvestPackCodeView(HomeAssistantView):
-    """GET/POST /api/harvest/packs/{pack_id}/code - view or update pack JS source."""
+    """GET/POST /api/harvest/packs/{pack_id}/code - view or update pack JS source.
+
+    POST accepts arbitrary JavaScript from admin users. The code is written
+    to disk unsigned and served without auth via the public pack JS endpoint.
+    Connected widgets auto-load new pack code at next reconnect. This is
+    intentional: renderer packs are admin-authored extensions by design.
+    """
 
     url = "/api/harvest/packs/{pack_id}/code"
     name = "api:harvest:pack_code"

@@ -645,6 +645,119 @@ export function fmtBytes(b: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// useDragScroll - enable mouse click-and-drag horizontal scrolling on a
+// container. Native touch swipe already works via overflow-x: auto.
+// ---------------------------------------------------------------------------
+
+export function useDragScroll<T extends HTMLElement>() {
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  const setRef = useCallback((el: T | null) => {
+    cleanupRef.current?.();
+    cleanupRef.current = null;
+    if (!el) return;
+
+    let dragging = false;
+    let startX = 0;
+    let startScroll = 0;
+    let moved = 0;
+    let velocity = 0;
+    let lastX = 0;
+    let lastT = 0;
+    let momentumFrame: number | null = null;
+
+    const cancelMomentum = () => {
+      if (momentumFrame !== null) {
+        cancelAnimationFrame(momentumFrame);
+        momentumFrame = null;
+      }
+    };
+
+    const startMomentum = () => {
+      cancelMomentum();
+      const friction = 0.94;
+      const minSpeed = 0.2;
+      const step = () => {
+        if (Math.abs(velocity) < minSpeed) {
+          momentumFrame = null;
+          return;
+        }
+        el.scrollLeft -= velocity;
+        velocity *= friction;
+        momentumFrame = requestAnimationFrame(step);
+      };
+      momentumFrame = requestAnimationFrame(step);
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, select, textarea")) return;
+      cancelMomentum();
+      dragging = true;
+      moved = 0;
+      startX = e.clientX;
+      lastX = e.clientX;
+      lastT = performance.now();
+      velocity = 0;
+      startScroll = el.scrollLeft;
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      moved = Math.max(moved, Math.abs(dx));
+      if (moved > 4) {
+        e.preventDefault();
+        el.classList.add("drag-scrolling");
+        el.scrollLeft = startScroll - dx;
+        const now = performance.now();
+        const dt = now - lastT;
+        if (dt > 0) {
+          const instVel = (e.clientX - lastX) / dt * 16;
+          velocity = velocity * 0.7 + instVel * 0.3;
+        }
+        lastX = e.clientX;
+        lastT = now;
+      }
+    };
+
+    const onMouseUp = () => {
+      if (!dragging) return;
+      const wasDrag = moved > 4;
+      dragging = false;
+      el.classList.remove("drag-scrolling");
+      if (wasDrag) {
+        const blockClick = (ev: MouseEvent) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+          el.removeEventListener("click", blockClick, true);
+        };
+        el.addEventListener("click", blockClick, true);
+        if (Math.abs(velocity) > 0.5) startMomentum();
+      }
+    };
+
+    const onWheel = () => cancelMomentum();
+
+    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    cleanupRef.current = () => {
+      cancelMomentum();
+      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("wheel", onWheel);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
+  return setRef;
+}
+
+// ---------------------------------------------------------------------------
 // EntityAutocomplete
 // ---------------------------------------------------------------------------
 

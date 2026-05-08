@@ -689,18 +689,69 @@ export class BaseCard {
 
   /**
    * Create a debounced version of fn that delays execution by ms milliseconds.
-   * The timer resets on each call. Useful for slider input events.
+   * The timer resets on each call. The returned function exposes a flush()
+   * method that fires the pending call immediately.
    *
    * @param {Function} fn
    * @param {number}   ms
-   * @returns {Function}
+   * @returns {Function & { flush: () => void }}
    */
   debounce(fn, ms) {
     let timer = null;
-    return (...args) => {
+    let lastArgs = null;
+    const wrapped = (...args) => {
+      lastArgs = args;
       clearTimeout(timer);
-      timer = setTimeout(() => { timer = null; fn(...args); }, ms);
+      timer = setTimeout(() => { timer = null; fn(...lastArgs); lastArgs = null; }, ms);
     };
+    wrapped.flush = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+        if (lastArgs) { fn(...lastArgs); lastArgs = null; }
+      }
+    };
+    return wrapped;
+  }
+
+  /**
+   * Track whether the user is actively dragging a slider via pointer/touch
+   * events. While interacting, applyState() should skip programmatic value
+   * writes so server echoes do not snap the thumb backward mid-drag.
+   *
+   * Optionally pass a debounced send wrapper to flush its pending value on
+   * pointer release so the final position sends immediately.
+   *
+   * @param {HTMLInputElement|null} slider
+   * @param {Function & { flush?: () => void }} [debouncedSend]
+   */
+  guardSlider(slider, debouncedSend) {
+    if (!slider) return;
+    const start = () => { slider.dataset.hrvInteracting = "1"; };
+    const end = () => {
+      delete slider.dataset.hrvInteracting;
+      if (debouncedSend?.flush) debouncedSend.flush();
+    };
+    slider.addEventListener("pointerdown", start);
+    slider.addEventListener("pointerup", end);
+    slider.addEventListener("pointercancel", end);
+    slider.addEventListener("touchstart", start, { passive: true });
+    slider.addEventListener("touchend", end);
+    slider.addEventListener("touchcancel", end);
+  }
+
+  /**
+   * Return true if element currently has focus OR is being actively dragged
+   * (set by guardSlider). Use as the guard before programmatic slider writes
+   * in applyState().
+   *
+   * @param {HTMLElement|null} element
+   * @returns {boolean}
+   */
+  isSliderActive(element) {
+    if (!element) return false;
+    if (this.root.activeElement === element) return true;
+    return element.dataset.hrvInteracting === "1";
   }
 
   // -------------------------------------------------------------------------

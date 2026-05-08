@@ -6,13 +6,29 @@
  * Used by Step 1 of the wizard to power the entity autocomplete dropdown.
  */
 
+import { useEffect, useState } from "react";
 import { api } from "./api";
 import type { HAEntity } from "./types";
 
 let _cache: HAEntity[] = [];
 let _loading = false;
+let _version = 0;
+const _listeners: Array<() => void> = [];
 
 export function getEntityCache(): HAEntity[] {
+  return _cache;
+}
+
+export function useEntityCache(): HAEntity[] {
+  const [, setV] = useState(_version);
+  useEffect(() => {
+    const cb = () => setV(v => v + 1);
+    _listeners.push(cb);
+    return () => {
+      const i = _listeners.indexOf(cb);
+      if (i >= 0) _listeners.splice(i, 1);
+    };
+  }, []);
   return _cache;
 }
 
@@ -21,6 +37,8 @@ export async function loadEntityCache(): Promise<void> {
   _loading = true;
   try {
     _cache = await api.entities.list();
+    _version++;
+    _listeners.forEach(cb => cb());
   } catch {
     // Fail silently - autocomplete just shows no suggestions
   } finally {

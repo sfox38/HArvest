@@ -35,10 +35,22 @@
 
   function _debounce(fn, ms) {
     let timer = null;
-    return function (...args) {
+    let lastCtx = null;
+    let lastArgs = null;
+    function wrapped(...args) {
+      lastCtx = this;
+      lastArgs = args;
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { timer = null; fn.apply(this, args); }, ms);
+      timer = setTimeout(() => { timer = null; fn.apply(lastCtx, lastArgs); lastArgs = null; }, ms);
+    }
+    wrapped.flush = function () {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+        if (lastArgs) { fn.apply(lastCtx, lastArgs); lastArgs = null; }
+      }
     };
+    return wrapped;
   }
 
   function _capitalize(s) {
@@ -721,6 +733,7 @@
           this.#updateSliderVisuals();
           this.#sendValue(mode);
         });
+        this.guardSlider(this.#slider, this.#sendValue);
       }
 
       this.renderCompanions();
@@ -854,7 +867,7 @@
         this.#sliderEdge.style.display = isBrightness ? "none" : "";
         if (!isBrightness) this.#sliderEdge.style.left = `${sliderVal}%`;
       }
-      if (this.#slider && !this.isFocused(this.#slider)) {
+      if (this.#slider && !this.isSliderActive(this.#slider)) {
         this.#slider.value = String(sliderVal);
       }
     }
@@ -1239,6 +1252,7 @@
           this.#updateSliderVisuals();
           this.#sendValue();
         });
+        this.guardSlider(this.#slider, this.#sendValue);
       }
 
       this.root.querySelectorAll(".shroom-fan-step-dot").forEach((dot) => {
@@ -1363,7 +1377,7 @@
     #updateSliderVisuals() {
       if (!this.#slider) return;
       const pct = this.#percentage;
-      if (!this.isFocused(this.#slider)) {
+      if (!this.isSliderActive(this.#slider)) {
         this.#slider.value = String(pct);
       }
       if (this.#sliderCover) this.#sliderCover.style.left = `${pct}%`;
@@ -1761,6 +1775,7 @@
           this.#syncVisuals();
           this.#sendDebounce();
         });
+        this.guardSlider(this.#slider, this.#sendDebounce);
       }
 
       this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -1777,7 +1792,7 @@
     #syncVisuals() {
       const pct = this.#valToPct(this.#value);
       if (this.#sliderCover) this.#sliderCover.style.left = `${pct}%`;
-      if (this.#slider && !this.isFocused(this.#slider)) {
+      if (this.#slider && !this.isSliderActive(this.#slider)) {
         this.#slider.value = String(this.#value);
       }
       const unit = this.def.unit_of_measurement ?? "";
@@ -2230,6 +2245,7 @@
           this.#syncSlider();
           this.#sendDebounce();
         });
+        this.guardSlider(this.#slider, this.#sendDebounce);
       }
 
       [this.#openBtn, this.#stopBtn, this.#closeBtn].forEach(btn => {
@@ -2295,7 +2311,7 @@
 
       if (attributes.current_position !== undefined) {
         this.#position = attributes.current_position;
-        if (this.#slider && !this.isFocused(this.#slider)) {
+        if (this.#slider && !this.isSliderActive(this.#slider)) {
           this.#slider.value = String(this.#position);
         }
         this.#syncSlider();
@@ -3387,6 +3403,7 @@
           if (this.#sliderCover) this.#sliderCover.style.left = `${this.#volume}%`;
           this.#sendDebounce();
         });
+        this.guardSlider(this.#slider, this.#sendDebounce);
       }
 
       this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -3442,7 +3459,7 @@
 
       if (attributes.volume_level !== undefined) {
         this.#volume = Math.round(attributes.volume_level * 100);
-        if (this.#slider && !this.isFocused(this.#slider)) {
+        if (this.#slider && !this.isSliderActive(this.#slider)) {
           this.#slider.value = String(this.#volume);
         }
         if (this.#sliderCover) this.#sliderCover.style.left = `${this.#volume}%`;

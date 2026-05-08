@@ -260,6 +260,7 @@ export class LightCard extends BaseCard {
         }
         this.#brightnessDebounce(val);
       });
+      this.guardSlider(this.#brightnessSlider, this.#brightnessDebounce);
     }
 
     if (this.#colorTempSlider) {
@@ -270,12 +271,14 @@ export class LightCard extends BaseCard {
         }
         this.#colorTempDebounce(val);
       });
+      this.guardSlider(this.#colorTempSlider, this.#colorTempDebounce);
     }
 
     if (this.#colorSlider) {
       this.#colorSlider.addEventListener("input", (e) => {
         this.#colorDebounce(parseInt(e.target.value, 10));
       });
+      this.guardSlider(this.#colorSlider, this.#colorDebounce);
     }
 
     this.renderCompanions();
@@ -307,7 +310,7 @@ export class LightCard extends BaseCard {
     }
 
     // Brightness slider.
-    if (this.#brightnessSlider && !this.isFocused(this.#brightnessSlider) && attributes.brightness !== undefined) {
+    if (this.#brightnessSlider && !this.isSliderActive(this.#brightnessSlider) && attributes.brightness !== undefined) {
       this.#brightnessSlider.value = String(attributes.brightness);
       if (this.#brightnessValue) {
         this.#brightnessValue.textContent =
@@ -316,7 +319,7 @@ export class LightCard extends BaseCard {
     }
 
     // Color slider - update hue from hs_color or rgb_color attribute.
-    if (this.#colorSlider && !this.isFocused(this.#colorSlider)) {
+    if (this.#colorSlider && !this.isSliderActive(this.#colorSlider)) {
       let hue = null;
       if (attributes.hs_color) {
         hue = Math.round(attributes.hs_color[0]);
@@ -328,7 +331,7 @@ export class LightCard extends BaseCard {
 
     // Colour temperature slider - use Kelvin (HA 2022.5+).
     // Fall back to converting mireds if kelvin attribute absent.
-    if (this.#colorTempSlider && !this.isFocused(this.#colorTempSlider)) {
+    if (this.#colorTempSlider && !this.isSliderActive(this.#colorTempSlider)) {
       let ctK = null;
       if (attributes.color_temp_kelvin !== undefined) {
         ctK = attributes.color_temp_kelvin;

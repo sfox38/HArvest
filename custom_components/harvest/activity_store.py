@@ -78,8 +78,7 @@ class ActivityStore:
         self._config = config
         self._db_path: Path = Path(hass.config.config_dir) / ACTIVITY_DB_FILENAME
         self._db: aiosqlite.Connection | None = None
-        # Queue is unbounded; rate limiting upstream caps ingest volume.
-        self._write_queue: asyncio.Queue = asyncio.Queue()
+        self._write_queue: asyncio.Queue = asyncio.Queue(maxsize=10_000)
         self._flush_task: asyncio.Task | None = None
         self._retention_days: int = config.get(
             CONF_ACTIVITY_RETENTION_DAYS, DEFAULTS[CONF_ACTIVITY_RETENTION_DAYS]
@@ -145,25 +144,32 @@ class ActivityStore:
     # Record methods - synchronous and non-blocking
     # ------------------------------------------------------------------
 
+    def _enqueue(self, item: tuple) -> None:
+        """Put an item on the write queue, dropping if full."""
+        try:
+            self._write_queue.put_nowait(item)
+        except asyncio.QueueFull:
+            _LOGGER.warning("HArvest activity queue full, dropping event.")
+
     def record_auth(self, event: AuthEvent) -> None:
         """Enqueue an auth event. Non-blocking."""
-        self._write_queue.put_nowait(("auth", event))
+        self._enqueue(("auth", event))
 
     def record_command(self, event: CommandEvent) -> None:
         """Enqueue a command event. Non-blocking."""
-        self._write_queue.put_nowait(("command", event))
+        self._enqueue(("command", event))
 
     def record_session(self, event: SessionEvent) -> None:
         """Enqueue a session event. Non-blocking."""
-        self._write_queue.put_nowait(("session", event))
+        self._enqueue(("session", event))
 
     def record_error(self, event: ErrorEvent) -> None:
         """Enqueue an error event. Non-blocking."""
-        self._write_queue.put_nowait(("error", event))
+        self._enqueue(("error", event))
 
     def record_token_lifecycle(self, event: TokenLifecycleEvent) -> None:
         """Enqueue a token lifecycle event (revoked, deleted). Non-blocking."""
-        self._write_queue.put_nowait(("lifecycle", event))
+        self._enqueue(("lifecycle", event))
 
     # ------------------------------------------------------------------
     # Query methods

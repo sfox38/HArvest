@@ -669,6 +669,10 @@ export class HarvestClient {
     if (card) {
       card.receiveStateUpdate?.(msg.state, attributes, msg.last_updated);
     } else {
+      if (this.#pendingStateUpdates.size >= 200) {
+        const oldest = this.#pendingStateUpdates.keys().next().value;
+        this.#pendingStateUpdates.delete(oldest);
+      }
       this.#pendingStateUpdates.set(entityId, msg);
     }
 
@@ -776,6 +780,11 @@ export class HarvestClient {
     }
     // Strip query string before extracting pack ID so ?v=timestamp never breaks the match.
     const urlPath = msg.url.split("?")[0];
+    // Validate URL is a relative path (defense-in-depth against malicious server messages).
+    if (msg.url && (msg.url.includes("://") || msg.url.startsWith("//"))) {
+      console.warn("[HArvest] Rejected renderer_pack with absolute URL:", msg.url);
+      return;
+    }
     const match = urlPath.match(/\/([^/]+)\.js$/);
     const packId = match ? match[1] : null;
     if (window.HArvest?._packs?.[packId]) {
@@ -783,11 +792,6 @@ export class HarvestClient {
       for (const card of this.#cards.values()) {
         card._reRender?.();
       }
-      return;
-    }
-    // Validate URL is a relative path (defense-in-depth against malicious server messages).
-    if (msg.url && (msg.url.includes("://") || msg.url.startsWith("//"))) {
-      console.warn("[HArvest] Rejected renderer_pack with absolute URL:", msg.url);
       return;
     }
     // Pack not yet loaded - set a promise so entity_definition messages wait.
