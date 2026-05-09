@@ -7,6 +7,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const GENERIC_STYLES = /* css */`
   [part=card-body] {
@@ -32,21 +33,13 @@ const GENERIC_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class GenericCard extends BaseCard {
   /** @type {HTMLElement|null} */ #stateLabel = null;
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${GENERIC_STYLES}</style>
+      <style>${GENERIC_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

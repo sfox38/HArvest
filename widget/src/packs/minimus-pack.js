@@ -19,14 +19,7 @@
   // Helpers
   // ---------------------------------------------------------------------------
 
-  function _esc(str) {
-    return String(str ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
+  const _esc = window.HArvest.esc;
 
   function _debounce(fn, ms) {
     let timer = null;
@@ -582,7 +575,7 @@
       const startPt = _arcPoint(ARC_START_DEG);
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${DIAL_STYLES}${LIGHT_TOGGLE_STYLES}</style>
+        <style>${DIAL_STYLES}${LIGHT_TOGGLE_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -1221,7 +1214,7 @@
       const startPt      = _arcPoint(ARC_START_DEG);
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${FAN_STYLES}</style>
+        <style>${FAN_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -1896,7 +1889,7 @@
       const [tInt, tFrac] = this.#targetTemp.toFixed(1).split(".");
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${CLIMATE_STYLES}</style>
+        <style>${CLIMATE_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -2312,7 +2305,7 @@
       const label      = this.def.friendly_name;
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${HARVEST_ACTION_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${HARVEST_ACTION_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(label)}</span>
@@ -2426,7 +2419,7 @@
 
     render() {
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${BINARY_SENSOR_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${BINARY_SENSOR_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -2603,7 +2596,7 @@
       const hasButtons  = !this.def.supported_features || this.def.supported_features.includes("buttons");
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${COVER_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${COVER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -2926,7 +2919,7 @@
       const unit = this.def.unit_of_measurement ?? "";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${INPUT_NUMBER_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${INPUT_NUMBER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3261,7 +3254,7 @@
           : /* html */`<div class="hrv-is-grid"></div>`;
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${INPUT_SELECT_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${INPUT_SELECT_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3609,7 +3602,7 @@
       const hasPrevNext   = features.includes("previous_track");
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${MEDIA_PLAYER_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${MEDIA_PLAYER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3865,7 +3858,7 @@
       const commandLabel = this.config.tapAction?.data?.command ?? "power";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${REMOTE_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${REMOTE_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -3962,7 +3955,7 @@
       const unit = this.def.unit_of_measurement ?? "";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${SENSOR_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${SENSOR_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -4089,7 +4082,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${SWITCH_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${SWITCH_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -4252,7 +4245,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${TIMER_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${TIMER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -4497,7 +4490,7 @@
       this.#hasToggle = false;
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${GENERIC_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${GENERIC_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -4800,7 +4793,7 @@
 
     render() {
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${WEATHER_STYLES}${COMPANION_DOT_STYLES}</style>
+        <style>${WEATHER_STYLES}${COMPANION_DOT_STYLES}</style>
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
@@ -5031,159 +5024,11 @@
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Badge card
-  // ---------------------------------------------------------------------------
-
-  const _BADGE_ICON_COLORS = {
-    auto: "var(--hrv-color-primary)",
-    red: "#ef4444", orange: "#f97316", amber: "#f59e0b", yellow: "#eab308",
-    green: "#22c55e", teal: "#14b8a6", cyan: "#06b6d4", blue: "#3b82f6",
-    indigo: "#6366f1", purple: "#a855f7", pink: "#ec4899", grey: "#9ca3af",
-  };
-
-  const _BADGE_INACTIVE = new Set([
-    "off", "idle", "closed", "standby", "not_home",
-    "locked", "jammed", "locking", "unlocking",
-  ]);
-  const _BADGE_UNAVAILABLE = new Set(["unavailable", "unknown"]);
-  const _BADGE_ONOFF_DOMAINS = new Set([
-    "light", "switch", "input_boolean", "fan", "climate", "cover",
-    "media_player", "timer", "person", "device_tracker", "lock",
-    "binary_sensor",
-  ]);
-
-  const _BADGE_DOMAIN_FB = {
-    light:"mdi:lightbulb",switch:"mdi:toggle-switch",input_boolean:"mdi:toggle-switch",
-    fan:"mdi:fan",sensor:"mdi:gauge",binary_sensor:"mdi:radiobox-blank",
-    climate:"mdi:thermostat",media_player:"mdi:cast",cover:"mdi:window-shutter",
-    timer:"mdi:timer",remote:"mdi:remote",input_number:"mdi:numeric",
-    input_select:"mdi:format-list-bulleted",harvest_action:"mdi:play-circle-outline",
-  };
-
-  const BADGE_STYLES = /* css */`
-    :host {
-      width: auto !important;
-      min-width: unset !important;
-      display: inline-flex !important;
-      contain: none !important;
-      vertical-align: top !important;
-      overflow: visible !important;
-      line-height: 0 !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-    [part=badge] {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px 6px 8px;
-      border-radius: 14px;
-      background: var(--hrv-card-background, var(--hrv-color-surface, #fff));
-      box-shadow: var(--hrv-card-shadow, 0 1px 3px rgba(0,0,0,0.1));
-      border: var(--hrv-card-border, 1px solid var(--hrv-color-border, #e5e7eb));
-      font-family: var(--hrv-font-family, system-ui, -apple-system, sans-serif);
-      color: var(--hrv-color-text, #111827);
-      box-sizing: border-box;
-      white-space: nowrap;
-      overflow: hidden;
-      cursor: default;
-      transition: box-shadow var(--hrv-transition-speed, 150ms);
-      -webkit-backdrop-filter: var(--hrv-card-backdrop-filter, none);
-      backdrop-filter: var(--hrv-card-backdrop-filter, none);
-    }
-    [part=badge-icon] {
-      width: 20px; height: 20px; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      transition: color var(--hrv-transition-speed, 150ms);
-    }
-    [part=badge-icon] svg { width: 100%; height: 100%; }
-    [part=badge-text] {
-      display: flex; flex-direction: column; gap: 1px; min-width: 0;
-    }
-    [part=badge-name] {
-      font-size: 11px;
-      font-weight: var(--hrv-font-weight-medium, 500);
-      line-height: 1.3;
-      overflow: hidden; text-overflow: ellipsis; max-width: 140px;
-    }
-    [part=badge-state] {
-      font-size: 10px;
-      line-height: 1.3;
-      color: var(--hrv-color-text-secondary, #6b7280);
-      overflow: hidden; text-overflow: ellipsis; max-width: 140px;
-    }
-    [part=badge-text].single [part=badge-name],
-    [part=badge-text].single [part=badge-state] {
-      font-size: 12px;
-    }
-    .sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
-    @media (prefers-reduced-motion: reduce) {
-      [part=badge], [part=badge-icon] { transition: none; }
-    }
-  `;
-
-  class BadgeCard extends BaseCard {
-    /** @type {HTMLElement|null} */ #iconEl = null;
-    /** @type {HTMLElement|null} */ #stateEl = null;
-    /** @type {HTMLElement|null} */ #badgeEl = null;
-
-    render() {
-      const hints = this.def.display_hints ?? {};
-      const showIcon = hints.badge_show_icon !== false;
-      const showName = hints.badge_show_name !== false;
-      const showState = hints.badge_show_state !== false;
-      const nameCls = showName ? "" : " sr-only";
-      const stateCls = showState ? "" : " sr-only";
-      const singleLine = (showName && !showState) || (!showName && showState);
-      const textCls = singleLine ? " single" : "";
-      this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${BADGE_STYLES}</style>
-        <div part="badge" aria-label="${_esc(this.def.friendly_name)}" title="${_esc(this.def.friendly_name)}">
-          ${showIcon ? '<span part="badge-icon" aria-hidden="true"></span>' : ""}
-          <span part="badge-text" class="${textCls}">
-            <span part="badge-name" class="${nameCls}">${_esc(this.def.friendly_name)}</span>
-            <span part="badge-state" class="${stateCls}" aria-live="polite"></span>
-          </span>
-        </div>
-        ${this.renderAriaLiveHTML()}
-      `;
-      this.#iconEl = this.root.querySelector("[part=badge-icon]");
-      this.#stateEl = this.root.querySelector("[part=badge-state]");
-      this.#badgeEl = this.root.querySelector("[part=badge]");
-      if (showIcon) {
-        const fb = _BADGE_DOMAIN_FB[this.def.domain] ?? "mdi:help-circle";
-        this.renderIcon(this.resolveIcon(this.def.icon, fb), "badge-icon");
-      }
-    }
-
-    applyState(state, attributes) {
-      const hints = this.def.display_hints ?? {};
-      const colorKey = hints.badge_icon_color ?? "auto";
-      const isUnavailable = _BADGE_UNAVAILABLE.has(state);
-      const isOnOffDomain = _BADGE_ONOFF_DOMAINS.has(this.def.domain);
-      const isActive = !isUnavailable && (!isOnOffDomain || !_BADGE_INACTIVE.has(state));
-      if (this.#iconEl) {
-        // User-chosen color always wins. "auto" defers to active/inactive.
-        if (colorKey !== "auto") {
-          this.#iconEl.style.color = _BADGE_ICON_COLORS[colorKey];
-          this.#iconEl.style.opacity = isActive ? "1" : "0.65";
-        } else {
-          this.#iconEl.style.color = isActive ? _BADGE_ICON_COLORS.auto : "#9ca3af";
-          this.#iconEl.style.opacity = "1";
-        }
-        const fb = _BADGE_DOMAIN_FB[this.def.domain] ?? "mdi:help-circle";
-        const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? fb;
-        this.renderIcon(this.resolveIcon(rawIcon, fb), "badge-icon");
-      }
-      const uom = attributes?.unit_of_measurement ?? this.def.unit_of_measurement ?? "";
-      const label = this.formatStateLabel(state);
-      const stateText = uom ? `${label} ${uom}` : label;
-      if (this.#stateEl) this.#stateEl.textContent = stateText;
-      if (this.#badgeEl) this.#badgeEl.title = `${this.def.friendly_name}: ${stateText}`;
-      this.announceState(`${this.def.friendly_name}, ${state}`);
-    }
-  }
+  // Note: badge rendering is provided by the built-in widget BadgeCard (see
+  // widget/src/renderers/badge-card.js). This pack does not register a "badge"
+  // entry; the renderer-lookup chain in hrv-card.js falls through to the
+  // built-in. Remove this comment and add a `class BadgeCard` + a "badge"
+  // registration entry below if/when minimus wants visually-distinct badges.
 
   // ---------------------------------------------------------------------------
   // Register all example renderers into the pack-scoped registry
@@ -5204,12 +5049,14 @@
     "select":         InputSelectCard,
     "media_player":   MediaPlayerCard,
     "remote":         RemoteCard,
-    "sensor":         SensorCard,
+    "sensor":              SensorCard,
+    "sensor.temperature":  SensorCard,
+    "sensor.humidity":     SensorCard,
+    "sensor.battery":      SensorCard,
     "switch":         SwitchCard,
     "timer":          TimerCard,
     "weather":        WeatherCard,
     "generic":        GenericCard,
-    "badge":          BadgeCard,
     _capabilities: {
       fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
       input_number: { display_modes: ["slider", "buttons"] },

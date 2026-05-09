@@ -73,22 +73,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     controls = ControlEntities(hass, entry, token_manager, session_manager)
 
     # --- Register WebSocket view ---
-    ws_view = HarvestWsView(
-        hass, token_manager, session_manager,
-        rate_limiter, activity_store, event_bus,
-        action_manager, config,
-        sensors=sensors,
-        theme_manager=theme_manager,
-        pack_manager=pack_manager,
-    )
+    # The view is registered once per HA process; HA's HTTP layer has no
+    # unregister API. To avoid stale-manager refs across config-entry reloads,
+    # the view holds only (hass, entry_id) and resolves managers per-request
+    # from hass.data[DOMAIN][entry_id]. See _utils.get_entry_data.
+    ws_view = HarvestWsView(hass, entry.entry_id)
     hass.http.register_view(ws_view)
 
     # --- Register HTTP panel API views ---
-    register_views(hass, token_manager, session_manager,
-                   activity_store, action_manager, sensors, event_bus,
-                   theme_manager=theme_manager,
-                   pack_manager=pack_manager,
-                   controls=controls)
+    # Views resolve managers from hass.data[DOMAIN][entry.entry_id] live on
+    # each request, so they only need the entry_id at registration time.
+    register_views(hass, entry.entry_id)
 
     # --- Register sidebar panel ---
     await register_panel(hass)

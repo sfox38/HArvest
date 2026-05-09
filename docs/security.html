@@ -126,7 +126,7 @@
 
         <p>By default, knowing a token ID is sufficient to connect to it from any page (subject to origin restrictions). HMAC signing adds a second factor: the connecting page must prove it has a shared secret.</p>
 
-        <p>When HMAC is enabled on a token, the widget signs each auth message with the secret using HMAC-SHA256. The server verifies the signature and rejects auth requests that don't include a valid, non-stale signature. A timestamp is embedded in the signature payload - requests older than 60 seconds are rejected to prevent replay attacks.</p>
+        <p>When HMAC is enabled on a token, the widget signs each auth message with the secret using HMAC-SHA256. The server verifies the signature and rejects auth requests that don't include a valid, non-stale signature. A timestamp is embedded in the signature payload: requests older than 60 seconds, or more than 5 seconds in the future, are rejected. The 5-second forward tolerance absorbs minor clock drift between the host that signs the message (typically the WordPress server) and the Home Assistant host.</p>
 
         <p>The <code>token-secret</code> attribute on <code>&lt;hrv-card&gt;</code> is the HMAC secret. It appears in your page source, so it doesn't hide from someone looking at your page. The purpose of HMAC is to prevent someone who copied your token ID from using it on a different page - the token ID alone isn't enough, they also need the secret.</p>
 
@@ -164,17 +164,18 @@
 203.0.113.0/24      # office network
 198.51.100.42/32    # single IP</code></pre>
 
-        <p>IP restriction requires that your reverse proxy forwards the real client IP to HA. Configure <code>trusted_proxies</code> in your HA <code>configuration.yaml</code>:</p>
+        <p>IP restriction requires that your reverse proxy forwards the real client IP. Configure <code>trusted_proxies</code> in <strong>HArvest's integration settings</strong> (Settings &gt; HArvest &gt; Trusted proxies). HArvest reads its own list, not the one in HA core's <code>configuration.yaml</code>:</p>
 
-        <pre><code class="language-text">http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 127.0.0.1        # localhost (nginx/Caddy running on same host)
-    - 172.16.0.0/12    # Docker network</code></pre>
+        <pre><code class="language-text">trusted_proxies:
+  - 127.0.0.1        # localhost (nginx/Caddy running on same host)
+  - 172.16.0.0/12    # Docker network
+  - 104.16.0.0/12    # Cloudflare edge (if Cloudflare is in front)</code></pre>
+
+        <p>For multi-hop deployments (e.g. Cloudflare &rarr; nginx &rarr; HA), list <strong>every</strong> intermediate proxy. HArvest walks <code>X-Forwarded-For</code> from right to left, skipping trusted hops, and uses the first untrusted entry as the real client IP. If any intermediate hop is missing from the trusted list, HArvest stops at that hop and treats it as the client.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Without trusted_proxies configured</span>
-          <p>If <code>trusted_proxies</code> is not configured, HA sees the proxy's IP for all requests. IP restrictions will either block all traffic (if the proxy IP isn't in the allowlist) or allow all traffic (if it is). Configure <code>trusted_proxies</code> before relying on IP restrictions.</p>
+          <p>If <code>trusted_proxies</code> is not configured, HArvest treats the direct TCP peer as the client and ignores <code>X-Forwarded-For</code>. Behind a reverse proxy this means HArvest sees the proxy's IP for all requests, so IP restrictions will either block all traffic (if the proxy IP isn't in the allowlist) or allow all traffic from anywhere (if it is). Configure <code>trusted_proxies</code> before relying on IP restrictions.</p>
         </div>
         </section>
 
@@ -242,37 +243,37 @@
 
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Event</th><th>Default</th><th>Payload includes</th></tr></thead>
+            <thead><tr><th>Event</th><th>Default</th><th>Payload</th></tr></thead>
             <tbody>
               <tr>
                 <td><code>harvest_suspicious_origin</code></td>
                 <td>Enabled</td>
-                <td>token_id, origin, session_id, ip</td>
+                <td><code>token_id</code>, <code>origin</code>, <code>source_ip</code></td>
               </tr>
               <tr>
                 <td><code>harvest_token_revoked</code></td>
                 <td>Enabled</td>
-                <td>token_id, token_label, revoked_by</td>
+                <td><code>token_id</code>, <code>label</code>, <code>reason</code></td>
               </tr>
               <tr>
                 <td><code>harvest_session_limit_reached</code></td>
                 <td>Enabled</td>
-                <td>token_id, token_label, session_count, origin</td>
+                <td><code>token_id</code>, <code>label</code></td>
               </tr>
               <tr>
                 <td><code>harvest_flood_protection</code></td>
                 <td>Enabled</td>
-                <td>token_id, origin, ip, reason</td>
+                <td><code>session_id</code>, <code>origin</code></td>
               </tr>
               <tr>
                 <td><code>harvest_session_connected</code></td>
                 <td>Disabled</td>
-                <td>token_id, session_id, origin, ip, entity_ids</td>
+                <td><code>session_id</code>, <code>token_id</code>, <code>origin</code></td>
               </tr>
               <tr>
                 <td><code>harvest_auth_failure</code></td>
                 <td>Disabled</td>
-                <td>token_id, origin, ip, reason_code</td>
+                <td><code>token_id</code>, <code>origin</code>, <code>error_code</code></td>
               </tr>
             </tbody>
           </table>

@@ -248,7 +248,11 @@ class Harvest_Settings {
             <hr>
             <h2><?php esc_html_e( 'Backup note', 'harvest' ); ?></h2>
             <p><?php esc_html_e(
-                'HArvest plugin settings are stored in the WordPress database and are included in standard WordPress backups. The widget token secrets you create in Home Assistant are stored in HA, not in WordPress.',
+                'HArvest plugin settings (HA URL, widget source, custom URL) are stored in the WordPress database and are included in standard WordPress backups. The plugin itself does not store HMAC token secrets - those live in Home Assistant.',
+                'harvest'
+            ); ?></p>
+            <p><?php esc_html_e(
+                'However: if you embed an HMAC token secret directly in a [harvest] shortcode (token-secret="..."), that secret IS stored in the post or page content and is therefore included in WordPress backups, post revisions, and any export of that content. Treat the secret as part of the page, not the plugin.',
                 'harvest'
             ); ?></p>
         </div>

@@ -62,22 +62,22 @@ function SessionRow({ session: s, tokenLabel, onTerminate, onSelectToken }: Sess
               {tokenLabel}
             </a>
           </div>
-          <div className="muted mono" style={{ fontSize: 11 }}>{s.session_id.slice(0, 14)}</div>
+          <div className="muted mono fs-11">{s.session_id.slice(0, 14)}</div>
         </div>
 
         {/* Origin */}
-        <div className="sess-col muted" style={{ fontSize: 12 }}>
+        <div className="sess-col muted fs-12">
           <span style={{ marginRight: 4, display: "inline-flex" }}><Icon name="globe" size={11} /></span>
           {s.origin || "-"}
         </div>
 
         {/* IP */}
-        <div className="sess-col mono muted" style={{ fontSize: 12 }}>
+        <div className="sess-col mono muted fs-12">
           {s.ip_address || "-"}
         </div>
 
         {/* Time */}
-        <div className="sess-col muted" style={{ fontSize: 12 }}>
+        <div className="sess-col muted fs-12">
           {expiresLabel}
         </div>
 
@@ -107,7 +107,7 @@ function SessionRow({ session: s, tokenLabel, onTerminate, onSelectToken }: Sess
             <dt>Expires</dt><dd>{new Date(s.expires_at).toLocaleString()} ({minsLeft}m)</dd>
             <dt>Renewals</dt><dd>{s.renewal_count}</dd>
             {s.subscribed_entity_ids.length > 0 && (
-              <><dt>Entities</dt><dd className="mono" style={{ fontSize: 11 }}>{s.subscribed_entity_ids.join(", ")}</dd></>
+              <><dt>Entities</dt><dd className="mono fs-11">{s.subscribed_entity_ids.join(", ")}</dd></>
             )}
           </dl>
         </div>
@@ -132,9 +132,22 @@ export function Sessions({ onSelectToken }: SessionsProps) {
   const [confirmAll, setConfirmAll] = useState(false);
 
   const load = useCallback(() => {
-    Promise.all([api.sessions.list(), api.tokens.list()])
-      .then(([s, t]) => { setSessions(s); setTokens(t); })
-      .catch(e => setError(String(e)))
+    // allSettled so a tokens-list failure does not blank the sessions table.
+    // Sessions is the primary content; tokens is used only for label lookup
+    // in tokenLabelFor() and falls back to the raw token_id on failure.
+    Promise.allSettled([api.sessions.list(), api.tokens.list()])
+      .then(([s, t]) => {
+        if (s.status === "fulfilled") setSessions(s.value);
+        if (t.status === "fulfilled") setTokens(t.value);
+
+        const rejections = [s, t].filter(r => r.status === "rejected") as PromiseRejectedResult[];
+        if (rejections.length === 2) {
+          setError(String(rejections[0].reason));
+        } else if (rejections.length > 0) {
+          for (const r of rejections) console.warn("[HArvest panel] sessions load:", r.reason);
+          setError("Some session data couldn't be loaded.");
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -150,8 +163,11 @@ export function Sessions({ onSelectToken }: SessionsProps) {
   };
 
   const terminateAll = async () => {
+    // Single server-side bulk-terminate (DELETE /sessions with no token_id).
+    // Avoids the N parallel DELETEs that an earlier client-side fan-out fired
+    // and the resulting first-failure-aborts-Promise.all problem.
     try {
-      await Promise.all(sessions.map(s => api.sessions.terminate(s.session_id)));
+      await api.sessions.terminateAll();
     } catch (e) { setError(String(e)); }
     setConfirmAll(false);
     load();
@@ -166,7 +182,7 @@ export function Sessions({ onSelectToken }: SessionsProps) {
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {/* Header */}
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row gap-8">
         <span className="muted" style={{ fontSize: 14, flex: 1 }}>
           {sessions.length} live session{sessions.length !== 1 ? "s" : ""} - updating live
         </span>

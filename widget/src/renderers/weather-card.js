@@ -7,6 +7,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 import { renderIconSVG } from "../icons.js";
 
 const CONDITION_ICONS = {
@@ -202,14 +203,6 @@ const WEATHER_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function _conditionIcon(condition) {
   return CONDITION_ICONS[condition] ?? "mdi:weather-cloudy";
@@ -321,7 +314,7 @@ export class WeatherCard extends BaseCard {
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${WEATHER_STYLES}</style>
+      <style>${WEATHER_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

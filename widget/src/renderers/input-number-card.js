@@ -7,6 +7,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const INPUT_NUMBER_STYLES = /* css */`
   [part=card-body] {
@@ -55,14 +56,6 @@ const INPUT_NUMBER_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class InputNumberCard extends BaseCard {
   /** @type {HTMLInputElement|null} */ #slider     = null;
@@ -85,7 +78,7 @@ export class InputNumberCard extends BaseCard {
     const unit = this.def.unit_of_measurement  ?? "";
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${INPUT_NUMBER_STYLES}</style>
+      <style>${INPUT_NUMBER_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

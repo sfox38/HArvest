@@ -529,7 +529,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
               <tr><td><code>this.renderIcon(mdiIconPath, partName)</code></td><td>Render an MDI SVG icon path into a <code>[part=partName]</code> element.</td></tr>
               <tr><td><code>this.renderCompanionZoneHTML()</code></td><td>Returns HTML string for the companion entity zone container.</td></tr>
               <tr><td><code>this.renderCompanions()</code></td><td>Populates the companion zone after <code>render()</code> has run.</td></tr>
-              <tr><td><code>this.getSharedStyles()</code></td><td>Returns the shared base CSS string (resets, variable declarations, stale overlay).</td></tr>
+              <tr><td><em>(no helper)</em></td><td>Shared base CSS (resets, variable declarations, companion zone, stale overlay) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>. The historical <code>getSharedStyles()</code> helper was removed.</td></tr>
               <tr><td><code>this.debounce(fn, ms)</code></td><td>Returns a debounced version of <code>fn</code>. Use for slider inputs.</td></tr>
               <tr><td><code>this.root</code></td><td>The card's shadow root. Use to build and query the shadow DOM in <code>render()</code>.</td></tr>
               <tr><td><code>this.def</code></td><td>The entity definition object, available once <code>render()</code> is called.</td></tr>

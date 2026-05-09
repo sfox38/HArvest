@@ -6,6 +6,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const SWITCH_CARD_STYLES = /* css */`
   [part=card-body] {
@@ -57,14 +58,6 @@ const SWITCH_CARD_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class SwitchCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #toggleBtn  = null;
@@ -74,7 +67,7 @@ export class SwitchCard extends BaseCard {
     const isWritable = this.def.capabilities === "read-write";
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${SWITCH_CARD_STYLES}</style>
+      <style>${SWITCH_CARD_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

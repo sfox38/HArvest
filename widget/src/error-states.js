@@ -192,7 +192,8 @@ function _hideStaleIndicator(shadowRoot) {
 /**
  * Return the CSS block that every renderer must include in its shadow DOM
  * <style> tag to support skeleton, stale indicator, and message overlay
- * visual treatments. Exported so BaseCard.getSharedStyles() can include it.
+ * visual treatments. Exported so the module-level shared CSSStyleSheet in
+ * base-card.js can include it (adopted into every card's shadow root).
  *
  * @returns {string}
  */

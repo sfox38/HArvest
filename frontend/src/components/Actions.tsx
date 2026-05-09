@@ -33,7 +33,7 @@ function ActionCard({ action, onSelect }: { action: HarvestAction; onSelect: () 
         <div className="widget-thumb">
           <Icon name="play" size={17} />
         </div>
-        <span className="muted" style={{ fontSize: 11 }}>
+        <span className="muted fs-11">
           {action.service_calls.length} call{action.service_calls.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -78,9 +78,9 @@ function ActionRow({ action, onSelect }: { action: HarvestAction; onSelect: () =
       </div>
       <div className="widget-meta widget-hide-sm">
         <span className="widget-meta-num">{action.service_calls.length}</span>
-        <div className="muted" style={{ fontSize: 11 }}>call{action.service_calls.length !== 1 ? "s" : ""}</div>
+        <div className="muted fs-11">call{action.service_calls.length !== 1 ? "s" : ""}</div>
       </div>
-      <span className="muted" style={{ fontSize: 12 }}>
+      <span className="muted fs-12">
         {action.created_at ? fmtRel(action.created_at) : "-"}
       </span>
     </div>
@@ -218,9 +218,9 @@ function DomainEntityPicker({ domain, onSelect, placeholder }: DomainEntityPicke
             >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{e.friendly_name}</div>
-                <div className="muted mono" style={{ fontSize: 11 }}>{e.entity_id}</div>
+                <div className="muted mono fs-11">{e.entity_id}</div>
               </div>
-              <span className="muted" style={{ fontSize: 11 }}>{e.state}</span>
+              <span className="muted fs-11">{e.state}</span>
             </div>
           ))}
         </div>
@@ -460,19 +460,17 @@ function ActionEditor({ existing, onSaved, onCancel, onDeleted }: ActionEditorPr
                 <div key={i} className="row" style={{ gap: 6, marginBottom: 6, alignItems: "center" }}>
                   <input
                     type="text"
-                    className="input"
+                    className="input flex-1"
                     placeholder="domain"
                     value={sc.domain}
                     onChange={e => updateCall(i, "domain", e.target.value)}
-                    style={{ flex: 1 }}
                   />
                   <input
                     type="text"
-                    className="input"
+                    className="input flex-1"
                     placeholder="service"
                     value={sc.service}
                     onChange={e => updateCall(i, "service", e.target.value)}
-                    style={{ flex: 1 }}
                   />
                   <input
                     type="text"
@@ -633,7 +631,7 @@ export function Actions() {
             aria-label="Search actions"
           />
         </div>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button
           className="icon-btn"
           onClick={() => {
@@ -653,7 +651,7 @@ export function Actions() {
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+        <div className="center-spinner">
           <Spinner size={40} />
         </div>
       ) : filtered.length === 0 && !search ? (
@@ -664,7 +662,7 @@ export function Actions() {
           action={{ label: "Create an action", onClick: () => setCreating(true) }}
         />
       ) : filtered.length === 0 ? (
-        <div className="card card-info card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
+        <div className="card card-info card-pad muted text-center-13">
           No actions match your search.
         </div>
       ) : viewMode === "grid" ? (

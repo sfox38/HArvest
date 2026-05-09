@@ -6,6 +6,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const TEMP_SENSOR_STYLES = /* css */`
   [part=card-body] {
@@ -29,14 +30,6 @@ const TEMP_SENSOR_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class TemperatureSensorCard extends BaseCard {
   /** @type {HTMLElement|null} */ #valueEl = null;
@@ -44,7 +37,7 @@ export class TemperatureSensorCard extends BaseCard {
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${TEMP_SENSOR_STYLES}</style>
+      <style>${TEMP_SENSOR_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

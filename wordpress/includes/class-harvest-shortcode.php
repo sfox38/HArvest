@@ -68,13 +68,15 @@ class Harvest_Shortcode {
         }
 
         // entity takes priority over alias when both are present.
+        // Earlier revisions called _doing_it_wrong() here, but that API is
+        // intended for plugin developers calling deprecated WP APIs - it
+        // fires WP_DEBUG_LOG noise that is not actionable for the content
+        // editor who pasted both attributes. We instead emit an HTML comment
+        // breadcrumb (visible to anyone viewing the page source) and let the
+        // widget's own console.warn cover the browser dev-tools case.
+        $double_attr_warning = '';
         if ( ! empty( $atts['entity'] ) && ! empty( $atts['alias'] ) ) {
-            _doing_it_wrong(
-                'harvest shortcode',
-                'Both entity and alias attributes are set. ' .
-                'entity takes priority. Remove alias to suppress this notice.',
-                '1.0.0'
-            );
+            $double_attr_warning = '<!-- HArvest: both entity and alias attributes are set on this shortcode; entity takes priority. Remove alias to suppress this notice. -->';
         }
 
         $ha_url = Harvest_Settings::get_ha_url();
@@ -110,7 +112,7 @@ class Harvest_Shortcode {
         // e.g. in a widget area or via a page builder.
         Harvest_Assets::enqueue();
 
-        return sprintf( '<div class="hrv-mount"%s></div>', $attr_string );
+        return $double_attr_warning . sprintf( '<div class="hrv-mount"%s></div>', $attr_string );
     }
 
     // ---------------------------------------------------------------------------

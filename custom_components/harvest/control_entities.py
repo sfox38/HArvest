@@ -10,7 +10,6 @@ automations and scripts can control the integration:
 from __future__ import annotations
 
 import asyncio
-import re
 from typing import Any
 
 from homeassistant.components.button import ButtonEntity
@@ -20,24 +19,10 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
+from ._utils import close_ws as _close_ws, close_ws_with_auth_failed as _close_ws_with_auth_failed, slugify
 from .const import CONF_KILL_SWITCH, DEFAULTS
 from .session_manager import SessionManager
 from .token_manager import TokenManager
-
-
-def _slugify(label: str) -> str:
-    slug = label.lower().strip()
-    slug = re.sub(r"[\s\-]+", "_", slug)
-    slug = re.sub(r"[^a-z0-9_]", "", slug)
-    slug = re.sub(r"_+", "_", slug).strip("_")
-    return slug or "unnamed"
-
-
-async def _close_ws(ws: Any) -> None:
-    try:
-        await ws.close()
-    except Exception:
-        pass
 
 
 class ControlEntities:
@@ -89,7 +74,7 @@ class ControlEntities:
 
     def create_token_controls(self, token_id: str, label: str) -> list[SwitchEntity]:
         """Return a paused-switch entity for a token."""
-        slug = _slugify(label)
+        slug = slugify(label)
         sw = HarvestTokenPausedSwitch(token_id, slug, self._token_manager)
         self._token_switches[token_id] = sw
         self._entities.append(sw)
@@ -167,9 +152,15 @@ class HarvestKillSwitch(SwitchEntity):
             self._entry, options={**self._entry.options, CONF_KILL_SWITCH: value}
         )
         if value:
+            # Send auth_failed before closing so widgets enter permanent
+            # failure (HRV_AUTH_FAILED -> "Widget unavailable") immediately,
+            # rather than treating the close as a transient connectivity blip
+            # and burning ~2 minutes of reconnect backoff before each retry
+            # eventually hits the server-side kill-switch check. Matches the
+            # panel-API path in HarvestConfigView.patch.
             for session in self._session_manager.get_all():
                 if not session.ws.closed:
-                    asyncio.create_task(_close_ws(session.ws))
+                    asyncio.create_task(_close_ws_with_auth_failed(session.ws))
         self.async_write_ha_state()
 
 

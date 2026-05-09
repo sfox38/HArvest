@@ -7,13 +7,19 @@
  *                                      content changes (for cache-busting)
  *
  * Both files are committed to the repository so HACS users and jsDelivr
- * consumers do not need a build toolchain.
+ * consumers do not need a build toolchain. Only the current hashed file is
+ * kept in the working tree; previous hashed builds are removed at the start
+ * of each build to prevent dist/ growing without bound. Anyone needing a
+ * specific historical hash retrieves it via git history or jsDelivr's
+ * tag/commit resolution (e.g. cdn.jsdelivr.net/gh/sfox38/HArvest@{ref}/...).
  *
  * Build steps:
- *   1. Bundle src/harvest-entry.js with esbuild (ESM -> IIFE, minified)
- *   2. Compute a short content hash from the output bytes
- *   3. Write dist/harvest.min.{hash}.js
- *   4. Write dist/harvest.min.js (identical content, stable filename)
+ *   1. Remove any stale dist/harvest.min.{hash}.js files (keeping the
+ *      stable harvest.min.js).
+ *   2. Bundle src/harvest-entry.js with esbuild (ESM -> IIFE, minified)
+ *   3. Compute a short content hash from the output bytes
+ *   4. Write dist/harvest.min.{hash}.js
+ *   5. Write dist/harvest.min.js (identical content, stable filename)
  *
  * Run:  node build.js
  * Watch: node build.js --watch
@@ -21,7 +27,7 @@
 
 import * as esbuild from "esbuild";
 import { createHash } from "node:crypto";
-import { writeFileSync, mkdirSync, copyFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, copyFileSync, readdirSync, unlinkSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -58,7 +64,29 @@ const buildOptions = {
   logLevel:    "info",
 };
 
+/**
+ * Remove all dist/harvest.min.{hash}.js files. The stable harvest.min.js is
+ * preserved. Pattern matches exactly 8 lowercase hex characters between the
+ * dots so we never accidentally delete the stable name.
+ */
+function cleanStaleHashes() {
+  const hashedRe = /^harvest\.min\.[0-9a-f]{8}\.js$/;
+  let entries;
+  try {
+    entries = readdirSync(DIST_DIR);
+  } catch {
+    return; // dist dir not yet created
+  }
+  for (const name of entries) {
+    if (hashedRe.test(name)) {
+      unlinkSync(resolve(DIST_DIR, name));
+    }
+  }
+}
+
 async function build() {
+  cleanStaleHashes();
+
   const result = await esbuild.build(buildOptions);
 
   if (result.errors.length > 0) {

@@ -5,6 +5,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const HUMIDITY_STYLES = /* css */`
   [part=card-body] {
@@ -28,21 +29,13 @@ const HUMIDITY_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class HumiditySensorCard extends BaseCard {
   /** @type {HTMLElement|null} */ #valueEl = null;
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${HUMIDITY_STYLES}</style>
+      <style>${HUMIDITY_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

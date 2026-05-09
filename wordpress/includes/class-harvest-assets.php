@@ -9,8 +9,10 @@
  * Two source modes are supported, selectable in the plugin settings:
  *
  *   bundled - loads assets/harvest.min.js from the plugin directory.
- *             Version-pinned to HARVEST_VERSION for cache-busting.
- *             Recommended for stability and predictable behaviour.
+ *             Cache-busted by HARVEST_VERSION combined with the bundle file's
+ *             mtime, so a widget rebuild is picked up by browsers without
+ *             needing the plugin version to bump. Recommended for stability
+ *             and predictable behaviour.
  *
  *   custom  - loads from a URL provided by the site administrator.
  *             Suitable for self-hosted or staged widget builds.
@@ -62,11 +64,11 @@ class Harvest_Assets {
             } else {
                 // Custom selected but no URL saved - fall back to bundled.
                 $src = HARVEST_PLUGIN_URL . 'assets/harvest.min.js';
-                $ver = HARVEST_VERSION;
+                $ver = self::bundled_version();
             }
         } else {
             $src = HARVEST_PLUGIN_URL . 'assets/harvest.min.js';
-            $ver = HARVEST_VERSION;
+            $ver = self::bundled_version();
         }
 
         wp_enqueue_script(
@@ -90,5 +92,27 @@ class Harvest_Assets {
         // No action required here. Any shortcode that rendered this request
         // will have already called self::enqueue() directly. This hook exists
         // only as a documented safety net for future extension points.
+    }
+
+    /**
+     * Compute the cache-bust version for the bundled widget script.
+     *
+     * Returns HARVEST_VERSION . '.' . filemtime(bundle) so that any rebuild
+     * of assets/harvest.min.js produces a different ?ver= query string and
+     * forces browsers to re-fetch. Falls back to bare HARVEST_VERSION if the
+     * file is missing or mtime cannot be read (deploy systems that strip
+     * mtimes still get plugin-version-pinned caching).
+     *
+     * @return string Version string suitable for wp_enqueue_script's $ver.
+     */
+    private static function bundled_version(): string {
+        $path = HARVEST_PLUGIN_DIR . 'assets/harvest.min.js';
+        if ( is_readable( $path ) ) {
+            $mtime = filemtime( $path );
+            if ( $mtime !== false ) {
+                return HARVEST_VERSION . '.' . $mtime;
+            }
+        }
+        return HARVEST_VERSION;
     }
 }

@@ -74,7 +74,7 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
         {hint && <div className="settings-field-hint">{hint}</div>}
       </dt>
       <dd>
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row gap-8">
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <input
               type="number"
@@ -90,10 +90,10 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
               <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
             )}
           </div>
-          {suffix && <span className="muted" style={{ fontSize: 13 }}>{suffix}</span>}
+          {suffix && <span className="muted fs-13">{suffix}</span>}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -165,7 +165,7 @@ function TextField({ label, value: initial, placeholder, hint, validate, onChang
           )}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -227,7 +227,7 @@ function ToggleField({ label, value, onChange, hint }: ToggleFieldProps) {
       </div>
       <div className="row" style={{ gap: 8, flexShrink: 0 }}>
         <Toggle checked={value} onChange={toggle} disabled={saving} />
-        {err && <span style={{ fontSize: 12, color: "var(--danger)" }}>{err}</span>}
+        {err && <span className="error-msg">{err}</span>}
       </div>
     </div>
   );
@@ -269,12 +269,11 @@ function SelectField({ label, value, options, onChange, hint }: SelectFieldProps
           value={value}
           onChange={e => commit(e.target.value)}
           disabled={saving}
-          className="input"
-          style={{ fontSize: 13 }}
+          className="input fs-13"
         >
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        {err && <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{err}</div>}
+        {err && <div className="error-msg-tight">{err}</div>}
       </dd>
     </div>
   );
@@ -363,7 +362,7 @@ function TrustedProxiesField({ value, onChange }: TrustedProxiesFieldProps) {
           )}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -441,7 +440,7 @@ function CustomDomainsField({ value, availableDomains, onChange }: CustomDomains
         <div key={entry.domain} className="row" style={{ justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
             <span style={{ fontWeight: 600 }}>{entry.domain}</span>
-            <span className="muted" style={{ fontSize: 12 }}>{entry.allowed_services.join(", ")}</span>
+            <span className="muted fs-12">{entry.allowed_services.join(", ")}</span>
           </div>
           <button
             className="btn btn-icon"
@@ -456,10 +455,9 @@ function CustomDomainsField({ value, availableDomains, onChange }: CustomDomains
 
       <div style={{ marginTop: value.length ? 12 : 0 }}>
         <select
-          className="input"
+          className="input fs-13"
           value={selectedDomain}
           onChange={e => onDomainSelect(e.target.value)}
-          style={{ fontSize: 13 }}
         >
           <option value="">
             {eligibleDomains.length ? "Select a domain..." : "No custom domains available"}
@@ -544,9 +542,21 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.config.get(), api.stats.get()])
-      .then(([cfg, st]) => { setConfig(cfg); setStats(st); })
-      .catch(e => setError(String(e)))
+    // allSettled so a stats-fetch failure does not block config editing, and
+    // a config-fetch failure does not hide the stats info table.
+    Promise.allSettled([api.config.get(), api.stats.get()])
+      .then(([cfg, st]) => {
+        if (cfg.status === "fulfilled") setConfig(cfg.value);
+        if (st.status === "fulfilled") setStats(st.value);
+
+        const rejections = [cfg, st].filter(r => r.status === "rejected") as PromiseRejectedResult[];
+        if (rejections.length === 2) {
+          setError(String(rejections[0].reason));
+        } else if (rejections.length > 0) {
+          for (const r of rejections) console.warn("[HArvest panel] settings load:", r.reason);
+          setError("Some settings data couldn't be loaded.");
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -571,7 +581,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+      <div className="center-spinner">
         <Spinner size={40} />
       </div>
     );
@@ -591,10 +601,10 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Appearance */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="eye" size={14} /> Appearance</span>}
+        title={<span className="row gap-8"><Icon name="eye" size={14} /> Appearance</span>}
       >
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
-        <div style={{ height: 1, background: "var(--divider)", margin: "8px 0 12px" }} />
+        <div className="divider" style={{ margin: "8px 0 12px" }} />
         <div className="muted" style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
           Widget defaults
         </div>
@@ -680,7 +690,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Security */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="shield" size={14} /> Security</span>}
+        title={<span className="row gap-8"><Icon name="shield" size={14} /> Security</span>}
       >
         <dl>
           <NumberField label="Max entities per widget" value={config.max_entities_per_token} min={1} max={250}
@@ -717,7 +727,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Custom Domains */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="puzzle" size={14} /> Custom domains</span>}
+        title={<span className="row gap-8"><Icon name="puzzle" size={14} /> Custom domains</span>}
       >
         <div className="settings-field-hint" style={{ marginBottom: 12 }}>
           Allow command execution for custom entity domains with third-party card renderers.
@@ -732,7 +742,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Sessions */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="plug" size={14} /> Sessions</span>}
+        title={<span className="row gap-8"><Icon name="plug" size={14} /> Sessions</span>}
       >
         <ToggleField
           label="Kill switch"
@@ -743,7 +753,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             onKillSwitchChange?.(v);
           }}
         />
-        <div style={{ height: 1, background: "var(--divider)", margin: "8px 0 12px" }} />
+        <div className="divider" style={{ margin: "8px 0 12px" }} />
         <dl>
           <NumberField label="Default session lifetime" value={config.default_session.lifetime_minutes} suffix="minutes" min={1}
             onChange={patchDefaultSession("lifetime_minutes")} />
@@ -757,7 +767,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Performance */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="bolt" size={14} /> Performance</span>}
+        title={<span className="row gap-8"><Icon name="bolt" size={14} /> Performance</span>}
       >
         <dl>
           <NumberField label="Auth timeout" value={config.auth_timeout_seconds} suffix="seconds" min={1} max={60}
@@ -777,7 +787,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Activity log */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="database" size={14} /> Activity log</span>}
+        title={<span className="row gap-8"><Icon name="database" size={14} /> Activity log</span>}
       >
         <dl>
           <NumberField label="Retention" value={config.activity_log_retention_days} suffix="days" min={1} max={365}
@@ -791,7 +801,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* HA Event Bus */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="waves" size={14} /> HA event bus <Hint text="Enable or disable specific harvest_* events fired on the HA event bus. Automations can listen for these." /></span>}
+        title={<span className="row gap-8"><Icon name="waves" size={14} /> HA event bus <Hint text="Enable or disable specific harvest_* events fired on the HA event bus. Automations can listen for these." /></span>}
       >
         {(Object.keys(config.ha_event_bus) as (keyof HaEventBusConfig)[]).map(key => (
           <ToggleField
@@ -804,7 +814,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
       </Card>
 
       {/* Integration info */}
-      <Card title={<span className="row" style={{ gap: 8 }}><Icon name="info" size={14} /> Integration info</span>}>
+      <Card title={<span className="row gap-8"><Icon name="info" size={14} /> Integration info</span>}>
         <table className="info-table">
           <tbody>
             <tr>

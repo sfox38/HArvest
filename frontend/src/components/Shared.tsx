@@ -372,7 +372,7 @@ export function ErrorBanner({ message, onDismiss, onRetry }: ErrorBannerProps) {
   if (!onDismiss) {
     return (
       <div role="alert" className="error-banner">
-        <span style={{ flex: 1 }}>{message}</span>
+        <span className="flex-1">{message}</span>
         {onRetry && <button className="btn btn-sm" onClick={onRetry}>Retry</button>}
       </div>
     );
@@ -951,7 +951,7 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{e.friendly_name}</div>
                 {e.friendly_name !== e.entity_id && (
-                  <div className="muted mono" style={{ fontSize: 11 }}>{e.entity_id}</div>
+                  <div className="muted mono fs-11">{e.entity_id}</div>
                 )}
               </div>
             </div>
@@ -979,10 +979,10 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{e.friendly_name}</div>
                 {e.friendly_name !== e.entity_id && (
-                  <div className="muted mono" style={{ fontSize: 11 }}>{e.entity_id}</div>
+                  <div className="muted mono fs-11">{e.entity_id}</div>
                 )}
               </div>
-              <span className="muted" style={{ fontSize: 11 }}>{e.state}</span>
+              <span className="muted fs-11">{e.state}</span>
             </div>
           ))}
         </div>

@@ -221,7 +221,7 @@ function CompanionPicker({ companions, excludeIds, parentCapability, onChange }:
 
   return (
     <div className="col" style={{ gap: 6, paddingLeft: 12, borderLeft: "2px solid var(--divider)", marginTop: 2 }}>
-      <div className="muted" style={{ fontSize: 11 }}>
+      <div className="muted fs-11">
         Companions ({companions.length}) - secondary entities shown alongside this card.
         Allowed domains: light, switch, cover, binary sensor, input boolean, remote, fan, sensor.
       </div>
@@ -434,7 +434,7 @@ function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[];
 
   return (
     <div className="col" style={{ gap: 4 }}>
-      <label style={{ fontSize: 12, fontWeight: 600 }}>Theme</label>
+      <label className="label-strong">Theme</label>
       <div ref={stripRef} className="theme-strip" role="radiogroup" aria-label="Widget theme">
         {themes.map(t => (
           <button
@@ -553,7 +553,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
         ))}
       </div>
 
-      <p className="muted" style={{ fontSize: 13 }}>
+      <p className="muted fs-13">
         {state.mode === "single"
           ? "Choose one entity. Optionally add companion entities shown alongside it."
           : state.mode === "group"
@@ -658,7 +658,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
       )}
 
       {state.entities.length === 0 && (
-        <p className="muted" style={{ fontSize: 12 }}>
+        <p className="muted fs-12">
           No entities selected yet. Add at least one to continue.
         </p>
       )}
@@ -669,7 +669,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
         return (
           <div className="row" style={{ gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div className="col" style={{ gap: 4, flex: 1, minWidth: 160 }}>
-              <label style={{ fontSize: 12, fontWeight: 600 }}>Widget name</label>
+              <label className="label-strong">Widget name</label>
               <input
                 value={state.label}
                 maxLength={100}
@@ -678,10 +678,10 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                 className="input"
                 style={{ borderColor: nameErr ? "var(--danger)" : undefined }}
               />
-              {nameErr && <div style={{ fontSize: 12, color: "var(--danger)" }}>{nameErr}</div>}
+              {nameErr && <div className="error-msg">{nameErr}</div>}
             </div>
             <div className="col" style={{ gap: 4 }}>
-              <label style={{ fontSize: 12, fontWeight: 600 }}>Permissions</label>
+              <label className="label-strong">Permissions</label>
               <div className="segmented" role="group" aria-label="Capability">
                 <button aria-pressed={state.capability === "badge"} onClick={() => { onChange({ capability: "badge", entities: state.entities.map(e => ({ ...e, companions: [] })) }); saveMemory({ capability: "badge" }); }}>Badge</button>
                 <button aria-pressed={state.capability === "read"} onClick={() => { onChange({ capability: "read", entities: state.entities.map(e => ({ ...e, companions: e.companions.map(c => ({ ...c, read_only: true })) })) }); saveMemory({ capability: "read" }); }}>View only</button>
@@ -699,8 +699,8 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
 
       {/* Live entity preview */}
       {activePreviewId && (
-        <div className="col" style={{ gap: 8 }} role="region" aria-label="Entity preview" aria-live="polite">
-          <label style={{ fontSize: 12, fontWeight: 600 }}>Preview</label>
+        <div className="col gap-8" role="region" aria-label="Entity preview" aria-live="polite">
+          <label className="label-strong">Preview</label>
           <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
             <div
               className="theme-preview-stage"
@@ -817,7 +817,7 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
           checked={state.originMode === "specific"}
           onChange={() => { onChange({ originMode: "specific" }); saveMemory({ originMode: "specific" }); }}
         />
-        <div style={{ flex: 1 }}>
+        <div className="flex-1">
           <div style={{ fontWeight: 600, fontSize: 14 }}>A specific website or page</div>
           {state.originMode === "specific" && (
             <div className="col" style={{ gap: 8, marginTop: 10 }}>
@@ -825,7 +825,7 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
               {/* Added URLs list */}
               {originUrls.map(url => (
                 <div key={url} className="row" style={{ gap: 6, fontSize: 13 }}>
-                  <span style={{ flex: 1 }} className="mono url-clip">{url}</span>
+                  <span className="flex-1 mono url-clip">{url}</span>
                   <button type="button" onClick={() => removeUrl(url)} className="btn btn-sm btn-danger">Remove</button>
                 </div>
               ))}
@@ -874,9 +874,9 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
               )}
 
               {urlError && (
-                <div style={{ fontSize: 12, color: "var(--danger)" }}>{urlError}</div>
+                <div className="error-msg">{urlError}</div>
               )}
-              <p className="muted" style={{ fontSize: 11 }}>
+              <p className="muted fs-11">
                 Site only (https://example.com) or a specific page (https://example.com/page.html).
               </p>
             </div>
@@ -950,7 +950,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
             checked={state.expiryOption === value}
             onChange={() => { onChange({ expiryOption: value }); saveMemory({ expiryOption: value }); }}
           />
-          <div style={{ flex: 1 }}>
+          <div className="flex-1">
             <span style={{ fontSize: 14 }}>{label}</span>
             {value !== "never" && value !== "custom" && (
               <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>({fmtExpiry(value)})</span>
@@ -966,7 +966,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
                   style={{ marginLeft: 10, fontSize: 13, borderColor: customDateInvalid ? "var(--danger)" : undefined }}
                 />
                 {customDateInvalid && (
-                  <span style={{ fontSize: 12, color: "var(--danger)" }}>Date must be in the future.</span>
+                  <span className="error-msg">Date must be in the future.</span>
                 )}
               </span>
             )}
@@ -1058,7 +1058,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
       {acknowledged && (
         <>
           <div className="col" style={{ gap: 4 }}>
-            <label style={{ fontSize: 12, fontWeight: 600 }}>Widget name</label>
+            <label className="label-strong">Widget name</label>
             <input
               value={widgetName}
               maxLength={100}
@@ -1072,10 +1072,10 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
               className="input"
               style={{ fontSize: 14, borderColor: nameError ? "var(--danger)" : undefined }}
             />
-            {nameError && <div style={{ fontSize: 12, color: "var(--danger)" }}>{nameError}</div>}
+            {nameError && <div className="error-msg">{nameError}</div>}
           </div>
 
-          <div className="muted" style={{ fontSize: 13 }}>
+          <div className="muted fs-13">
             Host URL: <span className="mono">{hostDisplay}</span>
           </div>
 
@@ -1086,7 +1086,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
                 <span className="step-pill">1</span>
                 <div>
                   <div className="code-block-title">{isPage ? "Page setup" : "Widget script"}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>
+                  <div className="muted fs-12">
                     {isPage
                       ? "Add once to your page's <head>. All widgets inherit these defaults."
                       : "Add once to your page's <head>."}
@@ -1103,7 +1103,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
               <span className="step-pill">{tab === "web" ? "2" : "1"}</span>
               <div>
                 <div className="code-block-title">{tab === "wordpress" ? "Shortcode" : "Widget markup"}</div>
-                <div className="muted" style={{ fontSize: 12 }}>
+                <div className="muted fs-12">
                   {tab === "wordpress"
                     ? "Paste into any post or page. The HArvest plugin loads the widget script automatically."
                     : "Drop wherever the widget should render."}
@@ -1170,6 +1170,12 @@ export function Wizard({ onClose }: WizardProps) {
   const [secretAcknowledged, setSecretAcknowledged] = useState(false);
   const wizardRef = useRef<HTMLDivElement>(null);
   const closeRequestRef = useRef<() => void>(() => {});
+  // Synchronous re-entry guard for the Step 3 -> Generate path. The button's
+  // disabled={loading} attribute only takes effect on the next render, so a
+  // rapid second click between setLoading(true) and the DOM flush would
+  // otherwise fire a second tokens.create() and create duplicate tokens.
+  // useRef updates synchronously; state does not.
+  const generateLockRef = useRef(false);
 
   // Focus trap: initial focus + Tab cycle within the dialog.
   useEffect(() => {
@@ -1224,6 +1230,8 @@ export function Wizard({ onClose }: WizardProps) {
     }
 
     if (step === 3) {
+      if (generateLockRef.current) return;
+      generateLockRef.current = true;
       setLoading(true);
       setError(null);
       try {
@@ -1274,6 +1282,7 @@ export function Wizard({ onClose }: WizardProps) {
         setError(body.replace(/^\d{3}:\s*/, "").replace(/^Error:\s*/, "") || raw);
       } finally {
         setLoading(false);
+        generateLockRef.current = false;
       }
       return;
     }

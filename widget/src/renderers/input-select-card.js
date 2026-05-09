@@ -11,6 +11,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const INPUT_SELECT_STYLES = /* css */`
   [part=card-body] {
@@ -134,14 +135,6 @@ const INPUT_SELECT_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class InputSelectCard extends BaseCard {
   /** @type {HTMLElement|null}  */ #trigger     = null;
@@ -177,7 +170,7 @@ export class InputSelectCard extends BaseCard {
         : `<div part="option-grid"></div>`;
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${INPUT_SELECT_STYLES}</style>
+      <style>${INPUT_SELECT_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

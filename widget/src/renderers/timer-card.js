@@ -7,6 +7,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const TIMER_STYLES = /* css */`
   [part=card-body] {
@@ -65,14 +66,6 @@ const TIMER_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function _formatTime(totalSeconds) {
   if (totalSeconds < 0) totalSeconds = 0;
@@ -99,7 +92,7 @@ export class TimerCard extends BaseCard {
     const isWritable = this.def.capabilities === "read-write";
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${TIMER_STYLES}</style>
+      <style>${TIMER_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

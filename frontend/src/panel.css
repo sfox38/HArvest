@@ -3142,3 +3142,65 @@ button.entity-setting-group-title:focus-visible {
   color: var(--text-primary);
   font-weight: 500;
 }
+
+/* ----------------------------------------------------------------------------
+ * Utility classes
+ *
+ * Consolidates patterns that previously appeared as repeated inline styles
+ * across panel components. New code should reach for these instead of inline
+ * style={{ }} attributes (per feedback_css_external.md). Single-property
+ * shorthands (.fs-*, .gap-*, .flex-1) are utility-style; the multi-property
+ * ones (.divider, .error-msg, .center-spinner, .label-strong) are semantic.
+ * --------------------------------------------------------------------------*/
+
+/* Section divider: thin horizontal rule between settings groups. */
+.divider {
+  height: 1px;
+  background: var(--divider);
+}
+
+/* Inline error/danger message text. */
+.error-msg {
+  font-size: 12px;
+  color: var(--danger);
+}
+.error-msg-tight {
+  font-size: 12px;
+  color: var(--danger);
+  margin-top: 2px;
+}
+
+/* Bold settings label. */
+.label-strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.label-strong-13 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Centered loading/empty-state container with spinner padding. */
+.center-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px;
+}
+
+/* Centered hint text used in empty states and small notes. */
+.text-center-13 {
+  text-align: center;
+  font-size: 13px;
+}
+
+/* Font-size shorthands. */
+.fs-11 { font-size: 11px; }
+.fs-12 { font-size: 12px; }
+.fs-13 { font-size: 13px; }
+
+/* Flex/gap shorthands. Harmless on non-flex elements (gap is ignored). */
+.flex-1 { flex: 1; }
+.gap-6  { gap: 6px; }
+.gap-8  { gap: 8px; }
+.gap-18 { gap: 18px; }

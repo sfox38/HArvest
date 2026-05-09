@@ -9,6 +9,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const MEDIA_STYLES = /* css */`
   [part=card-body] {
@@ -112,14 +113,6 @@ const MEDIA_STYLES = /* css */`
 
 import { renderIconSVG } from "../icons.js";
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class MediaPlayerCard extends BaseCard {
   /** @type {HTMLButtonElement|null}  */ #playBtn      = null;
@@ -148,7 +141,7 @@ export class MediaPlayerCard extends BaseCard {
     const hasSource   = hints.show_source !== false && this.def.supported_features?.includes("select_source");
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${MEDIA_STYLES}</style>
+      <style>${MEDIA_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

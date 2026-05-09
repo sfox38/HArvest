@@ -162,6 +162,15 @@ export class HrvCard extends HTMLElement {
     clearTimeout(this.#optimisticTimer);
     this.#optimisticTimer = null;
 
+    // Tear down the active renderer's external resources before the host
+    // element is GC'd. Renderers may hold setInterval handles (TimerCard),
+    // document/window listeners (InputSelectCard, pack ClimateCard, pack
+    // SensorCard), or RAF/pointer momentum-scroll handlers (WeatherCard).
+    // Without this, a single-page app or CMS page builder that mounts and
+    // unmounts hrv-card elements leaks one set of handles per cycle.
+    this.#renderer?.destroy?.();
+    this.#renderer = null;
+
     if (!this.#client) return;
 
     const entityRef = this.#entityId || this.#alias;
@@ -190,6 +199,20 @@ export class HrvCard extends HTMLElement {
    * @param {object} def - EntityDefinition from server
    */
   receiveDefinition(def) {
+    // Skip the full rebuild if the incoming definition is structurally equal
+    // to the one we already have. Renew flows (every lifetime_minutes) and
+    // reconnects resend entity_definitions with identical content; rebuilding
+    // the renderer mid-interaction would snap a slider thumb (or any active
+    // input) back to the server-confirmed value because the new renderer's
+    // isSliderActive() resets to false. JSON.stringify is byte-stable for
+    // server-delivered JSON (insertion order is consistent), so equal output
+    // means structurally equal input. Pack swaps go through _reRender(), not
+    // this path, so this check does not interfere with style updates.
+    if (this.#entityDef && this.#renderer
+        && JSON.stringify(def) === JSON.stringify(this.#entityDef)) {
+      return;
+    }
+
     this.#entityDef = def;
 
     // Apply server-side config from entity_definition.
@@ -479,11 +502,10 @@ export class HrvCard extends HTMLElement {
    * Called when an ack message is routed to this card.
    * @param {object} _msg
    */
-  receiveAck(msg) {
-    console.warn(
-      `[HArvest] ack: ${msg?.entity_id} success=${msg?.success}`,
-      msg?.success ? "" : `${msg?.error_code} ${msg?.error_message ?? ""}`,
-    );
+  receiveAck(_msg) {
+    // Acks are routed here per the message-dispatch contract but currently
+    // have no per-card UI effect. Failure cases surface via setErrorState
+    // upstream; success cases are reflected by the ensuing state_update.
   }
 
   /**

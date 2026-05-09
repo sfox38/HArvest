@@ -277,13 +277,16 @@ class MyCard extends BaseCard {
 |--------|---------|
 | `renderIcon(iconName, partName)` | Inject an MDI SVG icon into `[part=<partName>]`. Caches by part name, skips if unchanged. |
 | `resolveIcon(name, fallback)` | Returns `name` if it exists in the bundled MDI icon set, otherwise returns `fallback`. Use this to avoid the generic help-circle. |
-| `getSharedStyles()` | Returns the CSS string with custom property defaults, card base layout, companion zone, history graph, gesture, and error state styles. Include at the start of your `<style>` tag. |
+| _(no helper)_ | The shared base CSS (custom property defaults, card layout, companion zone, history graph, gesture, error/stale state styles) is adopted into every shadow root automatically by the `BaseCard` constructor via `adoptedStyleSheets`. Renderers only emit their renderer-specific CSS in their `<style>` tag. The historical `getSharedStyles()` helper was removed; do not call it. |
 | `renderCompanionZoneHTML()` | Returns HTML placeholder for companion pills. Include in your template. Returns empty string if no companions. |
 | `renderCompanions()` | Populates the companion zone with pills. Call at the end of `render()`. |
 | `renderHistoryZoneHTML()` | Returns HTML placeholder for the history graph. Returns empty string if graph is not configured. Include between card body and companion zone. |
 | `renderAriaLiveHTML()` | Returns screen reader announcement region HTML. Include in template. |
 | `announceState(text)` | Push text to the aria-live region for screen readers. |
 | `isFocused(element)` | Returns true if the element has focus in this shadow root. Use to avoid clobbering user input in `applyState()`. |
+| `isSliderActive(element)` | Returns true while the user is actively dragging a range slider (pointer down or pending un-grace period after release). Use to skip slider value updates from `applyState()` while the user is interacting. |
+| `guardSlider(slider, debouncedSend)` | One-call drag-protection wiring for a `<input type="range">`. Adds pointer/keyboard handlers that mark the slider active, and flushes the debounced send on release. Pair with `isSliderActive()` checks in `applyState()`. |
+| `formatStateLabel(state, domain, deviceClass)` | Returns the i18n-localised label for a state string, falling back to the raw state if the i18n key is missing. Handles common domain conventions (sensor numeric values, binary_sensor on/off, etc.). |
 | `debounce(fn, ms)` | Returns a debounced version of `fn`. |
 | `_attachGestureHandlers(element, callbacks, actionConfig)` | Attach gesture-aware pointer event handlers. Supports tap, hold, and double-tap detection. See "Gesture support" section. |
 | `_runAction(actionConfig)` | Execute a gesture action (toggle, none, trigger-action, call-service). Called internally by gesture handlers. |
@@ -525,7 +528,7 @@ render() {
   const hasFeatureX = features.includes("feature_name");
 
   this.root.innerHTML = `
-    <style>${this.getSharedStyles()}${MY_CARD_STYLES}</style>
+    <style>${MY_CARD_STYLES}</style>
     <div part="card">
       <div part="card-header">
         <span part="card-icon" aria-hidden="true"></span>
@@ -1109,8 +1112,7 @@ For each domain, create a class extending BaseCard. Follow these principles:
 
 ### Step 5: CSS considerations
 
-- All CSS lives inside the shadow DOM `<style>` tag. No global stylesheets.
-- `getSharedStyles()` provides the base card layout, companion styles, history graph styles, and error state styles. Always include it.
+- Each renderer's shadow root receives base CSS (card layout, companion styles, history graph, gesture, error/stale states) automatically via `adoptedStyleSheets` - the BaseCard constructor adopts a single shared `CSSStyleSheet` instance into every renderer. Your renderer's `<style>` tag only needs your renderer-specific overrides. The historical `getSharedStyles()` helper was removed; do not call it.
 - Packs typically override the base card styles heavily. Use `!important` sparingly.
 - By default, respect `prefers-reduced-motion` by wrapping animations in a media query and providing a static fallback. However, if the source card's design identity depends on its animations (spinning fans, bouncing buttons, expanding controls), the pack author may choose to ignore the media query. This is a deliberate design decision, not a bug. Document the choice in a comment near the animation CSS.
 - Respect `this.config.animate` for icon spin animations (e.g. fan blades). Only animate when the entity is on AND `config.animate` is `true`. The standard pattern is to set `data-animate` on the icon element and target it in CSS: `[part=card-icon][data-animate=true] svg { animation: spin 1.5s linear infinite; }`.

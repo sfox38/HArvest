@@ -19,6 +19,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
+from ._utils import get_entry_data
 from .activity_store import ActivityStore, AuthEvent, CommandEvent, ErrorEvent, SessionEvent
 from .const import (
     CONF_AUTH_TIMEOUT,
@@ -155,46 +156,68 @@ class HarvestWsView(HomeAssistantView):
     name = "api:harvest:ws"
     requires_auth = False
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        token_manager: TokenManager,
-        session_manager: SessionManager,
-        rate_limiter: RateLimiter,
-        activity_store: ActivityStore,
-        event_bus: EventBus,
-        action_manager: HarvestActionManager,
-        config: dict,
-        sensors: object = None,
-        theme_manager: ThemeManager | None = None,
-        pack_manager: PackManager | None = None,
-    ) -> None:
-        self._hass = hass
-        self._token_manager = token_manager
-        self._session_manager = session_manager
-        self._rate_limiter = rate_limiter
-        self._activity_store = activity_store
-        self._event_bus = event_bus
-        self._action_manager = action_manager
-        self._config = config
-        self._sensors = sensors
-        self._theme_manager = theme_manager
-        self._pack_manager = pack_manager
+    def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
+        """Construct the view.
 
-    def _resolve_theme_manager(self) -> ThemeManager | None:
-        """Resolve the theme manager, falling back to hass.data lookup.
-
-        HA's register_view silently skips re-registration when a route with
-        the same name already exists. If the WS view was first registered
-        before ThemeManager was wired in, self._theme_manager is None while
-        hass.data holds the live instance. This getter bridges the gap.
+        The view is registered once with HA's HTTP routing table and survives
+        config-entry reloads. Manager references therefore must NOT be cached
+        as instance fields - on reload the old refs would point at unloaded
+        managers. Each manager is resolved per-request via the @property
+        accessors below, which read live values from
+        ``hass.data[DOMAIN][entry_id]``.
         """
-        if self._theme_manager is not None:
-            return self._theme_manager
-        for entry_data in self._hass.data.get(DOMAIN, {}).values():
-            if isinstance(entry_data, dict) and "theme_manager" in entry_data:
-                return entry_data["theme_manager"]
-        return None
+        self._hass = hass
+        self._entry_id = entry_id
+
+    # --- Live manager accessors ---
+    # Each property reads from hass.data on every access. Returns may be None
+    # during the brief gap between unload and re-setup; callers tolerate this
+    # because no new WS connection should arrive during that gap (HA's
+    # config-entry reload is synchronous from the user's perspective).
+
+    @property
+    def _data(self) -> dict:
+        return get_entry_data(self._hass, self._entry_id)
+
+    @property
+    def _token_manager(self) -> TokenManager:
+        return self._data["token_manager"]
+
+    @property
+    def _session_manager(self) -> SessionManager:
+        return self._data["session_manager"]
+
+    @property
+    def _rate_limiter(self) -> RateLimiter:
+        return self._data["rate_limiter"]
+
+    @property
+    def _activity_store(self) -> ActivityStore:
+        return self._data["activity_store"]
+
+    @property
+    def _event_bus(self) -> EventBus:
+        return self._data["event_bus"]
+
+    @property
+    def _action_manager(self) -> HarvestActionManager:
+        return self._data["action_manager"]
+
+    @property
+    def _sensors(self) -> object:
+        return self._data.get("sensors")
+
+    @property
+    def _theme_manager(self) -> ThemeManager | None:
+        return self._data.get("theme_manager")
+
+    @property
+    def _pack_manager(self) -> PackManager | None:
+        return self._data.get("pack_manager")
+
+    @property
+    def _config(self) -> dict:
+        return self._get_global_config()
 
     def _get_global_config(self) -> dict:
         """Return the merged global integration config."""
@@ -208,21 +231,20 @@ class HarvestWsView(HomeAssistantView):
         merged.update(entry.options)
         return merged
 
-    def _resolve_pack_manager(self) -> PackManager | None:
-        """Resolve the pack manager, falling back to hass.data lookup."""
-        if self._pack_manager is not None:
-            return self._pack_manager
-        for entry_data in self._hass.data.get(DOMAIN, {}).values():
-            if isinstance(entry_data, dict) and "pack_manager" in entry_data:
-                return entry_data["pack_manager"]
-        return None
-
     async def get(self, request: Request) -> WebSocketResponse:
         """Handle incoming WebSocket upgrade.
 
         Checks per-IP rate limit before accepting. Returns HTTP 429 if limited.
         Accepts the WebSocket upgrade and delegates to _handle_connection().
         """
+        # If the integration is currently unloaded (between unload and re-setup,
+        # or fully removed), hass.data[DOMAIN][entry_id] is empty. Reject the
+        # upgrade with 503 so the client retries instead of getting a 500.
+        if not self._data:
+            raise aiohttp.web.HTTPServiceUnavailable(
+                reason="HArvest integration is not currently loaded."
+            )
+
         source_ip = self._get_source_ip(request)
 
         if not self._rate_limiter.check_ip(source_ip):
@@ -305,14 +327,34 @@ class HarvestWsView(HomeAssistantView):
         page_path: str | None = msg.get("page_path")
         msg_id = msg.get("msg_id")
 
-        # Per-IP auth rate limit check (distributed brute-force protection).
+        # Per-IP and per-token auth rate-limit counters target different
+        # attack patterns and are intentionally asymmetric:
+        #
+        #   - Per-IP cap defends against a single misbehaving IP. When it
+        #     fires, only the IP counter is incremented. NOT incrementing the
+        #     token counter here is deliberate: it prevents a single IP from
+        #     locking out a token globally for legitimate users.
+        #
+        #   - Per-token cap defends against distributed brute-force where an
+        #     attacker rotates IPs (each below its own IP cap) but accrues
+        #     attempts against the same token. When it fires, both counters
+        #     are incremented because the attempt was a real signal against
+        #     both the originating IP and the targeted token.
+        #
+        #   - Auth-validation failures (later in this method) likewise
+        #     increment both, because a failed auth is a real signal at both
+        #     levels.
+        #
+        # This asymmetry is feature, not bug. Audit reviewers: see issue #51.
+
+        # Per-IP auth rate limit check (single-IP brute-force protection).
         if not self._rate_limiter.check_auth_for_ip(source_ip):
             self._rate_limiter.record_auth_attempt_ip(source_ip)
             await ws.send_json({"type": "auth_failed", "code": ERR_RATE_LIMITED, "msg_id": msg_id})
             await ws.close()
             return
 
-        # Per-token auth rate limit check (brute-force protection).
+        # Per-token auth rate limit check (distributed-brute-force protection).
         if not self._rate_limiter.check_auth_for_token(token_id):
             self._rate_limiter.record_auth_attempt(token_id)
             self._rate_limiter.record_auth_attempt_ip(source_ip)
@@ -321,6 +363,11 @@ class HarvestWsView(HomeAssistantView):
             return
 
         # Validate auth (checks all 10 conditions in spec order).
+        # dropped_refs collects entity refs that the integration silently
+        # skipped during step 8 (unresolved or Tier-3). When auth ultimately
+        # succeeds we record each one to the activity log so admins can see
+        # stale or incompatible card references on the page.
+        dropped_refs: list[tuple[str, str]] = []
         token, error_code = self._token_manager.validate_auth(
             token_id=token_id,
             origin=origin,
@@ -330,6 +377,7 @@ class HarvestWsView(HomeAssistantView):
             timestamp=msg.get("timestamp"),
             nonce=msg.get("nonce"),
             signature=msg.get("signature"),
+            dropped_refs=dropped_refs,
         )
 
         if error_code is not None:
@@ -417,6 +465,26 @@ class HarvestWsView(HomeAssistantView):
             timestamp=datetime.now(tz=timezone.utc),
             referer=page_path,
         ))
+
+        # Record any entity refs that validate_auth silently dropped during step 8.
+        # Useful for admins to discover stale or Tier-3 cards on a page without the
+        # connection itself failing.
+        if dropped_refs:
+            now = datetime.now(tz=timezone.utc)
+            for ref, reason in dropped_refs:
+                self._activity_store.record_error(ErrorEvent(
+                    session_id=session.session_id,
+                    code="ENTITY_REF_DROPPED",
+                    message=f"token={token.token_id} ref={ref!r} reason={reason}",
+                    timestamp=now,
+                ))
+            _LOGGER.info(
+                "HArvest auth for token %s succeeded with %d silently-dropped entity ref(s): %s",
+                token.token_id,
+                len(dropped_refs),
+                ", ".join(f"{r!r}({reason})" for r, reason in dropped_refs),
+            )
+
         self._event_bus.session_connected(session.session_id, token.token_id, origin)
         self._activity_store.record_session(SessionEvent(
             session_id=session.session_id,
@@ -471,7 +539,7 @@ class HarvestWsView(HomeAssistantView):
         })
 
         # --- Step 4a: Send theme data if token has a theme ---
-        theme_mgr = self._resolve_theme_manager()
+        theme_mgr = self._theme_manager
         if theme_mgr and token.theme_url:
             theme_id = theme_url_to_id(token.theme_url)
             theme_def = theme_mgr.get(theme_id)
@@ -484,7 +552,7 @@ class HarvestWsView(HomeAssistantView):
 
         # --- Step 4a.2: Send renderer pack URL if token has one ---
         if token.renderer_pack:
-            pack_mgr = self._resolve_pack_manager()
+            pack_mgr = self._pack_manager
             pack_path = pack_mgr.get_pack_path(token.renderer_pack) if pack_mgr and pack_mgr.agreed else None
             if pack_path:
                 try:
@@ -1257,7 +1325,7 @@ class HarvestWsView(HomeAssistantView):
     ) -> dict:
         """Build a state_update message dict.
 
-        For initial=True: full attributes and extended_attributes.
+        For initial=True: full attributes.
         For initial=False: computes attributes_delta by comparing to
         session.last_sent_attributes[entity_id]. Omits attributes_delta
         if only state changed and no attributes changed.
@@ -1450,9 +1518,14 @@ class HarvestWsView(HomeAssistantView):
     async def _send_keepalive(self, ws: WebSocketResponse, interval: int, session: Session | None = None) -> None:
         """Send periodic keepalive data messages to the client.
 
-        Also checks the kill switch and session expiry each tick; if either
-        condition is met, sends auth_failed and closes the WebSocket from
-        within the handler context so the message loop exits cleanly.
+        Also checks the kill switch, session expiry, and the live paused
+        flag on the underlying token each tick; if any condition is met,
+        sends auth_failed and closes the WebSocket from within the handler
+        context so the message loop exits cleanly.
+
+        The paused check uses a live token lookup (not the snapshot captured
+        at auth time) so that an admin pausing a token immediately stops
+        data flow on existing sessions, not just blocking new connections.
         """
         try:
             while not ws.closed:
@@ -1467,6 +1540,12 @@ class HarvestWsView(HomeAssistantView):
                     await ws.send_json({"type": "auth_failed", "code": ERR_SESSION_EXPIRED, "msg_id": None})
                     await ws.close()
                     break
+                if session is not None:
+                    live_token = self._token_manager.get(session.token_id)
+                    if live_token is not None and live_token.paused:
+                        await ws.send_json({"type": "auth_failed", "code": ERR_TOKEN_INACTIVE, "msg_id": None})
+                        await ws.close()
+                        break
                 await ws.send_json({"type": "keepalive", "msg_id": None})
         except (asyncio.CancelledError, ConnectionResetError):
             pass
@@ -1524,22 +1603,51 @@ class HarvestWsView(HomeAssistantView):
         return bool(merged.get(CONF_KILL_SWITCH, False))
 
     def _get_source_ip(self, request: Request) -> str:
-        """Extract the real client IP.
+        """Extract the real client IP using rightmost-trusted X-Forwarded-For.
 
-        Reads the leftmost X-Forwarded-For entry if the direct peer is a
-        trusted proxy. This is correct for a single-proxy deployment (the
-        common HA setup). Multi-hop chains would need rightmost-trusted
-        extraction, but HA's own trusted_proxies model uses the same pattern.
+        Each proxy in a forwarding chain appends its incoming peer IP to
+        X-Forwarded-For. So a request that traversed
+        client -> cloudflare -> nginx -> HA arrives with XFF resembling
+        "<whatever-client-claimed>, <real-client>, <cloudflare>" and a
+        peer of nginx. The leftmost entry is whatever the client put in
+        the header before any proxy saw it - attacker-controlled in any
+        deployment with two or more trusted hops.
+
+        Algorithm:
+          1. If no trusted_proxies are configured, return the direct peer
+             IP. X-Forwarded-For is unverified and ignored.
+          2. If the direct peer is not in trusted_proxies, return peer IP.
+             XFF header values are unverified.
+          3. Walk X-Forwarded-For from right (most recent hop, written by
+             the trusted peer proxy) to left (whatever the client claimed).
+             Skip entries that are themselves trusted proxies. The first
+             non-trusted entry is the real client.
+          4. If every XFF entry is trusted (admin misconfiguration; they
+             listed the real client as a trusted proxy), fall back to peer
+             IP rather than returning a misleading value.
+
+        Multi-hop deployments must list ALL intermediate proxies in
+        trusted_proxies for this to work correctly.
         """
         trusted_proxies: list[str] = self._config.get("trusted_proxies", [])
         peer = request.transport.get_extra_info("peername")
         peer_ip = peer[0] if peer else ""
 
-        if trusted_proxies and peer_ip and _ip_in_trusted(peer_ip, trusted_proxies):
-            forwarded = request.headers.get("X-Forwarded-For", "")
-            if forwarded:
-                return forwarded.split(",")[0].strip()
+        if not trusted_proxies or not peer_ip:
+            return peer_ip
+        if not _ip_in_trusted(peer_ip, trusted_proxies):
+            return peer_ip
 
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        if not forwarded:
+            return peer_ip
+
+        chain = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+        for ip in reversed(chain):
+            if not _ip_in_trusted(ip, trusted_proxies):
+                return ip
+
+        # Every XFF entry is trusted - unusual, fall back to peer.
         return peer_ip
 
 

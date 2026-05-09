@@ -65,18 +65,29 @@ export function Dashboard({ onOpenWizard: _onOpenWizard, onNavigate, onNavigateA
 
   const load = useCallback(() => {
     setError(null);
-    Promise.all([
+    // allSettled so a single failed sub-fetch does not blank the whole
+    // dashboard. Each panel populates from whatever succeeded; failures are
+    // logged to console for debugging and a banner is shown.
+    Promise.allSettled([
       api.stats.get(),
       api.activity.aggregates(24),
       api.activity.list({ limit: 7, offset: 0 }),
       api.tokens.list(),
     ]).then(([s, b, a, t]) => {
-      setStats(s);
-      setBuckets(b);
-      setEvents(a.events);
-      setTokens(t);
-    }).catch(e => {
-      setError(String(e));
+      if (s.status === "fulfilled") setStats(s.value);
+      if (b.status === "fulfilled") setBuckets(b.value);
+      if (a.status === "fulfilled") setEvents(a.value.events);
+      if (t.status === "fulfilled") setTokens(t.value);
+
+      const rejections = [s, b, a, t].filter(r => r.status === "rejected") as PromiseRejectedResult[];
+      if (rejections.length === 4) {
+        // Total failure - surface the underlying error so the user can see
+        // session-expired / network-down messages directly.
+        setError(String(rejections[0].reason));
+      } else if (rejections.length > 0) {
+        for (const r of rejections) console.warn("[HArvest panel] dashboard load:", r.reason);
+        setError("Some dashboard data couldn't be loaded.");
+      }
     }).finally(() => setLoading(false));
   }, []);
 
@@ -99,7 +110,7 @@ export function Dashboard({ onOpenWizard: _onOpenWizard, onNavigate, onNavigateA
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+      <div className="center-spinner">
         <Spinner size={40} label="Loading dashboard..." />
       </div>
     );
@@ -147,7 +158,7 @@ export function Dashboard({ onOpenWizard: _onOpenWizard, onNavigate, onNavigateA
           title="Needs attention"
           className="card-info"
           action={
-            <span className="muted" style={{ fontSize: 12 }}>
+            <span className="muted fs-12">
               {needsAttention.length} item{needsAttention.length === 1 ? "" : "s"}
             </span>
           }
@@ -158,12 +169,12 @@ export function Dashboard({ onOpenWizard: _onOpenWizard, onNavigate, onNavigateA
                 <div className="row">
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{w.label}</div>
-                    <div className="muted" style={{ fontSize: 12 }}>
+                    <div className="muted fs-12">
                       {w.expires ? `Expires ${fmtRel(w.expires)}` : "Inactive"}
                     </div>
                   </div>
                 </div>
-                <div className="row" style={{ gap: 8 }}>
+                <div className="row gap-8">
                   <StatusBadge status={w.status} />
                   <button
                     className="btn btn-sm"
@@ -209,7 +220,7 @@ export function Dashboard({ onOpenWizard: _onOpenWizard, onNavigate, onNavigateA
           }
         >
           {events.length === 0 ? (
-            <div className="card-body muted" style={{ textAlign: "center", fontSize: 13 }}>
+            <div className="card-body muted text-center-13">
               No recent activity
             </div>
           ) : (

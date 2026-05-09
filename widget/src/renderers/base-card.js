@@ -13,9 +13,16 @@
  *   renderIcon()           - Inject an MDI SVG into a [part] slot.
  *   renderCompanionZoneHTML() - Return the companion zone placeholder HTML.
  *   renderCompanions()     - Populate the companion zone with live data.
- *   getSharedStyles()      - Return the common CSS block every renderer needs.
  *   debounce()             - Create a debounced wrapper around a function.
  *   setAriaLabel()         - Set aria-label on an element.
+ *
+ * Shared base CSS (variables, card layout, companion zone, stale indicator,
+ * skeleton, gesture, history) is adopted automatically into each card's
+ * shadow root by the BaseCard constructor via a single module-level
+ * CSSStyleSheet. Renderers only need to inline their renderer-specific CSS
+ * in a per-shadow <style> block; the shared base is parsed once and shared
+ * across all cards instead of being duplicated 50+ times in inline <style>
+ * tags. See _getSharedSheet() below.
  */
 
 import { renderIconSVG, resolveIcon as _resolveIcon, MDI_ICONS } from "../icons.js";
@@ -333,6 +340,36 @@ const GESTURE_CSS = ``;
 // BaseCard
 // ---------------------------------------------------------------------------
 
+/**
+ * Lazily-constructed module-level CSSStyleSheet holding the shared base CSS.
+ * Adopted into every card's shadow root by the BaseCard constructor so the
+ * browser parses this CSS once instead of N times for N cards on a page.
+ * Returns null in environments that do not support constructable stylesheets
+ * (very old browsers; some test runners). In that case renderers fall back
+ * silently to no shared CSS - a per-renderer <style> block can include the
+ * needed properties if a renderer is built specifically for such an env.
+ */
+let _sharedSheet = null;
+let _sharedSheetTried = false;
+
+function _getSharedSheet() {
+  if (_sharedSheetTried) return _sharedSheet;
+  _sharedSheetTried = true;
+  if (typeof CSSStyleSheet !== "function") return null;
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(
+      SHARED_CSS_VARS + CARD_BASE_CSS + getErrorStateStyles() +
+      COMPANION_CSS + HISTORY_CSS + GESTURE_CSS
+    );
+    _sharedSheet = sheet;
+  } catch {
+    // CSSStyleSheet exists but constructor threw (older Safari, sandboxed iframe).
+    _sharedSheet = null;
+  }
+  return _sharedSheet;
+}
+
 export class BaseCard {
   /** @type {object} */ def;
   /** @type {ShadowRoot} */ root;
@@ -351,6 +388,13 @@ export class BaseCard {
     this.root   = root;
     this.config = config;
     this.i18n   = i18n;
+    // Adopt the shared base stylesheet (CSS vars, card layout, companion zone,
+    // stale indicator, skeleton, gesture, history). Renderer-specific CSS
+    // still goes in a per-shadow <style> block in the renderer's render().
+    const sheet = _getSharedSheet();
+    if (sheet && root && "adoptedStyleSheets" in root) {
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -675,17 +719,6 @@ export class BaseCard {
         }
       }
     }
-  }
-
-  /**
-   * Return the CSS string that every renderer must include in its shadow DOM
-   * <style> tag. Contains: CSS custom property defaults, card base layout,
-   * companion zone, stale indicator, skeleton, and message overlay styles.
-   *
-   * @returns {string}
-   */
-  getSharedStyles() {
-    return SHARED_CSS_VARS + CARD_BASE_CSS + getErrorStateStyles() + COMPANION_CSS + HISTORY_CSS + GESTURE_CSS;
   }
 
   /**

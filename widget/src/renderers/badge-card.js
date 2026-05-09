@@ -7,6 +7,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const _ICON_COLORS = {
   auto: "var(--hrv-color-primary)",
@@ -152,14 +153,6 @@ const BADGE_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class BadgeCard extends BaseCard {
   /** @type {HTMLElement|null} */ #iconEl = null;
@@ -177,7 +170,7 @@ export class BadgeCard extends BaseCard {
     const textCls = singleLine ? " single" : "";
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${BADGE_STYLES}</style>
+      <style>${BADGE_STYLES}</style>
       <div part="badge" aria-label="${_esc(this.def.friendly_name)}" title="${_esc(this.def.friendly_name)}">
         ${showIcon ? '<span part="badge-icon" aria-hidden="true"></span>' : ""}
         <span part="badge-text" class="${textCls}">
