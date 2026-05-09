@@ -74,6 +74,91 @@
 
   // Set each companion dot's tooltip from its aria-label (entity ID initially;
   // base-card updateCompanionState() will enrich it with state when data arrives).
+  // Mouse drag-scroll with gentle ease-out momentum on release.
+  // Velocity is averaged over the last 80ms so a flick at the end of a slow
+  // drag still produces a snappy fling. Touch falls through to native scroll.
+  function _installMomentumScroll(strip) {
+    if (!strip) return () => {};
+    const SAMPLE_WINDOW = 80, VELOCITY_BOOST = 1.6, DECAY = 0.96, MIN_VEL = 0.04;
+    let pointerId = null, startX = 0, startScroll = 0;
+    let velocity = 0, moved = false, momentumRaf = 0;
+    const samples = [];
+    const stopMomentum = () => { if (momentumRaf) { cancelAnimationFrame(momentumRaf); momentumRaf = 0; } };
+    const computeReleaseVelocity = (now) => {
+      while (samples.length && samples[0].t < now - SAMPLE_WINDOW) samples.shift();
+      if (samples.length < 2) return 0;
+      const first = samples[0], last = samples[samples.length - 1];
+      const dt = last.t - first.t;
+      if (dt <= 0) return 0;
+      return (last.x - first.x) / dt;
+    };
+    const startMomentum = () => {
+      if (Math.abs(velocity) < MIN_VEL) return;
+      let prev = performance.now();
+      const tick = (now) => {
+        const dt = now - prev; prev = now;
+        strip.scrollLeft -= velocity * dt;
+        velocity *= Math.pow(DECAY, dt / 16);
+        if (Math.abs(velocity) < MIN_VEL) { momentumRaf = 0; velocity = 0; return; }
+        const max = strip.scrollWidth - strip.clientWidth;
+        if (strip.scrollLeft <= 0 || strip.scrollLeft >= max) { momentumRaf = 0; velocity = 0; return; }
+        momentumRaf = requestAnimationFrame(tick);
+      };
+      momentumRaf = requestAnimationFrame(tick);
+    };
+    const onDown = (e) => {
+      if (strip.scrollWidth <= strip.clientWidth) return;
+      if (e.pointerType === "touch") return;
+      const t = e.target;
+      if (t && t !== strip && t.closest?.("button, a")) return;
+      stopMomentum();
+      pointerId = e.pointerId;
+      startX = e.clientX;
+      startScroll = strip.scrollLeft;
+      velocity = 0; moved = false;
+      samples.length = 0;
+      samples.push({ x: e.clientX, t: e.timeStamp });
+      try { strip.setPointerCapture(pointerId); } catch { /* ignore */ }
+    };
+    const onMove = (e) => {
+      if (e.pointerId !== pointerId) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) { moved = true; strip.dataset.dragging = "true"; }
+      strip.scrollLeft = startScroll - dx;
+      samples.push({ x: e.clientX, t: e.timeStamp });
+      const cutoff = e.timeStamp - SAMPLE_WINDOW;
+      while (samples.length > 2 && samples[0].t < cutoff) samples.shift();
+    };
+    const onUp = (e) => {
+      if (e.pointerId !== pointerId) return;
+      try { strip.releasePointerCapture(pointerId); } catch { /* ignore */ }
+      pointerId = null;
+      if (moved) {
+        const click = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+        window.addEventListener("click", click, { capture: true, once: true });
+        requestAnimationFrame(() => strip.removeAttribute("data-dragging"));
+        velocity = computeReleaseVelocity(e.timeStamp) * VELOCITY_BOOST;
+        startMomentum();
+      }
+      samples.length = 0;
+    };
+    strip.addEventListener("pointerdown",   onDown);
+    strip.addEventListener("pointermove",   onMove);
+    strip.addEventListener("pointerup",     onUp);
+    strip.addEventListener("pointercancel", onUp);
+    strip.addEventListener("wheel",      stopMomentum, { passive: true });
+    strip.addEventListener("touchstart", stopMomentum, { passive: true });
+    return () => {
+      stopMomentum();
+      strip.removeEventListener("pointerdown",   onDown);
+      strip.removeEventListener("pointermove",   onMove);
+      strip.removeEventListener("pointerup",     onUp);
+      strip.removeEventListener("pointercancel", onUp);
+      strip.removeEventListener("wheel",         stopMomentum);
+      strip.removeEventListener("touchstart",    stopMomentum);
+    };
+  }
+
   function _applyCompanionTooltips(root) {
     root.querySelectorAll("[part=companion]").forEach((el) => {
       el.title = el.getAttribute("aria-label") ?? "";
@@ -1103,10 +1188,11 @@
     get #isStepped()      { return this.#percentageStep > 1; }
     get #isCycleFan()     { return this.#isStepped && this.#presets.length > 0; }
     get #speedSteps() {
+      // Exact step values - see lesson #46 in tools/THEME-PACK-CONVERTING.md.
       const step = this.#percentageStep;
       const steps = [];
       for (let i = 1; i * step <= 100.001; i++) {
-        steps.push(Math.floor(i * step * 10) / 10);
+        steps.push(i * step);
       }
       return steps;
     }
@@ -1354,7 +1440,7 @@
       this.#applyFeatureState();
       this.announceState(
         `${this.def.friendly_name}, ${state}` +
-        (this.#percentage > 0 ? `, ${this.#percentage}%` : ""),
+        (this.#percentage > 0 ? `, ${Math.round(this.#percentage)}%` : ""),
       );
     }
 
@@ -1659,22 +1745,26 @@
       color: var(--hrv-color-text, #fff);
     }
 
+    /* Climate dropdown - rendered as a popover in the top layer so it
+       escapes any ancestor stacking context or overflow:hidden. */
     .hrv-climate-dropdown {
-      position: absolute;
-      bottom: calc(100% - 8px);
-      left: 0;
-      right: 0;
-      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15));
+      position: fixed;
+      margin: 0;
+      inset: unset;
+      background: var(--hrv-card-background, var(--hrv-ex-glass-bg, rgba(40,40,40,0.95)));
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
       border-radius: var(--hrv-radius-s, 8px);
-      box-shadow: 0 -4px 16px rgba(0,0,0,0.25), 0 0 0 1px var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
-      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.30);
       max-height: 280px;
       overflow-y: auto;
-      scrollbar-width: none;
-      z-index: 10;
+      scrollbar-width: thin;
+      padding: 4px;
+      color: var(--hrv-color-text, #fff);
+      font-family: inherit;
     }
+    .hrv-climate-dropdown:not(:popover-open) { display: none; }
     .hrv-cf-option {
       display: block;
       width: 100%;
@@ -1686,6 +1776,7 @@
       cursor: pointer;
       font-size: 13px;
       font-family: inherit;
+      border-radius: 6px;
       transition: background 0.1s;
     }
     .hrv-cf-option + .hrv-cf-option {
@@ -1746,6 +1837,7 @@
     /** @type {HTMLElement|null}       */ #dropdown        = null;
     /** @type {string|null}            */ #activeFeat      = null;
     /** @type {Function|null}          */ #outsideListener = null;
+    /** @type {Function|null}          */ #repositionHandler = null;
     /** @type {number}                 */ #targetTemp      = 20;
     /** @type {string}                 */ #hvacMode        = "off";
     /** @type {string|null}            */ #fanMode         = null;
@@ -1866,7 +1958,7 @@
                   <span class="hrv-cf-value">-</span>
                 </button>
               ` : ""}
-              ${isWritable ? '<div class="hrv-climate-dropdown" hidden></div>' : ""}
+              ${isWritable ? '<div class="hrv-climate-dropdown" role="listbox" popover="manual"></div>' : ""}
             </div>
           </div>
           ${this.renderAriaLiveHTML()}
@@ -1931,6 +2023,7 @@
 
     #toggleDropdown(feat) {
       if (this.#activeFeat === feat) { this.#closeDropdown(); return; }
+      if (this.#activeFeat) this.#closeDropdown();
       this.#activeFeat = feat;
 
       let options = [], current = null, command = "", dataKey = "";
@@ -1943,7 +2036,8 @@
       if (!options.length || !this.#dropdown) return;
 
       this.#dropdown.innerHTML = options.map(opt => /* html */`
-        <button class="hrv-cf-option" data-active="${opt === current}" type="button">
+        <button class="hrv-cf-option" data-active="${opt === current}" role="option"
+          aria-selected="${opt === current}" type="button">
           ${_esc(_capitalize(opt))}
         </button>
       `).join("");
@@ -1955,7 +2049,16 @@
         });
       });
 
-      this.#dropdown.removeAttribute("hidden");
+      const featBtn = this.root.querySelector(`[data-feat="${feat}"]`);
+
+      // showPopover() puts the dropdown in the browser's top layer so it
+      // never gets clipped by the card or page stacking contexts.
+      try { this.#dropdown.showPopover?.(); } catch { /* ignore */ }
+
+      this.#positionDropdown(featBtn);
+      this.#repositionHandler = () => this.#positionDropdown(featBtn);
+      window.addEventListener("scroll", this.#repositionHandler, true);
+      window.addEventListener("resize", this.#repositionHandler);
 
       const onOutside = (e) => {
         const path = e.composedPath();
@@ -1967,12 +2070,36 @@
       document.addEventListener("pointerdown", onOutside, true);
     }
 
+    #positionDropdown(triggerEl) {
+      if (!this.#dropdown || !triggerEl) return;
+      const r = triggerEl.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - r.bottom;
+      const spaceAbove = r.top;
+      const dropH = Math.min(this.#dropdown.scrollHeight || 280, 280);
+      const minW = Math.max(140, Math.round(r.width));
+      this.#dropdown.style.left = `${Math.round(r.left)}px`;
+      this.#dropdown.style.minWidth = `${minW}px`;
+      // Drop-up detection (lesson #34). The original minimus dropdown
+      // always opened above; preserve that as the default-when-tied so the
+      // visual feel is unchanged unless there's not enough space.
+      if (spaceAbove >= dropH + 8 || spaceAbove > spaceBelow) {
+        this.#dropdown.style.top = `${Math.max(8, Math.round(r.top - dropH - 6))}px`;
+      } else {
+        this.#dropdown.style.top = `${Math.round(r.bottom + 6)}px`;
+      }
+    }
+
     #closeDropdown() {
       this.#activeFeat = null;
-      this.#dropdown?.setAttribute("hidden", "");
+      try { this.#dropdown?.hidePopover?.(); } catch { /* ignore */ }
       if (this.#outsideListener) {
         document.removeEventListener("pointerdown", this.#outsideListener, true);
         this.#outsideListener = null;
+      }
+      if (this.#repositionHandler) {
+        window.removeEventListener("scroll", this.#repositionHandler, true);
+        window.removeEventListener("resize", this.#repositionHandler);
+        this.#repositionHandler = null;
       }
     }
 
@@ -2103,6 +2230,19 @@
         return { state: this.#hvacMode, attributes: { ...attrs, swing_mode: data.swing_mode } };
       }
       return null;
+    }
+
+    destroy() {
+      if (this.#outsideListener) {
+        document.removeEventListener("pointerdown", this.#outsideListener, true);
+        this.#outsideListener = null;
+      }
+      if (this.#repositionHandler) {
+        window.removeEventListener("scroll", this.#repositionHandler, true);
+        window.removeEventListener("resize", this.#repositionHandler);
+        this.#repositionHandler = null;
+      }
+      try { this.#dropdown?.hidePopover?.(); } catch { /* ignore */ }
     }
   }
 
@@ -2975,11 +3115,36 @@
     [part=card-body] {
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: stretch;
       padding: var(--hrv-spacing-s, 8px) var(--hrv-spacing-m, 16px) var(--hrv-spacing-m, 16px);
-      position: relative;
     }
 
+    /* Pills mode */
+    .hrv-is-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+    .hrv-is-pill {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.08));
+      color: var(--hrv-color-text, #fff);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .hrv-is-pill:hover { background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.16)); }
+    .hrv-is-pill[data-active=true] {
+      background: color-mix(in srgb, var(--hrv-color-primary, #1976d2) 32%, transparent);
+      border-color: color-mix(in srgb, var(--hrv-color-primary, #1976d2) 60%, transparent);
+    }
+
+    /* Dropdown trigger */
     .hrv-is-selected {
       width: 100%;
       padding: 10px 14px;
@@ -3004,24 +3169,34 @@
       justify-content: center;
     }
     .hrv-is-selected[data-readonly=true]:hover { background: transparent; }
-    .hrv-is-arrow { font-size: 10px; opacity: 0.5; }
+    .hrv-is-arrow {
+      font-size: 10px;
+      opacity: 0.5;
+      transition: transform 200ms ease;
+    }
+    .hrv-is-selected[aria-expanded=true] .hrv-is-arrow {
+      transform: rotate(180deg);
+    }
 
+    /* Popover dropdown - escapes stacking via the top layer. */
     .hrv-is-dropdown {
-      position: absolute;
-      top: calc(100% + 4px);
-      left: 0;
-      right: 0;
-      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15));
+      position: fixed;
+      margin: 0;
+      inset: unset;
+      background: var(--hrv-card-background, var(--hrv-ex-glass-bg, rgba(40,40,40,0.95)));
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
       border-radius: var(--hrv-radius-s, 8px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.25), 0 0 0 1px var(--hrv-ex-glass-border, rgba(255,255,255,0.12));
-      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.30);
       max-height: 280px;
       overflow-y: auto;
-      scrollbar-width: none;
-      z-index: 10;
+      scrollbar-width: thin;
+      padding: 4px;
+      color: var(--hrv-color-text, #fff);
+      font-family: inherit;
     }
+    .hrv-is-dropdown:not(:popover-open) { display: none; }
     .hrv-is-option {
       display: block;
       width: 100%;
@@ -3033,24 +3208,57 @@
       cursor: pointer;
       font-size: 13px;
       font-family: inherit;
+      border-radius: 6px;
       transition: background 0.1s;
     }
-    .hrv-is-option + .hrv-is-option {
-      border-top: 1px solid var(--hrv-ex-glass-border, rgba(255,255,255,0.06));
+    .hrv-is-option:hover,
+    .hrv-is-option:focus-visible {
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.08));
+      outline: none;
     }
-    .hrv-is-option:hover { background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.08)); }
-    .hrv-is-option[data-active=true] { color: var(--hrv-color-primary, #1976d2); }
+    .hrv-is-option[data-active=true] {
+      color: var(--hrv-color-primary, #1976d2);
+      font-weight: 600;
+      background: color-mix(in srgb, var(--hrv-color-primary, #1976d2) 18%, transparent);
+    }
   `;
 
   class InputSelectCard extends BaseCard {
     /** @type {HTMLElement|null}  */ #selectedBtn = null;
     /** @type {HTMLElement|null}  */ #dropdown    = null;
+    /** @type {HTMLElement|null}  */ #grid        = null;
     /** @type {string}           */ #current     = "";
     /** @type {string[]}         */ #options     = [];
+    /** @type {string}           */ #lastOptionsKey = "";
     /** @type {boolean}          */ #isOpen      = false;
+    #pillButtons = [];
+    #optionEls = [];
+    #displayMode = "pills";
+    #docClickHandler = null;
+    #repositionHandler = null;
 
     render() {
       const isWritable = this.def.capabilities === "read-write";
+      const hint = this.config.displayHints?.display_mode ?? this.def.display_hints?.display_mode ?? "pills";
+      this.#displayMode = (hint === "dropdown") ? "dropdown" : "pills";
+      this.#options = this.def.feature_config?.options ?? [];
+
+      const bodyHTML = !isWritable ? /* html */`
+        <button class="hrv-is-selected" type="button" data-readonly="true" disabled
+          aria-label="${_esc(this.def.friendly_name)}">
+          <span class="hrv-is-label">-</span>
+        </button>` :
+        this.#displayMode === "dropdown"
+          ? /* html */`
+            <button class="hrv-is-selected" type="button"
+              title="Select an option"
+              aria-label="${_esc(this.def.friendly_name)}"
+              aria-haspopup="listbox" aria-expanded="false">
+              <span class="hrv-is-label">-</span>
+              <span class="hrv-is-arrow" aria-hidden="true">&#9660;</span>
+            </button>
+            <div class="hrv-is-dropdown" role="listbox" popover="manual"></div>`
+          : /* html */`<div class="hrv-is-grid"></div>`;
 
       this.root.innerHTML = /* html */`
         <style>${this.getSharedStyles()}${INPUT_SELECT_STYLES}${COMPANION_DOT_STYLES}</style>
@@ -3059,13 +3267,7 @@
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
           </div>
           <div part="card-body">
-            <button class="hrv-is-selected" type="button"
-              ${!isWritable ? 'data-readonly="true" title="Read-only" disabled' : 'title="Select an option"'}
-              aria-label="${_esc(this.def.friendly_name)}">
-              <span class="hrv-is-label">-</span>
-              ${isWritable ? '<span class="hrv-is-arrow" aria-hidden="true">&#9660;</span>' : ""}
-            </button>
-            ${isWritable ? '<div class="hrv-is-dropdown" hidden></div>' : ""}
+            ${bodyHTML}
           </div>
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
@@ -3075,12 +3277,31 @@
 
       this.#selectedBtn = this.root.querySelector(".hrv-is-selected");
       this.#dropdown    = this.root.querySelector(".hrv-is-dropdown");
+      this.#grid        = this.root.querySelector(".hrv-is-grid");
+      this.#pillButtons = [];
+      this.#optionEls   = [];
+      this.#lastOptionsKey = "";
 
-      if (this.#selectedBtn && isWritable) {
-        this.#selectedBtn.addEventListener("click", () => {
-          if (this.#isOpen) { this.#closeDropdown(); }
-          else { this.#openDropdown(); }
+      if (this.#selectedBtn && isWritable && this.#displayMode === "dropdown") {
+        this.#selectedBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (this.#isOpen) this.#closeDropdown();
+          else this.#openDropdown();
         });
+        this.#selectedBtn.addEventListener("keydown", (e) => {
+          if ((e.key === "Enter" || e.key === " " || e.key === "ArrowDown") && !this.#isOpen) {
+            e.preventDefault();
+            this.#openDropdown();
+            this.#optionEls[0]?.focus();
+          } else if (e.key === "Escape" && this.#isOpen) {
+            this.#closeDropdown();
+            this.#selectedBtn.focus();
+          }
+        });
+        this.#docClickHandler = (e) => {
+          if (this.#isOpen && !this.root.host.contains(e.target)) this.#closeDropdown();
+        };
+        document.addEventListener("click", this.#docClickHandler);
       }
 
       this.renderCompanions();
@@ -3088,48 +3309,116 @@
       this._attachGestureHandlers(this.root.querySelector("[part=card]"));
     }
 
+    #buildPills(options) {
+      if (!this.#grid) return;
+      this.#grid.innerHTML = "";
+      this.#pillButtons = [];
+      for (const opt of options) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "hrv-is-pill";
+        btn.dataset.option = opt;
+        btn.textContent = opt;
+        btn.addEventListener("click", () => {
+          this.config.card?.sendCommand("select_option", { option: opt });
+        });
+        this.#grid.appendChild(btn);
+        this.#pillButtons.push(btn);
+      }
+    }
+
+    #buildDropdownOptions(options) {
+      if (!this.#dropdown) return;
+      this.#dropdown.innerHTML = "";
+      this.#optionEls = [];
+      for (const opt of options) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "hrv-is-option";
+        btn.role = "option";
+        btn.dataset.option = opt;
+        btn.textContent = opt;
+        btn.addEventListener("click", () => {
+          this.config.card?.sendCommand("select_option", { option: opt });
+          this.#closeDropdown();
+          this.#selectedBtn?.focus();
+        });
+        btn.addEventListener("keydown", (e) => {
+          const opts = this.#optionEls;
+          const idx = opts.indexOf(btn);
+          if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(idx + 1, opts.length - 1)]?.focus(); }
+          else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (idx === 0) this.#selectedBtn?.focus(); else opts[idx - 1]?.focus();
+          } else if (e.key === "Escape") { this.#closeDropdown(); this.#selectedBtn?.focus(); }
+        });
+        this.#dropdown.appendChild(btn);
+        this.#optionEls.push(btn);
+      }
+    }
+
+    #positionDropdown() {
+      if (!this.#dropdown || !this.#selectedBtn) return;
+      const r = this.#selectedBtn.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - r.bottom;
+      const spaceAbove = r.top;
+      const dropH = Math.min(this.#dropdown.scrollHeight || 280, 280);
+      this.#dropdown.style.left = `${Math.round(r.left)}px`;
+      this.#dropdown.style.width = `${Math.round(r.width)}px`;
+      if (spaceBelow < dropH + 8 && spaceAbove > spaceBelow) {
+        this.#dropdown.style.top = `${Math.max(8, Math.round(r.top - dropH - 6))}px`;
+      } else {
+        this.#dropdown.style.top = `${Math.round(r.bottom + 6)}px`;
+      }
+    }
+
     #openDropdown() {
       if (!this.#dropdown || !this.#options.length) return;
-
-      this.#dropdown.innerHTML = this.#options.map(opt => /* html */`
-        <button class="hrv-is-option" type="button"
-          data-active="${opt === this.#current}"
-          title="${_esc(opt)}">
-          ${_esc(opt)}
-        </button>
-      `).join("");
-
-      this.#dropdown.querySelectorAll(".hrv-is-option").forEach((btn, i) => {
-        btn.addEventListener("click", () => {
-          this.config.card?.sendCommand("select_option", { option: this.#options[i] });
-          this.#closeDropdown();
-        });
-      });
-
-      const card = this.root.querySelector("[part=card]");
-      if (card) card.style.overflow = "visible";
-      this.#dropdown.removeAttribute("hidden");
+      try { this.#dropdown.showPopover?.(); } catch { /* ignore */ }
+      this.#selectedBtn?.setAttribute("aria-expanded", "true");
+      this.#positionDropdown();
+      this.#repositionHandler = () => this.#positionDropdown();
+      window.addEventListener("scroll", this.#repositionHandler, true);
+      window.addEventListener("resize", this.#repositionHandler);
       this.#isOpen = true;
     }
 
     #closeDropdown() {
-      this.#dropdown?.setAttribute("hidden", "");
-      const card = this.root.querySelector("[part=card]");
-      if (card) card.style.overflow = "";
+      try { this.#dropdown?.hidePopover?.(); } catch { /* ignore */ }
+      this.#selectedBtn?.setAttribute("aria-expanded", "false");
+      if (this.#repositionHandler) {
+        window.removeEventListener("scroll", this.#repositionHandler, true);
+        window.removeEventListener("resize", this.#repositionHandler);
+        this.#repositionHandler = null;
+      }
       this.#isOpen = false;
     }
 
     applyState(state, attributes) {
       this.#current = state;
-      this.#options = attributes?.options ?? this.#options;
+      const incoming = attributes?.options;
+      const options = (Array.isArray(incoming) && incoming.length) ? incoming : this.#options;
+      this.#options = options;
 
-      const label = this.root.querySelector(".hrv-is-label");
-      if (label) label.textContent = state;
+      const optionsKey = options.join("|");
+      if (optionsKey !== this.#lastOptionsKey) {
+        this.#lastOptionsKey = optionsKey;
+        if (this.#displayMode === "dropdown") this.#buildDropdownOptions(options);
+        else this.#buildPills(options);
+      }
 
-      if (this.#isOpen) {
-        this.#dropdown?.querySelectorAll(".hrv-is-option").forEach((btn, i) => {
-          btn.setAttribute("data-active", String(this.#options[i] === state));
-        });
+      if (this.#displayMode === "dropdown") {
+        const label = this.root.querySelector(".hrv-is-label");
+        if (label) label.textContent = state;
+        for (const btn of this.#optionEls) {
+          btn.setAttribute("data-active", String(btn.dataset.option === state));
+        }
+      } else {
+        for (const btn of this.#pillButtons) {
+          btn.setAttribute("data-active", String(btn.dataset.option === state));
+        }
+        const label = this.root.querySelector(".hrv-is-label");
+        if (label) label.textContent = state;
       }
 
       this.announceState(`${this.def.friendly_name}, ${state}`);
@@ -3137,9 +3426,22 @@
 
     predictState(action, data) {
       if (action === "select_option" && data.option !== undefined) {
-        return { state: String(data.option), attributes: {} };
+        return { state: String(data.option), attributes: { options: this.#options } };
       }
       return null;
+    }
+
+    destroy() {
+      if (this.#docClickHandler) {
+        document.removeEventListener("click", this.#docClickHandler);
+        this.#docClickHandler = null;
+      }
+      if (this.#repositionHandler) {
+        window.removeEventListener("scroll", this.#repositionHandler, true);
+        window.removeEventListener("resize", this.#repositionHandler);
+        this.#repositionHandler = null;
+      }
+      try { this.#dropdown?.hidePopover?.(); } catch { /* ignore */ }
     }
   }
 
@@ -4490,6 +4792,7 @@
     /** @type {HTMLElement|null} */ #toggleEl       = null;
     /** @type {HTMLElement|null} */ #scrollTrackEl  = null;
     /** @type {HTMLElement|null} */ #scrollThumbEl  = null;
+    #scrollTeardown = null;
     get #forecastMode() { return this.config._forecastMode ?? "daily"; }
     set #forecastMode(v) { this.config._forecastMode = v; }
     #forecastDaily  = null;
@@ -4546,6 +4849,7 @@
 
       if (this.#forecastEl) {
         this.#forecastEl.addEventListener("scroll", () => this.#syncScrollThumb(), { passive: true });
+        this.#scrollTeardown = _installMomentumScroll(this.#forecastEl);
       }
       if (this.#scrollTrackEl) {
         this.#scrollTrackEl.addEventListener("pointerdown", (e) => this.#onTrackPointerDown(e));
@@ -4554,6 +4858,11 @@
       this.renderCompanions();
       _applyCompanionTooltips(this.root);
       this._attachGestureHandlers(this.root.querySelector("[part=card]"));
+    }
+
+    destroy() {
+      this.#scrollTeardown?.();
+      this.#scrollTeardown = null;
     }
 
     applyState(state, attributes) {
@@ -4569,11 +4878,19 @@
       if (this.#condEl) this.#condEl.textContent = condLabel;
 
       const temp = attributes.temperature ?? attributes.native_temperature;
-      const tempUnit = attributes.temperature_unit ?? "";
+      let tempUnit = String(
+        attributes.temperature_unit
+        || attributes.native_temperature_unit
+        || this.def.unit_of_measurement
+        || "°C"
+      ).trim();
+      if (tempUnit && !/^°/.test(tempUnit) && tempUnit.length <= 2) {
+        tempUnit = `°${tempUnit}`;
+      }
       if (this.#tempEl) {
         const unitEl = this.#tempEl.querySelector(".hrv-weather-unit");
         this.#tempEl.firstChild.textContent = temp != null ? Math.round(Number(temp)) : "--";
-        if (unitEl) unitEl.textContent = tempUnit ? ` ${tempUnit}` : "";
+        if (unitEl) unitEl.textContent = tempUnit;
       }
 
       if (this.#humidityEl) {
@@ -4726,8 +5043,14 @@
   };
 
   const _BADGE_INACTIVE = new Set([
-    "off", "unavailable", "unknown", "idle", "closed", "standby", "not_home",
+    "off", "idle", "closed", "standby", "not_home",
     "locked", "jammed", "locking", "unlocking",
+  ]);
+  const _BADGE_UNAVAILABLE = new Set(["unavailable", "unknown"]);
+  const _BADGE_ONOFF_DOMAINS = new Set([
+    "light", "switch", "input_boolean", "fan", "climate", "cover",
+    "media_player", "timer", "person", "device_tracker", "lock",
+    "binary_sensor",
   ]);
 
   const _BADGE_DOMAIN_FB = {
@@ -4837,10 +5160,18 @@
     applyState(state, attributes) {
       const hints = this.def.display_hints ?? {};
       const colorKey = hints.badge_icon_color ?? "auto";
-      const isActive = !_BADGE_INACTIVE.has(state);
+      const isUnavailable = _BADGE_UNAVAILABLE.has(state);
+      const isOnOffDomain = _BADGE_ONOFF_DOMAINS.has(this.def.domain);
+      const isActive = !isUnavailable && (!isOnOffDomain || !_BADGE_INACTIVE.has(state));
       if (this.#iconEl) {
-        this.#iconEl.style.color = isActive
-          ? (_BADGE_ICON_COLORS[colorKey] ?? _BADGE_ICON_COLORS.auto) : "#9ca3af";
+        // User-chosen color always wins. "auto" defers to active/inactive.
+        if (colorKey !== "auto") {
+          this.#iconEl.style.color = _BADGE_ICON_COLORS[colorKey];
+          this.#iconEl.style.opacity = isActive ? "1" : "0.65";
+        } else {
+          this.#iconEl.style.color = isActive ? _BADGE_ICON_COLORS.auto : "#9ca3af";
+          this.#iconEl.style.opacity = "1";
+        }
         const fb = _BADGE_DOMAIN_FB[this.def.domain] ?? "mdi:help-circle";
         const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? fb;
         this.renderIcon(this.resolveIcon(rawIcon, fb), "badge-icon");
@@ -4870,6 +5201,7 @@
     "input_boolean":  SwitchCard,
     "input_number":   InputNumberCard,
     "input_select":   InputSelectCard,
+    "select":         InputSelectCard,
     "media_player":   MediaPlayerCard,
     "remote":         RemoteCard,
     "sensor":         SensorCard,
@@ -4881,6 +5213,8 @@
     _capabilities: {
       fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
       input_number: { display_modes: ["slider", "buttons"] },
+      input_select: { display_modes: ["pills", "dropdown"] },
+      select:       { display_modes: ["pills", "dropdown"] },
       light:        { features: ["brightness", "color_temp", "rgb"] },
       climate:      { features: ["hvac_modes", "presets", "fan_mode", "swing_mode"] },
       cover:        { features: ["position", "tilt"] },

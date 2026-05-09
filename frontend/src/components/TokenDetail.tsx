@@ -1855,6 +1855,22 @@ function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError
               </div>
             )}
 
+            {selectedEntity.capabilities !== "badge" && (selectedDomain === "input_select" || selectedDomain === "select") && hasFeature(packCap, selectedDomain, "dropdown") && (
+              <div className="entity-setting-group">
+                <div className="entity-setting-group-title">Select settings</div>
+                <div className="settings-toggle-grid">
+                  <label className="settings-toggle-item">
+                    <Toggle
+                      checked={selectedEntity.display_hints?.display_mode === "dropdown"}
+                      onChange={v => updateDisplayHint(selectedEntity.entity_id, "display_mode", v ? "dropdown" : null)}
+                      disabled={!canEdit}
+                    />
+                    <span>Show as dropdown</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             {selectedEntity.capabilities !== "badge" && (
             <div className="entity-setting-group">
               <div className="entity-setting-group-title">

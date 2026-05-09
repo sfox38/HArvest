@@ -37,6 +37,7 @@ const _DOMAIN_FALLBACK = {
   media_player:   "mdi:cast",
   input_number:   "mdi:numeric",
   input_select:   "mdi:format-list-bulleted",
+  select:         "mdi:format-list-bulleted",
   remote:         "mdi:remote",
   timer:          "mdi:timer-outline",
   harvest_action: "mdi:play-circle-outline",

@@ -74,6 +74,8 @@ export class HrvCard extends HTMLElement {
   /** @type {ReturnType<typeof setTimeout>|null} */ #optimisticTimer = null;
   /** @type {object|null}  */ #i18n          = null;
   /** @type {object|null}  */ #entityDef     = null;
+  /** @type {string}       */ #tokenColorScheme  = "auto";
+  /** @type {string}       */ #entityColorScheme = "auto";
   /** @type {string|null}  */ #lastState     = null;
   /** @type {object|null}  */ #lastAttributes = null;
   /** @type {Map<string, {state:string, attributes:object}>} */ #lastCompanionStates = new Map();
@@ -198,11 +200,15 @@ export class HrvCard extends HTMLElement {
     this.#config.period = hints.period ?? 10;
     this.#config.animate = !!hints.animate;
     // Entity-level color_scheme overrides token-level only if explicitly set.
-    // "auto" means "defer to token_config", not "reset to auto".
+    // "auto" defers to the token-level scheme (#tokenColorScheme), which in
+    // turn falls back to the page-level scheme. The previous version only
+    // wrote to colorScheme when entityCS was non-auto, which meant flipping
+    // an entity from "dark" back to "auto" left colorScheme stuck on "dark".
     const entityCS = def.color_scheme ?? "auto";
-    if (entityCS !== "auto") {
-      this.#config.colorScheme = entityCS;
-    }
+    this.#entityColorScheme = entityCS;
+    this.#config.colorScheme = (entityCS !== "auto")
+      ? entityCS
+      : (this.#tokenColorScheme ?? "auto");
     this.#config.displayHints = hints;
 
     // Reflect color scheme on the host element and re-apply theme.
@@ -247,6 +253,10 @@ export class HrvCard extends HTMLElement {
 
     if (isBadge) this.setAttribute("data-hrv-badge", "");
     else this.removeAttribute("data-hrv-badge");
+
+    // Tear down the previous renderer (if any) so its observers and document
+    // listeners are released before the new instance is constructed.
+    this.#renderer?.destroy?.();
 
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
@@ -369,8 +379,13 @@ export class HrvCard extends HTMLElement {
     this.#config.offlineText = config.offlineText ?? "";
     this.#config.errorText = config.errorText ?? "";
     const newScheme = config.colorScheme ?? "auto";
-    const schemeChanged = newScheme !== this.#config.colorScheme;
-    this.#config.colorScheme = newScheme;
+    this.#tokenColorScheme = newScheme;
+    // Effective scheme: entity override (if explicit) wins over the token's.
+    const effective = (this.#entityColorScheme && this.#entityColorScheme !== "auto")
+      ? this.#entityColorScheme
+      : newScheme;
+    const schemeChanged = effective !== this.#config.colorScheme;
+    this.#config.colorScheme = effective;
     if (schemeChanged) {
       const cs = _resolveColorScheme(this.#config.colorScheme || _pageConfig.colorScheme || "");
       if (cs === "light" || cs === "dark") {

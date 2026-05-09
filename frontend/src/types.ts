@@ -179,6 +179,8 @@ export interface HarvestAction {
 export interface ThemeCapabilities {
   fan?: { display_modes?: string[] };
   input_number?: { display_modes?: string[] };
+  input_select?: { display_modes?: string[] };
+  select?: { display_modes?: string[] };
   light?: { features?: string[] };
   climate?: { features?: string[] };
   cover?: { features?: string[] };
