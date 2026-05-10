@@ -12,6 +12,7 @@
  */
 
 import { getClientInfo } from "./client-info.js";
+import { getPageConfig } from "./page-config.js";
 
 // Reconnect delay sequence in milliseconds.
 const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
@@ -20,6 +21,8 @@ const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
 const HEARTBEAT_TIMEOUT_MS = 60_000;
 
 // Auth debounce: wait this long after the first card mounts before opening WS.
+// Used to coalesce multiple registerCard() calls into a single auth message.
+// Skipped on single-card pages with no HArvest.config() (see registerCard).
 const AUTH_DEBOUNCE_MS = 50;
 
 // Maximum consecutive re-auth failures before entering permanent HRV_AUTH_FAILED.
@@ -169,24 +172,90 @@ export class HarvestClient {
     this.#cards.set(entityId, card);
 
     if (this.#ws !== null && this.#ws.readyState === WebSocket.OPEN && this.#sessionId) {
-      // Connection already open: subscribe the new entity immediately.
+      // Connection already open and authed: subscribe the new entity immediately.
       this.#sendJson({
         type: "subscribe",
         session_id: this.#sessionId,
         entity_ids: [entityId],
         msg_id: this.#nextMsgId(),
       });
-    } else {
-      // Queue for the initial auth message.
-      this.#pendingEntityIds.add(entityId);
-
-      if (this.#ws === null && this.#authDebounceTimer === null && !this.#permanentFailure) {
-        this.#authDebounceTimer = setTimeout(() => {
-          this.#authDebounceTimer = null;
-          this.#openConnection();
-        }, AUTH_DEBOUNCE_MS);
-      }
+      return;
     }
+
+    // Queue for the initial auth message.
+    this.#pendingEntityIds.add(entityId);
+
+    if (this.#permanentFailure || this.#authDebounceTimer !== null) return;
+
+    // Probe phase: defer one macrotask so any sync-task siblings (static
+    // <hrv-card>s parsed in the same tick, or programmatic create() loops)
+    // have a chance to register and add to #pendingEntityIds. Then decide
+    // whether to skip the 50ms coalescing wait.
+    this.#authDebounceTimer = setTimeout(() => this.#triggerAuthDispatch(), 0);
+  }
+
+  /**
+   * After the 0ms probe: decide whether to skip the 50ms debounce.
+   *
+   * Rules:
+   *   - HArvest.config() called: page-level setup implies multiple cards
+   *     are likely (programmatic create() or many static cards sharing a
+   *     token). Use the full debounce.
+   *   - Otherwise, if only one entity is pending: this is the only card on
+   *     the page; fire auth/connect immediately.
+   *   - Otherwise (multiple cards already pending): use the full debounce
+   *     to absorb any further siblings.
+   */
+  #triggerAuthDispatch() {
+    this.#authDebounceTimer = null;
+    if (this.#permanentFailure) return;
+
+    const hasPageConfig = Object.keys(getPageConfig()).length > 0;
+    const skipDebounce = !hasPageConfig && this.#pendingEntityIds.size <= 1;
+
+    if (skipDebounce) {
+      this.#dispatchAuth();
+    } else {
+      this.#authDebounceTimer = setTimeout(() => {
+        this.#authDebounceTimer = null;
+        this.#dispatchAuth();
+      }, AUTH_DEBOUNCE_MS);
+    }
+  }
+
+  /**
+   * Send the auth message, opening the WS first if it isn't already.
+   * If prewarm() opened the WS but it's still CONNECTING, #onOpen will see
+   * pending entity IDs and call #sendAuth itself.
+   */
+  #dispatchAuth() {
+    if (this.#ws === null) {
+      this.#openConnection();
+      return;
+    }
+    if (this.#ws.readyState === WebSocket.OPEN && !this.#sessionId) {
+      this.#sendAuth().catch((err) => {
+        console.error("[HArvest] HMAC signing failed - entering permanent failure:", err);
+        this.#permanentFailure = true;
+        for (const card of this.#cards.values()) {
+          card.setErrorState?.("HRV_AUTH_FAILED");
+        }
+        this.#ws?.close();
+      });
+    }
+    // Else: WS is CONNECTING (from prewarm). #onOpen will detect pending IDs.
+  }
+
+  /**
+   * Eagerly open the WebSocket without sending auth. Called by HArvest.config()
+   * via harvest-entry.js when haUrl + token are known before any card mounts.
+   * The TLS handshake then overlaps with HTML parse + the auth debounce.
+   *
+   * No-op if a WS is already open, currently opening, or after permanent failure.
+   */
+  prewarm() {
+    if (this.#ws !== null || this.#permanentFailure) return;
+    this.#openConnection();
   }
 
   /**
@@ -376,6 +445,13 @@ export class HarvestClient {
 
   async #onOpen() {
     this.#resetHeartbeat();
+    // Prewarm path: WS opened from HArvest.config() before any cards mounted.
+    // Server's auth_timeout_seconds (default 10s) bounds how long the
+    // connection can sit idle before being closed; that's fine because
+    // the first card normally mounts within milliseconds.
+    if (this.#pendingEntityIds.size === 0 && this.#cards.size === 0) {
+      return;
+    }
     try {
       await this.#sendAuth();
     } catch (err) {
@@ -677,6 +753,13 @@ export class HarvestClient {
       return;
     }
     const entityId = msg.entity_id;
+    // Cache the definition so the next mount can render from localStorage
+    // before this WS round-trip completes. See StateCache.writeDef.
+    try {
+      StateCache.writeDef(this.#tokenId, entityId, msg);
+    } catch {
+      // Cache is best-effort; never block dispatch.
+    }
     const card = this.#cards.get(entityId);
     if (card) {
       card.receiveDefinition?.(msg);

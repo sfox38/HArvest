@@ -62,6 +62,8 @@ function _batteryIcon(level) {
 
 
 export class BatterySensorCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #valueEl = null;
   /** @type {string|null} */      #currentIcon = null;
 

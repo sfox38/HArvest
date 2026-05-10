@@ -371,6 +371,19 @@ function _getSharedSheet() {
 }
 
 export class BaseCard {
+  /**
+   * Whether this renderer is safe to instantiate from a cached
+   * entity_definition + state pair before the live WebSocket has
+   * authenticated. Default false: showing a stale state (e.g. a stale "off"
+   * for a light that's now "on") can mislead the user into a redundant
+   * action. Subclasses for read-only Tier 1 entities (sensors, weather,
+   * binary sensors, timers) override this to true since stale numeric or
+   * status data is harmless and improves perceived load time.
+   *
+   * @type {boolean}
+   */
+  static staleOnMount = false;
+
   /** @type {object} */ def;
   /** @type {ShadowRoot} */ root;
   /** @type {object} */ config;

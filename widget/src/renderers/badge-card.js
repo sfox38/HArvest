@@ -155,6 +155,8 @@ const BADGE_STYLES = /* css */`
 
 
 export class BadgeCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #iconEl = null;
   /** @type {HTMLElement|null} */ #stateEl = null;
   /** @type {HTMLElement|null} */ #badgeEl = null;

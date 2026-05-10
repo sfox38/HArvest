@@ -296,6 +296,8 @@ function _installMomentumScroll(strip) {
 }
 
 export class WeatherCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #iconEl     = null;
   /** @type {HTMLElement|null} */ #tempEl     = null;
   /** @type {HTMLElement|null} */ #condEl     = null;

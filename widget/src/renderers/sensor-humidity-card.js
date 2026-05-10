@@ -31,6 +31,8 @@ const HUMIDITY_STYLES = /* css */`
 
 
 export class HumiditySensorCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #valueEl = null;
 
   render() {

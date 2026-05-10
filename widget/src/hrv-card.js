@@ -26,18 +26,13 @@ import { applyErrorState }      from "./error-states.js";
 import { ThemeLoader }          from "./theme-loader.js";
 import { I18n }                 from "./i18n.js";
 import { lookupRenderer }       from "./renderers/index.js";
+import { getPageConfig }        from "./page-config.js";
 
-// Page-level config set by HArvest.config(). Shared across all card instances.
-// Exported so harvest-client.js and hrv-mount.js can call getPageConfig().
-const _pageConfig = {};
+// Re-exported so existing harvest-entry.js imports continue to work.
+export { config, getPageConfig } from "./page-config.js";
 
-export function config(options) {
-  Object.assign(_pageConfig, options);
-}
-
-export function getPageConfig() {
-  return _pageConfig;
-}
+// Local alias to the shared page-config object (same reference).
+const _pageConfig = getPageConfig();
 
 // ---------------------------------------------------------------------------
 // Color scheme resolution
@@ -155,6 +150,29 @@ export class HrvCard extends HTMLElement {
     this.#config.card = this;
 
     this.#client.registerCard(entityRef, this);
+
+    // Stale-render fast path: if both an entity_definition AND state are
+    // cached from a previous visit, AND the renderer opts in via static
+    // staleOnMount = true, build the renderer right now and apply the
+    // cached state. The card is visible before the WS auth round-trip.
+    // When the real entity_definition arrives, receiveDefinition's
+    // JSON.stringify-equality check rebuilds only if the schema actually
+    // changed; identical defs are a no-op so there is no visible flicker.
+    // staleOnMount defaults to false on BaseCard - controllable entities
+    // (lights, switches, locks, climate, etc.) skip this path because
+    // showing a stale state could mislead the user into a redundant action.
+    if (this.#optimisticState) {
+      const cachedDef = StateCache.readDef(this.#config.tokenId, entityRef);
+      if (cachedDef) {
+        const isBadge = cachedDef.capabilities === "badge";
+        const RendererClass = isBadge
+          ? lookupRenderer("badge", null)
+          : lookupRenderer(cachedDef.domain, cachedDef.device_class ?? null);
+        if (RendererClass?.staleOnMount === true) {
+          this.receiveDefinition(cachedDef);
+        }
+      }
+    }
   }
 
   disconnectedCallback() {

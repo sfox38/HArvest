@@ -32,6 +32,8 @@ const TEMP_SENSOR_STYLES = /* css */`
 
 
 export class TemperatureSensorCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #valueEl = null;
   /** @type {HTMLElement|null} */ #unitEl  = null;
 

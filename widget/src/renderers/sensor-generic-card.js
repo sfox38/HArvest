@@ -32,6 +32,8 @@ const GENERIC_SENSOR_STYLES = /* css */`
 
 
 export class GenericSensorCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #valueEl = null;
   /** @type {HTMLElement|null} */ #unitEl  = null;
 

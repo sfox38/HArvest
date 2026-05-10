@@ -26,6 +26,8 @@ const BINARY_SENSOR_STYLES = /* css */`
 
 
 export class BinarySensorCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #stateLabel = null;
 
   render() {

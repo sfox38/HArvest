@@ -52,6 +52,20 @@ function _keyFor(tokenId, entityId) {
 }
 
 /**
+ * Derive the localStorage key for a cached entity_definition. Uses a distinct
+ * prefix from the state key so a single (tokenId, entityId) pair can have both
+ * entries simultaneously without collision.
+ * @param {string} tokenId
+ * @param {string} entityId
+ * @returns {string}
+ */
+function _defKeyFor(tokenId, entityId) {
+  const raw = `${tokenId}|${entityId}|def`;
+  const hash = _djb2(raw);
+  return `hrvd_${Math.abs(hash).toString(16).padStart(8, "0")}`;
+}
+
+/**
  * Thin wrapper around localStorage. Provides write(), read(), and remove()
  * with silent failure semantics.
  */
@@ -121,6 +135,69 @@ export class StateCache {
   static remove(tokenId, entityId) {
     try {
       localStorage.removeItem(_keyFor(tokenId, entityId));
+    } catch {
+      // Ignore.
+    }
+  }
+
+  /**
+   * Cache an entity_definition message so the next page load can render from
+   * cache before the WebSocket auth completes. Stored under a distinct key
+   * namespace (hrvd_) so it never collides with state entries.
+   *
+   * @param {string} tokenId
+   * @param {string} entityId
+   * @param {object} def - Full entity_definition message from the server.
+   */
+  static writeDef(tokenId, entityId, def) {
+    try {
+      const key = _defKeyFor(tokenId, entityId);
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          token_id: tokenId,
+          entity_id: entityId,
+          def,
+          cached_at: new Date().toISOString(),
+        }),
+      );
+    } catch {
+      // Cache is best-effort; ignore quota/security failures.
+    }
+  }
+
+  /**
+   * Read a cached entity_definition. Returns null on cache miss, parse failure,
+   * any localStorage error, or hash-collision mismatch on (tokenId, entityId).
+   *
+   * @param {string} tokenId
+   * @param {string} entityId
+   * @returns {object|null}
+   */
+  static readDef(tokenId, entityId) {
+    try {
+      const key = _defKeyFor(tokenId, entityId);
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.token_id !== tokenId || parsed?.entity_id !== entityId) {
+        return null;
+      }
+      return parsed.def ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Remove a cached entity_definition entry. No-op if absent.
+   *
+   * @param {string} tokenId
+   * @param {string} entityId
+   */
+  static removeDef(tokenId, entityId) {
+    try {
+      localStorage.removeItem(_defKeyFor(tokenId, entityId));
     } catch {
       // Ignore.
     }

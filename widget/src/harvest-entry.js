@@ -17,8 +17,9 @@
  *   track.anyState(callback)               - Listen to all state updates
  */
 
-import { config, getPageConfig, HrvCard } from "./hrv-card.js";
-import { HrvGroup }                        from "./hrv-group.js";
+import { HrvCard }                          from "./hrv-card.js";
+import { HrvGroup }                         from "./hrv-group.js";
+import { config as setPageConfig, getPageConfig } from "./page-config.js";
 import { getOrCreateClient, getClient, setStateCacheRef } from "./harvest-client.js";
 import { StateCache }                      from "./state-cache.js";
 import { registerRenderer, lookupRenderer } from "./renderers/index.js";
@@ -26,6 +27,26 @@ import * as Renderers                      from "./renderers/index.js";
 import { buildEntityDef, filterAttributes } from "./entity-def-builder.js";
 import { esc } from "./_utils/esc.js";
 import "./hrv-mount.js";
+
+/**
+ * Public HArvest.config() entry point. Stores page-level defaults AND, when
+ * haUrl + token are both set, eagerly opens the WebSocket so the TLS
+ * handshake overlaps with HTML parsing instead of blocking the first paint.
+ * No-ops cleanly when only haUrl or only token is provided.
+ */
+function config(options) {
+  setPageConfig(options);
+  const pc = getPageConfig();
+  if (pc.haUrl && pc.token) {
+    try {
+      const client = getOrCreateClient(pc.haUrl, pc.token, pc.tokenSecret ?? null);
+      client.prewarm();
+    } catch (err) {
+      // Prewarm is purely an optimization - never block config().
+      console.warn("[HArvest] WS prewarm at config() failed:", err);
+    }
+  }
+}
 
 // Wire StateCache into HarvestClient (avoids a circular import at module
 // evaluation time - the proxy in harvest-client.js resolves it here).
