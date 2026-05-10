@@ -11,6 +11,8 @@
  *   destroyClient(haUrl, tokenId)
  */
 
+import { getClientInfo } from "./client-info.js";
+
 // Reconnect delay sequence in milliseconds.
 const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
 
@@ -461,6 +463,11 @@ export class HarvestClient {
       entity_ids: entityIds,
       page_path: window.location.pathname,
       msg_id: this.#nextMsgId(),
+      // Compatibility handshake (SPEC.md Section 5.1, Section 12).
+      // Server uses this block to detect version drift and surface
+      // banners in the panel; old servers ignore unknown fields, so
+      // including this on every connect is purely additive.
+      client: getClientInfo(),
     };
 
     if (this.#tokenSecret) {
@@ -595,6 +602,30 @@ export class HarvestClient {
   #handleAuthFailed(msg) {
     const code = msg.code ?? "HRV_AUTH_FAILED";
     console.warn("[HArvest] Auth failed:", code);
+
+    // HRV_PROTOCOL_INCOMPATIBLE is its own permanent state, distinct
+    // from the generic auth-failed bucket. The visitor sees a clear
+    // "Widget version cannot connect to this server. Update your
+    // snippet" message rather than the generic "Widget unavailable",
+    // because the cause (stale cached snippet on a public page) is
+    // user-actionable. Server side: SPEC.md Section 5.3, Section 12.
+    if (code === "HRV_PROTOCOL_INCOMPATIBLE") {
+      this.#permanentFailure = true;
+      const serverInfo = msg.server || {};
+      console.error(
+        "[HArvest] Widget version cannot connect: client speaks protocol %d, " +
+        "server accepts [%d, %d]. Server version: %s. Update your snippet.",
+        getClientInfo().protocol,
+        serverInfo.min_client_protocol,
+        serverInfo.protocol,
+        serverInfo.version,
+      );
+      for (const card of this.#cards.values()) {
+        card.setErrorState?.("HRV_INCOMPATIBLE");
+      }
+      this.#ws?.close();
+      return;
+    }
 
     const permanentCodes = [
       "HRV_TOKEN_INVALID", "HRV_TOKEN_EXPIRED",

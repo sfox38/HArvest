@@ -80,6 +80,8 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestEntitiesView,
         HarvestEntityDefinitionView,
         HarvestPanelJsView,
+        HarvestWarningsView,
+        HarvestWarningsDismissView,
     ]
     for view_cls in views:
         hass.http.register_view(view_cls(hass, entry_id))
@@ -101,7 +103,15 @@ def _token_to_dict(token: Token) -> dict:
 
 
 def _session_to_dict(session) -> dict:
-    """Serialise a Session to a JSON-safe dict (no WebSocket reference)."""
+    """Serialise a Session to a JSON-safe dict (no WebSocket reference).
+
+    Includes the client/server compatibility fields (SPEC.md Section 12)
+    so the panel home banner can group sessions by their reported source
+    and surface version-drift warnings. Old widgets predating the auth
+    `client` block populate the defaults from session_manager.Session
+    (protocol=1, source="unknown", compatibility="ok"), which the panel
+    treats as "no warning to surface."
+    """
     return {
         "session_id": session.session_id,
         "token_id": session.token_id,
@@ -115,6 +125,13 @@ def _session_to_dict(session) -> dict:
         "ip_address": session.source_ip,
         "subscribed_entity_ids": list(session.subscribed_entity_ids),
         "last_message_at": session.last_message_at.isoformat(),
+        "client": {
+            "protocol": session.client_protocol,
+            "widget": session.client_widget_version,
+            "source": session.client_source,
+            "source_version": session.client_source_version,
+        },
+        "compatibility": session.compatibility,
     }
 
 
@@ -476,6 +493,12 @@ class _HarvestView(HomeAssistantView):
     @property
     def _pack_manager(self) -> PackManager | None:
         return self._data.get("pack_manager")
+
+    @property
+    def _warnings_store(self):
+        # Imported lazily to avoid widening the module-level import surface
+        # for a single dot-access; type hint is informational.
+        return self._data.get("warnings_store")
 
     @property
     def _sensors(self) -> DiagnosticSensors | None:
@@ -2037,6 +2060,66 @@ class HarvestStatsView(_HarvestView):
             "errors_today": today.get("auth_fail", 0),
             "db_size_bytes": db_size,
             "is_running": True,
+        })
+
+
+# ---------------------------------------------------------------------------
+# Warnings (drift banner dismissal) - SPEC.md Section 12
+# ---------------------------------------------------------------------------
+
+class HarvestWarningsView(_HarvestView):
+    """GET  /api/harvest/warnings           - read dismiss state and current version.
+    POST /api/harvest/warnings/dismiss     - dismiss banners at current version.
+
+    Combined into a single view class with two URL routes via separate
+    sub-views below; this class owns the GET. The POST lives on
+    HarvestWarningsDismissView so each route maps to one verb cleanly.
+    """
+
+    url = "/api/harvest/warnings"
+    name = "api:harvest:warnings"
+
+    async def get(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        from .const import PLATFORM_VERSION
+        store = self._warnings_store
+        # During the brief gap between unload and re-setup, _warnings_store
+        # may be None. Treat as "not dismissed at this version" so the
+        # panel falls back to default behavior (show banners if any drift).
+        dismissed_at = store.dismissed_at_version if store is not None else None
+        return self.json({
+            "current_version": PLATFORM_VERSION,
+            "dismissed_at_version": dismissed_at,
+            "dismissed": dismissed_at == PLATFORM_VERSION,
+        })
+
+
+class HarvestWarningsDismissView(_HarvestView):
+    """POST /api/harvest/warnings/dismiss - record a dismissal at the
+    server's current PLATFORM_VERSION. Idempotent: posting twice in a
+    row is a no-op since the stored value already matches.
+    """
+
+    url = "/api/harvest/warnings/dismiss"
+    name = "api:harvest:warnings:dismiss"
+
+    async def post(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        store = self._warnings_store
+        if store is None:
+            raise web.HTTPServiceUnavailable(
+                reason="HArvest warnings store is not currently loaded."
+            )
+        from .const import PLATFORM_VERSION
+        await store.dismiss(PLATFORM_VERSION)
+        return self.json({
+            "current_version": PLATFORM_VERSION,
+            "dismissed_at_version": PLATFORM_VERSION,
+            "dismissed": True,
         })
 
 

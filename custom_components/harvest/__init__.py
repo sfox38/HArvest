@@ -26,6 +26,7 @@ from .panel import register_panel
 from .rate_limiter import RateLimiter
 from .session_manager import SessionManager
 from .token_manager import TokenManager
+from .warnings_store import WarningsStore
 from .ws_proxy import HarvestWsView
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,6 +67,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await theme_manager.load()
     pack_manager = PackManager(hass)
     await pack_manager.load()
+
+    warnings_store = WarningsStore(hass)
+    await warnings_store.load()
 
     # DiagnosticSensors takes token_manager in addition to the spec's 3 args
     # because HarvestActiveTokensSensor needs to query get_active().
@@ -146,6 +150,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "action_manager":  action_manager,
         "theme_manager":   theme_manager,
         "pack_manager":    pack_manager,
+        "warnings_store":  warnings_store,
         "sensors":         sensors,
         "controls":        controls,
         "unsub_purge":     unsub_purge,

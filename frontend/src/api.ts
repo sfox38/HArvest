@@ -23,6 +23,7 @@ import type {
   HAEntityDetail,
   ThemeDefinition,
   PacksResponse,
+  WarningsState,
 } from "./types";
 
 const BASE = "/api/harvest";
@@ -461,6 +462,18 @@ export const api = {
   stats: {
     get: (): Promise<PanelStats> =>
       _get<PanelStats>("/stats"),
+  },
+
+  // ---------------------------------------------------------------------------
+  // Warnings (drift-banner dismissal) - SPEC.md Section 12
+  // ---------------------------------------------------------------------------
+
+  warnings: {
+    get: (): Promise<WarningsState> =>
+      _get<WarningsState>("/warnings"),
+
+    dismiss: (): Promise<WarningsState> =>
+      _post<WarningsState>("/warnings/dismiss"),
   },
 
   // ---------------------------------------------------------------------------

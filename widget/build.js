@@ -27,13 +27,34 @@
 
 import * as esbuild from "esbuild";
 import { createHash } from "node:crypto";
-import { writeFileSync, mkdirSync, copyFileSync, readdirSync, unlinkSync } from "node:fs";
+import { writeFileSync, mkdirSync, copyFileSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SRC_ENTRY = resolve(__dirname, "src/harvest-entry.js");
 const DIST_DIR  = resolve(__dirname, "dist");
+
+// Read PLATFORM_VERSION and PROTOCOL_VERSION from the integration's const.py
+// so the widget bundle reports the same version the server is running. This
+// is what powers the client/server compatibility handshake (SPEC.md Section
+// 12) - the widget sends `client.widget` and `client.protocol` in its auth
+// payload and the server compares them to its own constants. Reading from
+// const.py here guarantees they match at any given release without manual
+// version bumping in widget/version.js.
+const CONST_PY_PATH = resolve(__dirname, "../custom_components/harvest/const.py");
+function readVersionConstants() {
+  const text = readFileSync(CONST_PY_PATH, "utf8");
+  const platform = text.match(/^PLATFORM_VERSION\s*=\s*"([^"]+)"/m);
+  const protocol = text.match(/^PROTOCOL_VERSION\s*=\s*(\d+)/m);
+  if (!platform || !protocol) {
+    throw new Error(
+      `build.js: failed to parse PLATFORM_VERSION / PROTOCOL_VERSION from ${CONST_PY_PATH}. ` +
+      `These constants drive the compatibility handshake; the widget cannot be built without them.`
+    );
+  }
+  return { widget: platform[1], protocol: parseInt(protocol[1], 10) };
+}
 const PACKS = [
   { entry: resolve(__dirname, "src/packs/minimus-pack.js"), out: resolve(__dirname, "../custom_components/harvest/packs/minimus.js") },
   { entry: resolve(__dirname, "src/packs/shrooms-pack.js"), out: resolve(__dirname, "../custom_components/harvest/packs/shrooms.js") },
@@ -50,6 +71,8 @@ const PACK_COPIES = [];
 
 const isWatch = process.argv.includes("--watch");
 
+const versions = readVersionConstants();
+
 /** @type {import("esbuild").BuildOptions} */
 const buildOptions = {
   entryPoints: [SRC_ENTRY],
@@ -62,6 +85,15 @@ const buildOptions = {
   treeShaking: true,
   write:       false,  // we handle writing ourselves for hash computation
   logLevel:    "info",
+  // Build-time constant injection for the compatibility handshake. The
+  // identifiers below appear in widget/src/version.js and are replaced
+  // verbatim at bundle time (esbuild's `define` works on identifiers, so
+  // the placeholders MUST be unique tokens that don't collide with any
+  // real variable name).
+  define: {
+    __HRV_WIDGET_VERSION__: JSON.stringify(versions.widget),
+    __HRV_PROTOCOL_VERSION__: String(versions.protocol),
+  },
 };
 
 /**

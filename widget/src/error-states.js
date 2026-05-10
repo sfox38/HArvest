@@ -16,6 +16,12 @@
  *                       expired, revoked, or 3 consecutive re-auth failures).
  *   HRV_ENTITY_MISSING  - Entity not found in HA or not in token scope.
  *   HRV_ENTITY_REMOVED  - Entity was removed from HA while connected.
+ *   HRV_INCOMPATIBLE    - Widget speaks a WS protocol the server cannot
+ *                       accept (cached snippet outliving an integration
+ *                       update). Permanent; visitor sees a distinct
+ *                       "Update your snippet" message rather than the
+ *                       generic "Widget unavailable", because the cause
+ *                       is admin-actionable. SPEC.md Section 5.3.
  */
 
 /**
@@ -32,6 +38,7 @@ const AUTH_ERROR_STATES = new Set([
   "HRV_AUTH_FAILED",
   "HRV_ENTITY_MISSING",
   "HRV_ENTITY_REMOVED",
+  "HRV_INCOMPATIBLE",
 ]);
 
 /**
@@ -96,9 +103,17 @@ export function applyErrorState(cardEl, shadowRoot, code, config, i18n) {
   }
 
   // treatment === "message" or "last-state" - show message overlay.
-  const defaultMsg = isAuthError
-    ? i18n.t("error.auth_failed")
-    : i18n.t("error.offline");
+  // HRV_INCOMPATIBLE is admin-actionable so it gets its own distinct
+  // message (SPEC.md Section 6 visitor-facing display table) instead of
+  // the generic "Widget unavailable" used for the rest of AUTH_ERROR_STATES.
+  let defaultMsg;
+  if (code === "HRV_INCOMPATIBLE") {
+    defaultMsg = i18n.t("error.incompatible");
+  } else if (isAuthError) {
+    defaultMsg = i18n.t("error.auth_failed");
+  } else {
+    defaultMsg = i18n.t("error.offline");
+  }
 
   _applyMessageOverlay(shadowRoot, config.errorText || defaultMsg);
 }

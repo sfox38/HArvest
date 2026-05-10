@@ -2265,6 +2265,43 @@ button.entity-setting-group-title:focus-visible {
   border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--paper));
 }
 
+/* Drift banner - SPEC.md Section 12 (Client/Server Compatibility).
+   Warning-tone (not danger): version drift is admin-actionable but never
+   blocking. One row per (origin, source, source_version, widget_version)
+   tuple; dismiss is global per PLATFORM_VERSION. */
+.drift-banner {
+  background: var(--warn-weak);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--paper));
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text);
+}
+.drift-banner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.drift-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--warn);
+}
+.drift-banner-list {
+  margin: 0;
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.drift-banner-row {
+  line-height: 1.5;
+}
+
 /* Autocomplete dropdown */
 .autocomplete-dropdown {
   position: fixed;

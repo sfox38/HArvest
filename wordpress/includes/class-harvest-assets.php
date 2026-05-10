@@ -71,6 +71,14 @@ class Harvest_Assets {
             $ver = self::bundled_version();
         }
 
+        // Append the compatibility-handshake source marker so the widget
+        // can identify itself as WP-loaded and report its plugin version
+        // to the integration. The widget reads this via
+        // document.currentScript.src and includes it in the WS auth
+        // message's `client.source` / `client.source_version` fields.
+        // See SPEC.md Section 5.1 + Section 12 (Client/Server Compatibility).
+        $src = self::with_wp_query_param( $src );
+
         wp_enqueue_script(
             'harvest-widget', // handle - unique identifier used by WP dedup
             $src,
@@ -80,6 +88,25 @@ class Harvest_Assets {
         );
 
         self::$enqueued = true;
+    }
+
+    /**
+     * Append `wp=<HARVEST_VERSION>` to the script URL's query string,
+     * preserving any existing query params (custom URLs may already have
+     * their own cache-busters etc.). Idempotent: re-applies cleanly if
+     * the param is already present.
+     *
+     * @param string $url
+     * @return string
+     */
+    private static function with_wp_query_param( string $url ): string {
+        $separator = ( strpos( $url, '?' ) === false ) ? '?' : '&';
+        // Strip any existing wp= we wrote previously, in case enqueue is
+        // somehow re-run on the same URL string within one request.
+        $stripped  = preg_replace( '/([?&])wp=[^&]*(&|$)/', '$1', $url );
+        $stripped  = rtrim( $stripped, '?&' );
+        $separator = ( strpos( $stripped, '?' ) === false ) ? '?' : '&';
+        return $stripped . $separator . 'wp=' . rawurlencode( HARVEST_VERSION );
     }
 
     /**

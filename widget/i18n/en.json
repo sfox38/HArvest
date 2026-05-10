@@ -44,6 +44,7 @@
   "error.entity_missing": "Device unavailable",
   "error.offline": "Temporarily offline",
   "error.connecting": "Connecting...",
+  "error.incompatible": "Widget version cannot connect to this server. Update your snippet.",
   "indicator.stale": "Last known state",
   "history.unavailable": "No history available",
   "history.hours": "h",

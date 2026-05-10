@@ -111,6 +111,26 @@ export interface Session {
   ip_address: string | null;
   renewal_count: number;
   subscribed_entity_ids: string[];
+  // Compatibility-handshake fields (SPEC.md Section 12). Optional in the
+  // type so old serializer responses don't break tsc; the panel's drift
+  // banner ignores sessions that lack these fields (treats as "ok").
+  client?: {
+    protocol: number;
+    widget: string | null;
+    source: "wp" | "html" | "panel" | "unknown";
+    source_version: string | null;
+  };
+  compatibility?: "ok" | "client_outdated" | "server_outdated";
+}
+
+// ---------------------------------------------------------------------------
+// Warnings (drift-banner dismissal state) - SPEC.md Section 12
+// ---------------------------------------------------------------------------
+
+export interface WarningsState {
+  current_version: string;
+  dismissed_at_version: string | null;
+  dismissed: boolean;
 }
 
 // ---------------------------------------------------------------------------

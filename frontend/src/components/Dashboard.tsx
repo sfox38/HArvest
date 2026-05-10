@@ -10,6 +10,7 @@ import type { Screen, PanelStats, HourlyBucket, ActivityEvent, Token } from "../
 import { api } from "../api";
 import { Spinner, ErrorBanner, Card, Sparkline, ActivityGraph, StatusBadge, EventRow, fmtRel } from "./Shared";
 import { Icon } from "./Icon";
+import { DriftBanner } from "./DriftBanner";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -119,6 +120,11 @@ export function Dashboard({ onOpenWizard: _onOpenWizard, onNavigate, onNavigateA
   return (
     <div className="content-narrow col" style={{ gap: 22 }}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      {/* Compatibility-handshake drift banner (SPEC.md Section 12).
+          Self-loading; renders nothing if no drift or if dismissed at
+          the current PLATFORM_VERSION. */}
+      <DriftBanner />
 
       {/* Stat grid */}
       {stats && (
