@@ -43,6 +43,16 @@ class Session:
     last_message_at: datetime
     outgoing_ids: dict[str, str] = field(default_factory=dict)
     last_sent_attributes: dict[str, dict] = field(default_factory=dict)
+    # Client identity reported via the auth message's `client` block (SPEC.md
+    # Section 5.1, Section 12 Client/Server Compatibility). Defaults below
+    # match the "old client that omits the client field" behavior so any
+    # existing call site that constructs a Session without setting these
+    # behaves as if the connecting widget predates the handshake.
+    client_protocol: int = 1
+    client_widget_version: str | None = None
+    client_source: str = "unknown"  # "wp" | "html" | "panel" | "unknown"
+    client_source_version: str | None = None
+    compatibility: str = "ok"  # "ok" | "client_outdated" | "server_outdated"
 
 
 class SessionManager:

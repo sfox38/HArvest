@@ -21,6 +21,12 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from ._utils import get_entry_data
 from .activity_store import ActivityStore, AuthEvent, CommandEvent, ErrorEvent, SessionEvent
+from .compatibility import (
+    check_protocol_compatibility,
+    evaluate as evaluate_compatibility,
+    parse_client_block,
+    server_info,
+)
 from .const import (
     CONF_AUTH_TIMEOUT,
     CONF_KILL_SWITCH,
@@ -31,6 +37,7 @@ from .const import (
     ERR_ENTITY_NOT_IN_TOKEN,
     ERR_ORIGIN_DENIED,
     ERR_PERMISSION_DENIED,
+    ERR_PROTOCOL_INCOMPATIBLE,
     ERR_RATE_LIMITED,
     ERR_SERVER_ERROR,
     ERR_SESSION_EXPIRED,
@@ -327,6 +334,30 @@ class HarvestWsView(HomeAssistantView):
         page_path: str | None = msg.get("page_path")
         msg_id = msg.get("msg_id")
 
+        # --- Step 2a: Protocol-compatibility hard check ---
+        # SPEC.md Section 5.3 + Section 12 (Client/Server Compatibility).
+        # If the client speaks a protocol the server cannot, reject before
+        # touching token validation: this is a structural mismatch, not an
+        # auth attempt against a specific token. The reply carries the
+        # `server` block so the widget can render HRV_INCOMPATIBLE rather
+        # than fall into reconnect backoff. Old widgets that omit `client`
+        # default to protocol=1 in parse_client_block and pass through.
+        client_info = parse_client_block(msg.get("client"))
+        srv = server_info()
+        if not check_protocol_compatibility(client_info, srv):
+            await ws.send_json({
+                "type": "auth_failed",
+                "code": ERR_PROTOCOL_INCOMPATIBLE,
+                "msg_id": msg_id,
+                "server": {
+                    "protocol": srv.protocol,
+                    "version": srv.version,
+                    "min_client_protocol": srv.min_client_protocol,
+                },
+            })
+            await ws.close()
+            return
+
         # Per-IP and per-token auth rate-limit counters target different
         # attack patterns and are intentionally asymmetric:
         #
@@ -444,6 +475,17 @@ class HarvestWsView(HomeAssistantView):
             await ws.close()
             return
 
+        # Attach the client identity + compatibility status to the session
+        # so panel APIs can surface drift banners (SPEC Section 12). The
+        # status is sticky: re-evaluating on every renew would let banners
+        # disappear without the admin acting, which the spec disallows.
+        compatibility = evaluate_compatibility(client_info, srv)
+        session.client_protocol = client_info.protocol
+        session.client_widget_version = client_info.widget
+        session.client_source = client_info.source
+        session.client_source_version = client_info.source_version
+        session.compatibility = compatibility
+
         # --- Step 4: Send auth_ok ---
         await ws.send_json({
             "type": "auth_ok",
@@ -453,6 +495,12 @@ class HarvestWsView(HomeAssistantView):
             "max_renewals": token.session.max_renewals,
             "entity_ids": list(outgoing_ids.values()),  # only accepted refs
             "msg_id": msg_id,
+            "server": {
+                "protocol": srv.protocol,
+                "version": srv.version,
+                "min_client_protocol": srv.min_client_protocol,
+            },
+            "compatibility": compatibility,
         })
 
         # Record successful auth.
@@ -1048,7 +1096,11 @@ class HarvestWsView(HomeAssistantView):
 
         # Send new auth_ok with new session_id.
         # entity_ids echoes the outgoing_ids values (what the client originally sent).
+        # server/compatibility are sticky on the session: compatibility was
+        # decided at original auth and is echoed here; re-evaluating on
+        # renew would let banners disappear without admin action (SPEC).
         outgoing_entity_ids = [outgoing_ids.get(eid, eid) for eid in session.subscribed_entity_ids]
+        srv = server_info()
         await ws.send_json({
             "type": "auth_ok",
             "session_id": session.session_id,
@@ -1057,6 +1109,12 @@ class HarvestWsView(HomeAssistantView):
             "max_renewals": token.session.max_renewals,
             "entity_ids": outgoing_entity_ids,
             "msg_id": msg_id,
+            "server": {
+                "protocol": srv.protocol,
+                "version": srv.version,
+                "min_client_protocol": srv.min_client_protocol,
+            },
+            "compatibility": session.compatibility,
         })
 
         # Resend interleaved entity_definition + state_update for all subscribed entities.

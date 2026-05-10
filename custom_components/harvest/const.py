@@ -7,6 +7,20 @@ from __future__ import annotations
 DOMAIN = "harvest"
 PLATFORM_VERSION = "0.9.3"              # must match SPEC.md version header
 
+# WebSocket protocol versioning. See SPEC.md Section 12 (Client/Server
+# Compatibility). PROTOCOL_VERSION bumps only on breaking message-format
+# changes. MIN_CLIENT_PROTOCOL bumps only when the server stops accepting
+# an older protocol. The server accepts any client whose `protocol` falls
+# in [MIN_CLIENT_PROTOCOL, PROTOCOL_VERSION].
+PROTOCOL_VERSION = 1
+MIN_CLIENT_PROTOCOL = 1
+
+# WordPress plugin version that ships in the same release as this
+# integration. Compared against client.source_version when the widget
+# reports source="wp" so the panel can warn admins about an outdated
+# plugin install. Bumped together with PLATFORM_VERSION at release.
+BUNDLED_WP_PLUGIN_VERSION = "0.9.3"
+
 # Token and session ID format
 TOKEN_PREFIX = "hwt_"
 SESSION_PREFIX = "hrs_"
@@ -129,6 +143,7 @@ ERR_ENTITY_NOT_IN_TOKEN = "HRV_ENTITY_NOT_IN_TOKEN"
 ERR_ENTITY_INCOMPATIBLE = "HRV_ENTITY_INCOMPATIBLE"
 ERR_SESSION_LIMIT_REACHED = "HRV_SESSION_LIMIT_REACHED"
 ERR_SIGNATURE_INVALID = "HRV_SIGNATURE_INVALID"
+ERR_PROTOCOL_INCOMPATIBLE = "HRV_PROTOCOL_INCOMPATIBLE"
 ERR_AUTH_FAILED = "HRV_AUTH_FAILED"
 ERR_ENTITY_MISSING = "HRV_ENTITY_MISSING"
 ERR_ENTITY_REMOVED = "HRV_ENTITY_REMOVED"
