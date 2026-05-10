@@ -5,7 +5,7 @@ All other modules import from here. No classes, no functions.
 from __future__ import annotations
 
 DOMAIN = "harvest"
-PLATFORM_VERSION = "0.9.3"              # must match SPEC.md version header
+PLATFORM_VERSION = "0.9.4"              # must match SPEC.md version header
 
 # WebSocket protocol versioning. See SPEC.md Section 12 (Client/Server
 # Compatibility). PROTOCOL_VERSION bumps only on breaking message-format
@@ -19,7 +19,7 @@ MIN_CLIENT_PROTOCOL = 1
 # integration. Compared against client.source_version when the widget
 # reports source="wp" so the panel can warn admins about an outdated
 # plugin install. Bumped together with PLATFORM_VERSION at release.
-BUNDLED_WP_PLUGIN_VERSION = "0.9.3"
+BUNDLED_WP_PLUGIN_VERSION = "0.9.4"
 
 # Token and session ID format
 TOKEN_PREFIX = "hwt_"
