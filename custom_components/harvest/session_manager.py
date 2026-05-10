@@ -33,6 +33,7 @@ class Session:
     absolute_expires_at: datetime
     renewal_count: int
     lifetime_minutes: int               # stored so renew() always uses the original token config
+    max_lifetime_minutes: int           # snapshot of token.session.max_lifetime_minutes at create; renew() caps new expires_at at issued_at + this value
     origin_validated: str
     referer_validated: str | None
     source_ip: str | None
@@ -42,6 +43,16 @@ class Session:
     last_message_at: datetime
     outgoing_ids: dict[str, str] = field(default_factory=dict)
     last_sent_attributes: dict[str, dict] = field(default_factory=dict)
+    # Client identity reported via the auth message's `client` block (SPEC.md
+    # Section 5.1, Section 12 Client/Server Compatibility). Defaults below
+    # match the "old client that omits the client field" behavior so any
+    # existing call site that constructs a Session without setting these
+    # behaves as if the connecting widget predates the handshake.
+    client_protocol: int = 1
+    client_widget_version: str | None = None
+    client_source: str = "unknown"  # "wp" | "html" | "panel" | "unknown"
+    client_source_version: str | None = None
+    compatibility: str = "ok"  # "ok" | "client_outdated" | "server_outdated"
 
 
 class SessionManager:
@@ -105,6 +116,7 @@ class SessionManager:
             absolute_expires_at=absolute_expires_at,
             renewal_count=0,
             lifetime_minutes=token.session.lifetime_minutes,
+            max_lifetime_minutes=token.session.max_lifetime_minutes,
             origin_validated=origin,
             referer_validated=referer,
             source_ip=source_ip,
@@ -149,36 +161,20 @@ class SessionManager:
     def renew(self, session: Session) -> Session:
         """Issue a new session_id for an existing session and extend expiry.
 
-        Increments renewal_count. Raises ValueError if max_renewals exceeded.
-        Raises ValueError if new expiry would exceed absolute_expires_at.
-        Updates both _sessions and _token_sessions indexes.
-        """
-        # Look up the token's session config via the current session's allowed_entities.
-        # max_renewals and max_lifetime_minutes come from the token that created the session.
-        # Because sessions don't hold a reference to their token we rely on callers
-        # passing the correct session object. The token's session config was baked into
-        # the session at create time via the token parameter; for renewal we only need
-        # the values already encoded in the Session itself. However max_renewals and
-        # max_lifetime_minutes are token-level constraints that ws_proxy must pass through.
-        # We therefore look them up from the ws_proxy context. For the implementation here
-        # we accept them as part of the session's metadata by checking the fields stored
-        # on the session indirectly through the config.
-        #
-        # Design decision: SessionManager.renew() does not take a Token argument to keep
-        # the interface minimal. ws_proxy is responsible for fetching the token and calling
-        # terminate() + create() if a full re-auth is needed instead.
-        # The constraints checked here are derived from absolute_expires_at (set at creation)
-        # and a max_renewals guard that ws_proxy enforces before calling renew().
-        #
-        # What this method does:
-        # 1. Generate a new session_id.
-        # 2. Compute new expires_at as now + token.session.lifetime_minutes.
-        #    The value of lifetime_minutes is not stored on Session, so we reuse
-        #    the delta between the original issued_at and expires_at as the renewal window.
-        # 3. Cap new expires_at at absolute_expires_at.
-        # 4. Raise ValueError if absolute_expires_at is already in the past.
-        # 5. Update both indexes.
+        Increments renewal_count and updates both indexes.
 
+        Two ceilings cap the new expires_at:
+          1. session.absolute_expires_at - hard cap fixed at session creation
+             from token.session.absolute_lifetime_hours (or the global default).
+          2. session.issued_at + max_lifetime_minutes - per-session age cap
+             snapshotted from token.session.max_lifetime_minutes at create.
+
+        Raises ValueError if either ceiling has already passed, or if the
+        capped new_expires_at would land in the past.
+
+        Note: max_renewals (a count-based cap) is enforced by ws_proxy before
+        it calls renew(), since SessionManager has no token context.
+        """
         now = datetime.now(tz=timezone.utc)
 
         if now >= session.absolute_expires_at:
@@ -187,20 +183,29 @@ class SessionManager:
                 "Full re-auth required."
             )
 
+        session_max_expiry = session.issued_at + timedelta(
+            minutes=session.max_lifetime_minutes
+        )
+        if now >= session_max_expiry:
+            raise ValueError(
+                f"Session {session.session_id} has reached its max_lifetime_minutes "
+                f"({session.max_lifetime_minutes} min). Full re-auth required."
+            )
+
         # Use the token's lifetime_minutes stored at session creation so the
-        # renewal window stays constant across multiple renewals.
-        new_expires_at = now + timedelta(minutes=session.lifetime_minutes)
+        # renewal window stays constant across multiple renewals, then cap at
+        # the tighter of the two ceilings.
+        new_expires_at = min(
+            now + timedelta(minutes=session.lifetime_minutes),
+            session.absolute_expires_at,
+            session_max_expiry,
+        )
 
-        # Cap at absolute lifetime.
-        if new_expires_at > session.absolute_expires_at:
-            new_expires_at = session.absolute_expires_at
-
-        # If the capped expiry is already in the past (edge case: absolute expires very soon),
-        # treat as expired.
+        # Edge case: a ceiling lands within the next tick.
         if new_expires_at <= now:
             raise ValueError(
                 f"Session {session.session_id} cannot be renewed: "
-                "absolute lifetime would expire immediately."
+                "lifetime ceiling would expire immediately."
             )
 
         old_session_id = session.session_id

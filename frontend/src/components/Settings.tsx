@@ -13,6 +13,7 @@ import { api } from "../api";
 import { Spinner, ErrorBanner, Card, Hint, fmtBytes } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
+import { UrlReachabilityIndicator } from "./UrlReachabilityIndicator";
 import buildVersion from "../buildVersion.json";
 
 // ---------------------------------------------------------------------------
@@ -74,7 +75,7 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
         {hint && <div className="settings-field-hint">{hint}</div>}
       </dt>
       <dd>
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row gap-8">
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <input
               type="number"
@@ -90,10 +91,10 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
               <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
             )}
           </div>
-          {suffix && <span className="muted" style={{ fontSize: 13 }}>{suffix}</span>}
+          {suffix && <span className="muted fs-13">{suffix}</span>}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -165,7 +166,7 @@ function TextField({ label, value: initial, placeholder, hint, validate, onChang
           )}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -185,15 +186,200 @@ function validateOverrideHost(v: string): string | null {
 }
 
 function validateWidgetScriptUrl(v: string): string | null {
-  if (!v) return null;
-  if (v.startsWith("/")) return null;
-  try {
-    const u = new URL(v);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return "Must be a path (e.g. /harvest.min.js) or a full https:// URL";
-    return null;
-  } catch {
-    return "Must be a path (e.g. /harvest.min.js) or a full https:// URL";
+  // The widget script src can legitimately be a full URL, an absolute path,
+  // or a relative path / bare filename (for HTML files served alongside
+  // harvest.min.js). The previous version rejected the relative-path forms,
+  // which surprised admins. Match the WP plugin's sanitize_custom_url():
+  // accept any of those three forms; reject only obviously dangerous values.
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+
+  // Reject characters that would break out of the script src="" attribute
+  // or open a new attribute. Internal whitespace is also invalid for a
+  // script URL (anyone who needs a literal space can URL-encode).
+  if (/[\s"'<>`]/.test(trimmed)) {
+    return "URL must not contain spaces or quotes";
   }
+  // Control characters are never legitimate inside a URL here.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+    return "URL must not contain control characters";
+  }
+  // XSS vectors.
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("vbscript:")) {
+    return "URL must not use a javascript:, data:, or vbscript: scheme";
+  }
+  // For full URLs, gate on http/https only. Other schemes (file:, ftp:)
+  // are not useful here.
+  const schemeMatch = trimmed.match(/^([a-z][a-z0-9+.\-]*):/i);
+  if (schemeMatch && !/^https?:\/\//i.test(trimmed)) {
+    return "Full URLs must use http:// or https://";
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// WidgetScriptSourceField - SPEC.md Section 12 (Widget Script URL Settings)
+// ---------------------------------------------------------------------------
+//
+// Two radios + a URL input. The empty/non-empty state of the underlying
+// `widget_script_url` config field IS the storage for the radio (option A
+// from the design discussion): empty = HA-served, non-empty = Custom URL.
+// This avoids a config-schema migration and keeps the radio purely a UI
+// presentation over a single string field.
+//
+// HA-served preview is computed live from override_host (or the panel's
+// current origin) so admins see the literal URL their snippet will carry.
+
+interface WidgetScriptSourceFieldProps {
+  value: string;                                    // current widget_script_url
+  overrideHost: string;                             // current override_host (for preview)
+  onChange: (v: string) => Promise<void>;
+}
+
+function WidgetScriptSourceField({ value, overrideHost, onChange }: WidgetScriptSourceFieldProps) {
+  // Mode is derived from value: empty = HA-served, non-empty = Custom.
+  const mode: "ha" | "custom" = value.trim() === "" ? "ha" : "custom";
+
+  // Live preview URL for the HA-served option. Identical resolution to
+  // CodeSection.tsx so admins see exactly what will land in copied
+  // snippets.
+  const haUrl = (overrideHost || window.location.origin).replace(/\/+$/, "");
+  const preview = `${haUrl}/harvest_assets/harvest.min.js`;
+
+  const switchToHa = async () => {
+    if (mode === "ha") return;
+    await onChange("");
+  };
+
+  const switchToCustom = async () => {
+    if (mode === "custom") return;
+    // Don't auto-fill anything; an empty value would just look like the
+    // user is mid-typing. The radio remains in "custom" because we set
+    // a sentinel that round-trips empty too. So we use a single space
+    // pre-fill the user can immediately overwrite. Actually simpler:
+    // leave the field empty but show the input - the radio's checked
+    // state lives in local UI state until the user types. Trade-off:
+    // refreshing the page while empty + Custom selected falls back to
+    // HA-served. Acceptable for v1 since the spec calls out this exact
+    // limitation as the cost of option A.
+    await onChange("");
+  };
+
+  // Local UI state to handle the brief window where Custom is selected
+  // but no URL is typed yet (the persistent storage can't represent
+  // this without a separate field). Initialised from the props mode.
+  const [uiMode, setUiMode] = useState<"ha" | "custom">(mode);
+  useEffect(() => { setUiMode(mode); }, [mode]);
+
+  return (
+    <div className="kv" style={{ paddingBottom: 8 }}>
+      <dt>
+        Widget script source
+        <div className="settings-field-hint">
+          Where snippets fetch the widget JS from.
+        </div>
+      </dt>
+      <dd>
+        <div className="col" style={{ gap: 10 }}>
+          <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="widget_script_source"
+              value="ha"
+              checked={uiMode === "ha"}
+              onChange={() => { setUiMode("ha"); switchToHa(); }}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 2, flex: 1, minWidth: 0 }}>
+              <div>HA-served <span className="muted fs-12">(recommended)</span></div>
+              <div className="muted fs-12" style={{ overflowWrap: "anywhere" }}>{preview}</div>
+              {uiMode === "ha" && (
+                <UrlReachabilityIndicator url={preview} />
+              )}
+            </div>
+          </label>
+
+          <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="widget_script_source"
+              value="custom"
+              checked={uiMode === "custom"}
+              onChange={() => { setUiMode("custom"); switchToCustom(); }}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
+              <div>Custom URL</div>
+              {uiMode === "custom" && (
+                <>
+                  <WidgetScriptUrlInput value={value} onChange={onChange} />
+                  <UrlReachabilityIndicator url={value} />
+                </>
+              )}
+            </div>
+          </label>
+        </div>
+      </dd>
+    </div>
+  );
+}
+
+// Inline-only URL input for the Custom radio, with the same debounce/save
+// behavior as TextField. Inlined rather than reusing TextField because we
+// need it without the surrounding kv/dt/dd wrapper.
+function WidgetScriptUrlInput({ value, onChange }: { value: string; onChange: (v: string) => Promise<void> }) {
+  const [localVal, setLocalVal] = useState(value);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [errMsg, setErrMsg] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { setLocalVal(value); }, [value]);
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
+  const commit = useCallback(async (raw: string) => {
+    const err = validateWidgetScriptUrl(raw.trim());
+    if (err) { setSaveState("error"); setErrMsg(err); return; }
+    setSaveState("saving");
+    setErrMsg("");
+    try {
+      await onChange(raw.trim());
+      setSaveState("idle");
+    } catch (e) {
+      setSaveState("error");
+      setErrMsg(String(e));
+    }
+  }, [onChange]);
+
+  const handleChange = (v: string) => {
+    setLocalVal(v);
+    setSaveState("idle");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => commit(v), 500);
+  };
+
+  return (
+    <div>
+      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+        <input
+          type="text"
+          value={localVal}
+          placeholder="https://example.com/harvest.min.js, /harvest.min.js, or harvest.min.js"
+          onChange={e => handleChange(e.target.value)}
+          onBlur={() => commit(localVal)}
+          className="input"
+          style={{ width: "100%", borderColor: saveState === "error" ? "var(--danger)" : undefined }}
+        />
+        {saveState === "saving" && (
+          <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
+        )}
+      </div>
+      {saveState === "error" && errMsg && (
+        <div className="error-msg-tight">{errMsg}</div>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +413,7 @@ function ToggleField({ label, value, onChange, hint }: ToggleFieldProps) {
       </div>
       <div className="row" style={{ gap: 8, flexShrink: 0 }}>
         <Toggle checked={value} onChange={toggle} disabled={saving} />
-        {err && <span style={{ fontSize: 12, color: "var(--danger)" }}>{err}</span>}
+        {err && <span className="error-msg">{err}</span>}
       </div>
     </div>
   );
@@ -269,12 +455,11 @@ function SelectField({ label, value, options, onChange, hint }: SelectFieldProps
           value={value}
           onChange={e => commit(e.target.value)}
           disabled={saving}
-          className="input"
-          style={{ fontSize: 13 }}
+          className="input fs-13"
         >
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        {err && <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{err}</div>}
+        {err && <div className="error-msg-tight">{err}</div>}
       </dd>
     </div>
   );
@@ -363,7 +548,7 @@ function TrustedProxiesField({ value, onChange }: TrustedProxiesFieldProps) {
           )}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -441,7 +626,7 @@ function CustomDomainsField({ value, availableDomains, onChange }: CustomDomains
         <div key={entry.domain} className="row" style={{ justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
             <span style={{ fontWeight: 600 }}>{entry.domain}</span>
-            <span className="muted" style={{ fontSize: 12 }}>{entry.allowed_services.join(", ")}</span>
+            <span className="muted fs-12">{entry.allowed_services.join(", ")}</span>
           </div>
           <button
             className="btn btn-icon"
@@ -456,10 +641,9 @@ function CustomDomainsField({ value, availableDomains, onChange }: CustomDomains
 
       <div style={{ marginTop: value.length ? 12 : 0 }}>
         <select
-          className="input"
+          className="input fs-13"
           value={selectedDomain}
           onChange={e => onDomainSelect(e.target.value)}
-          style={{ fontSize: 13 }}
         >
           <option value="">
             {eligibleDomains.length ? "Select a domain..." : "No custom domains available"}
@@ -544,9 +728,21 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.config.get(), api.stats.get()])
-      .then(([cfg, st]) => { setConfig(cfg); setStats(st); })
-      .catch(e => setError(String(e)))
+    // allSettled so a stats-fetch failure does not block config editing, and
+    // a config-fetch failure does not hide the stats info table.
+    Promise.allSettled([api.config.get(), api.stats.get()])
+      .then(([cfg, st]) => {
+        if (cfg.status === "fulfilled") setConfig(cfg.value);
+        if (st.status === "fulfilled") setStats(st.value);
+
+        const rejections = [cfg, st].filter(r => r.status === "rejected") as PromiseRejectedResult[];
+        if (rejections.length === 2) {
+          setError(String(rejections[0].reason));
+        } else if (rejections.length > 0) {
+          for (const r of rejections) console.warn("[HArvest panel] settings load:", r.reason);
+          setError("Some settings data couldn't be loaded.");
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -571,7 +767,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+      <div className="center-spinner">
         <Spinner size={40} />
       </div>
     );
@@ -591,10 +787,10 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Appearance */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="eye" size={14} /> Appearance</span>}
+        title={<span className="row gap-8"><Icon name="eye" size={14} /> Appearance</span>}
       >
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
-        <div style={{ height: 1, background: "var(--divider)", margin: "8px 0 12px" }} />
+        <div className="divider" style={{ margin: "8px 0 12px" }} />
         <div className="muted" style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
           Widget defaults
         </div>
@@ -680,7 +876,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Security */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="shield" size={14} /> Security</span>}
+        title={<span className="row gap-8"><Icon name="shield" size={14} /> Security</span>}
       >
         <dl>
           <NumberField label="Max entities per widget" value={config.max_entities_per_token} min={1} max={250}
@@ -704,12 +900,9 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             validate={validateOverrideHost}
             onChange={v => patch({ override_host: v })}
           />
-          <TextField
-            label="Widget script URL"
+          <WidgetScriptSourceField
             value={config.widget_script_url}
-            placeholder="https://example.com/harvest.min.js"
-            hint="URL for the widget JS. Accepts a full URL or a path (e.g. /js/harvest.min.js). Leave blank to serve the bundled file."
-            validate={validateWidgetScriptUrl}
+            overrideHost={config.override_host}
             onChange={v => patch({ widget_script_url: v })}
           />
         </dl>
@@ -717,7 +910,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Custom Domains */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="puzzle" size={14} /> Custom domains</span>}
+        title={<span className="row gap-8"><Icon name="puzzle" size={14} /> Custom domains</span>}
       >
         <div className="settings-field-hint" style={{ marginBottom: 12 }}>
           Allow command execution for custom entity domains with third-party card renderers.
@@ -732,7 +925,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Sessions */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="plug" size={14} /> Sessions</span>}
+        title={<span className="row gap-8"><Icon name="plug" size={14} /> Sessions</span>}
       >
         <ToggleField
           label="Kill switch"
@@ -743,7 +936,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             onKillSwitchChange?.(v);
           }}
         />
-        <div style={{ height: 1, background: "var(--divider)", margin: "8px 0 12px" }} />
+        <div className="divider" style={{ margin: "8px 0 12px" }} />
         <dl>
           <NumberField label="Default session lifetime" value={config.default_session.lifetime_minutes} suffix="minutes" min={1}
             onChange={patchDefaultSession("lifetime_minutes")} />
@@ -757,7 +950,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Performance */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="bolt" size={14} /> Performance</span>}
+        title={<span className="row gap-8"><Icon name="bolt" size={14} /> Performance</span>}
       >
         <dl>
           <NumberField label="Auth timeout" value={config.auth_timeout_seconds} suffix="seconds" min={1} max={60}
@@ -777,7 +970,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Activity log */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="database" size={14} /> Activity log</span>}
+        title={<span className="row gap-8"><Icon name="database" size={14} /> Activity log</span>}
       >
         <dl>
           <NumberField label="Retention" value={config.activity_log_retention_days} suffix="days" min={1} max={365}
@@ -791,7 +984,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* HA Event Bus */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="waves" size={14} /> HA event bus <Hint text="Enable or disable specific harvest_* events fired on the HA event bus. Automations can listen for these." /></span>}
+        title={<span className="row gap-8"><Icon name="waves" size={14} /> HA event bus <Hint text="Enable or disable specific harvest_* events fired on the HA event bus. Automations can listen for these." /></span>}
       >
         {(Object.keys(config.ha_event_bus) as (keyof HaEventBusConfig)[]).map(key => (
           <ToggleField
@@ -804,7 +997,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
       </Card>
 
       {/* Integration info */}
-      <Card title={<span className="row" style={{ gap: 8 }}><Icon name="info" size={14} /> Integration info</span>}>
+      <Card title={<span className="row gap-8"><Icon name="info" size={14} /> Integration info</span>}>
         <table className="info-table">
           <tbody>
             <tr>

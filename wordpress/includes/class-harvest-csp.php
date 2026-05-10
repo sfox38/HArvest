@@ -8,9 +8,12 @@
  *                 WebSocket connection to the HA instance.
  *
  *   script-src  - the HTTPS origin so renderer pack JS files can be loaded
- *                 dynamically via script tag injection from the HA instance.
- *                 'unsafe-inline' is intentionally included because renderer
- *                 packs use inline script evaluation during dynamic loading.
+ *                 from the HA instance. Packs are loaded via external
+ *                 `<script src="...">` tags pointing at the HA host, which
+ *                 only requires the origin in script-src. No 'unsafe-inline'
+ *                 or 'unsafe-eval' is needed - the widget contains no inline
+ *                 script evaluation, no eval(), no Function(), and no
+ *                 string-form setTimeout/setInterval.
  *
  * The HA URL is converted from https:// to wss:// for connect-src. For
  * example, https://myhome.duckdns.org becomes wss://myhome.duckdns.org.
@@ -50,8 +53,18 @@ class Harvest_Csp {
             return $headers;
         }
 
-        // Convert http(s):// to wss:// for the WebSocket CSP directive.
-        $ws_url = preg_replace( '/^https?:\/\//', 'wss://', $ha_url );
+        // Map HA URL scheme to its WebSocket equivalent for the CSP directive.
+        // The widget at harvest-client.js maps http -> ws and https -> wss.
+        // CSP must mirror that mapping or the WS handshake is blocked on
+        // http:// HA installs (e.g. local LAN deployments).
+        if ( str_starts_with( $ha_url, 'https://' ) ) {
+            $ws_url = 'wss://' . substr( $ha_url, 8 );
+        } elseif ( str_starts_with( $ha_url, 'http://' ) ) {
+            $ws_url = 'ws://' . substr( $ha_url, 7 );
+        } else {
+            // Unknown scheme - fall back to the original behavior.
+            $ws_url = preg_replace( '/^[a-z]+:\/\//', 'wss://', $ha_url );
+        }
 
         // Normalise the HTTPS origin for script-src (strip trailing slash).
         $script_origin = rtrim( $ha_url, '/' );
@@ -68,12 +81,14 @@ class Harvest_Csp {
                 $script_origin
             );
         } else {
-            // No existing CSP header from WordPress. Add a minimal permissive
-            // baseline. 'unsafe-inline' is required because renderer packs
-            // inject inline scripts during dynamic loading. This weakens
-            // script-src but is the accepted tradeoff for pack extensibility.
-            // When a site already has a stricter CSP, add_to_directive()
-            // only appends origins - it does not add 'unsafe-inline'.
+            // No existing CSP header from WordPress. Add a minimal baseline
+            // that permits the WebSocket connection and external pack loading
+            // from the HA host. 'unsafe-inline' is deliberately NOT included:
+            // packs are loaded via external <script src="..."> tags pointing
+            // at the HA origin, which only needs the origin in script-src.
+            // The widget contains no inline script evaluation, no eval(), no
+            // Function(), and no string-form setTimeout/setInterval, so there
+            // is no legitimate need for 'unsafe-inline' anywhere in this CSP.
             // Apply the same validation as add_to_directive() before interpolation.
             $valid_ws     = ! preg_match( '/[\s;,]/', $ws_url );
             $valid_script = ! preg_match( '/[\s;,]/', $script_origin );
@@ -81,7 +96,7 @@ class Harvest_Csp {
             $connect_part = $valid_ws     ? " {$ws_url}"       : '';
             $script_part  = $valid_script ? " {$script_origin}" : '';
 
-            $headers['Content-Security-Policy'] = "connect-src 'self'{$connect_part}; script-src 'self' 'unsafe-inline'{$script_part}";
+            $headers['Content-Security-Policy'] = "connect-src 'self'{$connect_part}; script-src 'self'{$script_part}";
         }
 
         return $headers;
@@ -110,17 +125,26 @@ class Harvest_Csp {
         $escaped_dir = preg_quote( $directive, '/' );
         $escaped_url = preg_quote( $url, '/' );
 
-        // Check whether the URL is already in this directive.
-        if ( preg_match( '/' . $escaped_dir . '[^;]*' . $escaped_url . '/', $policy ) ) {
+        // Anchor on directive-name boundaries so e.g. "script-src" never matches
+        // inside "script-src-elem" or "script-src-attr". A directive starts at
+        // policy beginning or after `;` (with optional whitespace), and its name
+        // is not followed by another directive-name character.
+        $start    = '(^|;\s*)';
+        $boundary = '(?![a-zA-Z0-9-])';
+
+        // Check whether the URL is already in this directive's value.
+        if ( preg_match( '/' . $start . $escaped_dir . $boundary . '[^;]*' . $escaped_url . '/', $policy ) ) {
             return $policy;
         }
 
-        if ( strpos( $policy, $directive ) !== false ) {
+        if ( preg_match( '/' . $start . $escaped_dir . $boundary . '/', $policy ) ) {
             // Directive exists - append the URL to its value.
+            // Capture group 1 = leading separator (start-of-string or `;\s*`),
+            // capture group 2 = the directive's existing value (up to next `;`).
             // Limit to 1 replacement in case of malformed duplicate directives.
             $policy = preg_replace(
-                '/' . $escaped_dir . '([^;]*)/',
-                "{$directive}$1 {$url}",
+                '/' . $start . $escaped_dir . $boundary . '([^;]*)/',
+                '$1' . $directive . '$2 ' . $url,
                 $policy,
                 1
             );

@@ -1,4 +1,4 @@
-(()=>{var wo=(S,b,f)=>{if(!b.has(S))throw TypeError("Cannot "+f)};var t=(S,b,f)=>(wo(S,b,"read from private field"),f?f.call(S):b.get(S)),o=(S,b,f)=>{if(b.has(S))throw TypeError("Cannot add the same private member more than once");b instanceof WeakSet?b.add(S):b.set(S,f)},i=(S,b,f,u)=>(wo(S,b,"write to private field"),u?u.call(S,f):b.set(S,f),f);var d=(S,b,f)=>(wo(S,b,"access private method"),f);(function(){"use strict";var fs,oe,mt,ut,Mt,$,vs,ft,Ht,kt,P,Tt,Et,E,q,vt,ie,qt,re,gs,So,bs,$o,Qs,Fo,U,It,ne,st,Bt,D,ae,gt,bt,yt,I,y,Vt,xt,_t,j,he,le,vo,to,Go,ys,Lo,xs,Ao,_s,Mo,de,go,eo,Yo,Cs,ce,ws,pe,N,K,Ot,me,ue,Ss,fe,z,ve,X,ot,ge,$s,be,so,Wo,Ls,Ho,oo,Uo,As,ye,T,L,xe,it,J,io,Ko,Ct,ps,Ms,_e,R,Ce,we,Se,Dt,Nt,zt,rt,Q,Hs,ks,$e,ro,Xo,Ts,ko,no,Jo,Le,Ae,Me,He,Z,wt,Zt,Pt,jt,ke,Te,F,Ee,ao,Qo,ho,ti,lo,ei,Rt,Ks,Es,qe,Ie,Be,Ve,Oe,De,Ne,ze,Ze,Pe,nt,je,Re,at,Fe,Ft,ht,lt,Ge,G,Ye,We,Ue,qs,Is,Bs,Ke,St,Gt,Yt,Wt,Vs,Os,co,si,Ds,To,Ns,Eo,po,oi,mo,ii,Xe,bo,uo,ri,zs,Je,Ut,Qe,ts,es,$t,Zs,Ps,js,ss,Y,Lt,Rs,Kt,W,dt,ct,os,Fs,qo,fo,ni,Gs,is,rs,Xt,ns,as,hs,At,tt,B,te,yo,Jt,Qt,Ys,Io,Ws,Bo,ls,ds,cs;console.info("[HArvest Shrooms] Loading pack v"+"1.0.0");const b=window.HArvest;if(!b||!b.renderers||!b.renderers.BaseCard){console.warn("[HArvest Shrooms] HArvest not found - pack not loaded.");return}const f=b.renderers.BaseCard;function u(a){return String(a??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function ee(a,l){let e=null,s=null,r=null;function n(...h){s=this,r=h,e&&clearTimeout(e),e=setTimeout(()=>{e=null,a.apply(s,r),r=null},l)}return n.flush=function(){e!==null&&(clearTimeout(e),e=null,r&&(a.apply(s,r),r=null))},n}function C(a){return a?a.charAt(0).toUpperCase()+a.slice(1).replace(/_/g," "):""}function Xi(a,l,e){return Math.min(e,Math.max(l,a))}function Vo(a,l){const e=a.querySelector(".shroom-controls-shell");e&&e.setAttribute("data-collapsed",String(l))}function se(a,l){a&&(a.setAttribute("role","button"),a.setAttribute("tabindex","0"),a.setAttribute("aria-label",l),a.addEventListener("keydown",e=>{(e.key==="Enter"||e.key===" ")&&(e.preventDefault(),a.click())}))}function A(a){a.querySelectorAll("[part=companion]").forEach(l=>{l.title=l.getAttribute("aria-label")??"Companion"})}const ai={light:"var(--hrv-ex-shroom-light, #ff9800)",switch:"var(--hrv-ex-shroom-switch, #2196f3)",input_boolean:"var(--hrv-ex-shroom-switch, #2196f3)",fan:"var(--hrv-ex-shroom-fan, #4caf50)",climate:"var(--hrv-ex-shroom-climate, #ff5722)",cover:"var(--hrv-ex-shroom-cover, #9c27b0)",media_player:"var(--hrv-ex-shroom-media, #e91e63)",sensor:"var(--hrv-ex-shroom-sensor, #03a9f4)",binary_sensor:"var(--hrv-ex-shroom-binary, #8bc34a)",input_number:"var(--hrv-ex-shroom-input, #00bcd4)",input_select:"var(--hrv-ex-shroom-input, #00bcd4)",timer:"var(--hrv-ex-shroom-timer, #673ab7)",remote:"var(--hrv-ex-shroom-remote, #607d8b)",weather:"var(--hrv-ex-shroom-weather, #ff9800)",harvest_action:"var(--hrv-ex-shroom-action, #9c27b0)"};function Oo(a){return ai[a]??"var(--hrv-color-primary, #ff9800)"}function w(a,l,e){if(!a)return;const s=Oo(l);e?(a.style.background=`color-mix(in srgb, ${s} 20%, transparent)`,a.style.color=s):(a.style.background="var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05))",a.style.color="var(--hrv-color-icon, #757575)")}function M(a){const l=(a.config.displayHints??a.def.display_hints??{}).layout??null,e=a.root.host;e&&(l==="vertical"?e.setAttribute("data-layout","vertical"):e.removeAttribute("data-layout"))}function Do(a,l){if(a!=="on")return null;if(l.rgb_color){const[s,r,n]=l.rgb_color;return(.299*s+.587*r+.114*n)/255>.85?`rgb(${Math.round(s*.8)}, ${Math.round(r*.8)}, ${Math.round(n*.75)})`:`rgb(${s}, ${r}, ${n})`}if(l.hs_color)return`hsl(${l.hs_color[0]}, ${Math.max(l.hs_color[1],50)}%, 55%)`;const e=l.color_temp_kelvin??(l.color_temp?Math.round(1e6/l.color_temp):null);return e?e>=5200?"#4ba3e0":e>=4500?"#e0c85a":e<=3e3?"#e6a040":"#ddb840":null}const H=`
+(()=>{var Oo=(_,b,u)=>{if(!b.has(_))throw TypeError("Cannot "+u)};var t=(_,b,u)=>(Oo(_,b,"read from private field"),u?u.call(_):b.get(_)),o=(_,b,u)=>{if(b.has(_))throw TypeError("Cannot add the same private member more than once");b instanceof WeakSet?b.add(_):b.set(_,u)},i=(_,b,u,nt)=>(Oo(_,b,"write to private field"),nt?nt.call(_,u):b.set(_,u),u);var l=(_,b,u)=>(Oo(_,b,"access private method"),u);(function(){"use strict";var ws,ue,yt,xt,Bt,A,Cs,_t,Vt,Dt,G,Ot,Pt,D,O,wt,fe,Nt,ve,Ls,Po,Ss,No,mo,ai,tt,zt,ge,at,Zt,z,be,Ct,Lt,St,P,w,jt,$t,At,Y,ye,$s,Ft,xe,Eo,uo,hi,As,zo,Ms,Zo,Hs,jo,_e,To,fo,li,ks,we,Es,Ce,Z,et,Rt,Le,Se,Ts,$e,j,Ae,st,ht,Me,qs,He,vo,di,Is,Fo,go,ci,Bs,ke,q,S,Wt,Gt,lt,bo,Mt,Ee,dt,Yt,Ht,B,yo,pi,xo,mi,Vs,Ro,Ds,Wo,kt,ys,Os,Te,U,qe,Ie,Be,Ut,Kt,Xt,ct,ot,Ps,Ns,Ve,_o,ui,zs,Go,wo,fi,De,Oe,Pe,Ne,F,Et,Jt,Qt,te,ze,Ze,K,je,Co,vi,Lo,gi,So,bi,ee,ho,Zs,Fe,Re,We,Ge,Ye,Ue,Ke,Xe,Je,Qe,M,ts,es,pt,se,it,V,mt,ut,ss,X,os,is,rs,js,Fs,Rs,ns,Tt,oe,ie,re,Ws,Gs,$o,yi,Ys,Yo,Us,Uo,Ao,xi,Mo,_i,Ks,Ko,ne,lo,Ho,wi,Xs,as,ae,hs,ls,ds,qt,Js,Qs,to,cs,J,It,eo,he,Q,ft,vt,ps,so,Xo,ko,Ci,oo,ms,us,le,fs,vs,gs,gt,rt,bs,N,pe,qo,de,ce,io,Jo,ro,Qo;const _=window.HArvest;if(!_||!_.renderers||!_.renderers.BaseCard){console.warn("[HArvest Shrooms] HArvest not found - pack not loaded.");return}const b=_.renderers.BaseCard,u=window.HArvest.esc;function nt(a,c){let e=null,s=null,r=null;function n(...h){s=this,r=h,e&&clearTimeout(e),e=setTimeout(()=>{e=null,a.apply(s,r),r=null},c)}return n.flush=function(){e!==null&&(clearTimeout(e),e=null,r&&(a.apply(s,r),r=null))},n}function C(a){return a?a.charAt(0).toUpperCase()+a.slice(1).replace(/_/g," "):""}function cr(a,c,e){return Math.min(e,Math.max(c,a))}function ti(a,c){const e=a.querySelector(".shroom-controls-shell");e&&e.setAttribute("data-collapsed",String(c))}function me(a,c){a&&(a.setAttribute("role","button"),a.setAttribute("tabindex","0"),a.setAttribute("aria-label",c),a.addEventListener("keydown",e=>{(e.key==="Enter"||e.key===" ")&&(e.preventDefault(),a.click())}))}function H(a){a.querySelectorAll("[part=companion]").forEach(c=>{c.title=c.getAttribute("aria-label")??"Companion"})}const Li={light:"var(--hrv-ex-shroom-light, #ff9800)",switch:"var(--hrv-ex-shroom-switch, #2196f3)",input_boolean:"var(--hrv-ex-shroom-switch, #2196f3)",fan:"var(--hrv-ex-shroom-fan, #4caf50)",climate:"var(--hrv-ex-shroom-climate, #ff5722)",cover:"var(--hrv-ex-shroom-cover, #9c27b0)",media_player:"var(--hrv-ex-shroom-media, #e91e63)",sensor:"var(--hrv-ex-shroom-sensor, #03a9f4)",binary_sensor:"var(--hrv-ex-shroom-binary, #8bc34a)",input_number:"var(--hrv-ex-shroom-input, #00bcd4)",input_select:"var(--hrv-ex-shroom-input, #00bcd4)",timer:"var(--hrv-ex-shroom-timer, #673ab7)",remote:"var(--hrv-ex-shroom-remote, #607d8b)",weather:"var(--hrv-ex-shroom-weather, #ff9800)",harvest_action:"var(--hrv-ex-shroom-action, #9c27b0)"};function ei(a){return Li[a]??"var(--hrv-color-primary, #ff9800)"}function $(a,c,e){if(!a)return;const s=ei(c);e?(a.style.background=`color-mix(in srgb, ${s} 20%, transparent)`,a.style.color=s):(a.style.background="var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05))",a.style.color="var(--hrv-color-icon, #757575)")}function k(a){const c=(a.config.displayHints??a.def.display_hints??{}).layout??null,e=a.root.host;e&&(c==="vertical"?e.setAttribute("data-layout","vertical"):e.removeAttribute("data-layout"))}function Si(a){if(!a)return()=>{};const c=80,e=1.6,s=.96,r=.04;let n=null,h=0,d=0,p=0,m=!1,y=0;const g=[],f=()=>{y&&(cancelAnimationFrame(y),y=0)},I=v=>{for(;g.length&&g[0].t<v-c;)g.shift();if(g.length<2)return 0;const L=g[0],W=g[g.length-1],ao=W.t-L.t;return ao<=0?0:(W.x-L.x)/ao},R=()=>{if(Math.abs(p)<r)return;let v=performance.now();const L=W=>{const ao=W-v;if(v=W,a.scrollLeft-=p*ao,p*=Math.pow(s,ao/16),Math.abs(p)<r){y=0,p=0;return}const dr=a.scrollWidth-a.clientWidth;if(a.scrollLeft<=0||a.scrollLeft>=dr){y=0,p=0;return}y=requestAnimationFrame(L)};y=requestAnimationFrame(L)},no=v=>{if(a.scrollWidth<=a.clientWidth||v.pointerType==="touch")return;const L=v.target;if(!(L&&L!==a&&L.closest?.("button, a"))){f(),n=v.pointerId,h=v.clientX,d=a.scrollLeft,p=0,m=!1,g.length=0,g.push({x:v.clientX,t:v.timeStamp});try{a.setPointerCapture(n)}catch{}}},Do=v=>{if(v.pointerId!==n)return;const L=v.clientX-h;Math.abs(L)>4&&(m=!0,a.dataset.dragging="true"),a.scrollLeft=d-L,g.push({x:v.clientX,t:v.timeStamp});const W=v.timeStamp-c;for(;g.length>2&&g[0].t<W;)g.shift()},x=v=>{if(v.pointerId===n){try{a.releasePointerCapture(n)}catch{}if(n=null,m){const L=W=>{W.stopPropagation(),W.preventDefault()};window.addEventListener("click",L,{capture:!0,once:!0}),requestAnimationFrame(()=>a.removeAttribute("data-dragging")),p=I(v.timeStamp)*e,R()}g.length=0}};return a.addEventListener("pointerdown",no),a.addEventListener("pointermove",Do),a.addEventListener("pointerup",x),a.addEventListener("pointercancel",x),a.addEventListener("wheel",f,{passive:!0}),a.addEventListener("touchstart",f,{passive:!0}),()=>{f(),a.removeEventListener("pointerdown",no),a.removeEventListener("pointermove",Do),a.removeEventListener("pointerup",x),a.removeEventListener("pointercancel",x),a.removeEventListener("wheel",f),a.removeEventListener("touchstart",f)}}function si(a,c){if(a!=="on")return null;if(c.rgb_color){const[s,r,n]=c.rgb_color;return(.299*s+.587*r+.114*n)/255>.85?`rgb(${Math.round(s*.8)}, ${Math.round(r*.8)}, ${Math.round(n*.75)})`:`rgb(${s}, ${r}, ${n})`}if(c.hs_color)return`hsl(${c.hs_color[0]}, ${Math.max(c.hs_color[1],50)}%, 55%)`;const e=c.color_temp_kelvin??(c.color_temp?Math.round(1e6/c.color_temp):null);return e?e>=5200?"#4ba3e0":e>=4500?"#e0c85a":e<=3e3?"#e6a040":"#ddb840":null}const E=`
     [data-gesture-hold=pending]::before {
       animation: none !important;
       opacity: 0 !important;
@@ -82,7 +82,7 @@
     :host([data-layout=vertical]) .shroom-info {
       align-items: center;
     }
-  `,xo=`
+  `,Io=`
     .shroom-controls-shell {
       overflow: hidden;
       transition: max-height 0.45s cubic-bezier(0.22, 0.84, 0.26, 1),
@@ -103,7 +103,7 @@
     @media (prefers-reduced-motion: reduce) {
       .shroom-controls-shell { transition: none; }
     }
-  `,ms=`
+  `,xs=`
     .shroom-slider-wrap {
       position: relative;
       width: 100%;
@@ -159,7 +159,7 @@
       pointer-events: none;
       transition: box-shadow 150ms ease;
     }
-  `,pt=`
+  `,bt=`
     .shroom-btn {
       display: inline-flex;
       align-items: center;
@@ -212,7 +212,7 @@
       height: 20px;
       fill: currentColor;
     }
-  `,k=`
+  `,T=`
     [part=companion-zone] {
       display: flex;
       flex-wrap: wrap;
@@ -247,11 +247,11 @@
       display: flex; align-items: center; justify-content: center;
     }
     [part=companion-icon] svg { width: 100%; height: 100%; fill: currentColor; }
-  `,hi=`
-    ${H}
-    ${k}
-  `;class No extends f{constructor(){super(...arguments);o(this,fs,null);o(this,oe,null);o(this,mt,!1)}render(){M(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${hi}</style>
+  `,$i=`
+    ${E}
+    ${T}
+  `;class oi extends b{constructor(){super(...arguments);o(this,ws,null);o(this,ue,null);o(this,yt,!1)}render(){k(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
+        <style>${$i}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${e}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -264,12 +264,12 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,fs,this.root.querySelector(".shroom-icon-shape")),i(this,oe,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:toggle-switch-off-outline"),"card-icon");const s=this.root.querySelector(".shroom-state-item");e&&(se(s,`${this.def.friendly_name} - Toggle`),this._attachGestureHandlers(s,{onTap:()=>{const r=this.config.gestureConfig?.tap;if(r){this._runAction(r);return}this.config.card?.sendCommand("toggle",{})}})),this.renderCompanions(),A(this.root)}applyState(e,s){i(this,mt,e==="on");const r=this.def.domain??"switch";w(t(this,fs),r,t(this,mt)),t(this,oe)&&(t(this,oe).textContent=C(e));const n=this.root.querySelector(".shroom-state-item");n?.hasAttribute("role")&&n.setAttribute("aria-pressed",String(t(this,mt)));const h=t(this,mt)?this.resolveIcon(this.def.icon,"mdi:toggle-switch"):this.resolveIcon(this.def.icon,"mdi:toggle-switch-off-outline");this.renderIcon(h,"card-icon"),this.announceState(`${this.def.friendly_name}, ${e}`)}predictState(e,s){return e==="toggle"||e==="turn_on"||e==="turn_off"?{state:e==="toggle"?t(this,mt)?"off":"on":e==="turn_on"?"on":"off",attributes:{}}:null}}fs=new WeakMap,oe=new WeakMap,mt=new WeakMap;const us=["brightness","temp","color"],li={brightness:"mdi:brightness-4",temp:"mdi:thermometer",color:"mdi:palette"},di=`
-    ${H}
-    ${xo}
-    ${ms}
-    ${pt}
-    ${k}
+      `,i(this,ws,this.root.querySelector(".shroom-icon-shape")),i(this,ue,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:toggle-switch-off-outline"),"card-icon");const s=this.root.querySelector(".shroom-state-item");e&&(me(s,`${this.def.friendly_name} - Toggle`),this._attachGestureHandlers(s,{onTap:()=>{const r=this.config.gestureConfig?.tap;if(r){this._runAction(r);return}this.config.card?.sendCommand("toggle",{})}})),this.renderCompanions(),H(this.root)}applyState(e,s){i(this,yt,e==="on");const r=this.def.domain??"switch";$(t(this,ws),r,t(this,yt)),t(this,ue)&&(t(this,ue).textContent=C(e));const n=this.root.querySelector(".shroom-state-item");n?.hasAttribute("role")&&n.setAttribute("aria-pressed",String(t(this,yt)));const h=t(this,yt)?this.resolveIcon(this.def.icon,"mdi:toggle-switch"):this.resolveIcon(this.def.icon,"mdi:toggle-switch-off-outline");this.renderIcon(h,"card-icon"),this.announceState(`${this.def.friendly_name}, ${e}`)}predictState(e,s){return e==="toggle"||e==="turn_on"||e==="turn_off"?{state:e==="toggle"?t(this,yt)?"off":"on":e==="turn_on"?"on":"off",attributes:{}}:null}}ws=new WeakMap,ue=new WeakMap,yt=new WeakMap;const _s=["brightness","temp","color"],Ai={brightness:"mdi:brightness-4",temp:"mdi:thermometer",color:"mdi:palette"},Mi=`
+    ${E}
+    ${Io}
+    ${xs}
+    ${bt}
+    ${T}
 
     .shroom-light-mode-btns {
       display: flex;
@@ -326,8 +326,8 @@
       color: var(--hrv-color-text-secondary, #757575);
       margin-top: 4px;
     }
-  `;class ci extends f{constructor(e,s,r,n){super(e,s,r,n);o(this,gs);o(this,bs);o(this,Qs);o(this,ut,null);o(this,Mt,null);o(this,$,null);o(this,vs,null);o(this,ft,null);o(this,Ht,null);o(this,kt,[]);o(this,P,0);o(this,Tt,4e3);o(this,Et,0);o(this,E,!1);o(this,q,0);o(this,vt,2e3);o(this,ie,6500);o(this,qt,{});o(this,re,void 0);i(this,re,ee(d(this,Qs,Fo).bind(this),300))}render(){M(this);const e=this.def.capabilities==="read-write",s=this.def.supported_features??[],r=this.config.displayHints??{},n=r.show_brightness!==!1&&s.includes("brightness"),h=r.show_color_temp!==!1&&s.includes("color_temp"),c=r.show_rgb!==!1&&s.includes("rgb_color"),m=e&&(n||h||c),p=[n,h,c].filter(Boolean).length;i(this,vt,this.def.feature_config?.min_color_temp_kelvin??2e3),i(this,ie,this.def.feature_config?.max_color_temp_kelvin??6500);const g=[n,h,c];g[t(this,q)]||(i(this,q,g.findIndex(Boolean)),t(this,q)===-1&&i(this,q,0)),this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${di}</style>
+  `;class Hi extends b{constructor(e,s,r,n){super(e,s,r,n);o(this,Ls);o(this,Ss);o(this,mo);o(this,xt,null);o(this,Bt,null);o(this,A,null);o(this,Cs,null);o(this,_t,null);o(this,Vt,null);o(this,Dt,[]);o(this,G,0);o(this,Ot,4e3);o(this,Pt,0);o(this,D,!1);o(this,O,0);o(this,wt,2e3);o(this,fe,6500);o(this,Nt,{});o(this,ve,void 0);i(this,ve,nt(l(this,mo,ai).bind(this),300))}render(){k(this);const e=this.def.capabilities==="read-write",s=this.def.supported_features??[],r=this.config.displayHints??{},n=r.show_brightness!==!1&&s.includes("brightness"),h=r.show_color_temp!==!1&&s.includes("color_temp"),d=r.show_rgb!==!1&&s.includes("rgb_color"),p=e&&(n||h||d),m=[n,h,d].filter(Boolean).length;i(this,wt,this.def.feature_config?.min_color_temp_kelvin??2e3),i(this,fe,this.def.feature_config?.max_color_temp_kelvin??6500);const y=[n,h,d];y[t(this,O)]||(i(this,O,y.findIndex(Boolean)),t(this,O)===-1&&i(this,O,0)),this.root.innerHTML=`
+        <style>${Mi}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${e}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -336,7 +336,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
-          ${m?`
+          ${p?`
             <div class="shroom-controls-shell" data-collapsed="true">
               <div class="shroom-light-controls-row">
                 <div class="shroom-slider-wrap shroom-light-slider-wrap">
@@ -349,11 +349,11 @@
                     aria-valuetext="0%">
                   <div class="shroom-slider-focus-ring"></div>
                 </div>
-                ${p>1?`
+                ${m>1?`
                   <div class="shroom-light-mode-btns">
                     ${n?'<button class="shroom-light-mode-btn" data-mode="brightness" type="button" aria-label="Brightness"><span part="light-mode-brightness"></span></button>':""}
                     ${h?'<button class="shroom-light-mode-btn" data-mode="temp" type="button" aria-label="Color temperature"><span part="light-mode-temp"></span></button>':""}
-                    ${c?'<button class="shroom-light-mode-btn" data-mode="color" type="button" aria-label="Color"><span part="light-mode-color"></span></button>':""}
+                    ${d?'<button class="shroom-light-mode-btn" data-mode="color" type="button" aria-label="Color"><span part="light-mode-color"></span></button>':""}
                   </div>
                 `:""}
               </div>
@@ -366,11 +366,11 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,ut,this.root.querySelector(".shroom-icon-shape")),i(this,Mt,this.root.querySelector(".shroom-secondary")),i(this,$,this.root.querySelector(".shroom-slider-input")),i(this,vs,this.root.querySelector(".shroom-slider-bg")),i(this,ft,this.root.querySelector(".shroom-slider-cover")),i(this,Ht,this.root.querySelector(".shroom-slider-edge")),i(this,kt,[...this.root.querySelectorAll(".shroom-light-mode-btn")]),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:lightbulb"),"card-icon");for(const v of t(this,kt))this.renderIcon(li[v.dataset.mode]??"mdi:help-circle",`light-mode-${v.dataset.mode}`);const _=this.root.querySelector(".shroom-state-item");e&&(se(_,`${this.def.friendly_name} - Toggle`),this._attachGestureHandlers(_,{onTap:()=>{const v=this.config.gestureConfig?.tap;if(v){this._runAction(v);return}this.config.card?.sendCommand("toggle",{})}}));for(const v of t(this,kt))v.addEventListener("click",()=>{const V=v.dataset.mode,et=us.indexOf(V);et===-1||et===t(this,q)||(i(this,q,et),d(this,gs,So).call(this))});t(this,$)&&(t(this,$).addEventListener("input",()=>{const v=parseInt(t(this,$).value,10),V=us[t(this,q)]??"brightness";V==="brightness"?i(this,P,v):V==="temp"?i(this,Tt,Math.round(t(this,vt)+v/100*(t(this,ie)-t(this,vt)))):i(this,Et,Math.round(v*3.6)),d(this,bs,$o).call(this),t(this,re).call(this,V)}),this.guardSlider(t(this,$),t(this,re))),this.renderCompanions(),A(this.root)}applyState(e,s){i(this,E,e==="on"),i(this,qt,s),Vo(this.root,!t(this,E));const r=Do(e,s);t(this,E)&&r?t(this,ut)&&(t(this,ut).style.background=`color-mix(in srgb, ${r} 20%, transparent)`,t(this,ut).style.color=r):w(t(this,ut),"light",t(this,E)),i(this,P,s.brightness!=null?Math.round(s.brightness/255*100):0),i(this,Tt,s.color_temp_kelvin??(s.color_temp?Math.round(1e6/s.color_temp):4e3)),i(this,Et,s.hs_color?.[0]??42),t(this,Mt)&&(t(this,E)&&s.brightness!=null?t(this,Mt).textContent=`${t(this,P)}%`:t(this,Mt).textContent=C(e));const n=this.root.querySelector(".shroom-light-ro");n&&(n.textContent=t(this,E)&&s.brightness!=null?`${t(this,P)}%`:C(e));const h=this.root.querySelector(".shroom-slider-wrap");if(h){const p=Do("on",s);h.style.setProperty("--shroom-light-accent",p??"var(--hrv-ex-shroom-light, #ff9800)")}d(this,gs,So).call(this);const c=this.root.querySelector(".shroom-state-item");if(c?.hasAttribute("role")&&c.setAttribute("aria-pressed",String(t(this,E))),t(this,$)){const p=us[t(this,q)]??"brightness",g=parseInt(t(this,$).value,10);p==="brightness"?t(this,$).setAttribute("aria-valuetext",`${g}%`):p==="temp"?t(this,$).setAttribute("aria-valuetext",`${g}K`):t(this,$).setAttribute("aria-valuetext",`${g}`)}const m=t(this,E)?this.resolveIcon(this.def.icon,"mdi:lightbulb"):this.resolveIcon(this.def.icon,"mdi:lightbulb-off");this.renderIcon(m,"card-icon"),this.announceState(`${this.def.friendly_name}, ${e}${t(this,E)?`, ${t(this,P)}%`:""}`)}predictState(e,s){if(e==="toggle")return{state:t(this,E)?"off":"on",attributes:t(this,qt)};if(e==="turn_on"){const r={...t(this,qt)};return s.brightness!=null&&(r.brightness=s.brightness),s.color_temp_kelvin!=null&&(r.color_temp_kelvin=s.color_temp_kelvin),s.hs_color!=null&&(r.hs_color=s.hs_color),{state:"on",attributes:r}}return e==="turn_off"?{state:"off",attributes:t(this,qt)}:null}}ut=new WeakMap,Mt=new WeakMap,$=new WeakMap,vs=new WeakMap,ft=new WeakMap,Ht=new WeakMap,kt=new WeakMap,P=new WeakMap,Tt=new WeakMap,Et=new WeakMap,E=new WeakMap,q=new WeakMap,vt=new WeakMap,ie=new WeakMap,qt=new WeakMap,re=new WeakMap,gs=new WeakSet,So=function(){const e=us[t(this,q)]??"brightness",s=t(this,vs);s?.classList.remove("shroom-brightness-bg","shroom-ct-bg","shroom-hue-bg"),e==="brightness"?s?.classList.add("shroom-brightness-bg"):e==="temp"?s?.classList.add("shroom-ct-bg"):s?.classList.add("shroom-hue-bg");for(const r of t(this,kt))r.hidden=r.dataset.mode===e;d(this,bs,$o).call(this)},bs=new WeakSet,$o=function(){const e=us[t(this,q)]??"brightness";let s=0;e==="brightness"?s=t(this,P):e==="temp"?s=Math.round((t(this,Tt)-t(this,vt))/(t(this,ie)-t(this,vt))*100):s=Math.round(t(this,Et)/3.6);const r=e==="brightness";t(this,ft)&&(r?(t(this,ft).style.display="",t(this,ft).style.left=`${s}%`):t(this,ft).style.display="none"),t(this,Ht)&&(t(this,Ht).style.display=r?"none":"",r||(t(this,Ht).style.left=`${s}%`)),t(this,$)&&!this.isSliderActive(t(this,$))&&(t(this,$).value=String(s))},Qs=new WeakSet,Fo=function(e){e==="brightness"?t(this,P)<=0?this.config.card?.sendCommand("turn_off",{}):this.config.card?.sendCommand("turn_on",{brightness:Math.round(t(this,P)*2.55)}):e==="temp"?this.config.card?.sendCommand("turn_on",{color_temp_kelvin:t(this,Tt)}):this.config.card?.sendCommand("turn_on",{hs_color:[t(this,Et),100]})};const pi={temperature:"var(--hrv-ex-shroom-climate, #ff5722)",humidity:"var(--hrv-ex-shroom-sensor, #03a9f4)",battery:"var(--hrv-ex-shroom-fan, #4caf50)"},mi={temperature:"mdi:thermometer",humidity:"mdi:water-percent",battery:"mdi:battery"};function ui(a){return a==null||isNaN(a)||a>=90?"mdi:battery":a>=70?"mdi:battery-70":a>=50?"mdi:battery-50":a>=30?"mdi:battery-30":a>=10?"mdi:battery-10":"mdi:battery-alert"}function fi(a){return a==null||isNaN(a)?"var(--hrv-ex-shroom-fan, #4caf50)":a<=10?"var(--hrv-color-error, #f44336)":a<=20?"var(--hrv-color-warning, #ff9800)":"var(--hrv-ex-shroom-fan, #4caf50)"}const vi=`
-    ${H}
-    ${k}
-  `;class Xs extends f{constructor(){super(...arguments);o(this,U,null);o(this,It,null);o(this,ne,null)}render(){M(this),i(this,ne,this.def.device_class??null);const e=mi[t(this,ne)]??"mdi:gauge";this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${vi}</style>
+      `,i(this,xt,this.root.querySelector(".shroom-icon-shape")),i(this,Bt,this.root.querySelector(".shroom-secondary")),i(this,A,this.root.querySelector(".shroom-slider-input")),i(this,Cs,this.root.querySelector(".shroom-slider-bg")),i(this,_t,this.root.querySelector(".shroom-slider-cover")),i(this,Vt,this.root.querySelector(".shroom-slider-edge")),i(this,Dt,[...this.root.querySelectorAll(".shroom-light-mode-btn")]),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:lightbulb"),"card-icon");for(const f of t(this,Dt))this.renderIcon(Ai[f.dataset.mode]??"mdi:help-circle",`light-mode-${f.dataset.mode}`);const g=this.root.querySelector(".shroom-state-item");e&&(me(g,`${this.def.friendly_name} - Toggle`),this._attachGestureHandlers(g,{onTap:()=>{const f=this.config.gestureConfig?.tap;if(f){this._runAction(f);return}this.config.card?.sendCommand("toggle",{})}}));for(const f of t(this,Dt))f.addEventListener("click",()=>{const I=f.dataset.mode,R=_s.indexOf(I);R===-1||R===t(this,O)||(i(this,O,R),l(this,Ls,Po).call(this))});t(this,A)&&(t(this,A).addEventListener("input",()=>{const f=parseInt(t(this,A).value,10),I=_s[t(this,O)]??"brightness";I==="brightness"?i(this,G,f):I==="temp"?i(this,Ot,Math.round(t(this,wt)+f/100*(t(this,fe)-t(this,wt)))):i(this,Pt,Math.round(f*3.6)),l(this,Ss,No).call(this),t(this,ve).call(this,I)}),this.guardSlider(t(this,A),t(this,ve))),this.renderCompanions(),H(this.root)}applyState(e,s){i(this,D,e==="on"),i(this,Nt,s),ti(this.root,!t(this,D));const r=si(e,s);t(this,D)&&r?t(this,xt)&&(t(this,xt).style.background=`color-mix(in srgb, ${r} 20%, transparent)`,t(this,xt).style.color=r):$(t(this,xt),"light",t(this,D)),i(this,G,s.brightness!=null?Math.round(s.brightness/255*100):0),i(this,Ot,s.color_temp_kelvin??(s.color_temp?Math.round(1e6/s.color_temp):4e3)),i(this,Pt,s.hs_color?.[0]??42),t(this,Bt)&&(t(this,D)&&s.brightness!=null?t(this,Bt).textContent=`${t(this,G)}%`:t(this,Bt).textContent=C(e));const n=this.root.querySelector(".shroom-light-ro");n&&(n.textContent=t(this,D)&&s.brightness!=null?`${t(this,G)}%`:C(e));const h=this.root.querySelector(".shroom-slider-wrap");if(h){const m=si("on",s);h.style.setProperty("--shroom-light-accent",m??"var(--hrv-ex-shroom-light, #ff9800)")}l(this,Ls,Po).call(this);const d=this.root.querySelector(".shroom-state-item");if(d?.hasAttribute("role")&&d.setAttribute("aria-pressed",String(t(this,D))),t(this,A)){const m=_s[t(this,O)]??"brightness",y=parseInt(t(this,A).value,10);m==="brightness"?t(this,A).setAttribute("aria-valuetext",`${y}%`):m==="temp"?t(this,A).setAttribute("aria-valuetext",`${y}K`):t(this,A).setAttribute("aria-valuetext",`${y}`)}const p=t(this,D)?this.resolveIcon(this.def.icon,"mdi:lightbulb"):this.resolveIcon(this.def.icon,"mdi:lightbulb-off");this.renderIcon(p,"card-icon"),this.announceState(`${this.def.friendly_name}, ${e}${t(this,D)?`, ${t(this,G)}%`:""}`)}predictState(e,s){if(e==="toggle")return{state:t(this,D)?"off":"on",attributes:t(this,Nt)};if(e==="turn_on"){const r={...t(this,Nt)};return s.brightness!=null&&(r.brightness=s.brightness),s.color_temp_kelvin!=null&&(r.color_temp_kelvin=s.color_temp_kelvin),s.hs_color!=null&&(r.hs_color=s.hs_color),{state:"on",attributes:r}}return e==="turn_off"?{state:"off",attributes:t(this,Nt)}:null}}xt=new WeakMap,Bt=new WeakMap,A=new WeakMap,Cs=new WeakMap,_t=new WeakMap,Vt=new WeakMap,Dt=new WeakMap,G=new WeakMap,Ot=new WeakMap,Pt=new WeakMap,D=new WeakMap,O=new WeakMap,wt=new WeakMap,fe=new WeakMap,Nt=new WeakMap,ve=new WeakMap,Ls=new WeakSet,Po=function(){const e=_s[t(this,O)]??"brightness",s=t(this,Cs);s?.classList.remove("shroom-brightness-bg","shroom-ct-bg","shroom-hue-bg"),e==="brightness"?s?.classList.add("shroom-brightness-bg"):e==="temp"?s?.classList.add("shroom-ct-bg"):s?.classList.add("shroom-hue-bg");for(const r of t(this,Dt))r.hidden=r.dataset.mode===e;l(this,Ss,No).call(this)},Ss=new WeakSet,No=function(){const e=_s[t(this,O)]??"brightness";let s=0;e==="brightness"?s=t(this,G):e==="temp"?s=Math.round((t(this,Ot)-t(this,wt))/(t(this,fe)-t(this,wt))*100):s=Math.round(t(this,Pt)/3.6);const r=e==="brightness";t(this,_t)&&(r?(t(this,_t).style.display="",t(this,_t).style.left=`${s}%`):t(this,_t).style.display="none"),t(this,Vt)&&(t(this,Vt).style.display=r?"none":"",r||(t(this,Vt).style.left=`${s}%`)),t(this,A)&&!this.isSliderActive(t(this,A))&&(t(this,A).value=String(s))},mo=new WeakSet,ai=function(e){e==="brightness"?t(this,G)<=0?this.config.card?.sendCommand("turn_off",{}):this.config.card?.sendCommand("turn_on",{brightness:Math.round(t(this,G)*2.55)}):e==="temp"?this.config.card?.sendCommand("turn_on",{color_temp_kelvin:t(this,Ot)}):this.config.card?.sendCommand("turn_on",{hs_color:[t(this,Pt),100]})};const ki={temperature:"var(--hrv-ex-shroom-climate, #ff5722)",humidity:"var(--hrv-ex-shroom-sensor, #03a9f4)",battery:"var(--hrv-ex-shroom-fan, #4caf50)"},Ei={temperature:"mdi:thermometer",humidity:"mdi:water-percent",battery:"mdi:battery"};function Ti(a){return a==null||isNaN(a)||a>=90?"mdi:battery":a>=70?"mdi:battery-70":a>=50?"mdi:battery-50":a>=30?"mdi:battery-30":a>=10?"mdi:battery-10":"mdi:battery-alert"}function qi(a){return a==null||isNaN(a)?"var(--hrv-ex-shroom-fan, #4caf50)":a<=10?"var(--hrv-color-error, #f44336)":a<=20?"var(--hrv-color-warning, #ff9800)":"var(--hrv-ex-shroom-fan, #4caf50)"}const Ii=`
+    ${E}
+    ${T}
+  `;class co extends b{constructor(){super(...arguments);o(this,tt,null);o(this,zt,null);o(this,ge,null)}render(){k(this),i(this,ge,this.def.device_class??null);const e=Ei[t(this,ge)]??"mdi:gauge";this.root.innerHTML=`
+        <style>${Ii}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -384,12 +384,12 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,U,this.root.querySelector(".shroom-icon-shape")),i(this,It,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.resolveIcon(this.def.icon,e),"card-icon"),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){const r=parseFloat(e),n=this.def.unit_of_measurement??"",h=!isNaN(r),c=t(this,ne);if(t(this,It))if(h){const m=s.suggested_display_precision,p=m!=null?r.toFixed(m):String(Math.round(r*10)/10);t(this,It).textContent=n?`${p} ${n}`:p}else t(this,It).textContent=C(e);if(c==="battery"&&h){const m=fi(r);t(this,U)&&(t(this,U).style.background=`color-mix(in srgb, ${m} 20%, transparent)`,t(this,U).style.color=m),this.renderIcon(this.resolveIcon(this.def.icon,ui(r)),"card-icon")}else{const m=pi[c]??Oo("sensor");t(this,U)&&(t(this,U).style.background=`color-mix(in srgb, ${m} 20%, transparent)`,t(this,U).style.color=m)}this.announceState(`${this.def.friendly_name}, ${h?r:e} ${n}`)}}U=new WeakMap,It=new WeakMap,ne=new WeakMap;const gi=`
-    ${H}
-    ${xo}
-    ${ms}
-    ${pt}
-    ${k}
+      `,i(this,tt,this.root.querySelector(".shroom-icon-shape")),i(this,zt,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.resolveIcon(this.def.icon,e),"card-icon"),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}applyState(e,s){const r=parseFloat(e),n=this.def.unit_of_measurement??"",h=!isNaN(r),d=t(this,ge);if(t(this,zt))if(h){const p=s.suggested_display_precision,m=p!=null?r.toFixed(p):String(Math.round(r*10)/10);t(this,zt).textContent=n?`${m} ${n}`:m}else t(this,zt).textContent=C(e);if(d==="battery"&&h){const p=qi(r);t(this,tt)&&(t(this,tt).style.background=`color-mix(in srgb, ${p} 20%, transparent)`,t(this,tt).style.color=p),this.renderIcon(this.resolveIcon(this.def.icon,Ti(r)),"card-icon")}else{const p=ki[d]??ei("sensor");t(this,tt)&&(t(this,tt).style.background=`color-mix(in srgb, ${p} 20%, transparent)`,t(this,tt).style.color=p)}this.announceState(`${this.def.friendly_name}, ${h?r:e} ${n}`)}}tt=new WeakMap,zt=new WeakMap,ge=new WeakMap;const Bi=`
+    ${E}
+    ${Io}
+    ${xs}
+    ${bt}
+    ${T}
 
     @keyframes shroom-fan-spin {
       from { transform: rotate(0deg); }
@@ -474,8 +474,8 @@
     .shroom-fan-slider-bg {
       background: var(--hrv-ex-shroom-fan, #4caf50);
     }
-  `;class bi extends f{constructor(e,s,r,n){super(e,s,r,n);o(this,le);o(this,to);o(this,ys);o(this,xs);o(this,_s);o(this,de);o(this,eo);o(this,st,null);o(this,Bt,null);o(this,D,null);o(this,ae,null);o(this,gt,null);o(this,bt,null);o(this,yt,null);o(this,I,!1);o(this,y,0);o(this,Vt,!1);o(this,xt,"forward");o(this,_t,null);o(this,j,[]);o(this,he,void 0);i(this,he,ee(d(this,eo,Yo).bind(this),300)),i(this,j,e.feature_config?.preset_modes??[])}render(){M(this);const e=this.def.capabilities==="read-write",s=this.def.supported_features??[],r=this.config.displayHints??this.def.display_hints??{},n=r.display_mode??null;let h=s.includes("set_speed");const c=r.show_oscillate!==!1&&s.includes("oscillate"),m=r.show_direction!==!1&&s.includes("direction"),p=r.show_presets!==!1&&s.includes("preset_mode");n==="on-off"&&(h=!1);let g=e&&h,_=g&&t(this,to,Go),v=!1,V=!1;n==="continuous"?_=!1:n==="stepped"?V=_:n==="cycle"?(_=!0,v=!0):_&&t(this,j).length?v=!0:_&&(V=!0);const et=e&&(c||m||p);this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${gi}</style>
+  `;class Vi extends b{constructor(e,s,r,n){super(e,s,r,n);o(this,xe);o(this,uo);o(this,As);o(this,Ms);o(this,Hs);o(this,_e);o(this,fo);o(this,at,null);o(this,Zt,null);o(this,z,null);o(this,be,null);o(this,Ct,null);o(this,Lt,null);o(this,St,null);o(this,P,!1);o(this,w,0);o(this,jt,!1);o(this,$t,"forward");o(this,At,null);o(this,Y,[]);o(this,ye,void 0);o(this,$s,!1);o(this,Ft,!1);i(this,ye,nt(l(this,fo,li).bind(this),300)),i(this,Y,e.feature_config?.preset_modes??[])}render(){k(this);const e=this.def.capabilities==="read-write",s=this.def.supported_features??[],r=this.config.displayHints??this.def.display_hints??{},n=r.display_mode??null;let h=s.includes("set_speed");const d=r.show_oscillate!==!1&&s.includes("oscillate"),p=r.show_direction!==!1&&s.includes("direction"),m=r.show_presets!==!1&&s.includes("preset_mode");n==="on-off"&&(h=!1);let y=e&&h,g=y&&t(this,uo,hi),f=!1,I=!1;n==="continuous"?g=!1:n==="stepped"?I=g:n==="cycle"?(g=!0,f=!0):g&&t(this,Y).length?f=!0:g&&(I=!0),i(this,$s,f);const R=e&&(d||p||m);this.root.innerHTML=`
+        <style>${Bi}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${e}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -484,10 +484,10 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
-          ${g||et?`
+          ${y||R?`
             <div class="shroom-controls-shell" data-collapsed="true">
               <div class="shroom-fan-controls">
-                ${g&&!_?`
+                ${y&&!g?`
                   <div class="shroom-fan-speed-row">
                     <div class="shroom-slider-wrap">
                       <div class="shroom-slider-bg shroom-fan-slider-bg"></div>
@@ -500,17 +500,17 @@
                     </div>
                   </div>
                 `:""}
-                ${g&&V?`
+                ${y&&I?`
                   <div class="shroom-fan-step-dots">
-                    ${t(this,ys,Lo).map((x,O)=>`
+                    ${t(this,As,zo).map((x,v)=>`
                       <button class="shroom-fan-step-dot" data-pct="${x}" type="button"
                         data-active="false"
-                        aria-label="Speed ${O+1} (${x}%)"
-                        title="Speed ${O+1} (${x}%)">${O+1}</button>
+                        aria-label="Speed ${v+1} (${x}%)"
+                        title="Speed ${v+1} (${x}%)">${v+1}</button>
                     `).join("")}
                   </div>
                 `:""}
-                ${g&&v?`
+                ${y&&f?`
                   <div style="display:flex;justify-content:center;">
                     <button class="shroom-fan-cycle-btn" type="button"
                       title="Cycle speed"
@@ -519,11 +519,11 @@
                     </button>
                   </div>
                 `:""}
-                ${et?`
+                ${R?`
                   <div class="shroom-fan-feat-row">
-                    ${c?'<button class="shroom-btn shroom-fan-feat" data-feat="oscillate" type="button" aria-label="Oscillate" aria-pressed="false">Oscillate</button>':""}
-                    ${m?'<button class="shroom-btn shroom-fan-feat" data-feat="direction" type="button" aria-label="Direction: forward">Forward</button>':""}
-                    ${p?'<button class="shroom-btn shroom-fan-feat" data-feat="preset" type="button" aria-label="Preset">Preset</button>':""}
+                    ${d?'<button class="shroom-btn shroom-fan-feat" data-feat="oscillate" type="button" aria-label="Oscillate" aria-pressed="false">Oscillate</button>':""}
+                    ${p?'<button class="shroom-btn shroom-fan-feat" data-feat="direction" type="button" aria-label="Direction: forward">Forward</button>':""}
+                    ${m?'<button class="shroom-btn shroom-fan-feat" data-feat="preset" type="button" aria-label="Preset">Preset</button>':""}
                   </div>
                 `:""}
               </div>
@@ -534,11 +534,11 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,st,this.root.querySelector(".shroom-icon-shape")),i(this,Bt,this.root.querySelector(".shroom-secondary")),i(this,D,this.root.querySelector(".shroom-slider-input")),i(this,ae,this.root.querySelector(".shroom-slider-cover")),i(this,gt,this.root.querySelector('[data-feat="oscillate"]')),i(this,bt,this.root.querySelector('[data-feat="direction"]')),i(this,yt,this.root.querySelector('[data-feat="preset"]')),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:fan"),"card-icon");const Ro=this.root.querySelector(".shroom-state-item");e&&(se(Ro,`${this.def.friendly_name} - Toggle`),this._attachGestureHandlers(Ro,{onTap:()=>{const x=this.config.gestureConfig?.tap;if(x){this._runAction(x);return}this.config.card?.sendCommand("toggle",{})}})),t(this,D)&&(t(this,D).addEventListener("input",()=>{const x=parseInt(t(this,D).value,10);i(this,y,x),t(this,D).setAttribute("aria-valuetext",`${x}%`),d(this,xs,Ao).call(this),t(this,he).call(this)}),this.guardSlider(t(this,D),t(this,he))),this.root.querySelectorAll(".shroom-fan-step-dot").forEach(x=>{x.addEventListener("click",()=>{const O=Number(x.getAttribute("data-pct"));i(this,y,O),i(this,I,!0),d(this,_s,Mo).call(this),this.config.card?.sendCommand("set_percentage",{percentage:O})})}),this.root.querySelector(".shroom-fan-cycle-btn")?.addEventListener("click",()=>{const x=t(this,ys,Lo);if(!x.length)return;let O;if(!t(this,I)||t(this,y)===0)O=x[0];else{const Us=x.findIndex(Ki=>Ki>t(this,y));O=Us===-1?x[0]:x[Us]}i(this,y,O),i(this,I,!0),this.config.card?.sendCommand("set_percentage",{percentage:O})}),t(this,gt)?.addEventListener("click",()=>{this.config.card?.sendCommand("oscillate",{oscillating:!t(this,Vt)})}),t(this,bt)?.addEventListener("click",()=>{const x=t(this,xt)==="forward"?"reverse":"forward";i(this,xt,x),d(this,de,go).call(this),this.config.card?.sendCommand("set_direction",{direction:x})}),t(this,yt)?.addEventListener("click",()=>{if(!t(this,j).length)return;const O=((t(this,_t)?t(this,j).indexOf(t(this,_t)):-1)+1)%t(this,j).length,Us=t(this,j)[O];i(this,_t,Us),d(this,de,go).call(this),this.config.card?.sendCommand("set_preset_mode",{preset_mode:Us})}),this.renderCompanions(),A(this.root)}applyState(e,s){if(i(this,I,e==="on"),i(this,y,s?.percentage??0),i(this,Vt,s?.oscillating??!1),i(this,xt,s?.direction??"forward"),i(this,_t,s?.preset_mode??null),s?.preset_modes?.length&&i(this,j,s.preset_modes),Vo(this.root,!t(this,I)),w(t(this,st),"fan",t(this,I)),t(this,st))if(t(this,I)&&t(this,y)>0&&this.config.animate!==!1){const n=1/(1.5*Math.pow(t(this,y)/100,.5));t(this,st).setAttribute("data-spinning","true"),t(this,st).style.setProperty("--shroom-fan-duration",`${n.toFixed(2)}s`)}else t(this,st).setAttribute("data-spinning","false");t(this,Bt)&&(t(this,I)&&t(this,y)>0?t(this,Bt).textContent=`${t(this,y)}%`:t(this,Bt).textContent=C(e)),d(this,xs,Ao).call(this),d(this,_s,Mo).call(this),d(this,de,go).call(this),this.announceState(`${this.def.friendly_name}, ${e}`+(t(this,y)>0?`, ${t(this,y)}%`:""))}predictState(e,s){return e==="toggle"?{state:t(this,I)?"off":"on",attributes:{percentage:t(this,y)}}:e==="set_percentage"?{state:"on",attributes:{percentage:s.percentage,oscillating:t(this,Vt),direction:t(this,xt),preset_mode:t(this,_t),preset_modes:t(this,j)}}:e==="oscillate"?{state:"on",attributes:{percentage:t(this,y),oscillating:s.oscillating,direction:t(this,xt)}}:e==="set_direction"?{state:"on",attributes:{percentage:t(this,y),oscillating:t(this,Vt),direction:s.direction}}:null}}st=new WeakMap,Bt=new WeakMap,D=new WeakMap,ae=new WeakMap,gt=new WeakMap,bt=new WeakMap,yt=new WeakMap,I=new WeakMap,y=new WeakMap,Vt=new WeakMap,xt=new WeakMap,_t=new WeakMap,j=new WeakMap,he=new WeakMap,le=new WeakSet,vo=function(){const e=this.def?.feature_config;return e?.percentage_step>1?e.percentage_step:e?.speed_count>1?100/e.speed_count:1},to=new WeakSet,Go=function(){return t(this,le,vo)>1},ys=new WeakSet,Lo=function(){const e=t(this,le,vo),s=[];for(let r=1;r*e<=100.001;r++)s.push(Math.floor(r*e*10)/10);return s},xs=new WeakSet,Ao=function(){if(!t(this,D))return;const e=t(this,y);this.isSliderActive(t(this,D))||(t(this,D).value=String(e)),t(this,ae)&&(t(this,ae).style.left=`${e}%`)},_s=new WeakSet,Mo=function(){const e=t(this,le,vo)/2;this.root.querySelectorAll(".shroom-fan-step-dot").forEach(s=>{const r=Number(s.getAttribute("data-pct"));s.setAttribute("data-active",String(t(this,I)&&t(this,y)>=r-e))})},de=new WeakSet,go=function(){t(this,gt)&&(t(this,gt).setAttribute("aria-pressed","false"),t(this,gt).textContent="Oscillate"),t(this,bt)&&(t(this,bt).textContent="Direction",t(this,bt).setAttribute("aria-label","Direction")),t(this,yt)&&(t(this,yt).textContent="Preset",t(this,yt).setAttribute("data-active","false"))},eo=new WeakSet,Yo=function(){t(this,y)<=0?this.config.card?.sendCommand("turn_off",{}):this.config.card?.sendCommand("set_percentage",{percentage:t(this,y)})};const yi=`
-    ${H}
-    ${k}
-  `;class xi extends f{constructor(){super(...arguments);o(this,Cs,null);o(this,ce,null)}render(){M(this),this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${yi}</style>
+      `,i(this,at,this.root.querySelector(".shroom-icon-shape")),i(this,Zt,this.root.querySelector(".shroom-secondary")),i(this,z,this.root.querySelector(".shroom-slider-input")),i(this,be,this.root.querySelector(".shroom-slider-cover")),i(this,Ct,this.root.querySelector('[data-feat="oscillate"]')),i(this,Lt,this.root.querySelector('[data-feat="direction"]')),i(this,St,this.root.querySelector('[data-feat="preset"]')),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:fan"),"card-icon");const no=this.root.querySelector(".shroom-state-item");e&&(me(no,`${this.def.friendly_name} - Toggle`),this._attachGestureHandlers(no,{onTap:()=>{const x=this.config.gestureConfig?.tap;if(x){this._runAction(x);return}this.config.card?.sendCommand("toggle",{})}})),t(this,z)&&(t(this,z).addEventListener("input",()=>{const x=Number(t(this,z).value);i(this,w,x),t(this,z).setAttribute("aria-valuetext",`${Math.round(x)}%`),l(this,Ms,Zo).call(this),t(this,ye).call(this)}),this.guardSlider(t(this,z),t(this,ye))),this.root.querySelectorAll(".shroom-fan-step-dot").forEach(x=>{x.addEventListener("click",()=>{const v=Number(x.getAttribute("data-pct"));i(this,w,v),i(this,P,!0),l(this,Hs,jo).call(this),this.config.card?.sendCommand("set_percentage",{percentage:v})})}),this.root.querySelector(".shroom-fan-cycle-btn")?.addEventListener("click",()=>{const x=t(this,As,zo);if(!x.length)return;let v;if(!t(this,P)||t(this,w)===0)v=x[0];else{const L=x.findIndex(W=>W>t(this,w));v=L===-1?x[0]:x[L]}i(this,w,v),i(this,P,!0),this.config.card?.sendCommand("set_percentage",{percentage:v})}),t(this,Ct)?.addEventListener("click",()=>{this.config.card?.sendCommand("oscillate",{oscillating:!t(this,jt)})}),t(this,Lt)?.addEventListener("click",()=>{const x=t(this,$t)==="forward"?"reverse":"forward";i(this,$t,x),l(this,_e,To).call(this),this.config.card?.sendCommand("set_direction",{direction:x})}),t(this,St)?.addEventListener("click",()=>{if(!t(this,Y).length)return;const v=((t(this,At)?t(this,Y).indexOf(t(this,At)):-1)+1)%t(this,Y).length,L=t(this,Y)[v];i(this,At,L),l(this,_e,To).call(this),this.config.card?.sendCommand("set_preset_mode",{preset_mode:L})}),this.renderCompanions(),H(this.root)}applyState(e,s){i(this,P,e==="on"),i(this,w,s?.percentage??0),i(this,jt,s?.oscillating??!1),i(this,$t,s?.direction??"forward"),i(this,At,s?.preset_mode??null),s?.preset_modes?.length&&i(this,Y,s.preset_modes),i(this,Ft,t(this,$s)||s?.assumed_state===!0),ti(this.root,!t(this,P)),$(t(this,at),"fan",t(this,P));const r=this.def.icon_state_map?.[e]??this.def.icon_state_map?.["*"]??this.def.icon??"mdi:fan";if(this.renderIcon(this.resolveIcon(r,"mdi:fan"),"card-icon"),t(this,at))if(t(this,P)&&t(this,w)>0&&!t(this,Ft)&&this.config.animate!==!1){const h=1/(1.5*Math.pow(t(this,w)/100,.5));t(this,at).setAttribute("data-spinning","true"),t(this,at).style.setProperty("--shroom-fan-duration",`${h.toFixed(2)}s`)}else t(this,at).setAttribute("data-spinning","false");t(this,Zt)&&(t(this,P)&&t(this,w)>0&&!t(this,Ft)?t(this,Zt).textContent=`${Math.round(t(this,w))}%`:t(this,Zt).textContent=C(e)),l(this,Ms,Zo).call(this),l(this,Hs,jo).call(this),l(this,_e,To).call(this),this.announceState(`${this.def.friendly_name}, ${e}`+(t(this,w)>0&&!t(this,Ft)?`, ${Math.round(t(this,w))}%`:""))}predictState(e,s){return e==="toggle"?{state:t(this,P)?"off":"on",attributes:{percentage:t(this,w)}}:e==="set_percentage"?{state:"on",attributes:{percentage:s.percentage,oscillating:t(this,jt),direction:t(this,$t),preset_mode:t(this,At),preset_modes:t(this,Y)}}:e==="oscillate"?{state:"on",attributes:{percentage:t(this,w),oscillating:s.oscillating,direction:t(this,$t)}}:e==="set_direction"?{state:"on",attributes:{percentage:t(this,w),oscillating:t(this,jt),direction:s.direction}}:null}}at=new WeakMap,Zt=new WeakMap,z=new WeakMap,be=new WeakMap,Ct=new WeakMap,Lt=new WeakMap,St=new WeakMap,P=new WeakMap,w=new WeakMap,jt=new WeakMap,$t=new WeakMap,At=new WeakMap,Y=new WeakMap,ye=new WeakMap,$s=new WeakMap,Ft=new WeakMap,xe=new WeakSet,Eo=function(){const e=this.def?.feature_config;return e?.percentage_step>1?e.percentage_step:e?.speed_count>1?100/e.speed_count:1},uo=new WeakSet,hi=function(){return t(this,xe,Eo)>1},As=new WeakSet,zo=function(){const e=t(this,xe,Eo),s=[];for(let r=1;r*e<=100.001;r++)s.push(r*e);return s},Ms=new WeakSet,Zo=function(){if(!t(this,z))return;const e=t(this,w);this.isSliderActive(t(this,z))||(t(this,z).value=String(e)),t(this,be)&&(t(this,be).style.left=`${e}%`)},Hs=new WeakSet,jo=function(){const e=t(this,xe,Eo)/2;this.root.querySelectorAll(".shroom-fan-step-dot").forEach(s=>{const r=Number(s.getAttribute("data-pct"));s.setAttribute("data-active",String(t(this,P)&&t(this,w)>=r-e))})},_e=new WeakSet,To=function(){t(this,Ct)&&(t(this,Ct).setAttribute("aria-pressed","false"),t(this,Ct).textContent="Oscillate"),t(this,Lt)&&(t(this,Lt).textContent="Direction",t(this,Lt).setAttribute("aria-label","Direction")),t(this,St)&&(t(this,St).textContent="Preset",t(this,St).setAttribute("data-active","false"))},fo=new WeakSet,li=function(){t(this,w)<=0?this.config.card?.sendCommand("turn_off",{}):this.config.card?.sendCommand("set_percentage",{percentage:t(this,w)})};const Di=`
+    ${E}
+    ${T}
+  `;class Oi extends b{constructor(){super(...arguments);o(this,ks,null);o(this,we,null)}render(){k(this),this.root.innerHTML=`
+        <style>${Di}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -552,9 +552,9 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,Cs,this.root.querySelector(".shroom-icon-shape")),i(this,ce,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.def.icon_state_map?.off??this.resolveIcon(this.def.icon,"mdi:radiobox-blank"),"card-icon"),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){const r=e==="on";w(t(this,Cs),"binary_sensor",r);const n=this.formatStateLabel(e);t(this,ce)&&(t(this,ce).textContent=n);const h=this.def.icon_state_map?.[e]??this.resolveIcon(this.def.icon,r?"mdi:radiobox-marked":"mdi:radiobox-blank");this.renderIcon(h,"card-icon"),this.announceState(`${this.def.friendly_name}, ${n}`)}}Cs=new WeakMap,ce=new WeakMap;const _i=`
-    ${H}
-    ${k}
+      `,i(this,ks,this.root.querySelector(".shroom-icon-shape")),i(this,we,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.def.icon_state_map?.off??this.resolveIcon(this.def.icon,"mdi:radiobox-blank"),"card-icon"),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}applyState(e,s){const r=e==="on";$(t(this,ks),"binary_sensor",r);const n=this.formatStateLabel(e);t(this,we)&&(t(this,we).textContent=n);const h=this.def.icon_state_map?.[e]??this.resolveIcon(this.def.icon,r?"mdi:radiobox-marked":"mdi:radiobox-blank");this.renderIcon(h,"card-icon"),this.announceState(`${this.def.friendly_name}, ${n}`)}}ks=new WeakMap,we=new WeakMap;const Pi=`
+    ${E}
+    ${T}
 
     .shroom-generic-toggle {
       -webkit-appearance: none;
@@ -591,8 +591,8 @@
     @media (prefers-reduced-motion: reduce) {
       .shroom-generic-toggle { transition: none; }
     }
-  `;class Ci extends f{constructor(){super(...arguments);o(this,ws,null);o(this,pe,null);o(this,N,null);o(this,K,!1);o(this,Ot,!1)}render(){M(this);const e=this.def.capabilities==="read-write";i(this,Ot,!1),this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${_i}</style>
+  `;class Ni extends b{constructor(){super(...arguments);o(this,Es,null);o(this,Ce,null);o(this,Z,null);o(this,et,!1);o(this,Rt,!1)}render(){k(this);const e=this.def.capabilities==="read-write";i(this,Rt,!1),this.root.innerHTML=`
+        <style>${Pi}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -610,11 +610,11 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,ws,this.root.querySelector(".shroom-icon-shape")),i(this,pe,this.root.querySelector(".shroom-secondary")),i(this,N,this.root.querySelector(".shroom-generic-toggle")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:help-circle"),"card-icon"),t(this,N)&&e&&this._attachGestureHandlers(t(this,N),{onTap:()=>{const s=this.config.gestureConfig?.tap;if(s){this._runAction(s);return}this.config.card?.sendCommand("toggle",{})}}),this.renderCompanions(),A(this.root)}applyState(e,s){const r=e==="on"||e==="off";i(this,K,e==="on"),t(this,pe)&&(t(this,pe).textContent=C(e));const n=this.def.domain??"generic";w(t(this,ws),n,t(this,K)),t(this,N)&&(r&&!t(this,Ot)&&(t(this,N).removeAttribute("hidden"),i(this,Ot,!0)),t(this,Ot)&&(t(this,N).setAttribute("data-on",String(t(this,K))),t(this,N).setAttribute("aria-pressed",String(t(this,K))),t(this,N).textContent=t(this,K)?"On":"Off",t(this,N).title=t(this,K)?"On - click to turn off":"Off - click to turn on")),this.announceState(`${this.def.friendly_name}, ${e}`)}predictState(e,s){return e!=="toggle"?null:{state:t(this,K)?"off":"on",attributes:{}}}}ws=new WeakMap,pe=new WeakMap,N=new WeakMap,K=new WeakMap,Ot=new WeakMap;const wi=`
-    ${H}
-    ${k}
-  `;class Si extends f{constructor(){super(...arguments);o(this,me,null);o(this,ue,null)}render(){M(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${wi}</style>
+      `,i(this,Es,this.root.querySelector(".shroom-icon-shape")),i(this,Ce,this.root.querySelector(".shroom-secondary")),i(this,Z,this.root.querySelector(".shroom-generic-toggle")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:help-circle"),"card-icon"),t(this,Z)&&e&&this._attachGestureHandlers(t(this,Z),{onTap:()=>{const s=this.config.gestureConfig?.tap;if(s){this._runAction(s);return}this.config.card?.sendCommand("toggle",{})}}),this.renderCompanions(),H(this.root)}applyState(e,s){const r=e==="on"||e==="off";i(this,et,e==="on"),t(this,Ce)&&(t(this,Ce).textContent=C(e));const n=this.def.domain??"generic";$(t(this,Es),n,t(this,et)),t(this,Z)&&(r&&!t(this,Rt)&&(t(this,Z).removeAttribute("hidden"),i(this,Rt,!0)),t(this,Rt)&&(t(this,Z).setAttribute("data-on",String(t(this,et))),t(this,Z).setAttribute("aria-pressed",String(t(this,et))),t(this,Z).textContent=t(this,et)?"On":"Off",t(this,Z).title=t(this,et)?"On - click to turn off":"Off - click to turn on")),this.announceState(`${this.def.friendly_name}, ${e}`)}predictState(e,s){return e!=="toggle"?null:{state:t(this,et)?"off":"on",attributes:{}}}}Es=new WeakMap,Ce=new WeakMap,Z=new WeakMap,et=new WeakMap,Rt=new WeakMap;const zi=`
+    ${E}
+    ${T}
+  `;class Zi extends b{constructor(){super(...arguments);o(this,Le,null);o(this,Se,null)}render(){k(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
+        <style>${zi}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${e}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -627,18 +627,18 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,me,this.root.querySelector(".shroom-icon-shape")),i(this,ue,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.def.icon_state_map?.idle??this.resolveIcon(this.def.icon,"mdi:play"),"card-icon"),w(t(this,me),"harvest_action",!1);const s=this.root.querySelector(".shroom-state-item");e&&(se(s,`${this.def.friendly_name} - Trigger`),this._attachGestureHandlers(s,{onTap:()=>{const r=this.config.gestureConfig?.tap;if(r){this._runAction(r);return}this.config.card?.sendCommand("trigger",{})}})),this.renderCompanions(),A(this.root)}applyState(e,s){const r=e==="triggered";t(this,ue)&&(t(this,ue).textContent=C(e)),w(t(this,me),"harvest_action",r);const n=this.def.icon_state_map?.[e]??this.resolveIcon(this.def.icon,"mdi:play");this.renderIcon(n,"card-icon"),this.announceState(`${this.def.friendly_name}, ${C(e)}`)}predictState(e,s){return e!=="trigger"?null:{state:"triggered",attributes:{}}}}me=new WeakMap,ue=new WeakMap;const $i=`
-    ${H}
-    ${xo}
-    ${ms}
-    ${pt}
-    ${k}
+      `,i(this,Le,this.root.querySelector(".shroom-icon-shape")),i(this,Se,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.def.icon_state_map?.idle??this.resolveIcon(this.def.icon,"mdi:play"),"card-icon"),$(t(this,Le),"harvest_action",!1);const s=this.root.querySelector(".shroom-state-item");e&&(me(s,`${this.def.friendly_name} - Trigger`),this._attachGestureHandlers(s,{onTap:()=>{const r=this.config.gestureConfig?.tap;if(r){this._runAction(r);return}this.config.card?.sendCommand("trigger",{})}})),this.renderCompanions(),H(this.root)}applyState(e,s){const r=e==="triggered";t(this,Se)&&(t(this,Se).textContent=C(e)),$(t(this,Le),"harvest_action",r);const n=this.def.icon_state_map?.[e]??this.resolveIcon(this.def.icon,"mdi:play");this.renderIcon(n,"card-icon"),this.announceState(`${this.def.friendly_name}, ${C(e)}`)}predictState(e,s){return e!=="trigger"?null:{state:"triggered",attributes:{}}}}Le=new WeakMap,Se=new WeakMap;const ji=`
+    ${E}
+    ${Io}
+    ${xs}
+    ${bt}
+    ${T}
 
     .shroom-num-slider-bg {
       background: var(--hrv-ex-shroom-input, #00bcd4);
     }
-  `;class Li extends f{constructor(e,s,r,n){super(e,s,r,n);o(this,so);o(this,Ls);o(this,oo);o(this,Ss,null);o(this,fe,null);o(this,z,null);o(this,ve,null);o(this,X,0);o(this,ot,0);o(this,ge,100);o(this,$s,1);o(this,be,void 0);i(this,be,ee(d(this,oo,Uo).bind(this),300))}render(){M(this);const e=this.def.capabilities==="read-write";if(i(this,ot,this.def.feature_config?.min??0),i(this,ge,this.def.feature_config?.max??100),i(this,$s,this.def.feature_config?.step??1),this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${$i}</style>
+  `;class Fi extends b{constructor(e,s,r,n){super(e,s,r,n);o(this,vo);o(this,Is);o(this,go);o(this,Ts,null);o(this,$e,null);o(this,j,null);o(this,Ae,null);o(this,st,0);o(this,ht,0);o(this,Me,100);o(this,qs,1);o(this,He,void 0);i(this,He,nt(l(this,go,ci).bind(this),300))}render(){k(this);const e=this.def.capabilities==="read-write";if(i(this,ht,this.def.feature_config?.min??0),i(this,Me,this.def.feature_config?.max??100),i(this,qs,this.def.feature_config?.step??1),this.root.innerHTML=`
+        <style>${ji}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -653,9 +653,9 @@
                 <div class="shroom-slider-bg shroom-num-slider-bg"></div>
                 <div class="shroom-slider-cover" style="left:0%"></div>
                 <input type="range" class="shroom-slider-input"
-                  min="${t(this,ot)}" max="${t(this,ge)}" step="${t(this,$s)}" value="${t(this,ot)}"
+                  min="${t(this,ht)}" max="${t(this,Me)}" step="${t(this,qs)}" value="${t(this,ht)}"
                   aria-label="${u(this.def.friendly_name)} value"
-                  aria-valuetext="${t(this,ot)}${this.def.unit_of_measurement?` ${u(this.def.unit_of_measurement)}`:""}">
+                  aria-valuetext="${t(this,ht)}${this.def.unit_of_measurement?` ${u(this.def.unit_of_measurement)}`:""}">
                 <div class="shroom-slider-focus-ring"></div>
               </div>
             </div>
@@ -665,15 +665,42 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,Ss,this.root.querySelector(".shroom-icon-shape")),i(this,fe,this.root.querySelector(".shroom-secondary")),i(this,z,this.root.querySelector(".shroom-slider-input")),i(this,ve,this.root.querySelector(".shroom-slider-cover")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:ray-vertex"),"card-icon"),w(t(this,Ss),"input_number",!0),t(this,z)){const s=this.def.unit_of_measurement??"";t(this,z).addEventListener("input",()=>{i(this,X,parseFloat(t(this,z).value)),t(this,z).setAttribute("aria-valuetext",`${t(this,X)}${s?` ${s}`:""}`),d(this,Ls,Ho).call(this),t(this,be).call(this)}),this.guardSlider(t(this,z),t(this,be))}this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){const r=parseFloat(e);if(isNaN(r))return;i(this,X,r),d(this,Ls,Ho).call(this);const n=this.def.unit_of_measurement??"";this.announceState(`${this.def.friendly_name}, ${r}${n?` ${n}`:""}`)}predictState(e,s){return e==="set_value"&&s.value!==void 0?{state:String(s.value),attributes:{}}:null}}Ss=new WeakMap,fe=new WeakMap,z=new WeakMap,ve=new WeakMap,X=new WeakMap,ot=new WeakMap,ge=new WeakMap,$s=new WeakMap,be=new WeakMap,so=new WeakSet,Wo=function(e){const s=t(this,ge)-t(this,ot);return s===0?0:Math.max(0,Math.min(100,(e-t(this,ot))/s*100))},Ls=new WeakSet,Ho=function(){const e=d(this,so,Wo).call(this,t(this,X));t(this,ve)&&(t(this,ve).style.left=`${e}%`),t(this,z)&&!this.isSliderActive(t(this,z))&&(t(this,z).value=String(t(this,X)));const s=this.def.unit_of_measurement??"";t(this,fe)&&(t(this,fe).textContent=`${t(this,X)}${s?` ${s}`:""}`)},oo=new WeakSet,Uo=function(){this.config.card?.sendCommand("set_value",{value:t(this,X)})};const Ai=`
-    ${H}
-    ${pt}
-    ${k}
+      `,i(this,Ts,this.root.querySelector(".shroom-icon-shape")),i(this,$e,this.root.querySelector(".shroom-secondary")),i(this,j,this.root.querySelector(".shroom-slider-input")),i(this,Ae,this.root.querySelector(".shroom-slider-cover")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:ray-vertex"),"card-icon"),$(t(this,Ts),"input_number",!0),t(this,j)){const s=this.def.unit_of_measurement??"";t(this,j).addEventListener("input",()=>{i(this,st,parseFloat(t(this,j).value)),t(this,j).setAttribute("aria-valuetext",`${t(this,st)}${s?` ${s}`:""}`),l(this,Is,Fo).call(this),t(this,He).call(this)}),this.guardSlider(t(this,j),t(this,He))}this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}applyState(e,s){const r=parseFloat(e);if(isNaN(r))return;i(this,st,r),l(this,Is,Fo).call(this);const n=this.def.unit_of_measurement??"";this.announceState(`${this.def.friendly_name}, ${r}${n?` ${n}`:""}`)}predictState(e,s){return e==="set_value"&&s.value!==void 0?{state:String(s.value),attributes:{}}:null}}Ts=new WeakMap,$e=new WeakMap,j=new WeakMap,Ae=new WeakMap,st=new WeakMap,ht=new WeakMap,Me=new WeakMap,qs=new WeakMap,He=new WeakMap,vo=new WeakSet,di=function(e){const s=t(this,Me)-t(this,ht);return s===0?0:Math.max(0,Math.min(100,(e-t(this,ht))/s*100))},Is=new WeakSet,Fo=function(){const e=l(this,vo,di).call(this,t(this,st));t(this,Ae)&&(t(this,Ae).style.left=`${e}%`),t(this,j)&&!this.isSliderActive(t(this,j))&&(t(this,j).value=String(t(this,st)));const s=this.def.unit_of_measurement??"";t(this,$e)&&(t(this,$e).textContent=`${t(this,st)}${s?` ${s}`:""}`)},go=new WeakSet,ci=function(){this.config.card?.sendCommand("set_value",{value:t(this,st)})};const Ri=`
+    ${E}
+    ${bt}
+    ${T}
 
     .shroom-select-shell {
       margin-top: var(--hrv-ex-shroom-spacing, 12px);
-      position: relative;
     }
+
+    /* Pills mode: chip row */
+    .shroom-select-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .shroom-select-pill {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.08));
+      background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+      color: var(--hrv-color-text, #212121);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .shroom-select-pill:hover {
+      background: var(--hrv-ex-shroom-btn-bg-active, rgba(0,0,0,0.10));
+    }
+    .shroom-select-pill[data-active=true] {
+      background: color-mix(in srgb, var(--hrv-color-primary, #ff9800) 28%, transparent);
+      border-color: color-mix(in srgb, var(--hrv-color-primary, #ff9800) 60%, transparent);
+    }
+
+    /* Dropdown mode: trigger button */
     .shroom-select-current {
       width: 100%;
       padding: 10px 14px;
@@ -697,20 +724,33 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
-    .shroom-select-arrow { font-size: 10px; opacity: 0.5; }
+    .shroom-select-arrow {
+      font-size: 10px;
+      opacity: 0.5;
+      transition: transform 200ms ease;
+    }
+    .shroom-select-current[aria-expanded=true] .shroom-select-arrow {
+      transform: rotate(180deg);
+    }
+
+    /* Dropdown menu - rendered as a popover in the top layer so it
+       escapes any ancestor stacking context or overflow:hidden. */
     .shroom-select-dropdown {
-      position: absolute;
-      left: 0; right: 0;
+      position: fixed;
+      margin: 0;
+      inset: unset;
       background: var(--hrv-card-background, #ffffff);
+      border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.08));
       border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
       max-height: 240px;
       overflow-y: auto;
-      scrollbar-width: none;
-      z-index: 10;
+      scrollbar-width: thin;
+      padding: 4px;
+      color: var(--hrv-color-text, #212121);
+      font-family: inherit;
     }
-    .shroom-select-dropdown::-webkit-scrollbar { display: none; }
+    .shroom-select-dropdown:not(:popover-open) { display: none; }
     .shroom-select-option {
       display: block;
       width: 100%;
@@ -722,20 +762,33 @@
       cursor: pointer;
       font-size: 13px;
       font-family: inherit;
+      border-radius: 8px;
       transition: background 150ms;
     }
-    .shroom-select-option + .shroom-select-option {
-      border-top: 1px solid var(--hrv-color-border, rgba(0,0,0,0.06));
-    }
-    .shroom-select-option:hover {
+    .shroom-select-option:hover,
+    .shroom-select-option:focus-visible {
       background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+      outline: none;
     }
     .shroom-select-option[data-active=true] {
       color: var(--hrv-color-primary, #ff9800);
-      font-weight: 500;
+      font-weight: 600;
+      background: color-mix(in srgb, var(--hrv-color-primary, #ff9800) 14%, transparent);
     }
-  `;class Mi extends f{constructor(){super(...arguments);o(this,io);o(this,Ct);o(this,As,null);o(this,ye,null);o(this,T,null);o(this,L,null);o(this,xe,"");o(this,it,[]);o(this,J,!1)}render(){M(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${Ai}</style>
+  `;class ii extends b{constructor(){super(...arguments);o(this,yo);o(this,xo);o(this,Vs);o(this,Ds);o(this,kt);o(this,Bs,null);o(this,ke,null);o(this,q,null);o(this,S,null);o(this,Wt,null);o(this,Gt,[]);o(this,lt,[]);o(this,bo,"");o(this,Mt,[]);o(this,Ee,"");o(this,dt,!1);o(this,Yt,"pills");o(this,Ht,null);o(this,B,null)}render(){k(this);const e=this.def.capabilities==="read-write",s=this.config.displayHints?.display_mode??this.def.display_hints?.display_mode??"pills";i(this,Yt,s==="dropdown"?"dropdown":"pills"),i(this,Mt,this.def.feature_config?.options??[]);const r=e?t(this,Yt)==="dropdown"?`
+            <div class="shroom-select-shell">
+              <button class="shroom-select-current" type="button"
+                aria-label="${u(this.def.friendly_name)}"
+                aria-haspopup="listbox" aria-expanded="false">
+                <span class="shroom-select-label">-</span>
+                <span class="shroom-select-arrow" aria-hidden="true">&#9660;</span>
+              </button>
+              <div class="shroom-select-dropdown" role="listbox" popover="manual"></div>
+            </div>`:`
+            <div class="shroom-select-shell">
+              <div class="shroom-select-grid"></div>
+            </div>`:"";this.root.innerHTML=`
+        <style>${Ri}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -744,32 +797,16 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
-          ${e?`
-            <div class="shroom-select-shell">
-              <button class="shroom-select-current" type="button"
-                aria-label="${u(this.def.friendly_name)}"
-                aria-haspopup="listbox" aria-expanded="false">
-                <span class="shroom-select-label">-</span>
-                <span class="shroom-select-arrow" aria-hidden="true">&#9660;</span>
-              </button>
-              <div class="shroom-select-dropdown" role="listbox" hidden></div>
-            </div>
-          `:""}
+          ${r}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,As,this.root.querySelector(".shroom-icon-shape")),i(this,ye,this.root.querySelector(".shroom-secondary")),i(this,T,this.root.querySelector(".shroom-select-current")),i(this,L,this.root.querySelector(".shroom-select-dropdown")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:form-select"),"card-icon"),w(t(this,As),"input_select",!0),t(this,T)&&e&&(t(this,T).addEventListener("click",()=>{t(this,J)?d(this,Ct,ps).call(this):d(this,io,Ko).call(this)}),t(this,T).addEventListener("keydown",s=>{s.key==="Escape"&&t(this,J)&&(d(this,Ct,ps).call(this),t(this,T).focus())}),this.root.addEventListener("keydown",s=>{if(t(this,J)){if(s.key==="Escape")d(this,Ct,ps).call(this),t(this,T).focus();else if(s.key==="ArrowDown"||s.key==="ArrowUp"){s.preventDefault();const r=[...t(this,L).querySelectorAll("[role=option]")],n=this.root.activeElement;let h=r.indexOf(n);h=s.key==="ArrowDown"?Math.min(h+1,r.length-1):Math.max(h-1,0),r[h]?.focus()}}}),document.addEventListener("click",s=>{t(this,J)&&!this.root.host.contains(s.target)&&d(this,Ct,ps).call(this)})),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){i(this,xe,e),i(this,it,s?.options??t(this,it)),t(this,ye)&&(t(this,ye).textContent=e);const r=this.root.querySelector(".shroom-select-label");r&&(r.textContent=e),t(this,J)&&t(this,L)?.querySelectorAll(".shroom-select-option").forEach((n,h)=>{const c=String(t(this,it)[h]===e);n.setAttribute("data-active",c),n.setAttribute("aria-selected",c)}),this.announceState(`${this.def.friendly_name}, ${e}`)}predictState(e,s){return e==="select_option"&&s.option!==void 0?{state:String(s.option),attributes:{}}:null}}As=new WeakMap,ye=new WeakMap,T=new WeakMap,L=new WeakMap,xe=new WeakMap,it=new WeakMap,J=new WeakMap,io=new WeakSet,Ko=function(){if(!t(this,L)||!t(this,it).length)return;t(this,L).innerHTML=t(this,it).map(c=>`
-        <button class="shroom-select-option" type="button" role="option"
-          aria-selected="${c===t(this,xe)}"
-          data-active="${c===t(this,xe)}">
-          ${u(c)}
-        </button>
-      `).join(""),t(this,L).querySelectorAll(".shroom-select-option").forEach((c,m)=>{c.addEventListener("click",()=>{this.config.card?.sendCommand("select_option",{option:t(this,it)[m]}),d(this,Ct,ps).call(this)})});const e=this.root.querySelector(".shroom-select-shell");e&&(e.style.overflow="visible");const s=this.root.querySelector("[part=card]");s&&(s.style.overflow="visible"),t(this,L).removeAttribute("hidden"),t(this,T)&&t(this,T).setAttribute("aria-expanded","true");const r=t(this,T).getBoundingClientRect(),n=window.innerHeight-r.bottom,h=Math.min(t(this,L).scrollHeight,240);n<h+8?(t(this,L).style.bottom="calc(100% + 4px)",t(this,L).style.top="auto"):(t(this,L).style.top="calc(100% + 4px)",t(this,L).style.bottom="auto"),i(this,J,!0)},Ct=new WeakSet,ps=function(){t(this,L)?.setAttribute("hidden",""),t(this,T)&&t(this,T).setAttribute("aria-expanded","false");const e=this.root.querySelector(".shroom-select-shell");e&&(e.style.overflow="");const s=this.root.querySelector("[part=card]");s&&(s.style.overflow=""),i(this,J,!1)};const Hi=`
-    ${H}
-    ${ms}
-    ${pt}
-    ${k}
+      `,i(this,Bs,this.root.querySelector(".shroom-icon-shape")),i(this,ke,this.root.querySelector(".shroom-secondary")),i(this,q,this.root.querySelector(".shroom-select-current")),i(this,S,this.root.querySelector(".shroom-select-dropdown")),i(this,Wt,this.root.querySelector(".shroom-select-grid")),i(this,Gt,[]),i(this,lt,[]),i(this,Ee,""),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:form-select"),"card-icon"),$(t(this,Bs),"input_select",!0),t(this,q)&&e&&(t(this,q).addEventListener("click",n=>{n.stopPropagation(),t(this,dt)?l(this,kt,ys).call(this):l(this,Ds,Wo).call(this)}),t(this,q).addEventListener("keydown",n=>{(n.key==="Enter"||n.key===" "||n.key==="ArrowDown")&&!t(this,dt)?(n.preventDefault(),l(this,Ds,Wo).call(this),t(this,lt)[0]?.focus()):n.key==="Escape"&&t(this,dt)&&(l(this,kt,ys).call(this),t(this,q).focus())}),i(this,Ht,n=>{t(this,dt)&&!this.root.host.contains(n.target)&&l(this,kt,ys).call(this)}),document.addEventListener("click",t(this,Ht))),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}applyState(e,s){i(this,bo,e);const r=s?.options,n=Array.isArray(r)&&r.length?r:t(this,Mt);i(this,Mt,n),t(this,ke)&&(t(this,ke).textContent=e);const h=n.join("|");if(h!==t(this,Ee)&&(i(this,Ee,h),t(this,Yt)==="dropdown"?l(this,xo,mi).call(this,n):l(this,yo,pi).call(this,n)),t(this,Yt)==="dropdown"){const d=this.root.querySelector(".shroom-select-label");d&&(d.textContent=e);for(const p of t(this,lt)){const m=p.dataset.option===e;p.setAttribute("data-active",String(m)),p.setAttribute("aria-selected",String(m))}}else for(const d of t(this,Gt))d.setAttribute("data-active",String(d.dataset.option===e));this.announceState(`${this.def.friendly_name}, ${e}`)}predictState(e,s){return e==="select_option"&&s.option!==void 0?{state:String(s.option),attributes:{options:t(this,Mt)}}:null}destroy(){t(this,Ht)&&(document.removeEventListener("click",t(this,Ht)),i(this,Ht,null)),t(this,B)&&(window.removeEventListener("scroll",t(this,B),!0),window.removeEventListener("resize",t(this,B)),i(this,B,null));try{t(this,S)?.hidePopover?.()}catch{}}}Bs=new WeakMap,ke=new WeakMap,q=new WeakMap,S=new WeakMap,Wt=new WeakMap,Gt=new WeakMap,lt=new WeakMap,bo=new WeakMap,Mt=new WeakMap,Ee=new WeakMap,dt=new WeakMap,Yt=new WeakMap,Ht=new WeakMap,B=new WeakMap,yo=new WeakSet,pi=function(e){if(t(this,Wt)){t(this,Wt).innerHTML="",i(this,Gt,[]);for(const s of e){const r=document.createElement("button");r.type="button",r.className="shroom-select-pill",r.dataset.option=s,r.textContent=C(s),r.addEventListener("click",()=>{this.config.card?.sendCommand("select_option",{option:s})}),t(this,Wt).appendChild(r),t(this,Gt).push(r)}}},xo=new WeakSet,mi=function(e){if(t(this,S)){t(this,S).innerHTML="",i(this,lt,[]);for(const s of e){const r=document.createElement("button");r.type="button",r.className="shroom-select-option",r.role="option",r.dataset.option=s,r.textContent=C(s),r.addEventListener("click",()=>{this.config.card?.sendCommand("select_option",{option:s}),l(this,kt,ys).call(this),t(this,q)?.focus()}),r.addEventListener("keydown",n=>{const h=t(this,lt),d=h.indexOf(r);n.key==="ArrowDown"?(n.preventDefault(),h[Math.min(d+1,h.length-1)]?.focus()):n.key==="ArrowUp"?(n.preventDefault(),d===0?t(this,q)?.focus():h[d-1]?.focus()):n.key==="Escape"&&(l(this,kt,ys).call(this),t(this,q)?.focus())}),t(this,S).appendChild(r),t(this,lt).push(r)}}},Vs=new WeakSet,Ro=function(){if(!t(this,S)||!t(this,q))return;const e=t(this,q).getBoundingClientRect(),s=window.innerHeight-e.bottom,r=e.top,n=Math.min(t(this,S).scrollHeight||240,240);t(this,S).style.left=`${Math.round(e.left)}px`,t(this,S).style.width=`${Math.round(e.width)}px`,s<n+8&&r>s?t(this,S).style.top=`${Math.max(8,Math.round(e.top-n-6))}px`:t(this,S).style.top=`${Math.round(e.bottom+6)}px`},Ds=new WeakSet,Wo=function(){if(!(!t(this,S)||!t(this,Mt).length)){try{typeof t(this,S).showPopover=="function"&&t(this,S).showPopover()}catch{}t(this,q)?.setAttribute("aria-expanded","true"),l(this,Vs,Ro).call(this),i(this,B,()=>l(this,Vs,Ro).call(this)),window.addEventListener("scroll",t(this,B),!0),window.addEventListener("resize",t(this,B)),i(this,dt,!0)}},kt=new WeakSet,ys=function(){try{typeof t(this,S)?.hidePopover=="function"&&t(this,S).hidePopover()}catch{}t(this,q)?.setAttribute("aria-expanded","false"),t(this,B)&&(window.removeEventListener("scroll",t(this,B),!0),window.removeEventListener("resize",t(this,B)),i(this,B,null)),i(this,dt,!1)};const Wi=`
+    ${E}
+    ${xs}
+    ${bt}
+    ${T}
 
     .shroom-cover-bar {
       display: flex;
@@ -845,8 +882,8 @@
       .shroom-cover-action-btn,
       .shroom-cover-toggle-btn { transition: none; }
     }
-  `;class ki extends f{constructor(e,s,r,n){super(e,s,r,n);o(this,ro);o(this,Ts);o(this,no);o(this,Ms,null);o(this,_e,null);o(this,R,null);o(this,Ce,null);o(this,we,null);o(this,Se,null);o(this,Dt,null);o(this,Nt,null);o(this,zt,null);o(this,rt,0);o(this,Q,!1);o(this,Hs,"closed");o(this,ks,{});o(this,$e,void 0);i(this,$e,ee(d(this,no,Jo).bind(this),300))}render(){M(this);const e=this.def.capabilities==="read-write",r=(this.config.displayHints??{}).show_position!==!1&&this.def.supported_features?.includes("set_position"),n=!this.def.supported_features||this.def.supported_features.includes("buttons"),h=e&&(r||n);this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${Hi}</style>
+  `;class Gi extends b{constructor(e,s,r,n){super(e,s,r,n);o(this,_o);o(this,zs);o(this,wo);o(this,Os,null);o(this,Te,null);o(this,U,null);o(this,qe,null);o(this,Ie,null);o(this,Be,null);o(this,Ut,null);o(this,Kt,null);o(this,Xt,null);o(this,ct,0);o(this,ot,!1);o(this,Ps,"closed");o(this,Ns,{});o(this,Ve,void 0);i(this,Ve,nt(l(this,wo,fi).bind(this),300))}render(){k(this);const e=this.def.capabilities==="read-write",r=(this.config.displayHints??{}).show_position!==!1&&this.def.supported_features?.includes("set_position"),n=!this.def.supported_features||this.def.supported_features.includes("buttons"),h=e&&(r||n);this.root.innerHTML=`
+        <style>${Wi}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -898,11 +935,11 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,Ms,this.root.querySelector(".shroom-icon-shape")),i(this,_e,this.root.querySelector(".shroom-secondary")),i(this,R,this.root.querySelector(".shroom-slider-input")),i(this,Ce,this.root.querySelector(".shroom-slider-cover")),i(this,we,this.root.querySelector(".shroom-cover-slider-view")),i(this,Se,this.root.querySelector(".shroom-cover-btn-view")),i(this,Dt,this.root.querySelector("[data-action=open]")),i(this,Nt,this.root.querySelector("[data-action=stop]")),i(this,zt,this.root.querySelector("[data-action=close]")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:window-shutter"),"card-icon"),t(this,R)&&(t(this,R).addEventListener("input",()=>{i(this,rt,parseInt(t(this,R).value,10)),d(this,Ts,ko).call(this),t(this,$e).call(this)}),this.guardSlider(t(this,R),t(this,$e))),[t(this,Dt),t(this,Nt),t(this,zt)].forEach(m=>{if(!m)return;const p=m.getAttribute("data-action");m.addEventListener("click",()=>{this.config.card?.sendCommand(`${p}_cover`,{})})});const c=this.root.querySelector(".shroom-cover-toggle-btn");c?.addEventListener("click",()=>{i(this,Q,!t(this,Q)),c.setAttribute("aria-expanded",String(t(this,Q))),c.setAttribute("aria-label",t(this,Q)?"Show position slider":"Show cover buttons"),d(this,ro,Xo).call(this)}),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){i(this,Hs,e),i(this,ks,{...s});const r=e==="open"||e==="opening";if(w(t(this,Ms),"cover",r),t(this,_e)){const c=s.current_position,m=C(e);t(this,_e).textContent=c!==void 0?`${m} - ${c}%`:m}const n=e==="opening"||e==="closing",h=s.current_position;t(this,Dt)&&(t(this,Dt).disabled=!n&&h===100),t(this,Nt)&&(t(this,Nt).disabled=!n),t(this,zt)&&(t(this,zt).disabled=!n&&e==="closed"),s.current_position!==void 0&&(i(this,rt,s.current_position),t(this,R)&&!this.isSliderActive(t(this,R))&&(t(this,R).value=String(t(this,rt))),d(this,Ts,ko).call(this)),this.announceState(`${this.def.friendly_name}, ${e}`)}predictState(e,s){const r={...t(this,ks)};return e==="open_cover"?(r.current_position=100,{state:"open",attributes:r}):e==="close_cover"?(r.current_position=0,{state:"closed",attributes:r}):e==="stop_cover"?{state:t(this,Hs),attributes:r}:e==="set_cover_position"&&s.position!==void 0?(r.current_position=s.position,{state:s.position>0?"open":"closed",attributes:r}):null}}Ms=new WeakMap,_e=new WeakMap,R=new WeakMap,Ce=new WeakMap,we=new WeakMap,Se=new WeakMap,Dt=new WeakMap,Nt=new WeakMap,zt=new WeakMap,rt=new WeakMap,Q=new WeakMap,Hs=new WeakMap,ks=new WeakMap,$e=new WeakMap,ro=new WeakSet,Xo=function(){t(this,we)&&(t(this,we).hidden=t(this,Q)),t(this,Se)&&(t(this,Se).hidden=!t(this,Q));const e=this.root.querySelector(".shroom-cover-toggle-btn");e&&(e.innerHTML=t(this,Q)?'<svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>':'<svg viewBox="0 0 24 24"><path d="M12,18.17L8.83,15L7.42,16.41L12,21L16.59,16.41L15.17,15M12,5.83L15.17,9L16.58,7.59L12,3L7.41,7.59L8.83,9L12,5.83Z"/></svg>')},Ts=new WeakSet,ko=function(){t(this,Ce)&&(t(this,Ce).style.left=`${t(this,rt)}%`);const e=this.root.querySelector(".shroom-slider-edge");e&&(e.style.left=`${t(this,rt)}%`)},no=new WeakSet,Jo=function(){this.config.card?.sendCommand("set_cover_position",{position:t(this,rt)})};const Ti=`
-    ${H}
-    ${k}
-  `;class Ei extends f{constructor(){super(...arguments);o(this,Le,null);o(this,Ae,null)}render(){M(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${Ti}</style>
+      `,i(this,Os,this.root.querySelector(".shroom-icon-shape")),i(this,Te,this.root.querySelector(".shroom-secondary")),i(this,U,this.root.querySelector(".shroom-slider-input")),i(this,qe,this.root.querySelector(".shroom-slider-cover")),i(this,Ie,this.root.querySelector(".shroom-cover-slider-view")),i(this,Be,this.root.querySelector(".shroom-cover-btn-view")),i(this,Ut,this.root.querySelector("[data-action=open]")),i(this,Kt,this.root.querySelector("[data-action=stop]")),i(this,Xt,this.root.querySelector("[data-action=close]")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:window-shutter"),"card-icon"),t(this,U)&&(t(this,U).addEventListener("input",()=>{i(this,ct,parseInt(t(this,U).value,10)),l(this,zs,Go).call(this),t(this,Ve).call(this)}),this.guardSlider(t(this,U),t(this,Ve))),[t(this,Ut),t(this,Kt),t(this,Xt)].forEach(p=>{if(!p)return;const m=p.getAttribute("data-action");p.addEventListener("click",()=>{this.config.card?.sendCommand(`${m}_cover`,{})})});const d=this.root.querySelector(".shroom-cover-toggle-btn");d?.addEventListener("click",()=>{i(this,ot,!t(this,ot)),d.setAttribute("aria-expanded",String(t(this,ot))),d.setAttribute("aria-label",t(this,ot)?"Show position slider":"Show cover buttons"),l(this,_o,ui).call(this)}),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}applyState(e,s){i(this,Ps,e),i(this,Ns,{...s});const r=e==="open"||e==="opening";if($(t(this,Os),"cover",r),t(this,Te)){const d=s.current_position,p=C(e);t(this,Te).textContent=d!==void 0?`${p} - ${d}%`:p}const n=e==="opening"||e==="closing",h=s.current_position;t(this,Ut)&&(t(this,Ut).disabled=!n&&h===100),t(this,Kt)&&(t(this,Kt).disabled=!n),t(this,Xt)&&(t(this,Xt).disabled=!n&&e==="closed"),s.current_position!==void 0&&(i(this,ct,s.current_position),t(this,U)&&!this.isSliderActive(t(this,U))&&(t(this,U).value=String(t(this,ct))),l(this,zs,Go).call(this)),this.announceState(`${this.def.friendly_name}, ${e}`)}predictState(e,s){const r={...t(this,Ns)};return e==="open_cover"?(r.current_position=100,{state:"open",attributes:r}):e==="close_cover"?(r.current_position=0,{state:"closed",attributes:r}):e==="stop_cover"?{state:t(this,Ps),attributes:r}:e==="set_cover_position"&&s.position!==void 0?(r.current_position=s.position,{state:s.position>0?"open":"closed",attributes:r}):null}}Os=new WeakMap,Te=new WeakMap,U=new WeakMap,qe=new WeakMap,Ie=new WeakMap,Be=new WeakMap,Ut=new WeakMap,Kt=new WeakMap,Xt=new WeakMap,ct=new WeakMap,ot=new WeakMap,Ps=new WeakMap,Ns=new WeakMap,Ve=new WeakMap,_o=new WeakSet,ui=function(){t(this,Ie)&&(t(this,Ie).hidden=t(this,ot)),t(this,Be)&&(t(this,Be).hidden=!t(this,ot));const e=this.root.querySelector(".shroom-cover-toggle-btn");e&&(e.innerHTML=t(this,ot)?'<svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>':'<svg viewBox="0 0 24 24"><path d="M12,18.17L8.83,15L7.42,16.41L12,21L16.59,16.41L15.17,15M12,5.83L15.17,9L16.58,7.59L12,3L7.41,7.59L8.83,9L12,5.83Z"/></svg>')},zs=new WeakSet,Go=function(){t(this,qe)&&(t(this,qe).style.left=`${t(this,ct)}%`);const e=this.root.querySelector(".shroom-slider-edge");e&&(e.style.left=`${t(this,ct)}%`)},wo=new WeakSet,fi=function(){this.config.card?.sendCommand("set_cover_position",{position:t(this,ct)})};const Yi=`
+    ${E}
+    ${T}
+  `;class Ui extends b{constructor(){super(...arguments);o(this,De,null);o(this,Oe,null)}render(){k(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
+        <style>${Yi}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${e}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -915,10 +952,10 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,Le,this.root.querySelector(".shroom-icon-shape")),i(this,Ae,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:remote"),"card-icon"),w(t(this,Le),"remote",!1);const s=this.root.querySelector(".shroom-state-item");e&&(se(s,`${this.def.friendly_name} - Send command`),this._attachGestureHandlers(s,{onTap:()=>{const r=this.config.gestureConfig?.tap;if(r){this._runAction(r);return}const n=this.config.tapAction?.data?.command??"power",h=this.config.tapAction?.data?.device??void 0,c=h?{command:n,device:h}:{command:n};this.config.card?.sendCommand("send_command",c)}})),this.renderCompanions(),A(this.root)}applyState(e,s){const r=e==="on";w(t(this,Le),"remote",r),t(this,Ae)&&(t(this,Ae).textContent=C(e));const n=this.def.icon_state_map?.[e]??this.resolveIcon(this.def.icon,"mdi:remote");this.renderIcon(n,"card-icon"),this.announceState(`${this.def.friendly_name}, ${e}`)}}Le=new WeakMap,Ae=new WeakMap;function Js(a){a<0&&(a=0);const l=Math.floor(a/3600),e=Math.floor(a%3600/60),s=Math.floor(a%60),r=n=>String(n).padStart(2,"0");return l>0?`${l}:${r(e)}:${r(s)}`:`${r(e)}:${r(s)}`}function zo(a){if(typeof a=="number")return a;if(typeof a!="string")return 0;const l=a.split(":").map(Number);return l.length===3?l[0]*3600+l[1]*60+l[2]:l.length===2?l[0]*60+l[1]:l[0]||0}const qi=`
-    ${H}
-    ${pt}
-    ${k}
+      `,i(this,De,this.root.querySelector(".shroom-icon-shape")),i(this,Oe,this.root.querySelector(".shroom-secondary")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:remote"),"card-icon"),$(t(this,De),"remote",!1);const s=this.root.querySelector(".shroom-state-item");e&&(me(s,`${this.def.friendly_name} - Send command`),this._attachGestureHandlers(s,{onTap:()=>{const r=this.config.gestureConfig?.tap;if(r){this._runAction(r);return}const n=this.config.tapAction?.data?.command??"power",h=this.config.tapAction?.data?.device??void 0,d=h?{command:n,device:h}:{command:n};this.config.card?.sendCommand("send_command",d)}})),this.renderCompanions(),H(this.root)}applyState(e,s){const r=e==="on";$(t(this,De),"remote",r),t(this,Oe)&&(t(this,Oe).textContent=C(e));const n=this.def.icon_state_map?.[e]??this.resolveIcon(this.def.icon,"mdi:remote");this.renderIcon(n,"card-icon"),this.announceState(`${this.def.friendly_name}, ${e}`)}}De=new WeakMap,Oe=new WeakMap;function po(a){a<0&&(a=0);const c=Math.floor(a/3600),e=Math.floor(a%3600/60),s=Math.floor(a%60),r=n=>String(n).padStart(2,"0");return c>0?`${c}:${r(e)}:${r(s)}`:`${r(e)}:${r(s)}`}function ri(a){if(typeof a=="number")return a;if(typeof a!="string")return 0;const c=a.split(":").map(Number);return c.length===3?c[0]*3600+c[1]*60+c[2]:c.length===2?c[0]*60+c[1]:c[0]||0}const Ki=`
+    ${E}
+    ${bt}
+    ${T}
 
     .shroom-timer-display {
       font-size: 28px;
@@ -965,8 +1002,8 @@
     @media (prefers-reduced-motion: reduce) {
       .shroom-timer-btn { transition: none; }
     }
-  `;class Ii extends f{constructor(){super(...arguments);o(this,ao);o(this,ho);o(this,lo);o(this,Rt);o(this,Me,null);o(this,He,null);o(this,Z,null);o(this,wt,null);o(this,Zt,null);o(this,Pt,null);o(this,jt,null);o(this,ke,"idle");o(this,Te,{});o(this,F,null);o(this,Ee,null)}render(){M(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${qi}</style>
+  `;class Xi extends b{constructor(){super(...arguments);o(this,Co);o(this,Lo);o(this,So);o(this,ee);o(this,Pe,null);o(this,Ne,null);o(this,F,null);o(this,Et,null);o(this,Jt,null);o(this,Qt,null);o(this,te,null);o(this,ze,"idle");o(this,Ze,{});o(this,K,null);o(this,je,null)}render(){k(this);const e=this.def.capabilities==="read-write";this.root.innerHTML=`
+        <style>${Ki}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -996,10 +1033,10 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,Me,this.root.querySelector(".shroom-icon-shape")),i(this,He,this.root.querySelector(".shroom-secondary")),i(this,Z,this.root.querySelector(".shroom-timer-display")),i(this,wt,this.root.querySelector("[data-action=playpause]")),i(this,Zt,this.root.querySelector("[data-action=cancel]")),i(this,Pt,this.root.querySelector("[data-action=finish]")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:timer-outline"),"card-icon"),this.renderIcon("mdi:play","playpause-icon"),this.renderIcon("mdi:stop","cancel-icon"),this.renderIcon("mdi:check-circle","finish-icon"),w(t(this,Me),"timer",!1),e&&(t(this,wt)?.addEventListener("click",()=>{const s=t(this,ke)==="active"?"pause":"start";this.config.card?.sendCommand(s,{})}),t(this,Zt)?.addEventListener("click",()=>{this.config.card?.sendCommand("cancel",{})}),t(this,Pt)?.addEventListener("click",()=>{this.config.card?.sendCommand("finish",{})})),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){i(this,ke,e),i(this,Te,{...s}),i(this,F,s.finishes_at??null),i(this,Ee,s.remaining!=null?zo(s.remaining):null);const r=e==="active";w(t(this,Me),"timer",r||e==="paused"),t(this,He)&&(t(this,He).textContent=C(e)),d(this,ao,Qo).call(this,e),d(this,ho,ti).call(this,e),r&&t(this,F)?d(this,lo,ei).call(this):d(this,Rt,Ks).call(this),t(this,Z)&&t(this,Z).setAttribute("data-paused",String(e==="paused"))}predictState(e,s){const r={...t(this,Te)};return e==="start"?{state:"active",attributes:r}:e==="pause"?(t(this,F)&&(r.remaining=Math.max(0,(new Date(t(this,F)).getTime()-Date.now())/1e3)),{state:"paused",attributes:r}):e==="cancel"||e==="finish"?{state:"idle",attributes:r}:null}}Me=new WeakMap,He=new WeakMap,Z=new WeakMap,wt=new WeakMap,Zt=new WeakMap,Pt=new WeakMap,jt=new WeakMap,ke=new WeakMap,Te=new WeakMap,F=new WeakMap,Ee=new WeakMap,ao=new WeakSet,Qo=function(e){const s=e==="idle",r=e==="active";if(t(this,wt)){const n=r?"mdi:pause":"mdi:play",h=r?"Pause":e==="paused"?"Resume":"Start";this.renderIcon(n,"playpause-icon"),t(this,wt).title=h,t(this,wt).setAttribute("aria-label",`${this.def.friendly_name} - ${h}`)}t(this,Zt)&&(t(this,Zt).disabled=s),t(this,Pt)&&(t(this,Pt).disabled=s),this.announceState(`${this.def.friendly_name}, ${e}`)},ho=new WeakSet,ti=function(e){if(t(this,Z)){if(e==="idle"){const s=t(this,Te).duration;t(this,Z).textContent=s?Js(zo(s)):"00:00";return}if(e==="paused"&&t(this,Ee)!=null){t(this,Z).textContent=Js(t(this,Ee));return}if(e==="active"&&t(this,F)){const s=Math.max(0,(new Date(t(this,F)).getTime()-Date.now())/1e3);t(this,Z).textContent=Js(s)}}},lo=new WeakSet,ei=function(){d(this,Rt,Ks).call(this),i(this,jt,setInterval(()=>{if(!t(this,F)||t(this,ke)!=="active"){d(this,Rt,Ks).call(this);return}const e=Math.max(0,(new Date(t(this,F)).getTime()-Date.now())/1e3);t(this,Z)&&(t(this,Z).textContent=Js(e)),e<=0&&d(this,Rt,Ks).call(this)},1e3))},Rt=new WeakSet,Ks=function(){t(this,jt)&&(clearInterval(t(this,jt)),i(this,jt,null))};const Bi=`
-    ${H}
-    ${pt}
-    ${k}
+      `,i(this,Pe,this.root.querySelector(".shroom-icon-shape")),i(this,Ne,this.root.querySelector(".shroom-secondary")),i(this,F,this.root.querySelector(".shroom-timer-display")),i(this,Et,this.root.querySelector("[data-action=playpause]")),i(this,Jt,this.root.querySelector("[data-action=cancel]")),i(this,Qt,this.root.querySelector("[data-action=finish]")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:timer-outline"),"card-icon"),this.renderIcon("mdi:play","playpause-icon"),this.renderIcon("mdi:stop","cancel-icon"),this.renderIcon("mdi:check-circle","finish-icon"),$(t(this,Pe),"timer",!1),e&&(t(this,Et)?.addEventListener("click",()=>{const s=t(this,ze)==="active"?"pause":"start";this.config.card?.sendCommand(s,{})}),t(this,Jt)?.addEventListener("click",()=>{this.config.card?.sendCommand("cancel",{})}),t(this,Qt)?.addEventListener("click",()=>{this.config.card?.sendCommand("finish",{})})),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}applyState(e,s){i(this,ze,e),i(this,Ze,{...s}),i(this,K,s.finishes_at??null),i(this,je,s.remaining!=null?ri(s.remaining):null);const r=e==="active";$(t(this,Pe),"timer",r||e==="paused"),t(this,Ne)&&(t(this,Ne).textContent=C(e)),l(this,Co,vi).call(this,e),l(this,Lo,gi).call(this,e),r&&t(this,K)?l(this,So,bi).call(this):l(this,ee,ho).call(this),t(this,F)&&t(this,F).setAttribute("data-paused",String(e==="paused"))}predictState(e,s){const r={...t(this,Ze)};return e==="start"?{state:"active",attributes:r}:e==="pause"?(t(this,K)&&(r.remaining=Math.max(0,(new Date(t(this,K)).getTime()-Date.now())/1e3)),{state:"paused",attributes:r}):e==="cancel"||e==="finish"?{state:"idle",attributes:r}:null}}Pe=new WeakMap,Ne=new WeakMap,F=new WeakMap,Et=new WeakMap,Jt=new WeakMap,Qt=new WeakMap,te=new WeakMap,ze=new WeakMap,Ze=new WeakMap,K=new WeakMap,je=new WeakMap,Co=new WeakSet,vi=function(e){const s=e==="idle",r=e==="active";if(t(this,Et)){const n=r?"mdi:pause":"mdi:play",h=r?"Pause":e==="paused"?"Resume":"Start";this.renderIcon(n,"playpause-icon"),t(this,Et).title=h,t(this,Et).setAttribute("aria-label",`${this.def.friendly_name} - ${h}`)}t(this,Jt)&&(t(this,Jt).disabled=s),t(this,Qt)&&(t(this,Qt).disabled=s),this.announceState(`${this.def.friendly_name}, ${e}`)},Lo=new WeakSet,gi=function(e){if(t(this,F)){if(e==="idle"){const s=t(this,Ze).duration;t(this,F).textContent=s?po(ri(s)):"00:00";return}if(e==="paused"&&t(this,je)!=null){t(this,F).textContent=po(t(this,je));return}if(e==="active"&&t(this,K)){const s=Math.max(0,(new Date(t(this,K)).getTime()-Date.now())/1e3);t(this,F).textContent=po(s)}}},So=new WeakSet,bi=function(){l(this,ee,ho).call(this),i(this,te,setInterval(()=>{if(!t(this,K)||t(this,ze)!=="active"){l(this,ee,ho).call(this);return}const e=Math.max(0,(new Date(t(this,K)).getTime()-Date.now())/1e3);t(this,F)&&(t(this,F).textContent=po(e)),e<=0&&l(this,ee,ho).call(this)},1e3))},ee=new WeakSet,ho=function(){t(this,te)&&(clearInterval(t(this,te)),i(this,te,null))};const Ji=`
+    ${E}
+    ${bt}
+    ${T}
 
     .shroom-climate-bar {
       display: flex;
@@ -1112,18 +1149,24 @@
     .shroom-climate-toggle-btn svg {
       width: 20px; height: 20px; fill: currentColor;
     }
+    /* Climate dropdown - rendered as a popover in the top layer so it
+       escapes any ancestor stacking context or overflow:hidden. */
     .shroom-climate-dropdown {
+      position: fixed;
+      margin: 0;
+      inset: unset;
       background: var(--hrv-card-background, #ffffff);
+      border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.08));
       border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-      overflow: hidden;
-      max-height: 200px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+      max-height: 240px;
       overflow-y: auto;
-      scrollbar-width: none;
-      margin-top: 4px;
+      scrollbar-width: thin;
+      padding: 4px;
+      color: var(--hrv-color-text, #212121);
+      font-family: inherit;
     }
-    .shroom-climate-dropdown::-webkit-scrollbar { display: none; }
-    .shroom-climate-dropdown[hidden] { display: none; }
+    .shroom-climate-dropdown:not(:popover-open) { display: none; }
     .shroom-climate-dd-option {
       display: block;
       width: 100%;
@@ -1135,25 +1178,26 @@
       cursor: pointer;
       font-size: 13px;
       font-family: inherit;
+      border-radius: 8px;
       transition: background 150ms;
     }
-    .shroom-climate-dd-option + .shroom-climate-dd-option {
-      border-top: 1px solid var(--hrv-color-border, rgba(0,0,0,0.06));
-    }
-    .shroom-climate-dd-option:hover {
+    .shroom-climate-dd-option:hover,
+    .shroom-climate-dd-option:focus-visible {
       background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+      outline: none;
     }
     .shroom-climate-dd-option[data-active=true] {
       color: var(--hrv-color-primary, #ff9800);
-      font-weight: 500;
+      font-weight: 600;
+      background: color-mix(in srgb, var(--hrv-color-primary, #ff9800) 14%, transparent);
     }
     @media (prefers-reduced-motion: reduce) {
       .shroom-climate-step-btn,
       .shroom-climate-feat-btn,
       .shroom-climate-toggle-btn { transition: none; }
     }
-  `;class Vi extends f{constructor(e,s,r,n){super(e,s,r,n);o(this,co);o(this,Ds);o(this,Ns);o(this,po);o(this,mo);o(this,Xe);o(this,uo);o(this,Es,null);o(this,qe,null);o(this,Ie,null);o(this,Be,null);o(this,Ve,null);o(this,Oe,null);o(this,De,null);o(this,Ne,null);o(this,ze,null);o(this,Ze,null);o(this,Pe,null);o(this,nt,null);o(this,je,null);o(this,Re,null);o(this,at,null);o(this,Fe,null);o(this,Ft,null);o(this,ht,!1);o(this,lt,20);o(this,Ge,null);o(this,G,"off");o(this,Ye,null);o(this,We,null);o(this,Ue,null);o(this,qs,16);o(this,Is,32);o(this,Bs,.5);o(this,Ke,"°C");o(this,St,[]);o(this,Gt,[]);o(this,Yt,[]);o(this,Wt,[]);o(this,Vs,{});o(this,Os,void 0);i(this,Os,ee(d(this,po,oi).bind(this),500))}render(){M(this);const e=this.def.capabilities==="read-write",s=this.config.displayHints??{},r=this.def.supported_features?.includes("target_temperature"),n=s.show_fan_mode!==!1&&(this.def.supported_features?.includes("fan_mode")||this.def.feature_config?.fan_modes?.length>0),h=s.show_presets!==!1&&(this.def.supported_features?.includes("preset_mode")||this.def.feature_config?.preset_modes?.length>0),c=s.show_swing_mode!==!1&&(this.def.supported_features?.includes("swing_mode")||this.def.feature_config?.swing_modes?.length>0);i(this,qs,this.def.feature_config?.min_temp??16),i(this,Is,this.def.feature_config?.max_temp??32),i(this,Bs,this.def.feature_config?.temp_step??.5),i(this,Ke,this.def.unit_of_measurement??"°C"),i(this,St,this.def.feature_config?.hvac_modes??["off","heat","cool","heat_cool","auto","dry","fan_only"]),i(this,Gt,this.def.feature_config?.fan_modes??[]),i(this,Yt,this.def.feature_config?.preset_modes??[]),i(this,Wt,this.def.feature_config?.swing_modes??[]);const m=e&&(t(this,St).length||t(this,Yt).length||t(this,Gt).length||t(this,Wt).length),[p,g]=t(this,lt).toFixed(1).split(".");this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${Bi}</style>
+  `;class Qi extends b{constructor(e,s,r,n){super(e,s,r,n);o(this,$o);o(this,Ys);o(this,Us);o(this,Ao);o(this,Mo);o(this,Ks);o(this,ne);o(this,Ho);o(this,Zs,null);o(this,Fe,null);o(this,Re,null);o(this,We,null);o(this,Ge,null);o(this,Ye,null);o(this,Ue,null);o(this,Ke,null);o(this,Xe,null);o(this,Je,null);o(this,Qe,null);o(this,M,null);o(this,ts,null);o(this,es,null);o(this,pt,null);o(this,se,null);o(this,it,null);o(this,V,null);o(this,mt,!1);o(this,ut,20);o(this,ss,null);o(this,X,"off");o(this,os,null);o(this,is,null);o(this,rs,null);o(this,js,16);o(this,Fs,32);o(this,Rs,.5);o(this,ns,"°C");o(this,Tt,[]);o(this,oe,[]);o(this,ie,[]);o(this,re,[]);o(this,Ws,{});o(this,Gs,void 0);i(this,Gs,nt(l(this,Ao,xi).bind(this),500))}render(){k(this);const e=this.def.capabilities==="read-write",s=this.config.displayHints??{},r=this.def.supported_features?.includes("target_temperature"),n=s.show_fan_mode!==!1&&(this.def.supported_features?.includes("fan_mode")||this.def.feature_config?.fan_modes?.length>0),h=s.show_presets!==!1&&(this.def.supported_features?.includes("preset_mode")||this.def.feature_config?.preset_modes?.length>0),d=s.show_swing_mode!==!1&&(this.def.supported_features?.includes("swing_mode")||this.def.feature_config?.swing_modes?.length>0);i(this,js,this.def.feature_config?.min_temp??16),i(this,Fs,this.def.feature_config?.max_temp??32),i(this,Rs,this.def.feature_config?.temp_step??.5),i(this,ns,this.def.unit_of_measurement??"°C"),i(this,Tt,this.def.feature_config?.hvac_modes??["off","heat","cool","heat_cool","auto","dry","fan_only"]),i(this,oe,this.def.feature_config?.fan_modes??[]),i(this,ie,this.def.feature_config?.preset_modes??[]),i(this,re,this.def.feature_config?.swing_modes??[]);const p=e&&(t(this,Tt).length||t(this,ie).length||t(this,oe).length||t(this,re).length),[m,y]=t(this,ut).toFixed(1).split(".");this.root.innerHTML=`
+        <style>${Ji}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${e}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1162,7 +1206,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
-          ${r||m?`
+          ${r||p?`
             <div class="shroom-climate-bar">
               ${r?`
                 <div class="shroom-climate-temp-view">
@@ -1171,8 +1215,8 @@
                       aria-label="Decrease temperature" title="Decrease">&#8722;</button>
                   `:""}
                   <span class="shroom-climate-temp-display">
-                    <span class="shroom-climate-temp-int">${u(p)}</span><span class="shroom-climate-temp-frac">.${u(g)}</span>
-                    <span class="shroom-climate-temp-unit">${u(t(this,Ke))}</span>
+                    <span class="shroom-climate-temp-int">${u(m)}</span><span class="shroom-climate-temp-frac">.${u(y)}</span>
+                    <span class="shroom-climate-temp-unit">${u(t(this,ns))}</span>
                   </span>
                   ${e?`
                     <button class="shroom-climate-step-btn" data-dir="+" type="button"
@@ -1180,27 +1224,27 @@
                   `:""}
                 </div>
               `:""}
-              ${m?`
+              ${p?`
                 <div class="shroom-climate-feat-view" hidden>
-                  ${s.show_hvac_modes!==!1&&t(this,St).length?`
+                  ${s.show_hvac_modes!==!1&&t(this,Tt).length?`
                     <button class="shroom-climate-feat-btn" data-feat="mode" type="button" title="Change HVAC mode" aria-label="Change HVAC mode" aria-haspopup="listbox" aria-expanded="false">
                       <span class="shroom-climate-feat-label">Mode</span>
                       <span class="shroom-climate-feat-value">-</span>
                     </button>
                   `:""}
-                  ${h&&t(this,Yt).length?`
+                  ${h&&t(this,ie).length?`
                     <button class="shroom-climate-feat-btn" data-feat="preset" type="button" title="Change preset" aria-label="Change preset" aria-haspopup="listbox" aria-expanded="false">
                       <span class="shroom-climate-feat-label">Preset</span>
                       <span class="shroom-climate-feat-value">-</span>
                     </button>
                   `:""}
-                  ${n&&t(this,Gt).length?`
+                  ${n&&t(this,oe).length?`
                     <button class="shroom-climate-feat-btn" data-feat="fan" type="button" title="Change fan mode" aria-label="Change fan mode" aria-haspopup="listbox" aria-expanded="false">
                       <span class="shroom-climate-feat-label">Fan</span>
                       <span class="shroom-climate-feat-value">-</span>
                     </button>
                   `:""}
-                  ${c&&t(this,Wt).length?`
+                  ${d&&t(this,re).length?`
                     <button class="shroom-climate-feat-btn" data-feat="swing" type="button" title="Change swing mode" aria-label="Change swing mode" aria-haspopup="listbox" aria-expanded="false">
                       <span class="shroom-climate-feat-label">Swing</span>
                       <span class="shroom-climate-feat-value">-</span>
@@ -1212,22 +1256,22 @@
                 </button>
               `:""}
             </div>
-            <div class="shroom-climate-dropdown" role="listbox" hidden></div>
+            <div class="shroom-climate-dropdown" role="listbox" popover="manual"></div>
           `:""}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,Es,this.root.querySelector(".shroom-icon-shape")),i(this,qe,this.root.querySelector(".shroom-secondary")),i(this,Ie,this.root.querySelector(".shroom-climate-bar")),i(this,Be,this.root.querySelector(".shroom-climate-temp-int")),i(this,Ve,this.root.querySelector(".shroom-climate-temp-frac")),i(this,Oe,this.root.querySelector("[data-dir='-']")),i(this,De,this.root.querySelector("[data-dir='+']")),i(this,Ne,this.root.querySelector("[data-feat=mode]")),i(this,ze,this.root.querySelector("[data-feat=fan]")),i(this,Ze,this.root.querySelector("[data-feat=preset]")),i(this,Pe,this.root.querySelector("[data-feat=swing]")),i(this,nt,this.root.querySelector(".shroom-climate-dropdown")),i(this,je,this.root.querySelector(".shroom-climate-temp-view")),i(this,Re,this.root.querySelector(".shroom-climate-feat-view")),i(this,at,this.root.querySelector(".shroom-climate-toggle-btn")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:thermostat"),"card-icon");const _=this.root.querySelector(".shroom-state-item");e&&(se(_,`${this.def.friendly_name} - Toggle`),this._attachGestureHandlers(_,{onTap:()=>{const v=this.config.gestureConfig?.tap;if(v){this._runAction(v);return}const V=t(this,G)==="off"?t(this,St).find(et=>et!=="off")??"heat":"off";this.config.card?.sendCommand("set_hvac_mode",{hvac_mode:V})}})),t(this,Oe)&&t(this,Oe).addEventListener("click",v=>{v.stopPropagation(),d(this,Ds,To).call(this,-1)}),t(this,De)&&t(this,De).addEventListener("click",v=>{v.stopPropagation(),d(this,Ds,To).call(this,1)}),t(this,at)&&t(this,at).addEventListener("click",v=>{v.stopPropagation(),i(this,ht,!t(this,ht)),t(this,at).setAttribute("aria-expanded",String(t(this,ht))),d(this,co,si).call(this)}),e&&[t(this,Ne),t(this,ze),t(this,Ze),t(this,Pe)].forEach(v=>{if(!v)return;const V=v.getAttribute("data-feat");v.addEventListener("click",et=>{et.stopPropagation(),d(this,mo,ii).call(this,V)})}),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){i(this,Vs,{...s}),i(this,G,e),i(this,Ye,s.fan_mode??null),i(this,We,s.preset_mode??null),i(this,Ue,s.swing_mode??null),i(this,Ge,s.current_temperature??null);const r=e==="off";if(t(this,Ie)&&(t(this,Ie).hidden=r),w(t(this,Es),"climate",!r),s.temperature!==void 0&&(i(this,lt,s.temperature),d(this,Ns,Eo).call(this)),t(this,qe)){const h=s.hvac_action??e,c=t(this,Ge)!=null?` - ${t(this,Ge)} ${t(this,Ke)}`:"";t(this,qe).textContent=C(h)+c}d(this,uo,ri).call(this);const n=s.hvac_action??e;this.announceState(`${this.def.friendly_name}, ${C(n)}`)}predictState(e,s){const r={...t(this,Vs)};return e==="set_hvac_mode"&&s.hvac_mode?{state:s.hvac_mode,attributes:r}:e==="set_temperature"&&s.temperature!==void 0?{state:t(this,G),attributes:{...r,temperature:s.temperature}}:e==="set_fan_mode"&&s.fan_mode?{state:t(this,G),attributes:{...r,fan_mode:s.fan_mode}}:e==="set_preset_mode"&&s.preset_mode?{state:t(this,G),attributes:{...r,preset_mode:s.preset_mode}}:e==="set_swing_mode"&&s.swing_mode?{state:t(this,G),attributes:{...r,swing_mode:s.swing_mode}}:null}}Es=new WeakMap,qe=new WeakMap,Ie=new WeakMap,Be=new WeakMap,Ve=new WeakMap,Oe=new WeakMap,De=new WeakMap,Ne=new WeakMap,ze=new WeakMap,Ze=new WeakMap,Pe=new WeakMap,nt=new WeakMap,je=new WeakMap,Re=new WeakMap,at=new WeakMap,Fe=new WeakMap,Ft=new WeakMap,ht=new WeakMap,lt=new WeakMap,Ge=new WeakMap,G=new WeakMap,Ye=new WeakMap,We=new WeakMap,Ue=new WeakMap,qs=new WeakMap,Is=new WeakMap,Bs=new WeakMap,Ke=new WeakMap,St=new WeakMap,Gt=new WeakMap,Yt=new WeakMap,Wt=new WeakMap,Vs=new WeakMap,Os=new WeakMap,co=new WeakSet,si=function(){t(this,je)&&(t(this,je).hidden=t(this,ht)),t(this,Re)&&(t(this,Re).hidden=!t(this,ht)),t(this,at)&&(t(this,at).innerHTML=t(this,ht)?'<svg viewBox="0 0 24 24"><path d="M15,13V5A3,3 0 0,0 9,5V13A5,5 0 1,0 15,13M12,4A1,1 0 0,1 13,5V14.17C14.17,14.58 15,15.71 15,17A3,3 0 0,1 9,17C9,15.71 9.83,14.58 11,14.17V5A1,1 0 0,1 12,4Z"/></svg>':'<svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.04 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>')},Ds=new WeakSet,To=function(e){const s=Math.round((t(this,lt)+e*t(this,Bs))*100)/100;i(this,lt,Math.max(t(this,qs),Math.min(t(this,Is),s))),d(this,Ns,Eo).call(this),t(this,Os).call(this)},Ns=new WeakSet,Eo=function(){const[e,s]=t(this,lt).toFixed(1).split(".");t(this,Be)&&(t(this,Be).textContent=e),t(this,Ve)&&(t(this,Ve).textContent=`.${s}`)},po=new WeakSet,oi=function(){this.config.card?.sendCommand("set_temperature",{temperature:t(this,lt)})},mo=new WeakSet,ii=function(e){if(t(this,Fe)===e){d(this,Xe,bo).call(this);return}i(this,Fe,e);let s=[],r=null,n="",h="";switch(e){case"mode":s=t(this,St),r=t(this,G),n="set_hvac_mode",h="hvac_mode";break;case"fan":s=t(this,Gt),r=t(this,Ye),n="set_fan_mode",h="fan_mode";break;case"preset":s=t(this,Yt),r=t(this,We),n="set_preset_mode",h="preset_mode";break;case"swing":s=t(this,Wt),r=t(this,Ue),n="set_swing_mode",h="swing_mode";break}if(!s.length||!t(this,nt))return;t(this,nt).innerHTML=s.map(p=>`
-        <button class="shroom-climate-dd-option" data-active="${p===r}" role="option"
-          aria-selected="${p===r}" type="button">
-          ${u(C(p))}
+      `,i(this,Zs,this.root.querySelector(".shroom-icon-shape")),i(this,Fe,this.root.querySelector(".shroom-secondary")),i(this,Re,this.root.querySelector(".shroom-climate-bar")),i(this,We,this.root.querySelector(".shroom-climate-temp-int")),i(this,Ge,this.root.querySelector(".shroom-climate-temp-frac")),i(this,Ye,this.root.querySelector("[data-dir='-']")),i(this,Ue,this.root.querySelector("[data-dir='+']")),i(this,Ke,this.root.querySelector("[data-feat=mode]")),i(this,Xe,this.root.querySelector("[data-feat=fan]")),i(this,Je,this.root.querySelector("[data-feat=preset]")),i(this,Qe,this.root.querySelector("[data-feat=swing]")),i(this,M,this.root.querySelector(".shroom-climate-dropdown")),i(this,ts,this.root.querySelector(".shroom-climate-temp-view")),i(this,es,this.root.querySelector(".shroom-climate-feat-view")),i(this,pt,this.root.querySelector(".shroom-climate-toggle-btn")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:thermostat"),"card-icon");const g=this.root.querySelector(".shroom-state-item");e&&(me(g,`${this.def.friendly_name} - Toggle`),this._attachGestureHandlers(g,{onTap:()=>{const f=this.config.gestureConfig?.tap;if(f){this._runAction(f);return}const I=t(this,X)==="off"?t(this,Tt).find(R=>R!=="off")??"heat":"off";this.config.card?.sendCommand("set_hvac_mode",{hvac_mode:I})}})),t(this,Ye)&&t(this,Ye).addEventListener("click",f=>{f.stopPropagation(),l(this,Ys,Yo).call(this,-1)}),t(this,Ue)&&t(this,Ue).addEventListener("click",f=>{f.stopPropagation(),l(this,Ys,Yo).call(this,1)}),t(this,pt)&&t(this,pt).addEventListener("click",f=>{f.stopPropagation(),i(this,mt,!t(this,mt)),t(this,pt).setAttribute("aria-expanded",String(t(this,mt))),l(this,$o,yi).call(this)}),e&&[t(this,Ke),t(this,Xe),t(this,Je),t(this,Qe)].forEach(f=>{if(!f)return;const I=f.getAttribute("data-feat");f.addEventListener("click",R=>{R.stopPropagation(),l(this,Mo,_i).call(this,I)})}),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}applyState(e,s){i(this,Ws,{...s}),i(this,X,e),i(this,os,s.fan_mode??null),i(this,is,s.preset_mode??null),i(this,rs,s.swing_mode??null),i(this,ss,s.current_temperature??null);const r=e==="off";if(t(this,Re)&&(t(this,Re).hidden=r),$(t(this,Zs),"climate",!r),s.temperature!==void 0&&(i(this,ut,s.temperature),l(this,Us,Uo).call(this)),t(this,Fe)){const h=s.hvac_action??e,d=t(this,ss)!=null?` - ${t(this,ss)} ${t(this,ns)}`:"";t(this,Fe).textContent=C(h)+d}l(this,Ho,wi).call(this);const n=s.hvac_action??e;this.announceState(`${this.def.friendly_name}, ${C(n)}`)}predictState(e,s){const r={...t(this,Ws)};return e==="set_hvac_mode"&&s.hvac_mode?{state:s.hvac_mode,attributes:r}:e==="set_temperature"&&s.temperature!==void 0?{state:t(this,X),attributes:{...r,temperature:s.temperature}}:e==="set_fan_mode"&&s.fan_mode?{state:t(this,X),attributes:{...r,fan_mode:s.fan_mode}}:e==="set_preset_mode"&&s.preset_mode?{state:t(this,X),attributes:{...r,preset_mode:s.preset_mode}}:e==="set_swing_mode"&&s.swing_mode?{state:t(this,X),attributes:{...r,swing_mode:s.swing_mode}}:null}destroy(){t(this,it)&&(document.removeEventListener("pointerdown",t(this,it),!0),i(this,it,null)),t(this,V)&&(window.removeEventListener("scroll",t(this,V),!0),window.removeEventListener("resize",t(this,V)),i(this,V,null));try{t(this,M)?.hidePopover?.()}catch{}}}Zs=new WeakMap,Fe=new WeakMap,Re=new WeakMap,We=new WeakMap,Ge=new WeakMap,Ye=new WeakMap,Ue=new WeakMap,Ke=new WeakMap,Xe=new WeakMap,Je=new WeakMap,Qe=new WeakMap,M=new WeakMap,ts=new WeakMap,es=new WeakMap,pt=new WeakMap,se=new WeakMap,it=new WeakMap,V=new WeakMap,mt=new WeakMap,ut=new WeakMap,ss=new WeakMap,X=new WeakMap,os=new WeakMap,is=new WeakMap,rs=new WeakMap,js=new WeakMap,Fs=new WeakMap,Rs=new WeakMap,ns=new WeakMap,Tt=new WeakMap,oe=new WeakMap,ie=new WeakMap,re=new WeakMap,Ws=new WeakMap,Gs=new WeakMap,$o=new WeakSet,yi=function(){t(this,ts)&&(t(this,ts).hidden=t(this,mt)),t(this,es)&&(t(this,es).hidden=!t(this,mt)),t(this,pt)&&(t(this,pt).innerHTML=t(this,mt)?'<svg viewBox="0 0 24 24"><path d="M15,13V5A3,3 0 0,0 9,5V13A5,5 0 1,0 15,13M12,4A1,1 0 0,1 13,5V14.17C14.17,14.58 15,15.71 15,17A3,3 0 0,1 9,17C9,15.71 9.83,14.58 11,14.17V5A1,1 0 0,1 12,4Z"/></svg>':'<svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.04 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>')},Ys=new WeakSet,Yo=function(e){const s=Math.round((t(this,ut)+e*t(this,Rs))*100)/100;i(this,ut,Math.max(t(this,js),Math.min(t(this,Fs),s))),l(this,Us,Uo).call(this),t(this,Gs).call(this)},Us=new WeakSet,Uo=function(){const[e,s]=t(this,ut).toFixed(1).split(".");t(this,We)&&(t(this,We).textContent=e),t(this,Ge)&&(t(this,Ge).textContent=`.${s}`)},Ao=new WeakSet,xi=function(){this.config.card?.sendCommand("set_temperature",{temperature:t(this,ut)})},Mo=new WeakSet,_i=function(e){if(t(this,se)===e){l(this,ne,lo).call(this);return}t(this,se)&&l(this,ne,lo).call(this),i(this,se,e);let s=[],r=null,n="",h="";switch(e){case"mode":s=t(this,Tt),r=t(this,X),n="set_hvac_mode",h="hvac_mode";break;case"fan":s=t(this,oe),r=t(this,os),n="set_fan_mode",h="fan_mode";break;case"preset":s=t(this,ie),r=t(this,is),n="set_preset_mode",h="preset_mode";break;case"swing":s=t(this,re),r=t(this,rs),n="set_swing_mode",h="swing_mode";break}if(!s.length||!t(this,M))return;t(this,M).innerHTML=s.map(m=>`
+        <button class="shroom-climate-dd-option" data-active="${m===r}" role="option"
+          aria-selected="${m===r}" type="button">
+          ${u(C(m))}
         </button>
-      `).join(""),t(this,nt).querySelectorAll(".shroom-climate-dd-option").forEach((p,g)=>{p.addEventListener("click",_=>{_.stopPropagation(),this.config.card?.sendCommand(n,{[h]:s[g]}),d(this,Xe,bo).call(this)})});const c=this.root.querySelector(`[data-feat="${e}"]`);c&&c.setAttribute("aria-expanded","true"),t(this,nt).removeAttribute("hidden");const m=p=>{p.composedPath().some(_=>_===this.root||_===this.root.host)||d(this,Xe,bo).call(this)};i(this,Ft,m),document.addEventListener("pointerdown",m,!0)},Xe=new WeakSet,bo=function(){i(this,Fe,null),t(this,nt)?.setAttribute("hidden",""),this.root.querySelectorAll(".shroom-climate-feat-btn").forEach(e=>{e.setAttribute("aria-expanded","false")}),t(this,Ft)&&(document.removeEventListener("pointerdown",t(this,Ft),!0),i(this,Ft,null))},uo=new WeakSet,ri=function(){const e=(s,r)=>{if(!s)return;const n=s.querySelector(".shroom-climate-feat-value");n&&(n.textContent=C(r??"None"))};e(t(this,Ne),t(this,G)),e(t(this,ze),t(this,Ye)),e(t(this,Ze),t(this,We)),e(t(this,Pe),t(this,Ue))};const Oi=`
-    ${H}
-    ${ms}
-    ${pt}
-    ${k}
+      `).join(""),t(this,M).querySelectorAll(".shroom-climate-dd-option").forEach((m,y)=>{m.addEventListener("click",g=>{g.stopPropagation(),this.config.card?.sendCommand(n,{[h]:s[y]}),l(this,ne,lo).call(this)})});const d=this.root.querySelector(`[data-feat="${e}"]`);d&&d.setAttribute("aria-expanded","true");try{t(this,M).showPopover?.()}catch{}l(this,Ks,Ko).call(this,d),i(this,V,()=>l(this,Ks,Ko).call(this,d)),window.addEventListener("scroll",t(this,V),!0),window.addEventListener("resize",t(this,V));const p=m=>{m.composedPath().some(g=>g===this.root||g===this.root.host)||l(this,ne,lo).call(this)};i(this,it,p),document.addEventListener("pointerdown",p,!0)},Ks=new WeakSet,Ko=function(e){if(!t(this,M)||!e)return;const s=e.getBoundingClientRect(),r=window.innerHeight-s.bottom,n=s.top,h=Math.min(t(this,M).scrollHeight||240,240),d=Math.max(140,Math.round(s.width));t(this,M).style.left=`${Math.round(s.left)}px`,t(this,M).style.minWidth=`${d}px`,r<h+8&&n>r?t(this,M).style.top=`${Math.max(8,Math.round(s.top-h-6))}px`:t(this,M).style.top=`${Math.round(s.bottom+6)}px`},ne=new WeakSet,lo=function(){i(this,se,null);try{t(this,M)?.hidePopover?.()}catch{}this.root.querySelectorAll(".shroom-climate-feat-btn").forEach(e=>{e.setAttribute("aria-expanded","false")}),t(this,it)&&(document.removeEventListener("pointerdown",t(this,it),!0),i(this,it,null)),t(this,V)&&(window.removeEventListener("scroll",t(this,V),!0),window.removeEventListener("resize",t(this,V)),i(this,V,null))},Ho=new WeakSet,wi=function(){const e=(s,r)=>{if(!s)return;const n=s.querySelector(".shroom-climate-feat-value");n&&(n.textContent=C(r??"None"))};e(t(this,Ke),t(this,X)),e(t(this,Xe),t(this,os)),e(t(this,Je),t(this,is)),e(t(this,Qe),t(this,rs))};const tr=`
+    ${E}
+    ${xs}
+    ${bt}
+    ${T}
 
     .shroom-mp-bar {
       display: flex;
@@ -1305,8 +1349,8 @@
       .shroom-mp-btn,
       .shroom-mp-back-btn { transition: none; }
     }
-  `;class Di extends f{constructor(e,s,r,n){super(e,s,r,n);o(this,Fs);o(this,fo);o(this,zs,null);o(this,Je,null);o(this,Ut,null);o(this,Qe,null);o(this,ts,null);o(this,es,null);o(this,$t,null);o(this,Zs,null);o(this,Ps,null);o(this,js,null);o(this,ss,null);o(this,Y,null);o(this,Lt,null);o(this,Rs,!1);o(this,Kt,!1);o(this,W,0);o(this,dt,"idle");o(this,ct,{});o(this,os,void 0);i(this,os,ee(d(this,fo,ni).bind(this),200))}render(){M(this);const e=this.def.capabilities==="read-write",s=this.def.supported_features??[],r=this.config.displayHints??{},n=s.includes("previous_track");this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${Oi}</style>
+  `;class er extends b{constructor(e,s,r,n){super(e,s,r,n);o(this,so);o(this,ko);o(this,Xs,null);o(this,as,null);o(this,ae,null);o(this,hs,null);o(this,ls,null);o(this,ds,null);o(this,qt,null);o(this,Js,null);o(this,Qs,null);o(this,to,null);o(this,cs,null);o(this,J,null);o(this,It,null);o(this,eo,!1);o(this,he,!1);o(this,Q,0);o(this,ft,"idle");o(this,vt,{});o(this,ps,void 0);i(this,ps,nt(l(this,ko,Ci).bind(this),200))}render(){k(this);const e=this.def.capabilities==="read-write",s=this.def.supported_features??[],r=this.config.displayHints??{},n=s.includes("previous_track");this.root.innerHTML=`
+        <style>${tr}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1364,9 +1408,9 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,zs,this.root.querySelector(".shroom-icon-shape")),i(this,Je,this.root.querySelector(".shroom-primary")),i(this,Ut,this.root.querySelector(".shroom-secondary")),i(this,es,this.root.querySelector(".shroom-mp-bar")),i(this,Qe,this.root.querySelector(".shroom-mp-transport-view")),i(this,ts,this.root.querySelector(".shroom-mp-volume-view")),i(this,$t,this.root.querySelector("[data-role=play]")),i(this,Zs,this.root.querySelector("[data-role=prev]")),i(this,Ps,this.root.querySelector("[data-role=next]")),i(this,js,this.root.querySelector("[data-role=power]")),i(this,ss,this.root.querySelector("[data-role=volume]")),i(this,Y,this.root.querySelector(".shroom-slider-input")),i(this,Lt,this.root.querySelector(".shroom-slider-cover")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:speaker"),"card-icon"),this.renderIcon("mdi:play","play-icon"),this.renderIcon("mdi:skip-previous","prev-icon"),this.renderIcon("mdi:skip-next","next-icon"),this.renderIcon("mdi:power","power-icon"),this.renderIcon("mdi:volume-high","vol-icon"),e&&(t(this,$t)?.addEventListener("click",()=>{this.config.card?.sendCommand("media_play_pause",{})}),t(this,Zs)?.addEventListener("click",()=>this.config.card?.sendCommand("media_previous_track",{})),t(this,Ps)?.addEventListener("click",()=>this.config.card?.sendCommand("media_next_track",{})),t(this,js)?.addEventListener("click",()=>{const p=t(this,dt)==="playing"||t(this,dt)==="paused";this.config.card?.sendCommand(p?"turn_off":"turn_on",{})}),t(this,ss)?.addEventListener("click",()=>{i(this,Kt,!0),d(this,Fs,qo).call(this)}),this.root.querySelector(".shroom-mp-back-btn")?.addEventListener("click",()=>{i(this,Kt,!1),d(this,Fs,qo).call(this)}),this.root.querySelector("[data-role=vol-down]")?.addEventListener("click",()=>{this.config.card?.sendCommand("volume_down",{})}),this.root.querySelector("[data-role=vol-up]")?.addEventListener("click",()=>{this.config.card?.sendCommand("volume_up",{})})),t(this,Y)&&(t(this,Y).addEventListener("input",()=>{i(this,W,parseInt(t(this,Y).value,10)),t(this,Lt)&&(t(this,Lt).style.left=`${t(this,W)}%`),t(this,os).call(this)}),this.guardSlider(t(this,Y),t(this,os))),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){i(this,dt,e),i(this,ct,s);const r=e==="playing",n=r||e==="paused";w(t(this,zs),"media_player",n),t(this,es)&&(t(this,es).hidden=!n);const h=s.media_title??"",c=s.media_artist??"";if(t(this,Je)&&(t(this,Je).textContent=n&&h?h:this.def.friendly_name),t(this,Ut))if(n){const m=t(this,W)>0?`${t(this,W)}%`:"",p=[c,m].filter(Boolean);t(this,Ut).textContent=p.join(" - ")||C(e)}else t(this,Ut).textContent=C(e);if(t(this,$t)){const m=r?"mdi:pause":"mdi:play";this.renderIcon(m,"play-icon");const p=r?"Pause":"Play";t(this,$t).title=p,t(this,$t).setAttribute("aria-label",p)}if(s.volume_level!==void 0&&(i(this,W,Math.round(s.volume_level*100)),t(this,Y)&&!this.isSliderActive(t(this,Y))&&(t(this,Y).value=String(t(this,W))),t(this,Lt)&&(t(this,Lt).style.left=`${t(this,W)}%`)),i(this,Rs,!!s.is_volume_muted),t(this,ss)){const m=t(this,Rs)?"mdi:volume-off":"mdi:volume-high";this.renderIcon(m,"vol-icon")}this.announceState(`${this.def.friendly_name}, ${e}${h?` - ${h}`:""}`)}predictState(e,s){return e==="media_play_pause"?{state:t(this,dt)==="playing"?"paused":"playing",attributes:t(this,ct)}:e==="volume_mute"?{state:t(this,dt),attributes:{...t(this,ct),is_volume_muted:!!s.is_volume_muted}}:e==="volume_set"?{state:t(this,dt),attributes:{...t(this,ct),volume_level:s.volume_level}}:e==="turn_off"?{state:"off",attributes:t(this,ct)}:e==="turn_on"?{state:"idle",attributes:t(this,ct)}:null}}zs=new WeakMap,Je=new WeakMap,Ut=new WeakMap,Qe=new WeakMap,ts=new WeakMap,es=new WeakMap,$t=new WeakMap,Zs=new WeakMap,Ps=new WeakMap,js=new WeakMap,ss=new WeakMap,Y=new WeakMap,Lt=new WeakMap,Rs=new WeakMap,Kt=new WeakMap,W=new WeakMap,dt=new WeakMap,ct=new WeakMap,os=new WeakMap,Fs=new WeakSet,qo=function(){t(this,Qe)&&(t(this,Qe).hidden=t(this,Kt)),t(this,ts)&&(t(this,ts).hidden=!t(this,Kt))},fo=new WeakSet,ni=function(){this.config.card?.sendCommand("volume_set",{volume_level:t(this,W)/100})};const Zo={sunny:"M12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,2L14.39,5.42C13.65,5.15 12.84,5 12,5C11.16,5 10.35,5.15 9.61,5.42L12,2M3.34,7L7.5,6.65C6.9,7.16 6.36,7.78 5.94,8.5C5.5,9.24 5.25,10 5.11,10.79L3.34,7M3.36,17L5.12,13.23C5.26,14 5.53,14.78 5.95,15.5C6.37,16.24 6.91,16.86 7.5,17.37L3.36,17M20.65,7L18.88,10.79C18.74,10 18.47,9.23 18.05,8.5C17.63,7.78 17.1,7.15 16.5,6.64L20.65,7M20.64,17L16.5,17.36C17.09,16.85 17.62,16.22 18.04,15.5C18.46,14.77 18.73,14 18.87,13.21L20.64,17M12,22L9.59,18.56C10.33,18.83 11.14,19 12,19C12.82,19 13.63,18.83 14.37,18.56L12,22Z","clear-night":"M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z",partlycloudy:"M12.74,5.47C15.1,6.5 16.35,9.03 15.92,11.46C17.19,12.56 18,14.19 18,16V16.17C18.31,16.06 18.65,16 19,16A3,3 0 0,1 22,19A3,3 0 0,1 19,22H6A4,4 0 0,1 2,18A4,4 0 0,1 6,14H6.27C5,12.45 4.6,10.24 5.5,8.26C6.72,5.5 9.97,4.24 12.74,5.47M11.93,7.3C10.16,6.5 8.09,7.31 7.31,9.07C6.85,10.09 6.93,11.22 7.41,12.13C8.5,10.83 10.16,10 12,10C12.7,10 13.38,10.12 14,10.34C13.94,9.06 13.18,7.86 11.93,7.3M13.55,3.64C13,3.4 12.45,3.23 11.88,3.12L14.37,1.82L15.27,4.71C14.76,4.29 14.19,3.93 13.55,3.64M6.09,4.44C5.6,4.79 5.17,5.19 4.8,5.63L4.91,2.82L7.87,3.5C7.25,3.71 6.65,4.03 6.09,4.44M18,9.71C17.91,9.12 17.78,8.55 17.59,8L19.97,9.5L17.92,11.73C18.03,11.08 18.05,10.4 18,9.71M3.04,11.3C3.11,11.9 3.24,12.47 3.43,13L1.06,11.5L3.1,9.28C3,9.93 2.97,10.61 3.04,11.3M19,18H16V16A4,4 0 0,0 12,12A4,4 0 0,0 8,16H6A2,2 0 0,0 4,18A2,2 0 0,0 6,20H19A1,1 0 0,0 20,19A1,1 0 0,0 19,18Z",cloudy:"M6,19A5,5 0 0,1 1,14A5,5 0 0,1 6,9C7,6.65 9.3,5 12,5C15.43,5 18.24,7.66 18.5,11.03L19,11A4,4 0 0,1 23,15A4,4 0 0,1 19,19H6M19,13H17V12A5,5 0 0,0 12,7C9.5,7 7.45,8.82 7.06,11.19C6.73,11.07 6.37,11 6,11A3,3 0 0,0 3,14A3,3 0 0,0 6,17H19A2,2 0 0,0 21,15A2,2 0 0,0 19,13Z",fog:"M3,15H13A1,1 0 0,1 14,16A1,1 0 0,1 13,17H3A1,1 0 0,1 2,16A1,1 0 0,1 3,15M16,15H21A1,1 0 0,1 22,16A1,1 0 0,1 21,17H16A1,1 0 0,1 15,16A1,1 0 0,1 16,15M1,12A5,5 0 0,1 6,7C7,4.65 9.3,3 12,3C15.43,3 18.24,5.66 18.5,9.03L19,9C21.19,9 22.97,10.76 23,13H21A2,2 0 0,0 19,11H17V10A5,5 0 0,0 12,5C9.5,5 7.45,6.82 7.06,9.19C6.73,9.07 6.37,9 6,9A3,3 0 0,0 3,12C3,12.35 3.06,12.69 3.17,13H1.1L1,12M3,19H5A1,1 0 0,1 6,20A1,1 0 0,1 5,21H3A1,1 0 0,1 2,20A1,1 0 0,1 3,19M8,19H21A1,1 0 0,1 22,20A1,1 0 0,1 21,21H8A1,1 0 0,1 7,20A1,1 0 0,1 8,19Z",rainy:"M6,14.03A1,1 0 0,1 7,15.03C7,15.58 6.55,16.03 6,16.03C3.24,16.03 1,13.79 1,11.03C1,8.27 3.24,6.03 6,6.03C7,3.68 9.3,2.03 12,2.03C15.43,2.03 18.24,4.69 18.5,8.06L19,8.03A4,4 0 0,1 23,12.03C23,14.23 21.21,16.03 19,16.03H18C17.45,16.03 17,15.58 17,15.03C17,14.47 17.45,14.03 18,14.03H19A2,2 0 0,0 21,12.03A2,2 0 0,0 19,10.03H17V9.03C17,6.27 14.76,4.03 12,4.03C9.5,4.03 7.45,5.84 7.06,8.21C6.73,8.09 6.37,8.03 6,8.03A3,3 0 0,0 3,11.03A3,3 0 0,0 6,14.03M12,14.15C12.18,14.39 12.37,14.66 12.56,14.94C13,15.56 14,17.03 14,18C14,19.11 13.1,20 12,20A2,2 0 0,1 10,18C10,17.03 11,15.56 11.44,14.94C11.63,14.66 11.82,14.4 12,14.15M12,11.03L11.5,11.59C11.5,11.59 10.65,12.55 9.79,13.81C8.93,15.06 8,16.56 8,18A4,4 0 0,0 12,22A4,4 0 0,0 16,18C16,16.56 15.07,15.06 14.21,13.81C13.35,12.55 12.5,11.59 12.5,11.59",snowy:"M6,14A1,1 0 0,1 7,15A1,1 0 0,1 6,16A5,5 0 0,1 1,11A5,5 0 0,1 6,6C7,3.65 9.3,2 12,2C15.43,2 18.24,4.66 18.5,8.03L19,8A4,4 0 0,1 23,12A4,4 0 0,1 19,16H18A1,1 0 0,1 17,15A1,1 0 0,1 18,14H19A2,2 0 0,0 21,12A2,2 0 0,0 19,10H17V9A5,5 0 0,0 12,4C9.5,4 7.45,5.82 7.06,8.19C6.73,8.07 6.37,8 6,8A3,3 0 0,0 3,11A3,3 0 0,0 6,14M7.88,18.07L10.07,17.5L8.46,15.88C8.07,15.5 8.07,14.86 8.46,14.46C8.85,14.07 9.5,14.07 9.88,14.46L11.5,16.07L12.07,13.88C12.21,13.34 12.76,13.03 13.29,13.17C13.83,13.31 14.14,13.86 14,14.4L13.41,16.59L15.6,16C16.14,15.86 16.69,16.17 16.83,16.71C16.97,17.24 16.66,17.79 16.12,17.93L13.93,18.5L15.54,20.12C15.93,20.5 15.93,21.15 15.54,21.54C15.15,21.93 14.5,21.93 14.12,21.54L12.5,19.93L11.93,22.12C11.79,22.66 11.24,22.97 10.71,22.83C10.17,22.69 9.86,22.14 10,21.6L10.59,19.41L8.4,20C7.86,20.14 7.31,19.83 7.17,19.29C7.03,18.76 7.34,18.21 7.88,18.07Z",lightning:"M6,16A5,5 0 0,1 1,11A5,5 0 0,1 6,6C7,3.65 9.3,2 12,2C15.43,2 18.24,4.66 18.5,8.03L19,8A4,4 0 0,1 23,12A4,4 0 0,1 19,16H18A1,1 0 0,1 17,15A1,1 0 0,1 18,14H19A2,2 0 0,0 21,12A2,2 0 0,0 19,10H17V9A5,5 0 0,0 12,4C9.5,4 7.45,5.82 7.06,8.19C6.73,8.07 6.37,8 6,8A3,3 0 0,0 3,11A3,3 0 0,0 6,14H7A1,1 0 0,1 8,15A1,1 0 0,1 7,16H6M12,11H15L13,15H15L11.25,22L12,17H9.5L12,11Z",windy:"M4,10A1,1 0 0,1 3,9A1,1 0 0,1 4,8H12A2,2 0 0,0 14,6A2,2 0 0,0 12,4C11.45,4 10.95,4.22 10.59,4.59C10.2,5 9.56,5 9.17,4.59C8.78,4.2 8.78,3.56 9.17,3.17C9.9,2.45 10.9,2 12,2A4,4 0 0,1 16,6A4,4 0 0,1 12,10H4M19,12A1,1 0 0,0 20,11A1,1 0 0,0 19,10C18.72,10 18.47,10.11 18.29,10.29C17.9,10.68 17.27,10.68 16.88,10.29C16.5,9.9 16.5,9.27 16.88,8.88C17.42,8.34 18.17,8 19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14H5A1,1 0 0,1 4,13A1,1 0 0,1 5,12H19M18,18H4A1,1 0 0,1 3,17A1,1 0 0,1 4,16H18A3,3 0 0,1 21,19A3,3 0 0,1 18,22C17.17,22 16.42,21.66 15.88,21.12C15.5,20.73 15.5,20.1 15.88,19.71C16.27,19.32 16.9,19.32 17.29,19.71C17.47,19.89 17.72,20 18,20A1,1 0 0,0 19,19A1,1 0 0,0 18,18Z",exceptional:"M11,15H13V17H11V15M11,7H13V13H11V7M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20Z"},Ni=Zo.cloudy,zi="M12,3.77L11.25,4.61C11.25,4.61 9.97,6.06 8.68,7.94C7.39,9.82 6,12.07 6,14.23A6,6 0 0,0 12,20.23A6,6 0 0,0 18,14.23C18,12.07 16.61,9.82 15.32,7.94C14.03,6.06 12.75,4.61 12.75,4.61L12,3.77Z",Zi="M4,10A1,1 0 0,1 3,9A1,1 0 0,1 4,8H12A2,2 0 0,0 14,6A2,2 0 0,0 12,4C11.45,4 10.95,4.22 10.59,4.59C10.2,5 9.56,5 9.17,4.59C8.78,4.2 8.78,3.56 9.17,3.17C9.9,2.45 10.9,2 12,2A4,4 0 0,1 16,6A4,4 0 0,1 12,10H4M19,12A1,1 0 0,0 20,11A1,1 0 0,0 19,10C18.72,10 18.47,10.11 18.29,10.29C17.9,10.68 17.27,10.68 16.88,10.29C16.5,9.9 16.5,9.27 16.88,8.88C17.42,8.34 18.17,8 19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14H5A1,1 0 0,1 4,13A1,1 0 0,1 5,12H19M18,18H4A1,1 0 0,1 3,17A1,1 0 0,1 4,16H18A3,3 0 0,1 21,19A3,3 0 0,1 18,22C17.17,22 16.42,21.66 15.88,21.12C15.5,20.73 15.5,20.1 15.88,19.71C16.27,19.32 16.9,19.32 17.29,19.71C17.47,19.89 17.72,20 18,20A1,1 0 0,0 19,19A1,1 0 0,0 18,18Z",Pi="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,14.4 19,16.5 17.3,18C15.9,16.7 14,16 12,16C10,16 8.2,16.7 6.7,18C5,16.5 4,14.4 4,12A8,8 0 0,1 12,4M14,5.89C13.62,5.9 13.26,6.15 13.1,6.54L11.58,10C10.6,10.18 9.81,10.79 9.4,11.6L6.27,11.29C5.82,11.25 5.4,11.54 5.29,11.97C5.18,12.41 5.4,12.86 5.82,13.04L8.88,14.31C9.16,15.29 9.93,16.08 10.92,16.35L11.28,19.39C11.33,19.83 11.7,20.16 12.14,20.16C12.18,20.16 12.22,20.16 12.27,20.15C12.75,20.09 13.1,19.66 13.04,19.18L12.68,16.19C13.55,15.8 14.15,14.96 14.21,14H17.58C18.05,14 18.44,13.62 18.44,13.14C18.44,12.67 18.05,12.29 17.58,12.29H14.21C14.15,11.74 13.93,11.24 13.59,10.84L15.07,7.42C15.27,6.97 15.07,6.44 14.63,6.24C14.43,6 14.21,5.88 14,5.89Z",ji=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];function _o(a,l){const e=Zo[a]??Ni;return`<svg viewBox="0 0 24 24" width="${l}" height="${l}" aria-hidden="true" focusable="false"><path d="${e}" fill="currentColor"/></svg>`}function Co(a){return`<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="${a}" fill="currentColor"/></svg>`}const Ri=`
-    ${H}
-    ${k}
+      `,i(this,Xs,this.root.querySelector(".shroom-icon-shape")),i(this,as,this.root.querySelector(".shroom-primary")),i(this,ae,this.root.querySelector(".shroom-secondary")),i(this,ds,this.root.querySelector(".shroom-mp-bar")),i(this,hs,this.root.querySelector(".shroom-mp-transport-view")),i(this,ls,this.root.querySelector(".shroom-mp-volume-view")),i(this,qt,this.root.querySelector("[data-role=play]")),i(this,Js,this.root.querySelector("[data-role=prev]")),i(this,Qs,this.root.querySelector("[data-role=next]")),i(this,to,this.root.querySelector("[data-role=power]")),i(this,cs,this.root.querySelector("[data-role=volume]")),i(this,J,this.root.querySelector(".shroom-slider-input")),i(this,It,this.root.querySelector(".shroom-slider-cover")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:speaker"),"card-icon"),this.renderIcon("mdi:play","play-icon"),this.renderIcon("mdi:skip-previous","prev-icon"),this.renderIcon("mdi:skip-next","next-icon"),this.renderIcon("mdi:power","power-icon"),this.renderIcon("mdi:volume-high","vol-icon"),e&&(t(this,qt)?.addEventListener("click",()=>{this.config.card?.sendCommand("media_play_pause",{})}),t(this,Js)?.addEventListener("click",()=>this.config.card?.sendCommand("media_previous_track",{})),t(this,Qs)?.addEventListener("click",()=>this.config.card?.sendCommand("media_next_track",{})),t(this,to)?.addEventListener("click",()=>{const m=t(this,ft)==="playing"||t(this,ft)==="paused";this.config.card?.sendCommand(m?"turn_off":"turn_on",{})}),t(this,cs)?.addEventListener("click",()=>{i(this,he,!0),l(this,so,Xo).call(this)}),this.root.querySelector(".shroom-mp-back-btn")?.addEventListener("click",()=>{i(this,he,!1),l(this,so,Xo).call(this)}),this.root.querySelector("[data-role=vol-down]")?.addEventListener("click",()=>{this.config.card?.sendCommand("volume_down",{})}),this.root.querySelector("[data-role=vol-up]")?.addEventListener("click",()=>{this.config.card?.sendCommand("volume_up",{})})),t(this,J)&&(t(this,J).addEventListener("input",()=>{i(this,Q,parseInt(t(this,J).value,10)),t(this,It)&&(t(this,It).style.left=`${t(this,Q)}%`),t(this,ps).call(this)}),this.guardSlider(t(this,J),t(this,ps))),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}applyState(e,s){i(this,ft,e),i(this,vt,s);const r=e==="playing",n=r||e==="paused";$(t(this,Xs),"media_player",n),t(this,ds)&&(t(this,ds).hidden=!n);const h=s.media_title??"",d=s.media_artist??"";if(t(this,as)&&(t(this,as).textContent=n&&h?h:this.def.friendly_name),t(this,ae))if(n){const p=t(this,Q)>0?`${t(this,Q)}%`:"",m=[d,p].filter(Boolean);t(this,ae).textContent=m.join(" - ")||C(e)}else t(this,ae).textContent=C(e);if(t(this,qt)){const p=r?"mdi:pause":"mdi:play";this.renderIcon(p,"play-icon");const m=r?"Pause":"Play";t(this,qt).title=m,t(this,qt).setAttribute("aria-label",m)}if(s.volume_level!==void 0&&(i(this,Q,Math.round(s.volume_level*100)),t(this,J)&&!this.isSliderActive(t(this,J))&&(t(this,J).value=String(t(this,Q))),t(this,It)&&(t(this,It).style.left=`${t(this,Q)}%`)),i(this,eo,!!s.is_volume_muted),t(this,cs)){const p=t(this,eo)?"mdi:volume-off":"mdi:volume-high";this.renderIcon(p,"vol-icon")}this.announceState(`${this.def.friendly_name}, ${e}${h?` - ${h}`:""}`)}predictState(e,s){return e==="media_play_pause"?{state:t(this,ft)==="playing"?"paused":"playing",attributes:t(this,vt)}:e==="volume_mute"?{state:t(this,ft),attributes:{...t(this,vt),is_volume_muted:!!s.is_volume_muted}}:e==="volume_set"?{state:t(this,ft),attributes:{...t(this,vt),volume_level:s.volume_level}}:e==="turn_off"?{state:"off",attributes:t(this,vt)}:e==="turn_on"?{state:"idle",attributes:t(this,vt)}:null}}Xs=new WeakMap,as=new WeakMap,ae=new WeakMap,hs=new WeakMap,ls=new WeakMap,ds=new WeakMap,qt=new WeakMap,Js=new WeakMap,Qs=new WeakMap,to=new WeakMap,cs=new WeakMap,J=new WeakMap,It=new WeakMap,eo=new WeakMap,he=new WeakMap,Q=new WeakMap,ft=new WeakMap,vt=new WeakMap,ps=new WeakMap,so=new WeakSet,Xo=function(){t(this,hs)&&(t(this,hs).hidden=t(this,he)),t(this,ls)&&(t(this,ls).hidden=!t(this,he))},ko=new WeakSet,Ci=function(){this.config.card?.sendCommand("volume_set",{volume_level:t(this,Q)/100})};const ni={sunny:"M12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,2L14.39,5.42C13.65,5.15 12.84,5 12,5C11.16,5 10.35,5.15 9.61,5.42L12,2M3.34,7L7.5,6.65C6.9,7.16 6.36,7.78 5.94,8.5C5.5,9.24 5.25,10 5.11,10.79L3.34,7M3.36,17L5.12,13.23C5.26,14 5.53,14.78 5.95,15.5C6.37,16.24 6.91,16.86 7.5,17.37L3.36,17M20.65,7L18.88,10.79C18.74,10 18.47,9.23 18.05,8.5C17.63,7.78 17.1,7.15 16.5,6.64L20.65,7M20.64,17L16.5,17.36C17.09,16.85 17.62,16.22 18.04,15.5C18.46,14.77 18.73,14 18.87,13.21L20.64,17M12,22L9.59,18.56C10.33,18.83 11.14,19 12,19C12.82,19 13.63,18.83 14.37,18.56L12,22Z","clear-night":"M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z",partlycloudy:"M12.74,5.47C15.1,6.5 16.35,9.03 15.92,11.46C17.19,12.56 18,14.19 18,16V16.17C18.31,16.06 18.65,16 19,16A3,3 0 0,1 22,19A3,3 0 0,1 19,22H6A4,4 0 0,1 2,18A4,4 0 0,1 6,14H6.27C5,12.45 4.6,10.24 5.5,8.26C6.72,5.5 9.97,4.24 12.74,5.47M11.93,7.3C10.16,6.5 8.09,7.31 7.31,9.07C6.85,10.09 6.93,11.22 7.41,12.13C8.5,10.83 10.16,10 12,10C12.7,10 13.38,10.12 14,10.34C13.94,9.06 13.18,7.86 11.93,7.3M13.55,3.64C13,3.4 12.45,3.23 11.88,3.12L14.37,1.82L15.27,4.71C14.76,4.29 14.19,3.93 13.55,3.64M6.09,4.44C5.6,4.79 5.17,5.19 4.8,5.63L4.91,2.82L7.87,3.5C7.25,3.71 6.65,4.03 6.09,4.44M18,9.71C17.91,9.12 17.78,8.55 17.59,8L19.97,9.5L17.92,11.73C18.03,11.08 18.05,10.4 18,9.71M3.04,11.3C3.11,11.9 3.24,12.47 3.43,13L1.06,11.5L3.1,9.28C3,9.93 2.97,10.61 3.04,11.3M19,18H16V16A4,4 0 0,0 12,12A4,4 0 0,0 8,16H6A2,2 0 0,0 4,18A2,2 0 0,0 6,20H19A1,1 0 0,0 20,19A1,1 0 0,0 19,18Z",cloudy:"M6,19A5,5 0 0,1 1,14A5,5 0 0,1 6,9C7,6.65 9.3,5 12,5C15.43,5 18.24,7.66 18.5,11.03L19,11A4,4 0 0,1 23,15A4,4 0 0,1 19,19H6M19,13H17V12A5,5 0 0,0 12,7C9.5,7 7.45,8.82 7.06,11.19C6.73,11.07 6.37,11 6,11A3,3 0 0,0 3,14A3,3 0 0,0 6,17H19A2,2 0 0,0 21,15A2,2 0 0,0 19,13Z",fog:"M3,15H13A1,1 0 0,1 14,16A1,1 0 0,1 13,17H3A1,1 0 0,1 2,16A1,1 0 0,1 3,15M16,15H21A1,1 0 0,1 22,16A1,1 0 0,1 21,17H16A1,1 0 0,1 15,16A1,1 0 0,1 16,15M1,12A5,5 0 0,1 6,7C7,4.65 9.3,3 12,3C15.43,3 18.24,5.66 18.5,9.03L19,9C21.19,9 22.97,10.76 23,13H21A2,2 0 0,0 19,11H17V10A5,5 0 0,0 12,5C9.5,5 7.45,6.82 7.06,9.19C6.73,9.07 6.37,9 6,9A3,3 0 0,0 3,12C3,12.35 3.06,12.69 3.17,13H1.1L1,12M3,19H5A1,1 0 0,1 6,20A1,1 0 0,1 5,21H3A1,1 0 0,1 2,20A1,1 0 0,1 3,19M8,19H21A1,1 0 0,1 22,20A1,1 0 0,1 21,21H8A1,1 0 0,1 7,20A1,1 0 0,1 8,19Z",rainy:"M6,14.03A1,1 0 0,1 7,15.03C7,15.58 6.55,16.03 6,16.03C3.24,16.03 1,13.79 1,11.03C1,8.27 3.24,6.03 6,6.03C7,3.68 9.3,2.03 12,2.03C15.43,2.03 18.24,4.69 18.5,8.06L19,8.03A4,4 0 0,1 23,12.03C23,14.23 21.21,16.03 19,16.03H18C17.45,16.03 17,15.58 17,15.03C17,14.47 17.45,14.03 18,14.03H19A2,2 0 0,0 21,12.03A2,2 0 0,0 19,10.03H17V9.03C17,6.27 14.76,4.03 12,4.03C9.5,4.03 7.45,5.84 7.06,8.21C6.73,8.09 6.37,8.03 6,8.03A3,3 0 0,0 3,11.03A3,3 0 0,0 6,14.03M12,14.15C12.18,14.39 12.37,14.66 12.56,14.94C13,15.56 14,17.03 14,18C14,19.11 13.1,20 12,20A2,2 0 0,1 10,18C10,17.03 11,15.56 11.44,14.94C11.63,14.66 11.82,14.4 12,14.15M12,11.03L11.5,11.59C11.5,11.59 10.65,12.55 9.79,13.81C8.93,15.06 8,16.56 8,18A4,4 0 0,0 12,22A4,4 0 0,0 16,18C16,16.56 15.07,15.06 14.21,13.81C13.35,12.55 12.5,11.59 12.5,11.59",snowy:"M6,14A1,1 0 0,1 7,15A1,1 0 0,1 6,16A5,5 0 0,1 1,11A5,5 0 0,1 6,6C7,3.65 9.3,2 12,2C15.43,2 18.24,4.66 18.5,8.03L19,8A4,4 0 0,1 23,12A4,4 0 0,1 19,16H18A1,1 0 0,1 17,15A1,1 0 0,1 18,14H19A2,2 0 0,0 21,12A2,2 0 0,0 19,10H17V9A5,5 0 0,0 12,4C9.5,4 7.45,5.82 7.06,8.19C6.73,8.07 6.37,8 6,8A3,3 0 0,0 3,11A3,3 0 0,0 6,14M7.88,18.07L10.07,17.5L8.46,15.88C8.07,15.5 8.07,14.86 8.46,14.46C8.85,14.07 9.5,14.07 9.88,14.46L11.5,16.07L12.07,13.88C12.21,13.34 12.76,13.03 13.29,13.17C13.83,13.31 14.14,13.86 14,14.4L13.41,16.59L15.6,16C16.14,15.86 16.69,16.17 16.83,16.71C16.97,17.24 16.66,17.79 16.12,17.93L13.93,18.5L15.54,20.12C15.93,20.5 15.93,21.15 15.54,21.54C15.15,21.93 14.5,21.93 14.12,21.54L12.5,19.93L11.93,22.12C11.79,22.66 11.24,22.97 10.71,22.83C10.17,22.69 9.86,22.14 10,21.6L10.59,19.41L8.4,20C7.86,20.14 7.31,19.83 7.17,19.29C7.03,18.76 7.34,18.21 7.88,18.07Z",lightning:"M6,16A5,5 0 0,1 1,11A5,5 0 0,1 6,6C7,3.65 9.3,2 12,2C15.43,2 18.24,4.66 18.5,8.03L19,8A4,4 0 0,1 23,12A4,4 0 0,1 19,16H18A1,1 0 0,1 17,15A1,1 0 0,1 18,14H19A2,2 0 0,0 21,12A2,2 0 0,0 19,10H17V9A5,5 0 0,0 12,4C9.5,4 7.45,5.82 7.06,8.19C6.73,8.07 6.37,8 6,8A3,3 0 0,0 3,11A3,3 0 0,0 6,14H7A1,1 0 0,1 8,15A1,1 0 0,1 7,16H6M12,11H15L13,15H15L11.25,22L12,17H9.5L12,11Z",windy:"M4,10A1,1 0 0,1 3,9A1,1 0 0,1 4,8H12A2,2 0 0,0 14,6A2,2 0 0,0 12,4C11.45,4 10.95,4.22 10.59,4.59C10.2,5 9.56,5 9.17,4.59C8.78,4.2 8.78,3.56 9.17,3.17C9.9,2.45 10.9,2 12,2A4,4 0 0,1 16,6A4,4 0 0,1 12,10H4M19,12A1,1 0 0,0 20,11A1,1 0 0,0 19,10C18.72,10 18.47,10.11 18.29,10.29C17.9,10.68 17.27,10.68 16.88,10.29C16.5,9.9 16.5,9.27 16.88,8.88C17.42,8.34 18.17,8 19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14H5A1,1 0 0,1 4,13A1,1 0 0,1 5,12H19M18,18H4A1,1 0 0,1 3,17A1,1 0 0,1 4,16H18A3,3 0 0,1 21,19A3,3 0 0,1 18,22C17.17,22 16.42,21.66 15.88,21.12C15.5,20.73 15.5,20.1 15.88,19.71C16.27,19.32 16.9,19.32 17.29,19.71C17.47,19.89 17.72,20 18,20A1,1 0 0,0 19,19A1,1 0 0,0 18,18Z",exceptional:"M11,15H13V17H11V15M11,7H13V13H11V7M12,2C6.47,2 2,6.5 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20Z"},sr=ni.cloudy,or="M12,3.77L11.25,4.61C11.25,4.61 9.97,6.06 8.68,7.94C7.39,9.82 6,12.07 6,14.23A6,6 0 0,0 12,20.23A6,6 0 0,0 18,14.23C18,12.07 16.61,9.82 15.32,7.94C14.03,6.06 12.75,4.61 12.75,4.61L12,3.77Z",ir="M4,10A1,1 0 0,1 3,9A1,1 0 0,1 4,8H12A2,2 0 0,0 14,6A2,2 0 0,0 12,4C11.45,4 10.95,4.22 10.59,4.59C10.2,5 9.56,5 9.17,4.59C8.78,4.2 8.78,3.56 9.17,3.17C9.9,2.45 10.9,2 12,2A4,4 0 0,1 16,6A4,4 0 0,1 12,10H4M19,12A1,1 0 0,0 20,11A1,1 0 0,0 19,10C18.72,10 18.47,10.11 18.29,10.29C17.9,10.68 17.27,10.68 16.88,10.29C16.5,9.9 16.5,9.27 16.88,8.88C17.42,8.34 18.17,8 19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14H5A1,1 0 0,1 4,13A1,1 0 0,1 5,12H19M18,18H4A1,1 0 0,1 3,17A1,1 0 0,1 4,16H18A3,3 0 0,1 21,19A3,3 0 0,1 18,22C17.17,22 16.42,21.66 15.88,21.12C15.5,20.73 15.5,20.1 15.88,19.71C16.27,19.32 16.9,19.32 17.29,19.71C17.47,19.89 17.72,20 18,20A1,1 0 0,0 19,19A1,1 0 0,0 18,18Z",rr="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12C20,14.4 19,16.5 17.3,18C15.9,16.7 14,16 12,16C10,16 8.2,16.7 6.7,18C5,16.5 4,14.4 4,12A8,8 0 0,1 12,4M14,5.89C13.62,5.9 13.26,6.15 13.1,6.54L11.58,10C10.6,10.18 9.81,10.79 9.4,11.6L6.27,11.29C5.82,11.25 5.4,11.54 5.29,11.97C5.18,12.41 5.4,12.86 5.82,13.04L8.88,14.31C9.16,15.29 9.93,16.08 10.92,16.35L11.28,19.39C11.33,19.83 11.7,20.16 12.14,20.16C12.18,20.16 12.22,20.16 12.27,20.15C12.75,20.09 13.1,19.66 13.04,19.18L12.68,16.19C13.55,15.8 14.15,14.96 14.21,14H17.58C18.05,14 18.44,13.62 18.44,13.14C18.44,12.67 18.05,12.29 17.58,12.29H14.21C14.15,11.74 13.93,11.24 13.59,10.84L15.07,7.42C15.27,6.97 15.07,6.44 14.63,6.24C14.43,6 14.21,5.88 14,5.89Z",nr=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];function Bo(a,c){const e=ni[a]??sr;return`<svg viewBox="0 0 24 24" width="${c}" height="${c}" aria-hidden="true" focusable="false"><path d="${e}" fill="currentColor"/></svg>`}function Vo(a){return`<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="${a}" fill="currentColor"/></svg>`}const ar=`
+    ${E}
+    ${T}
 
     .shroom-weather-body {
       margin-top: var(--hrv-ex-shroom-spacing, 12px);
@@ -1491,8 +1535,8 @@
     .shroom-forecast-lo {
       color: var(--hrv-color-text-secondary, #757575);
     }
-  `;class Fi extends f{constructor(){super(...arguments);o(this,B);o(this,Ys);o(this,Ws);o(this,Gs,null);o(this,is,null);o(this,rs,null);o(this,Xt,null);o(this,ns,null);o(this,as,null);o(this,hs,null);o(this,At,null);o(this,tt,null);o(this,Jt,null);o(this,Qt,null)}render(){M(this),this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${Ri}</style>
+  `;class hr extends b{constructor(){super(...arguments);o(this,N);o(this,io);o(this,ro);o(this,oo,null);o(this,ms,null);o(this,us,null);o(this,le,null);o(this,fs,null);o(this,vs,null);o(this,gs,null);o(this,gt,null);o(this,rt,null);o(this,bs,null);o(this,de,null);o(this,ce,null)}render(){k(this),this.root.innerHTML=`
+        <style>${ar}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1503,20 +1547,20 @@
           </div>
           <div class="shroom-weather-body">
             <div class="shroom-weather-main">
-              <span class="shroom-weather-icon">${_o("cloudy",36)}</span>
+              <span class="shroom-weather-icon">${Bo("cloudy",36)}</span>
               <span class="shroom-weather-temp">--<span class="shroom-weather-unit"></span></span>
             </div>
             <div class="shroom-weather-stats">
               <span class="shroom-weather-stat" data-stat="humidity" aria-label="Humidity">
-                ${Co(zi)}
+                ${Vo(or)}
                 <span data-value>--</span>
               </span>
               <span class="shroom-weather-stat" data-stat="wind" aria-label="Wind speed">
-                ${Co(Zi)}
+                ${Vo(ir)}
                 <span data-value>--</span>
               </span>
               <span class="shroom-weather-stat" data-stat="pressure" aria-label="Pressure">
-                ${Co(Pi)}
+                ${Vo(rr)}
                 <span data-value>--</span>
               </span>
             </div>
@@ -1528,81 +1572,11 @@
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
         </div>
-      `,i(this,Gs,this.root.querySelector(".shroom-icon-shape")),i(this,is,this.root.querySelector(".shroom-secondary")),i(this,rs,this.root.querySelector(".shroom-weather-icon")),i(this,Xt,this.root.querySelector(".shroom-weather-temp")),i(this,ns,this.root.querySelector("[data-stat=humidity] [data-value]")),i(this,as,this.root.querySelector("[data-stat=wind] [data-value]")),i(this,hs,this.root.querySelector("[data-stat=pressure] [data-value]")),i(this,At,this.root.querySelector(".shroom-forecast-strip")),i(this,tt,this.root.querySelector(".shroom-forecast-toggle")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:weather-cloudy"),"card-icon"),w(t(this,Gs),"weather",!0),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),A(this.root)}applyState(e,s){const r=e||"cloudy";t(this,rs)&&(t(this,rs).innerHTML=_o(r,36));const n=this.i18n.t(`weather.${r}`)!==`weather.${r}`?this.i18n.t(`weather.${r}`):r.replace(/-/g," ");t(this,is)&&(t(this,is).textContent=C(n));const h=s.temperature??s.native_temperature,c=s.temperature_unit??"";if(t(this,Xt)){const p=t(this,Xt).querySelector(".shroom-weather-unit");t(this,Xt).firstChild.textContent=h!=null?Math.round(Number(h)):"--",p&&(p.textContent=c?` ${c}`:"")}if(t(this,ns)){const p=s.humidity;t(this,ns).textContent=p!=null?`${p}%`:"--"}if(t(this,as)){const p=s.wind_speed,g=s.wind_speed_unit??"";t(this,as).textContent=p!=null?`${p} ${g}`.trim():"--"}if(t(this,hs)){const p=s.pressure,g=s.pressure_unit??"";t(this,hs).textContent=p!=null?`${p} ${g}`.trim():"--"}const m=(this.config.displayHints??this.def.display_hints??{}).show_forecast===!0;i(this,Jt,m?s.forecast_daily??s.forecast??null:null),i(this,Qt,m?s.forecast_hourly??null:null),d(this,Ys,Io).call(this),d(this,Ws,Bo).call(this),this.announceState(`${this.def.friendly_name}, ${n}, ${h??"--"} ${c}`)}}Gs=new WeakMap,is=new WeakMap,rs=new WeakMap,Xt=new WeakMap,ns=new WeakMap,as=new WeakMap,hs=new WeakMap,At=new WeakMap,tt=new WeakMap,B=new WeakSet,te=function(){return this.config._forecastMode??"daily"},yo=function(e){this.config._forecastMode=e},Jt=new WeakMap,Qt=new WeakMap,Ys=new WeakSet,Io=function(){if(!t(this,tt))return;const e=Array.isArray(t(this,Jt))&&t(this,Jt).length>0,s=Array.isArray(t(this,Qt))&&t(this,Qt).length>0;if(!e&&!s){t(this,tt).textContent="";return}e&&!s&&i(this,B,"daily",yo),!e&&s&&i(this,B,"hourly",yo),e&&s?(t(this,tt).textContent=t(this,B,te)==="daily"?"Hourly":"5-Day",t(this,tt).onclick=()=>{i(this,B,t(this,B,te)==="daily"?"hourly":"daily",yo),d(this,Ys,Io).call(this),d(this,Ws,Bo).call(this)}):(t(this,tt).textContent="",t(this,tt).onclick=null)},Ws=new WeakSet,Bo=function(){if(!t(this,At))return;const e=t(this,B,te)==="hourly"?t(this,Qt):t(this,Jt);if(t(this,At).setAttribute("data-mode",t(this,B,te)),!Array.isArray(e)||e.length===0){t(this,At).innerHTML="";return}const s=t(this,B,te)==="daily"?e.slice(0,5):e;t(this,At).innerHTML=s.map(r=>{const n=new Date(r.datetime);let h;t(this,B,te)==="hourly"?h=n.toLocaleTimeString([],{hour:"numeric"}):h=ji[n.getDay()]??"";const c=(r.temperature??r.native_temperature)!=null?Math.round(r.temperature??r.native_temperature):"--",m=(r.templow??r.native_templow)!=null?Math.round(r.templow??r.native_templow):null;return`
+      `,i(this,oo,this.root.querySelector(".shroom-icon-shape")),i(this,ms,this.root.querySelector(".shroom-secondary")),i(this,us,this.root.querySelector(".shroom-weather-icon")),i(this,le,this.root.querySelector(".shroom-weather-temp")),i(this,fs,this.root.querySelector("[data-stat=humidity] [data-value]")),i(this,vs,this.root.querySelector("[data-stat=wind] [data-value]")),i(this,gs,this.root.querySelector("[data-stat=pressure] [data-value]")),i(this,gt,this.root.querySelector(".shroom-forecast-strip")),i(this,rt,this.root.querySelector(".shroom-forecast-toggle")),this.renderIcon(this.resolveIcon(this.def.icon,"mdi:weather-cloudy"),"card-icon"),$(t(this,oo),"weather",!0),i(this,bs,Si(t(this,gt))),this._attachGestureHandlers(this.root.querySelector("[part=card]")),this.renderCompanions(),H(this.root)}destroy(){var e;(e=t(this,bs))==null||e.call(this),i(this,bs,null)}applyState(e,s){const r=e||"cloudy";t(this,us)&&(t(this,us).innerHTML=Bo(r,36));const n=this.i18n.t(`weather.${r}`)!==`weather.${r}`?this.i18n.t(`weather.${r}`):r.replace(/-/g," ");t(this,ms)&&(t(this,ms).textContent=C(n));const h=s.temperature??s.native_temperature;let d=String(s.temperature_unit||s.native_temperature_unit||this.def.unit_of_measurement||"°C").trim();if(d&&!/^°/.test(d)&&d.length<=2&&(d=`°${d}`),t(this,le)){const m=t(this,le).querySelector(".shroom-weather-unit");t(this,le).firstChild.textContent=h!=null?Math.round(Number(h)):"--",m&&(m.textContent=d)}if(t(this,fs)){const m=s.humidity;t(this,fs).textContent=m!=null?`${m}%`:"--"}if(t(this,vs)){const m=s.wind_speed,y=s.wind_speed_unit??"";t(this,vs).textContent=m!=null?`${m} ${y}`.trim():"--"}if(t(this,gs)){const m=s.pressure,y=s.pressure_unit??"";t(this,gs).textContent=m!=null?`${m} ${y}`.trim():"--"}const p=(this.config.displayHints??this.def.display_hints??{}).show_forecast===!0;i(this,de,p?s.forecast_daily??s.forecast??null:null),i(this,ce,p?s.forecast_hourly??null:null),l(this,io,Jo).call(this),l(this,ro,Qo).call(this),this.announceState(`${this.def.friendly_name}, ${n}, ${h??"--"} ${d}`)}}oo=new WeakMap,ms=new WeakMap,us=new WeakMap,le=new WeakMap,fs=new WeakMap,vs=new WeakMap,gs=new WeakMap,gt=new WeakMap,rt=new WeakMap,bs=new WeakMap,N=new WeakSet,pe=function(){return this.config._forecastMode??"daily"},qo=function(e){this.config._forecastMode=e},de=new WeakMap,ce=new WeakMap,io=new WeakSet,Jo=function(){if(!t(this,rt))return;const e=Array.isArray(t(this,de))&&t(this,de).length>0,s=Array.isArray(t(this,ce))&&t(this,ce).length>0;if(!e&&!s){t(this,rt).textContent="";return}e&&!s&&i(this,N,"daily",qo),!e&&s&&i(this,N,"hourly",qo),e&&s?(t(this,rt).textContent=t(this,N,pe)==="daily"?"Hourly":"5-Day",t(this,rt).onclick=()=>{i(this,N,t(this,N,pe)==="daily"?"hourly":"daily",qo),l(this,io,Jo).call(this),l(this,ro,Qo).call(this)}):(t(this,rt).textContent="",t(this,rt).onclick=null)},ro=new WeakSet,Qo=function(){if(!t(this,gt))return;const e=t(this,N,pe)==="hourly"?t(this,ce):t(this,de);if(t(this,gt).setAttribute("data-mode",t(this,N,pe)),!Array.isArray(e)||e.length===0){t(this,gt).innerHTML="";return}const s=t(this,N,pe)==="daily"?e.slice(0,5):e;t(this,gt).innerHTML=s.map(r=>{const n=new Date(r.datetime);let h;t(this,N,pe)==="hourly"?h=n.toLocaleTimeString([],{hour:"numeric"}):h=nr[n.getDay()]??"";const d=(r.temperature??r.native_temperature)!=null?Math.round(r.temperature??r.native_temperature):"--",p=(r.templow??r.native_templow)!=null?Math.round(r.templow??r.native_templow):null;return`
           <div class="shroom-forecast-day" role="listitem">
             <span class="shroom-forecast-day-name">${u(String(h))}</span>
-            ${_o(r.condition||"cloudy",18)}
+            ${Bo(r.condition||"cloudy",18)}
             <span class="shroom-forecast-temps">
-              ${u(String(c))}${m!=null?`/<span class="shroom-forecast-lo">${u(String(m))}</span>`:""}
+              ${u(String(d))}${p!=null?`/<span class="shroom-forecast-lo">${u(String(p))}</span>`:""}
             </span>
-          </div>`}).join("")};const Po={auto:"var(--hrv-color-primary)",red:"#ef4444",orange:"#f97316",amber:"#f59e0b",yellow:"#eab308",green:"#22c55e",teal:"#14b8a6",cyan:"#06b6d4",blue:"#3b82f6",indigo:"#6366f1",purple:"#a855f7",pink:"#ec4899",grey:"#9ca3af"},Gi=new Set(["off","unavailable","unknown","idle","closed","standby","not_home","locked","jammed","locking","unlocking"]),jo={light:"mdi:lightbulb",switch:"mdi:toggle-switch",input_boolean:"mdi:toggle-switch",fan:"mdi:fan",sensor:"mdi:gauge",binary_sensor:"mdi:radiobox-blank",climate:"mdi:thermostat",media_player:"mdi:cast",cover:"mdi:window-shutter",timer:"mdi:timer",remote:"mdi:remote",input_number:"mdi:numeric",input_select:"mdi:format-list-bulleted",harvest_action:"mdi:play-circle-outline"},Yi=`
-    :host {
-      width: auto !important;
-      min-width: unset !important;
-      display: inline-flex !important;
-      contain: none !important;
-      vertical-align: top !important;
-      overflow: visible !important;
-      line-height: 0 !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-    [part=badge] {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px 6px 8px;
-      border-radius: 14px;
-      background: var(--hrv-card-background, var(--hrv-color-surface, #fff));
-      box-shadow: var(--hrv-card-shadow, 0 1px 3px rgba(0,0,0,0.1));
-      border: none;
-      font-family: var(--hrv-font-family, system-ui, -apple-system, sans-serif);
-      color: var(--hrv-color-text, #111827);
-      box-sizing: border-box;
-      white-space: nowrap;
-      overflow: hidden;
-      cursor: default;
-      transition: box-shadow var(--hrv-transition-speed, 150ms);
-      -webkit-backdrop-filter: var(--hrv-card-backdrop-filter, none);
-      backdrop-filter: var(--hrv-card-backdrop-filter, none);
-    }
-    [part=badge-icon] {
-      width: 20px; height: 20px; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      transition: color var(--hrv-transition-speed, 150ms);
-    }
-    [part=badge-icon] svg { width: 100%; height: 100%; }
-    [part=badge-text] {
-      display: flex; flex-direction: column; gap: 1px; min-width: 0;
-    }
-    [part=badge-name] {
-      font-size: 11px;
-      font-weight: var(--hrv-font-weight-medium, 500);
-      line-height: 1.3;
-      overflow: hidden; text-overflow: ellipsis; max-width: 140px;
-    }
-    [part=badge-state] {
-      font-size: 10px;
-      line-height: 1.3;
-      color: var(--hrv-color-text-secondary, #6b7280);
-      overflow: hidden; text-overflow: ellipsis; max-width: 140px;
-    }
-    [part=badge-text].single [part=badge-name],
-    [part=badge-text].single [part=badge-state] {
-      font-size: 12px;
-    }
-    .sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
-    @media (prefers-reduced-motion: reduce) {
-      [part=badge], [part=badge-icon] { transition: none; }
-    }
-  `;class Wi extends f{constructor(){super(...arguments);o(this,ls,null);o(this,ds,null);o(this,cs,null)}render(){const e=this.def.display_hints??{},s=e.badge_show_icon!==!1,r=e.badge_show_name!==!1,n=e.badge_show_state!==!1,h=r?"":" sr-only",c=n?"":" sr-only",p=r&&!n||!r&&n?" single":"";if(this.root.innerHTML=`
-        <style>${this.getSharedStyles()}${Yi}</style>
-        <div part="badge" aria-label="${u(this.def.friendly_name)}" title="${u(this.def.friendly_name)}">
-          ${s?'<span part="badge-icon" aria-hidden="true"></span>':""}
-          <span part="badge-text" class="${p}">
-            <span part="badge-name" class="${h}">${u(this.def.friendly_name)}</span>
-            <span part="badge-state" class="${c}" aria-live="polite"></span>
-          </span>
-        </div>
-        ${this.renderAriaLiveHTML()}
-      `,i(this,ls,this.root.querySelector("[part=badge-icon]")),i(this,ds,this.root.querySelector("[part=badge-state]")),i(this,cs,this.root.querySelector("[part=badge]")),s){const g=jo[this.def.domain]??"mdi:help-circle";this.renderIcon(this.resolveIcon(this.def.icon,g),"badge-icon")}}applyState(e,s){const n=(this.def.display_hints??{}).badge_icon_color??"auto",h=!Gi.has(e);if(t(this,ls)){t(this,ls).style.color=h?Po[n]??Po.auto:"#9ca3af";const g=jo[this.def.domain]??"mdi:help-circle",_=this.def.icon_state_map?.[e]??this.def.icon??g;this.renderIcon(this.resolveIcon(_,g),"badge-icon")}const c=s?.unit_of_measurement??this.def.unit_of_measurement??"",m=this.formatStateLabel(e),p=c?`${m} ${c}`:m;t(this,ds)&&(t(this,ds).textContent=p),t(this,cs)&&(t(this,cs).title=`${this.def.friendly_name}: ${p}`),this.announceState(`${this.def.friendly_name}, ${e}`)}}ls=new WeakMap,ds=new WeakMap,cs=new WeakMap;const Ui=window.__HARVEST_PACK_ID__||"shrooms";b._packs=b._packs||{},b._packs[Ui]={light:ci,switch:No,input_boolean:No,sensor:Xs,"sensor.temperature":Xs,"sensor.humidity":Xs,"sensor.battery":Xs,fan:bi,binary_sensor:xi,generic:Ci,harvest_action:Si,input_number:Li,input_select:Mi,cover:ki,remote:Ei,timer:Ii,climate:Vi,media_player:Di,weather:Fi,badge:Wi,_capabilities:{fan:{display_modes:["on-off","continuous","stepped","cycle"]},input_number:{display_modes:["slider","buttons"]},light:{features:["brightness","color_temp","rgb"]},climate:{features:["hvac_modes","presets","fan_mode","swing_mode"]},cover:{features:["position","tilt"]},media_player:{features:["transport","volume","source"]}}}})();})();
+          </div>`}).join("")};const lr=window.__HARVEST_PACK_ID__||"shrooms";_._packs=_._packs||{},_._packs[lr]={light:Hi,switch:oi,input_boolean:oi,sensor:co,"sensor.temperature":co,"sensor.humidity":co,"sensor.battery":co,fan:Vi,binary_sensor:Oi,generic:Ni,harvest_action:Zi,input_number:Fi,input_select:ii,select:ii,cover:Gi,remote:Ui,timer:Xi,climate:Qi,media_player:er,weather:hr,_capabilities:{fan:{display_modes:["on-off","continuous","stepped","cycle"]},input_number:{display_modes:["slider","buttons"]},input_select:{display_modes:["pills","dropdown"]},select:{display_modes:["pills","dropdown"]},light:{features:["brightness","color_temp","rgb"]},climate:{features:["hvac_modes","presets","fan_mode","swing_mode"]},cover:{features:["position","tilt"]},media_player:{features:["transport","volume","source"]}}}})();})();

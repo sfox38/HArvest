@@ -12,6 +12,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const FAN_CARD_STYLES = /* css */`
   [part=card-body] {
@@ -164,14 +165,6 @@ const FAN_CARD_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class FanCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #toggleBtn       = null;
@@ -203,10 +196,15 @@ export class FanCard extends BaseCard {
   get #isStepped()  { return this.#percentageStep > 1; }
   get #isCycleFan() { return this.#isStepped && (this.def.feature_config?.preset_modes?.length > 0); }
   get #speedSteps() {
+    // Return EXACT step values so they land on HA's range-mapping bucket
+    // boundaries. A 6-speed fan has step = 100/6 = 16.6666... and HA's
+    // valid percentages are exactly [16.6666..., 33.3333..., ...]. Sending
+    // a rounded value like 16.6 or 17 makes HA snap to the wrong speed.
+    // See lesson #46 in tools/THEME-PACK-CONVERTING.md.
     const step = this.#percentageStep;
     const steps = [];
     for (let i = 1; i * step <= 100.001; i++) {
-      steps.push(Math.floor(i * step * 10) / 10);
+      steps.push(i * step);
     }
     return steps;
   }
@@ -253,7 +251,7 @@ export class FanCard extends BaseCard {
     }
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${FAN_CARD_STYLES}</style>
+      <style>${FAN_CARD_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
@@ -317,8 +315,10 @@ export class FanCard extends BaseCard {
 
     if (this.#speedSlider) {
       this.#speedSlider.addEventListener("input", (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (this.#speedValue) this.#speedValue.textContent = `${val}%`;
+        // Number() not parseInt() - preserves fractional step values
+        // (e.g. 16.6666... for a 6-speed fan). See lesson #47.
+        const val = Number(e.target.value);
+        if (this.#speedValue) this.#speedValue.textContent = `${Math.round(val)}%`;
         this.#speedDebounce(val);
       });
       this.guardSlider(this.#speedSlider, this.#speedDebounce);
@@ -416,7 +416,7 @@ export class FanCard extends BaseCard {
 
     if (this.#speedSlider && !this.isSliderActive(this.#speedSlider)) {
       this.#speedSlider.value = String(this.#percentage);
-      if (this.#speedValue) this.#speedValue.textContent = `${this.#percentage}%`;
+      if (this.#speedValue) this.#speedValue.textContent = `${Math.round(this.#percentage)}%`;
     }
 
     if (this.#cycleBtn) {

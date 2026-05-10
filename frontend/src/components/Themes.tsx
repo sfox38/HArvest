@@ -104,17 +104,24 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const packJsRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
-    try {
-      const [t, tk] = await Promise.all([api.themes.list(), api.tokens.list()]);
-      setThemes(t);
-      setTokens(tk);
-      return t;
-    } catch (e) {
-      setError(String(e));
+    // allSettled: themes is the primary content; tokens is only used for
+    // "in use" badge counts. A tokens-list failure should not blank the page.
+    const [t, tk] = await Promise.allSettled([api.themes.list(), api.tokens.list()]);
+    if (t.status === "fulfilled") setThemes(t.value);
+    if (tk.status === "fulfilled") setTokens(tk.value);
+
+    setLoading(false);
+
+    if (t.status === "rejected") {
+      // Without themes there is nothing useful to show.
+      setError(String(t.reason));
       return null;
-    } finally {
-      setLoading(false);
     }
+    if (tk.status === "rejected") {
+      // Themes loaded but tokens did not. Page renders without in-use badges.
+      console.warn("[HArvest panel] themes reload: tokens list failed:", tk.reason);
+    }
+    return t.value;
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
@@ -133,6 +140,13 @@ export function Themes({ onSelectToken }: ThemesProps) {
   }, [packId]);
 
   const requireConsent = (action: () => Promise<void>) => {
+    // The AGREE dialog (rendered later in this file as role="dialog"
+    // aria-modal="true" with a backdrop) blocks UI interaction while shown,
+    // so the captured `action` closure cannot race against changes to
+    // `selectedTheme` or `editedJson` during the consent window. If a future
+    // change adds a periodic refresh or other background mutation of the
+    // Themes screen, this assumption breaks and `action` should be replaced
+    // with an intent (themeId + action type) re-resolved inside confirmAgree.
     if (packsData?.agreed) { action(); return; }
     setPendingAction(() => action);
     setShowAgree(true);
@@ -145,7 +159,12 @@ export function Themes({ onSelectToken }: ThemesProps) {
       setShowAgree(false);
       setAgreeText("");
       if (pendingAction) { await pendingAction(); setPendingAction(null); }
-    } catch (e) { setError(String(e)); }
+    } catch (e) {
+      setError(String(e));
+      // Drop the pending action if the AGREE call itself failed; the user
+      // must re-trigger to start a fresh consent flow.
+      setPendingAction(null);
+    }
   };
 
   // When selection changes, sync the code editor
@@ -551,7 +570,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+      <div className="center-spinner">
         <Spinner size={40} />
       </div>
     );
@@ -606,7 +625,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 <span className="theme-strip-name">{t.name}</span>
                 <div className="theme-strip-meta">
                   {t.is_bundled && <span className="badge badge-muted">System</span>}
-                  <span className="muted" style={{ fontSize: 11 }}>{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
+                  <span className="muted fs-11">{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
                 </div>
               </button>
             ))}
@@ -656,14 +675,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
               {selectedTheme.is_bundled ? (
                 <>
                   {selectedTheme.author && (
-                    <div className="muted" style={{ fontSize: 12 }}>Author: {selectedTheme.author}</div>
+                    <div className="muted fs-12">Author: {selectedTheme.author}</div>
                   )}
                   {selectedTheme.version && (
-                    <div className="muted" style={{ fontSize: 12 }}>Version: {selectedTheme.version}</div>
+                    <div className="muted fs-12">Version: {selectedTheme.version}</div>
                   )}
                 </>
               ) : (
-                <div className="row" style={{ gap: 8 }}>
+                <div className="row gap-8">
                   <input
                     className="input"
                     defaultValue={selectedTheme.author}
@@ -727,7 +746,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
               </button>
             }
           >
-            <div className="col" style={{ gap: 8 }}>
+            <div className="col gap-8">
               <textarea
                 className={`theme-code-textarea${jsonError ? " error" : ""}`}
                 value={editedJson}
@@ -756,12 +775,12 @@ export function Themes({ onSelectToken }: ThemesProps) {
                   {selectedPack.is_bundled && <span className="badge badge-muted">Bundled</span>}
                 </div>
                 {selectedPack.description && (
-                  <div className="muted" style={{ fontSize: 12 }}>{selectedPack.description}</div>
+                  <div className="muted fs-12">{selectedPack.description}</div>
                 )}
                 {packCode !== null && (
                   <div className="col" style={{ gap: 8, marginTop: 4 }}>
                     <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>Pack Source</div>
+                      <div className="label-strong">Pack Source</div>
                       <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
                         <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
                       </button>
@@ -783,9 +802,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
           {packId && !selectedPack && packCode !== null && (
             <Card title="Renderer Pack">
               <div className="col" style={{ gap: 10 }}>
-                <div className="col" style={{ gap: 8 }}>
+                <div className="col gap-8">
                   <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>Pack Source</div>
+                    <div className="label-strong">Pack Source</div>
                     <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
                       <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
                     </button>
@@ -825,10 +844,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
           {packId && !selectedPack && packCode === null && (
             <Card title="Renderer Pack">
               <div className="col" style={{ gap: 10 }}>
-                <div className="muted" style={{ fontSize: 13 }}>
+                <div className="muted fs-13">
                   This theme expects a renderer pack but the JS file is not installed yet.
                 </div>
-                <div style={{ fontSize: 12 }}>Upload <code>{selectedTheme.name.toLowerCase()}.js</code> to enable the renderer pack.</div>
+                <div className="fs-12">Upload <code>{selectedTheme.name.toLowerCase()}.js</code> to enable the renderer pack.</div>
                 <button className="btn btn-sm btn-primary" style={{ alignSelf: "flex-start" }} onClick={() => packJsRef.current?.click()}>
                   <Icon name="upload" size={13} /> Upload Pack JS
                 </button>

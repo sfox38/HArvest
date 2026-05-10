@@ -6,6 +6,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const COVER_STYLES = /* css */`
   [part=card-body] {
@@ -68,14 +69,6 @@ const COVER_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class CoverCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #openBtn        = null;
@@ -100,7 +93,7 @@ export class CoverCard extends BaseCard {
     const hasButtons   = !this.def.supported_features || this.def.supported_features.includes("buttons");
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${COVER_STYLES}</style>
+      <style>${COVER_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

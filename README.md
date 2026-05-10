@@ -31,10 +31,12 @@ After restarting, go to **Settings > Devices and Services > Add Integration**, s
 Embedding a light card on an HTML page:
 
 ```html
-<script src="/harvest.min.js"></script>
+<script src="https://ha.example.com/harvest_assets/harvest.min.js"></script>
 <script>HArvest.config({ haUrl: "https://ha.example.com", token: "hwt_..." })</script>
 <hrv-card entity="light.bedroom_main"></hrv-card>
 ```
+
+The widget JS is served by the integration itself, so it always matches your running HArvest version. The wizard generates this snippet for you.
 
 For WordPress, install the [HArvest WordPress plugin](https://sfox38.github.io/HArvest/wordpress.html) and use a shortcode:
 

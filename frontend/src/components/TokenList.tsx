@@ -124,7 +124,7 @@ function WidgetRow({ token: t, onSelect, highlighted }: {
       </div>
       <div className="widget-meta widget-hide-sm">
         <span className="widget-meta-num">{t.active_sessions}</span>
-        <div className="muted" style={{ fontSize: 11 }}>live</div>
+        <div className="muted fs-11">live</div>
       </div>
       <StatusBadge status={t.status} />
     </div>
@@ -210,7 +210,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
             </button>
           ))}
         </div>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button className="btn btn-ghost" onClick={() => { const next = !showArchived; setShowArchived(next); localStorage.setItem("hrv_show_archived", String(next)); }}>
           <Icon name="clock" size={14} />
           {showArchived ? "Hide" : "Show"} archived
@@ -230,7 +230,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+        <div className="center-spinner">
           <Spinner size={40} />
         </div>
       ) : active.length === 0 && archived.length === 0 ? (
@@ -269,7 +269,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           )}
 
           {active.length === 0 && filter !== "all" && (
-            <div className="card card-info card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
+            <div className="card card-info card-pad muted text-center-13">
               No widgets match this filter.
             </div>
           )}
@@ -300,7 +300,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           )}
 
           {showArchived && archived.length === 0 && (
-            <div className="card card-info card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
+            <div className="card card-info card-pad muted text-center-13">
               No archived widgets.
             </div>
           )}

@@ -17,7 +17,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v0.9.4 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -230,6 +230,8 @@
           <table>
             <thead><tr><th>Setting</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
+              <tr><td>Override host</td><td>(empty)</td><td>The public URL the panel uses when generating snippets and computing the HA-served widget script URL. Empty means use the URL of whatever HA host the admin is currently visiting. Set this to your external HA URL when admins access HA via a different domain than visitors will use.</td></tr>
+              <tr><td>Widget script source</td><td>HA-served</td><td>Two radios: HA-served (default, snippet uses <code>{HA_URL}/harvest_assets/harvest.min.js</code>; always matches the running integration), or Custom URL (admin-supplied). HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration.</td></tr>
               <tr><td>Auth timeout</td><td>10s</td><td>WebSocket auth must complete within this window.</td></tr>
               <tr><td>Keepalive interval</td><td>30s</td><td>Server-to-client ping frequency.</td></tr>
               <tr><td>Client heartbeat timeout</td><td>60s</td><td>Session dropped if no client message within this window.</td></tr>
@@ -281,31 +283,37 @@
 
         <h2 id="error-codes">Error codes</h2>
 
-        <p>Error codes appear in auth failure activity log events and in WebSocket error messages.</p>
+        <p>All error codes are <code>HRV_</code>-prefixed. They appear in auth failure activity log events, in <code>auth_failed</code> WebSocket messages, and in <code>ack</code> error responses. See SPEC.md Section 6 for the canonical list and per-code retryability notes.</p>
 
         <div class="table-wrap">
           <table>
             <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
             <tbody>
-              <tr><td><code>TOKEN_NOT_FOUND</code></td><td>Token ID doesn't exist</td></tr>
-              <tr><td><code>TOKEN_REVOKED</code></td><td>Token has been revoked</td></tr>
-              <tr><td><code>TOKEN_EXPIRED</code></td><td>Token has passed its expiry date</td></tr>
-              <tr><td><code>TOKEN_PAUSED</code></td><td>Token is manually paused</td></tr>
-              <tr><td><code>TOKEN_SCHEDULE</code></td><td>Outside the token's active schedule</td></tr>
-              <tr><td><code>ORIGIN_DENIED</code></td><td>Origin not in the token's allowed origins list</td></tr>
-              <tr><td><code>IP_DENIED</code></td><td>Client IP not in the token's allowed IP ranges</td></tr>
-              <tr><td><code>HMAC_INVALID</code></td><td>HMAC signature verification failed</td></tr>
-              <tr><td><code>HMAC_STALE</code></td><td>HMAC timestamp is more than 60 seconds old</td></tr>
-              <tr><td><code>ENTITY_NOT_FOUND</code></td><td>Entity ID or alias not in the token's entity list</td></tr>
-              <tr><td><code>ENTITY_BLOCKED</code></td><td>Entity domain is Tier 3 (blocked)</td></tr>
-              <tr><td><code>SERVICE_NOT_ALLOWED</code></td><td>Requested service call not in the allowed whitelist</td></tr>
-              <tr><td><code>READ_ONLY</code></td><td>Service call attempted on a read-only entity</td></tr>
-              <tr><td><code>SESSION_LIMIT</code></td><td>Token has reached its max concurrent session limit</td></tr>
-              <tr><td><code>RATE_LIMITED</code></td><td>Rate limit exceeded (token or IP)</td></tr>
-              <tr><td><code>AUTH_TIMEOUT</code></td><td>Auth message not received within the timeout window</td></tr>
+              <tr><td><code>HRV_TOKEN_INVALID</code></td><td>Token ID not found, or syntactically malformed. Both cases collapse to the same code intentionally so a probing attacker cannot distinguish format errors from missing tokens.</td></tr>
+              <tr><td><code>HRV_TOKEN_EXPIRED</code></td><td>Token has passed its <code>expires</code> date.</td></tr>
+              <tr><td><code>HRV_TOKEN_REVOKED</code></td><td>Token has been manually revoked.</td></tr>
+              <tr><td><code>HRV_TOKEN_INACTIVE</code></td><td>Token is paused, outside its <code>active_schedule</code> window, or the kill switch is active. Retryable with backoff.</td></tr>
+              <tr><td><code>HRV_ORIGIN_DENIED</code></td><td>Origin (or <code>page_path</code>) not in the token's allowed list.</td></tr>
+              <tr><td><code>HRV_IP_DENIED</code></td><td>Client IP not in the token's <code>allowed_ips</code> ranges.</td></tr>
+              <tr><td><code>HRV_SIGNATURE_INVALID</code></td><td>HMAC signature verification failed (bad signature, stale timestamp, or timestamp more than 5 seconds in the future).</td></tr>
+              <tr><td><code>HRV_PROTOCOL_INCOMPATIBLE</code></td><td>The widget speaks a WebSocket protocol version the server cannot accept. Typically a stale cached snippet outliving an integration update. The <code>auth_failed</code> response includes a <code>server</code> block (with <code>protocol</code>, <code>version</code>, and <code>min_client_protocol</code>) so the widget can render a useful diagnostic. Visitors see "Widget version cannot connect to this server. Update your snippet" rather than the generic "Widget unavailable". Permanent; no reconnect.</td></tr>
+              <tr><td><code>HRV_ENTITY_NOT_IN_TOKEN</code></td><td>None of the submitted entity references resolved within the token's scope. Individual unresolvable refs are silently skipped during auth and logged to the activity store with internal code <code>ENTITY_REF_DROPPED</code>; this code is returned only when zero refs resolve.</td></tr>
+              <tr><td><code>HRV_ENTITY_INCOMPATIBLE</code></td><td>Entity domain is on the Tier 3 blocked list. Returned at token creation time; per-ref incompatibility during auth is silently skipped (and logged as <code>ENTITY_REF_DROPPED</code>).</td></tr>
+              <tr><td><code>HRV_SESSION_LIMIT_REACHED</code></td><td>Token's <code>max_sessions</code> or <code>max_renewals</code> limit reached.</td></tr>
+              <tr><td><code>HRV_AUTH_FAILED</code></td><td>Generic auth failure surfaced to the visitor when a more specific code would leak token state.</td></tr>
+              <tr><td><code>HRV_PERMISSION_DENIED</code></td><td>Capability not granted for the requested action, or the service is not in the <code>ALLOWED_SERVICES</code> whitelist.</td></tr>
+              <tr><td><code>HRV_RATE_LIMITED</code></td><td>Rate limit exceeded (per-token or per-IP). The <code>ack</code> includes a <code>retry_after</code> value in seconds.</td></tr>
+              <tr><td><code>HRV_SESSION_EXPIRED</code></td><td>Session lifetime exceeded; client must re-authenticate.</td></tr>
+              <tr><td><code>HRV_ENTITY_MISSING</code></td><td>Entity not found in HA at runtime.</td></tr>
+              <tr><td><code>HRV_ENTITY_REMOVED</code></td><td>Entity was deleted from HA after auth. Permanent for the lifetime of the session.</td></tr>
+              <tr><td><code>HRV_BAD_REQUEST</code></td><td>Malformed message that included a <code>msg_id</code>. The session stays open.</td></tr>
+              <tr><td><code>HRV_MESSAGE_TOO_LARGE</code></td><td>Inbound WebSocket frame exceeded the 4 KB limit. The connection is closed.</td></tr>
+              <tr><td><code>HRV_SERVER_ERROR</code></td><td>Internal HA or integration error.</td></tr>
             </tbody>
           </table>
         </div>
+
+        <p>The widget defines four additional client-only states that never appear in server activity logs: <code>HRV_OFFLINE</code> (cannot reach the server), <code>HRV_STALE</code> (heartbeat timeout), <code>HRV_CONNECTING</code> (initial handshake in progress), and <code>HRV_INCOMPATIBLE</code> (the widget-side state name set when an <code>auth_failed</code> with <code>HRV_PROTOCOL_INCOMPATIBLE</code> arrives; permanent, no reconnect). These are documented in SPEC.md Section 8.</p>
 
       </div>
     </main>

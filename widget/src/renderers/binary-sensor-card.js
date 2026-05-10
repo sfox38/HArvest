@@ -6,6 +6,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const BINARY_SENSOR_STYLES = /* css */`
   [part=card-body] {
@@ -23,21 +24,13 @@ const BINARY_SENSOR_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class BinarySensorCard extends BaseCard {
   /** @type {HTMLElement|null} */ #stateLabel = null;
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${BINARY_SENSOR_STYLES}</style>
+      <style>${BINARY_SENSOR_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

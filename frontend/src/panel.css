@@ -2265,6 +2265,70 @@ button.entity-setting-group-title:focus-visible {
   border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--paper));
 }
 
+/* URL reachability indicator - SPEC.md Section 12 (Widget Script URL Settings).
+   Live ✓/⚠/ⓘ/✗/⏳ glyph + inline prose for non-OK states next to the
+   Override Host and Custom Widget URL fields in Settings. Advisory only;
+   never blocks save. */
+.hrv-url-indicator {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+.hrv-url-indicator-glyph {
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1.2;
+}
+.hrv-url-indicator-msg {
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+.hrv-url-indicator[data-status="checking"] { color: var(--text-secondary); }
+.hrv-url-indicator[data-status="ok"]       { color: var(--success, #00a32a); }
+.hrv-url-indicator[data-status="warn"]     { color: var(--warn); }
+.hrv-url-indicator[data-status="error"]    { color: var(--danger); }
+
+/* Drift banner - SPEC.md Section 12 (Client/Server Compatibility).
+   Warning-tone (not danger): version drift is admin-actionable but never
+   blocking. One row per (origin, source, source_version, widget_version)
+   tuple; dismiss is global per PLATFORM_VERSION. */
+.drift-banner {
+  background: var(--warn-weak);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--paper));
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text);
+}
+.drift-banner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.drift-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--warn);
+}
+.drift-banner-list {
+  margin: 0;
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.drift-banner-row {
+  line-height: 1.5;
+}
+
 /* Autocomplete dropdown */
 .autocomplete-dropdown {
   position: fixed;
@@ -3142,3 +3206,65 @@ button.entity-setting-group-title:focus-visible {
   color: var(--text-primary);
   font-weight: 500;
 }
+
+/* ----------------------------------------------------------------------------
+ * Utility classes
+ *
+ * Consolidates patterns that previously appeared as repeated inline styles
+ * across panel components. New code should reach for these instead of inline
+ * style={{ }} attributes (per feedback_css_external.md). Single-property
+ * shorthands (.fs-*, .gap-*, .flex-1) are utility-style; the multi-property
+ * ones (.divider, .error-msg, .center-spinner, .label-strong) are semantic.
+ * --------------------------------------------------------------------------*/
+
+/* Section divider: thin horizontal rule between settings groups. */
+.divider {
+  height: 1px;
+  background: var(--divider);
+}
+
+/* Inline error/danger message text. */
+.error-msg {
+  font-size: 12px;
+  color: var(--danger);
+}
+.error-msg-tight {
+  font-size: 12px;
+  color: var(--danger);
+  margin-top: 2px;
+}
+
+/* Bold settings label. */
+.label-strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.label-strong-13 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Centered loading/empty-state container with spinner padding. */
+.center-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px;
+}
+
+/* Centered hint text used in empty states and small notes. */
+.text-center-13 {
+  text-align: center;
+  font-size: 13px;
+}
+
+/* Font-size shorthands. */
+.fs-11 { font-size: 11px; }
+.fs-12 { font-size: 12px; }
+.fs-13 { font-size: 13px; }
+
+/* Flex/gap shorthands. Harmless on non-flex elements (gap is ignored). */
+.flex-1 { flex: 1; }
+.gap-6  { gap: 6px; }
+.gap-8  { gap: 8px; }
+.gap-18 { gap: 18px; }

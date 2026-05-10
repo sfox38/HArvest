@@ -24,6 +24,7 @@ import { StateCache }                      from "./state-cache.js";
 import { registerRenderer, lookupRenderer } from "./renderers/index.js";
 import * as Renderers                      from "./renderers/index.js";
 import { buildEntityDef, filterAttributes } from "./entity-def-builder.js";
+import { esc } from "./_utils/esc.js";
 import "./hrv-mount.js";
 
 // Wire StateCache into HarvestClient (avoids a circular import at module
@@ -155,6 +156,9 @@ window.HArvest = {
   buildEntityDef,
   filterAttributes,
   registerRenderer,
+  // Shared HTML-entity escaper, exposed for use by standalone packs that
+  // are loaded as separate IIFE scripts and cannot import from the bundle.
+  esc,
   renderers: {
     BaseCard:             Renderers.BaseCard,
     LightCard:            Renderers.LightCard,

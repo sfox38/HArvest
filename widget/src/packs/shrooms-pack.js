@@ -9,9 +9,6 @@
 (function () {
   "use strict";
 
-  const _SHROOMS_VERSION = "1.0.0";
-  console.info("[HArvest Shrooms] Loading pack v" + _SHROOMS_VERSION);
-
   const HArvest = window.HArvest;
   if (!HArvest || !HArvest.renderers || !HArvest.renderers.BaseCard) {
     console.warn("[HArvest Shrooms] HArvest not found - pack not loaded.");
@@ -24,14 +21,7 @@
   // Helpers
   // ---------------------------------------------------------------------------
 
-  function _esc(str) {
-    return String(str ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
+  const _esc = window.HArvest.esc;
 
   function _debounce(fn, ms) {
     let timer = null;
@@ -130,6 +120,91 @@
       if (layout === "vertical") host.setAttribute("data-layout", "vertical");
       else host.removeAttribute("data-layout");
     }
+  }
+
+  // Mouse drag-scroll with gentle ease-out momentum on release.
+  // Velocity is averaged over the last 80ms so a flick at the end of a slow
+  // drag still produces a snappy fling. Touch falls through to native scroll.
+  function _installMomentumScroll(strip) {
+    if (!strip) return () => {};
+    const SAMPLE_WINDOW = 80, VELOCITY_BOOST = 1.6, DECAY = 0.96, MIN_VEL = 0.04;
+    let pointerId = null, startX = 0, startScroll = 0;
+    let velocity = 0, moved = false, momentumRaf = 0;
+    const samples = [];
+    const stopMomentum = () => { if (momentumRaf) { cancelAnimationFrame(momentumRaf); momentumRaf = 0; } };
+    const computeReleaseVelocity = (now) => {
+      while (samples.length && samples[0].t < now - SAMPLE_WINDOW) samples.shift();
+      if (samples.length < 2) return 0;
+      const first = samples[0], last = samples[samples.length - 1];
+      const dt = last.t - first.t;
+      if (dt <= 0) return 0;
+      return (last.x - first.x) / dt;
+    };
+    const startMomentum = () => {
+      if (Math.abs(velocity) < MIN_VEL) return;
+      let prev = performance.now();
+      const tick = (now) => {
+        const dt = now - prev; prev = now;
+        strip.scrollLeft -= velocity * dt;
+        velocity *= Math.pow(DECAY, dt / 16);
+        if (Math.abs(velocity) < MIN_VEL) { momentumRaf = 0; velocity = 0; return; }
+        const max = strip.scrollWidth - strip.clientWidth;
+        if (strip.scrollLeft <= 0 || strip.scrollLeft >= max) { momentumRaf = 0; velocity = 0; return; }
+        momentumRaf = requestAnimationFrame(tick);
+      };
+      momentumRaf = requestAnimationFrame(tick);
+    };
+    const onDown = (e) => {
+      if (strip.scrollWidth <= strip.clientWidth) return;
+      if (e.pointerType === "touch") return;
+      const t = e.target;
+      if (t && t !== strip && t.closest?.("button, a")) return;
+      stopMomentum();
+      pointerId = e.pointerId;
+      startX = e.clientX;
+      startScroll = strip.scrollLeft;
+      velocity = 0; moved = false;
+      samples.length = 0;
+      samples.push({ x: e.clientX, t: e.timeStamp });
+      try { strip.setPointerCapture(pointerId); } catch { /* ignore */ }
+    };
+    const onMove = (e) => {
+      if (e.pointerId !== pointerId) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) { moved = true; strip.dataset.dragging = "true"; }
+      strip.scrollLeft = startScroll - dx;
+      samples.push({ x: e.clientX, t: e.timeStamp });
+      const cutoff = e.timeStamp - SAMPLE_WINDOW;
+      while (samples.length > 2 && samples[0].t < cutoff) samples.shift();
+    };
+    const onUp = (e) => {
+      if (e.pointerId !== pointerId) return;
+      try { strip.releasePointerCapture(pointerId); } catch { /* ignore */ }
+      pointerId = null;
+      if (moved) {
+        const click = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+        window.addEventListener("click", click, { capture: true, once: true });
+        requestAnimationFrame(() => strip.removeAttribute("data-dragging"));
+        velocity = computeReleaseVelocity(e.timeStamp) * VELOCITY_BOOST;
+        startMomentum();
+      }
+      samples.length = 0;
+    };
+    strip.addEventListener("pointerdown",   onDown);
+    strip.addEventListener("pointermove",   onMove);
+    strip.addEventListener("pointerup",     onUp);
+    strip.addEventListener("pointercancel", onUp);
+    strip.addEventListener("wheel",      stopMomentum, { passive: true });
+    strip.addEventListener("touchstart", stopMomentum, { passive: true });
+    return () => {
+      stopMomentum();
+      strip.removeEventListener("pointerdown",   onDown);
+      strip.removeEventListener("pointermove",   onMove);
+      strip.removeEventListener("pointerup",     onUp);
+      strip.removeEventListener("pointercancel", onUp);
+      strip.removeEventListener("wheel",         stopMomentum);
+      strip.removeEventListener("touchstart",    stopMomentum);
+    };
   }
 
   function _lightAccent(state, attrs) {
@@ -451,7 +526,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${SWITCH_STYLES}</style>
+        <style>${SWITCH_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${isWritable}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -642,7 +717,7 @@
       }
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${LIGHT_STYLES}</style>
+        <style>${LIGHT_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${isWritable}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -934,7 +1009,7 @@
       const defaultIcon = _SENSOR_DC_ICON[this.#deviceClass] ?? "mdi:gauge";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${SENSOR_STYLES}</style>
+        <style>${SENSOR_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1109,6 +1184,8 @@
     #presetMode = null;
     #presets = [];
     #sendValue;
+    #useCycle = false;
+    #stateless = false;
 
     constructor(def, root, config, i18n) {
       super(def, root, config, i18n);
@@ -1124,10 +1201,11 @@
     }
     get #isStepped() { return this.#percentageStep > 1; }
     get #speedSteps() {
+      // Exact step values - see lesson #46 in tools/THEME-PACK-CONVERTING.md.
       const step = this.#percentageStep;
       const steps = [];
       for (let i = 1; i * step <= 100.001; i++) {
-        steps.push(Math.floor(i * step * 10) / 10);
+        steps.push(i * step);
       }
       return steps;
     }
@@ -1157,11 +1235,15 @@
         if (isStepped && this.#presets.length) useCycle = true;
         else if (isStepped) useStepDots = true;
       }
+      // Cycle mode is stateless by design (the user picked it because the
+      // fan's reported speed/state isn't reliable), so suppress visual
+      // reflection of the percentage attribute.
+      this.#useCycle = useCycle;
 
       const showFeats = isWritable && (hasOscillate || hasDirection || hasPreset);
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${FAN_STYLES}</style>
+        <style>${FAN_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${isWritable}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1246,9 +1328,10 @@
 
       if (this.#slider) {
         this.#slider.addEventListener("input", () => {
-          const val = parseInt(this.#slider.value, 10);
+          // Number() not parseInt() - preserves fractional step (lesson #47).
+          const val = Number(this.#slider.value);
           this.#percentage = val;
-          this.#slider.setAttribute("aria-valuetext", `${val}%`);
+          this.#slider.setAttribute("aria-valuetext", `${Math.round(val)}%`);
           this.#updateSliderVisuals();
           this.#sendValue();
         });
@@ -1311,12 +1394,26 @@
       this.#direction = attributes?.direction ?? "forward";
       this.#presetMode = attributes?.preset_mode ?? null;
       if (attributes?.preset_modes?.length) this.#presets = attributes.preset_modes;
+      // Stateless = cycle mode (user picked it because state isn't reliable)
+      // OR HA-flagged assumed_state. Lesson #44/#35.
+      this.#stateless = this.#useCycle || attributes?.assumed_state === true;
 
       _setControlsCollapsed(this.root, !this.#isOn);
       _applyIconColor(this.#iconEl, "fan", this.#isOn);
 
+      // Re-render the header icon for the current state. Without this the
+      // server-side icon_state_map (mdi:fan vs mdi:fan-off) is read once at
+      // render time and the icon stays frozen across state changes.
+      const iconForState = this.def.icon_state_map?.[state]
+        ?? this.def.icon_state_map?.["*"]
+        ?? this.def.icon
+        ?? "mdi:fan";
+      this.renderIcon(this.resolveIcon(iconForState, "mdi:fan"), "card-icon");
+
       if (this.#iconEl) {
-        const shouldSpin = this.#isOn && this.#percentage > 0 && this.config.animate !== false;
+        // Don't spin for stateless fans - the percentage we read isn't
+        // trustworthy and would imply we know the speed.
+        const shouldSpin = this.#isOn && this.#percentage > 0 && !this.#stateless && this.config.animate !== false;
         if (shouldSpin) {
           const duration = 1 / (1.5 * Math.pow(this.#percentage / 100, 0.5));
           this.#iconEl.setAttribute("data-spinning", "true");
@@ -1327,8 +1424,11 @@
       }
 
       if (this.#secondaryEl) {
-        if (this.#isOn && this.#percentage > 0) {
-          this.#secondaryEl.textContent = `${this.#percentage}%`;
+        // In cycle / stateless mode we don't actually know the real speed,
+        // so showing a "33%" / "66%" / "100%" is misleading. Just show the
+        // on/off state.
+        if (this.#isOn && this.#percentage > 0 && !this.#stateless) {
+          this.#secondaryEl.textContent = `${Math.round(this.#percentage)}%`;
         } else {
           this.#secondaryEl.textContent = _capitalize(state);
         }
@@ -1340,7 +1440,7 @@
 
       this.announceState(
         `${this.def.friendly_name}, ${state}` +
-        (this.#percentage > 0 ? `, ${this.#percentage}%` : ""),
+        (this.#percentage > 0 && !this.#stateless ? `, ${Math.round(this.#percentage)}%` : ""),
       );
     }
 
@@ -1431,7 +1531,7 @@
     render() {
       _applyLayout(this);
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${BINARY_SENSOR_STYLES}</style>
+        <style>${BINARY_SENSOR_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1537,7 +1637,7 @@
       this.#hasToggle = false;
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${GENERIC_STYLES}</style>
+        <style>${GENERIC_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1628,7 +1728,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${HARVEST_ACTION_STYLES}</style>
+        <style>${HARVEST_ACTION_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${isWritable}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1730,7 +1830,7 @@
       this.#step = this.def.feature_config?.step ?? 1;
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${INPUT_NUMBER_STYLES}</style>
+        <style>${INPUT_NUMBER_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1834,8 +1934,35 @@
 
     .shroom-select-shell {
       margin-top: var(--hrv-ex-shroom-spacing, 12px);
-      position: relative;
     }
+
+    /* Pills mode: chip row */
+    .shroom-select-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .shroom-select-pill {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.08));
+      background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+      color: var(--hrv-color-text, #212121);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .shroom-select-pill:hover {
+      background: var(--hrv-ex-shroom-btn-bg-active, rgba(0,0,0,0.10));
+    }
+    .shroom-select-pill[data-active=true] {
+      background: color-mix(in srgb, var(--hrv-color-primary, #ff9800) 28%, transparent);
+      border-color: color-mix(in srgb, var(--hrv-color-primary, #ff9800) 60%, transparent);
+    }
+
+    /* Dropdown mode: trigger button */
     .shroom-select-current {
       width: 100%;
       padding: 10px 14px;
@@ -1859,20 +1986,33 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
-    .shroom-select-arrow { font-size: 10px; opacity: 0.5; }
+    .shroom-select-arrow {
+      font-size: 10px;
+      opacity: 0.5;
+      transition: transform 200ms ease;
+    }
+    .shroom-select-current[aria-expanded=true] .shroom-select-arrow {
+      transform: rotate(180deg);
+    }
+
+    /* Dropdown menu - rendered as a popover in the top layer so it
+       escapes any ancestor stacking context or overflow:hidden. */
     .shroom-select-dropdown {
-      position: absolute;
-      left: 0; right: 0;
+      position: fixed;
+      margin: 0;
+      inset: unset;
       background: var(--hrv-card-background, #ffffff);
+      border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.08));
       border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
       max-height: 240px;
       overflow-y: auto;
-      scrollbar-width: none;
-      z-index: 10;
+      scrollbar-width: thin;
+      padding: 4px;
+      color: var(--hrv-color-text, #212121);
+      font-family: inherit;
     }
-    .shroom-select-dropdown::-webkit-scrollbar { display: none; }
+    .shroom-select-dropdown:not(:popover-open) { display: none; }
     .shroom-select-option {
       display: block;
       width: 100%;
@@ -1884,17 +2024,18 @@
       cursor: pointer;
       font-size: 13px;
       font-family: inherit;
+      border-radius: 8px;
       transition: background 150ms;
     }
-    .shroom-select-option + .shroom-select-option {
-      border-top: 1px solid var(--hrv-color-border, rgba(0,0,0,0.06));
-    }
-    .shroom-select-option:hover {
+    .shroom-select-option:hover,
+    .shroom-select-option:focus-visible {
       background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+      outline: none;
     }
     .shroom-select-option[data-active=true] {
       color: var(--hrv-color-primary, #ff9800);
-      font-weight: 500;
+      font-weight: 600;
+      background: color-mix(in srgb, var(--hrv-color-primary, #ff9800) 14%, transparent);
     }
   `;
 
@@ -1903,16 +2044,43 @@
     #secondaryEl = null;
     #selectedBtn = null;
     #dropdown = null;
+    #grid = null;
+    #pillButtons = [];
+    #optionEls = [];
     #current = "";
     #options = [];
+    #lastOptionsKey = "";
     #isOpen = false;
+    #displayMode = "pills";
+    #docClickHandler = null;
+    #repositionHandler = null;
 
     render() {
       _applyLayout(this);
       const isWritable = this.def.capabilities === "read-write";
+      const hint = this.config.displayHints?.display_mode ?? this.def.display_hints?.display_mode ?? "pills";
+      this.#displayMode = (hint === "dropdown") ? "dropdown" : "pills";
+      this.#options = this.def.feature_config?.options ?? [];
+
+      const bodyHTML = !isWritable ? "" :
+        this.#displayMode === "dropdown"
+          ? /* html */`
+            <div class="shroom-select-shell">
+              <button class="shroom-select-current" type="button"
+                aria-label="${_esc(this.def.friendly_name)}"
+                aria-haspopup="listbox" aria-expanded="false">
+                <span class="shroom-select-label">-</span>
+                <span class="shroom-select-arrow" aria-hidden="true">&#9660;</span>
+              </button>
+              <div class="shroom-select-dropdown" role="listbox" popover="manual"></div>
+            </div>`
+          : /* html */`
+            <div class="shroom-select-shell">
+              <div class="shroom-select-grid"></div>
+            </div>`;
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${INPUT_SELECT_STYLES}</style>
+        <style>${INPUT_SELECT_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -1921,17 +2089,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
-          ${isWritable ? /* html */`
-            <div class="shroom-select-shell">
-              <button class="shroom-select-current" type="button"
-                aria-label="${_esc(this.def.friendly_name)}"
-                aria-haspopup="listbox" aria-expanded="false">
-                <span class="shroom-select-label">-</span>
-                <span class="shroom-select-arrow" aria-hidden="true">&#9660;</span>
-              </button>
-              <div class="shroom-select-dropdown" role="listbox" hidden></div>
-            </div>
-          ` : ""}
+          ${bodyHTML}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -1942,38 +2100,34 @@
       this.#secondaryEl = this.root.querySelector(".shroom-secondary");
       this.#selectedBtn = this.root.querySelector(".shroom-select-current");
       this.#dropdown = this.root.querySelector(".shroom-select-dropdown");
+      this.#grid = this.root.querySelector(".shroom-select-grid");
+      this.#pillButtons = [];
+      this.#optionEls = [];
+      this.#lastOptionsKey = "";
 
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:form-select"), "card-icon");
       _applyIconColor(this.#iconEl, "input_select", true);
 
       if (this.#selectedBtn && isWritable) {
-        this.#selectedBtn.addEventListener("click", () => {
+        this.#selectedBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
           if (this.#isOpen) this.#closeDropdown();
           else this.#openDropdown();
         });
         this.#selectedBtn.addEventListener("keydown", (e) => {
-          if (e.key === "Escape" && this.#isOpen) {
-            this.#closeDropdown();
-            this.#selectedBtn.focus();
-          }
-        });
-        this.root.addEventListener("keydown", (e) => {
-          if (!this.#isOpen) return;
-          if (e.key === "Escape") {
-            this.#closeDropdown();
-            this.#selectedBtn.focus();
-          } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          if ((e.key === "Enter" || e.key === " " || e.key === "ArrowDown") && !this.#isOpen) {
             e.preventDefault();
-            const opts = [...this.#dropdown.querySelectorAll("[role=option]")];
-            const focused = this.root.activeElement;
-            let idx = opts.indexOf(focused);
-            idx = e.key === "ArrowDown" ? Math.min(idx + 1, opts.length - 1) : Math.max(idx - 1, 0);
-            opts[idx]?.focus();
+            this.#openDropdown();
+            this.#optionEls[0]?.focus();
+          } else if (e.key === "Escape" && this.#isOpen) {
+            this.#closeDropdown();
+            this.#selectedBtn.focus();
           }
         });
-        document.addEventListener("click", (e) => {
+        this.#docClickHandler = (e) => {
           if (this.#isOpen && !this.root.host.contains(e.target)) this.#closeDropdown();
-        });
+        };
+        document.addEventListener("click", this.#docClickHandler);
       }
 
       this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -1981,70 +2135,123 @@
       _applyCompanionTooltips(this.root);
     }
 
+    #buildPills(options) {
+      if (!this.#grid) return;
+      this.#grid.innerHTML = "";
+      this.#pillButtons = [];
+      for (const opt of options) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "shroom-select-pill";
+        btn.dataset.option = opt;
+        btn.textContent = _capitalize(opt);
+        btn.addEventListener("click", () => {
+          this.config.card?.sendCommand("select_option", { option: opt });
+        });
+        this.#grid.appendChild(btn);
+        this.#pillButtons.push(btn);
+      }
+    }
+
+    #buildDropdownOptions(options) {
+      if (!this.#dropdown) return;
+      this.#dropdown.innerHTML = "";
+      this.#optionEls = [];
+      for (const opt of options) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "shroom-select-option";
+        btn.role = "option";
+        btn.dataset.option = opt;
+        btn.textContent = _capitalize(opt);
+        btn.addEventListener("click", () => {
+          this.config.card?.sendCommand("select_option", { option: opt });
+          this.#closeDropdown();
+          this.#selectedBtn?.focus();
+        });
+        btn.addEventListener("keydown", (e) => {
+          const opts = this.#optionEls;
+          const idx = opts.indexOf(btn);
+          if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(idx + 1, opts.length - 1)]?.focus(); }
+          else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (idx === 0) this.#selectedBtn?.focus(); else opts[idx - 1]?.focus();
+          } else if (e.key === "Escape") { this.#closeDropdown(); this.#selectedBtn?.focus(); }
+        });
+        this.#dropdown.appendChild(btn);
+        this.#optionEls.push(btn);
+      }
+    }
+
+    #positionDropdown() {
+      if (!this.#dropdown || !this.#selectedBtn) return;
+      const r = this.#selectedBtn.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - r.bottom;
+      const spaceAbove = r.top;
+      const dropH = Math.min(this.#dropdown.scrollHeight || 240, 240);
+      this.#dropdown.style.left = `${Math.round(r.left)}px`;
+      this.#dropdown.style.width = `${Math.round(r.width)}px`;
+      if (spaceBelow < dropH + 8 && spaceAbove > spaceBelow) {
+        this.#dropdown.style.top = `${Math.max(8, Math.round(r.top - dropH - 6))}px`;
+      } else {
+        this.#dropdown.style.top = `${Math.round(r.bottom + 6)}px`;
+      }
+    }
+
     #openDropdown() {
       if (!this.#dropdown || !this.#options.length) return;
-
-      this.#dropdown.innerHTML = this.#options.map(opt => /* html */`
-        <button class="shroom-select-option" type="button" role="option"
-          aria-selected="${opt === this.#current}"
-          data-active="${opt === this.#current}">
-          ${_esc(opt)}
-        </button>
-      `).join("");
-
-      this.#dropdown.querySelectorAll(".shroom-select-option").forEach((btn, i) => {
-        btn.addEventListener("click", () => {
-          this.config.card?.sendCommand("select_option", { option: this.#options[i] });
-          this.#closeDropdown();
-        });
-      });
-
-      const shell = this.root.querySelector(".shroom-select-shell");
-      if (shell) shell.style.overflow = "visible";
-      const card = this.root.querySelector("[part=card]");
-      if (card) card.style.overflow = "visible";
-      this.#dropdown.removeAttribute("hidden");
-      if (this.#selectedBtn) this.#selectedBtn.setAttribute("aria-expanded", "true");
-
-      const btnRect = this.#selectedBtn.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - btnRect.bottom;
-      const dropHeight = Math.min(this.#dropdown.scrollHeight, 240);
-      if (spaceBelow < dropHeight + 8) {
-        this.#dropdown.style.bottom = "calc(100% + 4px)";
-        this.#dropdown.style.top = "auto";
-      } else {
-        this.#dropdown.style.top = "calc(100% + 4px)";
-        this.#dropdown.style.bottom = "auto";
-      }
-
+      try {
+        if (typeof this.#dropdown.showPopover === "function") this.#dropdown.showPopover();
+      } catch { /* ignore */ }
+      this.#selectedBtn?.setAttribute("aria-expanded", "true");
+      this.#positionDropdown();
+      this.#repositionHandler = () => this.#positionDropdown();
+      window.addEventListener("scroll", this.#repositionHandler, true);
+      window.addEventListener("resize", this.#repositionHandler);
       this.#isOpen = true;
     }
 
     #closeDropdown() {
-      this.#dropdown?.setAttribute("hidden", "");
-      if (this.#selectedBtn) this.#selectedBtn.setAttribute("aria-expanded", "false");
-      const shell = this.root.querySelector(".shroom-select-shell");
-      if (shell) shell.style.overflow = "";
-      const card = this.root.querySelector("[part=card]");
-      if (card) card.style.overflow = "";
+      try {
+        if (typeof this.#dropdown?.hidePopover === "function") this.#dropdown.hidePopover();
+      } catch { /* ignore */ }
+      this.#selectedBtn?.setAttribute("aria-expanded", "false");
+      if (this.#repositionHandler) {
+        window.removeEventListener("scroll", this.#repositionHandler, true);
+        window.removeEventListener("resize", this.#repositionHandler);
+        this.#repositionHandler = null;
+      }
       this.#isOpen = false;
     }
 
     applyState(state, attributes) {
       this.#current = state;
-      this.#options = attributes?.options ?? this.#options;
+      // Defensive: only adopt new options if a non-empty list comes through.
+      const incoming = attributes?.options;
+      const options = (Array.isArray(incoming) && incoming.length) ? incoming : this.#options;
+      this.#options = options;
 
       if (this.#secondaryEl) this.#secondaryEl.textContent = state;
 
-      const label = this.root.querySelector(".shroom-select-label");
-      if (label) label.textContent = state;
+      const optionsKey = options.join("|");
+      if (optionsKey !== this.#lastOptionsKey) {
+        this.#lastOptionsKey = optionsKey;
+        if (this.#displayMode === "dropdown") this.#buildDropdownOptions(options);
+        else this.#buildPills(options);
+      }
 
-      if (this.#isOpen) {
-        this.#dropdown?.querySelectorAll(".shroom-select-option").forEach((btn, i) => {
-          const isActive = String(this.#options[i] === state);
-          btn.setAttribute("data-active", isActive);
-          btn.setAttribute("aria-selected", isActive);
-        });
+      if (this.#displayMode === "dropdown") {
+        const label = this.root.querySelector(".shroom-select-label");
+        if (label) label.textContent = state;
+        for (const btn of this.#optionEls) {
+          const isActive = btn.dataset.option === state;
+          btn.setAttribute("data-active", String(isActive));
+          btn.setAttribute("aria-selected", String(isActive));
+        }
+      } else {
+        for (const btn of this.#pillButtons) {
+          btn.setAttribute("data-active", String(btn.dataset.option === state));
+        }
       }
 
       this.announceState(`${this.def.friendly_name}, ${state}`);
@@ -2052,9 +2259,22 @@
 
     predictState(action, data) {
       if (action === "select_option" && data.option !== undefined) {
-        return { state: String(data.option), attributes: {} };
+        return { state: String(data.option), attributes: { options: this.#options } };
       }
       return null;
+    }
+
+    destroy() {
+      if (this.#docClickHandler) {
+        document.removeEventListener("click", this.#docClickHandler);
+        this.#docClickHandler = null;
+      }
+      if (this.#repositionHandler) {
+        window.removeEventListener("scroll", this.#repositionHandler, true);
+        window.removeEventListener("resize", this.#repositionHandler);
+        this.#repositionHandler = null;
+      }
+      try { this.#dropdown?.hidePopover?.(); } catch { /* ignore */ }
     }
   }
 
@@ -2174,7 +2394,7 @@
       const showControls = isWritable && (hasPosition || hasButtons);
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${COVER_STYLES}</style>
+        <style>${COVER_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -2359,7 +2579,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${REMOTE_STYLES}</style>
+        <style>${REMOTE_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${isWritable}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -2507,7 +2727,7 @@
       const isWritable = this.def.capabilities === "read-write";
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${TIMER_STYLES}</style>
+        <style>${TIMER_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -2785,18 +3005,24 @@
     .shroom-climate-toggle-btn svg {
       width: 20px; height: 20px; fill: currentColor;
     }
+    /* Climate dropdown - rendered as a popover in the top layer so it
+       escapes any ancestor stacking context or overflow:hidden. */
     .shroom-climate-dropdown {
+      position: fixed;
+      margin: 0;
+      inset: unset;
       background: var(--hrv-card-background, #ffffff);
+      border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.08));
       border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-      overflow: hidden;
-      max-height: 200px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+      max-height: 240px;
       overflow-y: auto;
-      scrollbar-width: none;
-      margin-top: 4px;
+      scrollbar-width: thin;
+      padding: 4px;
+      color: var(--hrv-color-text, #212121);
+      font-family: inherit;
     }
-    .shroom-climate-dropdown::-webkit-scrollbar { display: none; }
-    .shroom-climate-dropdown[hidden] { display: none; }
+    .shroom-climate-dropdown:not(:popover-open) { display: none; }
     .shroom-climate-dd-option {
       display: block;
       width: 100%;
@@ -2808,17 +3034,18 @@
       cursor: pointer;
       font-size: 13px;
       font-family: inherit;
+      border-radius: 8px;
       transition: background 150ms;
     }
-    .shroom-climate-dd-option + .shroom-climate-dd-option {
-      border-top: 1px solid var(--hrv-color-border, rgba(0,0,0,0.06));
-    }
-    .shroom-climate-dd-option:hover {
+    .shroom-climate-dd-option:hover,
+    .shroom-climate-dd-option:focus-visible {
       background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+      outline: none;
     }
     .shroom-climate-dd-option[data-active=true] {
       color: var(--hrv-color-primary, #ff9800);
-      font-weight: 500;
+      font-weight: 600;
+      background: color-mix(in srgb, var(--hrv-color-primary, #ff9800) 14%, transparent);
     }
     @media (prefers-reduced-motion: reduce) {
       .shroom-climate-step-btn,
@@ -2845,6 +3072,7 @@
     #toggleBtn = null;
     #activeFeat = null;
     #outsideListener = null;
+    #repositionHandler = null;
     #showingFeats = false;
     #targetTemp = 20;
     #currentTemp = null;
@@ -2893,7 +3121,7 @@
       const [tInt, tFrac] = this.#targetTemp.toFixed(1).split(".");
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${CLIMATE_STYLES}</style>
+        <style>${CLIMATE_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item" data-tappable="${isWritable}">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -2952,7 +3180,7 @@
                 </button>
               ` : ""}
             </div>
-            <div class="shroom-climate-dropdown" role="listbox" hidden></div>
+            <div class="shroom-climate-dropdown" role="listbox" popover="manual"></div>
           ` : ""}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
@@ -3049,6 +3277,9 @@
 
     #toggleDropdown(feat) {
       if (this.#activeFeat === feat) { this.#closeDropdown(); return; }
+      // Closing a previously-open dropdown before opening a new one keeps the
+      // popover state machine clean.
+      if (this.#activeFeat) this.#closeDropdown();
       this.#activeFeat = feat;
 
       let options = [], current = null, command = "", dataKey = "";
@@ -3077,8 +3308,18 @@
 
       const featBtn = this.root.querySelector(`[data-feat="${feat}"]`);
       if (featBtn) featBtn.setAttribute("aria-expanded", "true");
-      this.#dropdown.removeAttribute("hidden");
 
+      // showPopover() puts the dropdown in the browser's top layer so it
+      // never gets clipped by the card or page stacking contexts.
+      try { this.#dropdown.showPopover?.(); } catch { /* ignore */ }
+
+      this.#positionDropdown(featBtn);
+      this.#repositionHandler = () => this.#positionDropdown(featBtn);
+      window.addEventListener("scroll", this.#repositionHandler, true);
+      window.addEventListener("resize", this.#repositionHandler);
+
+      // Click outside dismisses. The popover element retargets to the host
+      // when it bubbles to the document, so root.host.contains catches both.
       const onOutside = (e) => {
         const path = e.composedPath();
         if (!path.some(el => el === this.root || el === this.root.host)) {
@@ -3089,15 +3330,37 @@
       document.addEventListener("pointerdown", onOutside, true);
     }
 
+    #positionDropdown(triggerEl) {
+      if (!this.#dropdown || !triggerEl) return;
+      const r = triggerEl.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - r.bottom;
+      const spaceAbove = r.top;
+      const dropH = Math.min(this.#dropdown.scrollHeight || 240, 240);
+      const minW = Math.max(140, Math.round(r.width));
+      this.#dropdown.style.left = `${Math.round(r.left)}px`;
+      this.#dropdown.style.minWidth = `${minW}px`;
+      // Drop-up detection (lesson #34).
+      if (spaceBelow < dropH + 8 && spaceAbove > spaceBelow) {
+        this.#dropdown.style.top = `${Math.max(8, Math.round(r.top - dropH - 6))}px`;
+      } else {
+        this.#dropdown.style.top = `${Math.round(r.bottom + 6)}px`;
+      }
+    }
+
     #closeDropdown() {
       this.#activeFeat = null;
-      this.#dropdown?.setAttribute("hidden", "");
+      try { this.#dropdown?.hidePopover?.(); } catch { /* ignore */ }
       this.root.querySelectorAll(".shroom-climate-feat-btn").forEach(btn => {
         btn.setAttribute("aria-expanded", "false");
       });
       if (this.#outsideListener) {
         document.removeEventListener("pointerdown", this.#outsideListener, true);
         this.#outsideListener = null;
+      }
+      if (this.#repositionHandler) {
+        window.removeEventListener("scroll", this.#repositionHandler, true);
+        window.removeEventListener("resize", this.#repositionHandler);
+        this.#repositionHandler = null;
       }
     }
 
@@ -3160,6 +3423,19 @@
         return { state: this.#hvacMode, attributes: { ...attrs, swing_mode: data.swing_mode } };
       }
       return null;
+    }
+
+    destroy() {
+      if (this.#outsideListener) {
+        document.removeEventListener("pointerdown", this.#outsideListener, true);
+        this.#outsideListener = null;
+      }
+      if (this.#repositionHandler) {
+        window.removeEventListener("scroll", this.#repositionHandler, true);
+        window.removeEventListener("resize", this.#repositionHandler);
+        this.#repositionHandler = null;
+      }
+      try { this.#dropdown?.hidePopover?.(); } catch { /* ignore */ }
     }
   }
 
@@ -3285,7 +3561,7 @@
       const hasPrevNext = features.includes("previous_track");
 
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${MEDIA_PLAYER_STYLES}</style>
+        <style>${MEDIA_PLAYER_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -3666,6 +3942,7 @@
     #pressureEl = null;
     #forecastEl = null;
     #toggleEl = null;
+    #scrollTeardown = null;
     get #forecastMode() { return this.config._forecastMode ?? "daily"; }
     set #forecastMode(v) { this.config._forecastMode = v; }
     #forecastDaily = null;
@@ -3674,7 +3951,7 @@
     render() {
       _applyLayout(this);
       this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${WEATHER_STYLES}</style>
+        <style>${WEATHER_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
@@ -3725,9 +4002,16 @@
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:weather-cloudy"), "card-icon");
       _applyIconColor(this.#iconEl, "weather", true);
 
+      this.#scrollTeardown = _installMomentumScroll(this.#forecastEl);
+
       this._attachGestureHandlers(this.root.querySelector("[part=card]"));
       this.renderCompanions();
       _applyCompanionTooltips(this.root);
+    }
+
+    destroy() {
+      this.#scrollTeardown?.();
+      this.#scrollTeardown = null;
     }
 
     applyState(state, attributes) {
@@ -3746,11 +4030,19 @@
       }
 
       const temp = attributes.temperature ?? attributes.native_temperature;
-      const tempUnit = attributes.temperature_unit ?? "";
+      let tempUnit = String(
+        attributes.temperature_unit
+        || attributes.native_temperature_unit
+        || this.def.unit_of_measurement
+        || "°C"
+      ).trim();
+      if (tempUnit && !/^°/.test(tempUnit) && tempUnit.length <= 2) {
+        tempUnit = `°${tempUnit}`;
+      }
       if (this.#tempEl) {
         const unitEl = this.#tempEl.querySelector(".shroom-weather-unit");
         this.#tempEl.firstChild.textContent = temp != null ? Math.round(Number(temp)) : "--";
-        if (unitEl) unitEl.textContent = tempUnit ? ` ${tempUnit}` : "";
+        if (unitEl) unitEl.textContent = tempUnit;
       }
 
       if (this.#humidityEl) {
@@ -3841,145 +4133,11 @@
     }
   }
 
-  // ===========================================================================
-  // Badge card
-  // ===========================================================================
-
-  const _BADGE_ICON_COLORS = {
-    auto: "var(--hrv-color-primary)",
-    red: "#ef4444", orange: "#f97316", amber: "#f59e0b", yellow: "#eab308",
-    green: "#22c55e", teal: "#14b8a6", cyan: "#06b6d4", blue: "#3b82f6",
-    indigo: "#6366f1", purple: "#a855f7", pink: "#ec4899", grey: "#9ca3af",
-  };
-
-  const _BADGE_INACTIVE = new Set([
-    "off", "unavailable", "unknown", "idle", "closed", "standby", "not_home",
-    "locked", "jammed", "locking", "unlocking",
-  ]);
-
-  const _BADGE_DOMAIN_FB = {
-    light:"mdi:lightbulb",switch:"mdi:toggle-switch",input_boolean:"mdi:toggle-switch",
-    fan:"mdi:fan",sensor:"mdi:gauge",binary_sensor:"mdi:radiobox-blank",
-    climate:"mdi:thermostat",media_player:"mdi:cast",cover:"mdi:window-shutter",
-    timer:"mdi:timer",remote:"mdi:remote",input_number:"mdi:numeric",
-    input_select:"mdi:format-list-bulleted",harvest_action:"mdi:play-circle-outline",
-  };
-
-  const BADGE_STYLES = /* css */`
-    :host {
-      width: auto !important;
-      min-width: unset !important;
-      display: inline-flex !important;
-      contain: none !important;
-      vertical-align: top !important;
-      overflow: visible !important;
-      line-height: 0 !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-    [part=badge] {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px 6px 8px;
-      border-radius: 14px;
-      background: var(--hrv-card-background, var(--hrv-color-surface, #fff));
-      box-shadow: var(--hrv-card-shadow, 0 1px 3px rgba(0,0,0,0.1));
-      border: none;
-      font-family: var(--hrv-font-family, system-ui, -apple-system, sans-serif);
-      color: var(--hrv-color-text, #111827);
-      box-sizing: border-box;
-      white-space: nowrap;
-      overflow: hidden;
-      cursor: default;
-      transition: box-shadow var(--hrv-transition-speed, 150ms);
-      -webkit-backdrop-filter: var(--hrv-card-backdrop-filter, none);
-      backdrop-filter: var(--hrv-card-backdrop-filter, none);
-    }
-    [part=badge-icon] {
-      width: 20px; height: 20px; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      transition: color var(--hrv-transition-speed, 150ms);
-    }
-    [part=badge-icon] svg { width: 100%; height: 100%; }
-    [part=badge-text] {
-      display: flex; flex-direction: column; gap: 1px; min-width: 0;
-    }
-    [part=badge-name] {
-      font-size: 11px;
-      font-weight: var(--hrv-font-weight-medium, 500);
-      line-height: 1.3;
-      overflow: hidden; text-overflow: ellipsis; max-width: 140px;
-    }
-    [part=badge-state] {
-      font-size: 10px;
-      line-height: 1.3;
-      color: var(--hrv-color-text-secondary, #6b7280);
-      overflow: hidden; text-overflow: ellipsis; max-width: 140px;
-    }
-    [part=badge-text].single [part=badge-name],
-    [part=badge-text].single [part=badge-state] {
-      font-size: 12px;
-    }
-    .sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
-    @media (prefers-reduced-motion: reduce) {
-      [part=badge], [part=badge-icon] { transition: none; }
-    }
-  `;
-
-  class BadgeCard extends BaseCard {
-    /** @type {HTMLElement|null} */ #iconEl = null;
-    /** @type {HTMLElement|null} */ #stateEl = null;
-    /** @type {HTMLElement|null} */ #badgeEl = null;
-
-    render() {
-      const hints = this.def.display_hints ?? {};
-      const showIcon = hints.badge_show_icon !== false;
-      const showName = hints.badge_show_name !== false;
-      const showState = hints.badge_show_state !== false;
-      const nameCls = showName ? "" : " sr-only";
-      const stateCls = showState ? "" : " sr-only";
-      const singleLine = (showName && !showState) || (!showName && showState);
-      const textCls = singleLine ? " single" : "";
-      this.root.innerHTML = /* html */`
-        <style>${this.getSharedStyles()}${BADGE_STYLES}</style>
-        <div part="badge" aria-label="${_esc(this.def.friendly_name)}" title="${_esc(this.def.friendly_name)}">
-          ${showIcon ? '<span part="badge-icon" aria-hidden="true"></span>' : ""}
-          <span part="badge-text" class="${textCls}">
-            <span part="badge-name" class="${nameCls}">${_esc(this.def.friendly_name)}</span>
-            <span part="badge-state" class="${stateCls}" aria-live="polite"></span>
-          </span>
-        </div>
-        ${this.renderAriaLiveHTML()}
-      `;
-      this.#iconEl = this.root.querySelector("[part=badge-icon]");
-      this.#stateEl = this.root.querySelector("[part=badge-state]");
-      this.#badgeEl = this.root.querySelector("[part=badge]");
-      if (showIcon) {
-        const fb = _BADGE_DOMAIN_FB[this.def.domain] ?? "mdi:help-circle";
-        this.renderIcon(this.resolveIcon(this.def.icon, fb), "badge-icon");
-      }
-    }
-
-    applyState(state, attributes) {
-      const hints = this.def.display_hints ?? {};
-      const colorKey = hints.badge_icon_color ?? "auto";
-      const isActive = !_BADGE_INACTIVE.has(state);
-      if (this.#iconEl) {
-        this.#iconEl.style.color = isActive
-          ? (_BADGE_ICON_COLORS[colorKey] ?? _BADGE_ICON_COLORS.auto) : "#9ca3af";
-        const fb = _BADGE_DOMAIN_FB[this.def.domain] ?? "mdi:help-circle";
-        const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? fb;
-        this.renderIcon(this.resolveIcon(rawIcon, fb), "badge-icon");
-      }
-      const uom = attributes?.unit_of_measurement ?? this.def.unit_of_measurement ?? "";
-      const label = this.formatStateLabel(state);
-      const stateText = uom ? `${label} ${uom}` : label;
-      if (this.#stateEl) this.#stateEl.textContent = stateText;
-      if (this.#badgeEl) this.#badgeEl.title = `${this.def.friendly_name}: ${stateText}`;
-      this.announceState(`${this.def.friendly_name}, ${state}`);
-    }
-  }
+  // Note: badge rendering is provided by the built-in widget BadgeCard (see
+  // widget/src/renderers/badge-card.js). This pack does not register a "badge"
+  // entry; the renderer-lookup chain in hrv-card.js falls through to the
+  // built-in. Remove this comment and add a `class BadgeCard` + a "badge"
+  // registration entry below if/when shrooms wants visually-distinct badges.
 
   // ===========================================================================
   // Registration
@@ -4001,16 +4159,18 @@
     "harvest_action":       HarvestActionCard,
     "input_number":         InputNumberCard,
     "input_select":         InputSelectCard,
+    "select":               InputSelectCard,
     "cover":                CoverCard,
     "remote":               RemoteCard,
     "timer":                TimerCard,
     "climate":              ClimateCard,
     "media_player":         MediaPlayerCard,
     "weather":              WeatherCard,
-    "badge":                BadgeCard,
     _capabilities: {
       fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
       input_number: { display_modes: ["slider", "buttons"] },
+      input_select: { display_modes: ["pills", "dropdown"] },
+      select:       { display_modes: ["pills", "dropdown"] },
       light:        { features: ["brightness", "color_temp", "rgb"] },
       climate:      { features: ["hvac_modes", "presets", "fan_mode", "swing_mode"] },
       cover:        { features: ["position", "tilt"] },

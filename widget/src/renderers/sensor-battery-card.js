@@ -6,6 +6,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const BATTERY_STYLES = /* css */`
   [part=card-body] {
@@ -59,14 +60,6 @@ function _batteryIcon(level) {
   return "mdi:battery-outline";
 }
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class BatterySensorCard extends BaseCard {
   /** @type {HTMLElement|null} */ #valueEl = null;
@@ -74,7 +67,7 @@ export class BatterySensorCard extends BaseCard {
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${BATTERY_STYLES}</style>
+      <style>${BATTERY_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

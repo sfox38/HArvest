@@ -20,6 +20,7 @@ from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 
+from ._utils import close_ws_with_auth_failed as _close_ws_with_auth_failed, get_entry_data
 from .activity_store import ActivityStore, TokenLifecycleEvent
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
@@ -29,7 +30,6 @@ from .harvest_action import HarvestActionManager, ServiceCall
 from .session_manager import SessionManager
 from .pack_manager import PackManager, pack_to_api_dict
 from .theme_manager import ThemeManager, theme_to_api_dict, theme_url_to_id
-from .const import ERR_TOKEN_INACTIVE
 from .token_manager import (
     ActiveSchedule,
     ActiveScheduleWindow,
@@ -42,63 +42,50 @@ from .token_manager import (
 )
 
 
-async def _close_ws_with_auth_failed(ws) -> None:
-    """Send auth_failed before closing so the client knows it is an auth
-    rejection, not a connectivity issue."""
-    try:
-        await ws.send_json({"type": "auth_failed", "code": ERR_TOKEN_INACTIVE, "msg_id": None})
-        await ws.close()
-    except Exception:
-        pass
-
-
-def register_views(
-    hass: HomeAssistant,
-    token_manager: TokenManager,
-    session_manager: SessionManager,
-    activity_store: ActivityStore,
-    action_manager: HarvestActionManager,
-    sensors: DiagnosticSensors,
-    event_bus: EventBus | None = None,
-    theme_manager: ThemeManager | None = None,
-    pack_manager: PackManager | None = None,
-    controls: ControlEntities | None = None,
-) -> None:
+def register_views(hass: HomeAssistant, entry_id: str) -> None:
     """Register all HTTP API views with HA's HTTP server.
 
-    All views are prefixed with /api/harvest/.
-    All views require HA authentication (panel runs in authenticated context).
+    All views are prefixed with /api/harvest/. All views require HA
+    authentication (panel runs in authenticated context) except the public
+    pack-file and panel.js endpoints.
+
+    Each view holds only ``(hass, entry_id)`` and resolves managers per-request
+    via ``_HarvestView``'s @property accessors. This avoids stale-manager refs
+    across config-entry reloads (HA's HTTP layer has no unregister API, so
+    views persist for the lifetime of the HA process).
     """
-    hass.http.register_view(HarvestTokensView(token_manager, session_manager, activity_store, sensors=sensors, controls=controls))
-    hass.http.register_view(HarvestTokenDetailView(hass, token_manager, session_manager, activity_store, event_bus, theme_manager, pack_manager, sensors=sensors, controls=controls))
-    hass.http.register_view(HarvestSessionsView(session_manager))
-    hass.http.register_view(HarvestSessionTerminateView(session_manager))
-    hass.http.register_view(HarvestActivityView(activity_store, token_manager))
-    hass.http.register_view(HarvestActionsView(action_manager))
-    hass.http.register_view(HarvestActionDetailView(action_manager))
-    if theme_manager is not None:
-        hass.http.register_view(HarvestThemesView(theme_manager, token_manager, pack_manager))
-        hass.http.register_view(HarvestThemeReloadView(theme_manager, token_manager, session_manager, pack_manager))
-        hass.http.register_view(HarvestThemeDetailView(theme_manager, token_manager, session_manager, pack_manager))
-        hass.http.register_view(HarvestThemeThumbnailView(hass, theme_manager))
-        _LOGGER.debug("HArvest: registered theme views")
-    if pack_manager is not None:
-        hass.http.register_view(HarvestPacksView(pack_manager))
-        hass.http.register_view(HarvestPackAgreeView(pack_manager))
-        hass.http.register_view(HarvestPackFileView(hass, pack_manager))
-        hass.http.register_view(HarvestPackDetailView(pack_manager))
-        hass.http.register_view(HarvestPackCodeView(hass, pack_manager))
-        _LOGGER.warning("HArvest: registered pack views")
-    hass.http.register_view(HarvestConfigView(hass, session_manager))
-    hass.http.register_view(HarvestStatsView(sensors, activity_store, session_manager, token_manager))
-    # Additional views needed by the wizard flow.
-    hass.http.register_view(HarvestAliasView(token_manager))
-    hass.http.register_view(HarvestPreviewTokenView(token_manager))
-    hass.http.register_view(HarvestActivityExportView(activity_store))
-    hass.http.register_view(HarvestAggregatesView(activity_store))
-    hass.http.register_view(HarvestEntitiesView(hass))
-    hass.http.register_view(HarvestEntityDefinitionView(hass))
-    hass.http.register_view(HarvestPanelJsView(hass))
+    views = [
+        HarvestTokensView,
+        HarvestTokenDetailView,
+        HarvestSessionsView,
+        HarvestSessionTerminateView,
+        HarvestActivityView,
+        HarvestActionsView,
+        HarvestActionDetailView,
+        HarvestThemesView,
+        HarvestThemeReloadView,
+        HarvestThemeDetailView,
+        HarvestThemeThumbnailView,
+        HarvestPacksView,
+        HarvestPackAgreeView,
+        HarvestPackFileView,
+        HarvestPackDetailView,
+        HarvestPackCodeView,
+        HarvestConfigView,
+        HarvestStatsView,
+        HarvestAliasView,
+        HarvestPreviewTokenView,
+        HarvestActivityExportView,
+        HarvestAggregatesView,
+        HarvestEntitiesView,
+        HarvestEntityDefinitionView,
+        HarvestPanelJsView,
+        HarvestWarningsView,
+        HarvestWarningsDismissView,
+        HarvestCheckUrlView,
+    ]
+    for view_cls in views:
+        hass.http.register_view(view_cls(hass, entry_id))
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +104,15 @@ def _token_to_dict(token: Token) -> dict:
 
 
 def _session_to_dict(session) -> dict:
-    """Serialise a Session to a JSON-safe dict (no WebSocket reference)."""
+    """Serialise a Session to a JSON-safe dict (no WebSocket reference).
+
+    Includes the client/server compatibility fields (SPEC.md Section 12)
+    so the panel home banner can group sessions by their reported source
+    and surface version-drift warnings. Old widgets predating the auth
+    `client` block populate the defaults from session_manager.Session
+    (protocol=1, source="unknown", compatibility="ok"), which the panel
+    treats as "no warning to surface."
+    """
     return {
         "session_id": session.session_id,
         "token_id": session.token_id,
@@ -131,6 +126,13 @@ def _session_to_dict(session) -> dict:
         "ip_address": session.source_ip,
         "subscribed_entity_ids": list(session.subscribed_entity_ids),
         "last_message_at": session.last_message_at.isoformat(),
+        "client": {
+            "protocol": session.client_protocol,
+            "widget": session.client_widget_version,
+            "source": session.client_source,
+            "source_version": session.client_source_version,
+        },
+        "compatibility": session.compatibility,
     }
 
 
@@ -155,22 +157,70 @@ def _parse_origins(raw: dict) -> OriginConfig:
     )
 
 
+def _coerce_positive_int(raw: object, field_name: str, *, max_value: int) -> int:
+    """Coerce raw to a positive int in [1, max_value]. Raises ValueError on bad input.
+
+    Used for rate-limit and session-lifetime fields where a value of zero or
+    negative would either divide by zero in the rate limiter (capacity 0 ->
+    refill 0 -> ZeroDivisionError) or produce nonsensical session math.
+    """
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be an integer.")
+    if n < 1:
+        raise ValueError(f"{field_name} must be >= 1.")
+    if n > max_value:
+        raise ValueError(f"{field_name} must be <= {max_value}.")
+    return n
+
+
+def _coerce_optional_positive_int(raw: object, field_name: str, *, max_value: int) -> int | None:
+    """Like _coerce_positive_int but accepts None (returned as None).
+
+    Used for max_renewals and absolute_lifetime_hours where None means
+    'no limit'. String/float values are still rejected.
+    """
+    if raw is None:
+        return None
+    return _coerce_positive_int(raw, field_name, max_value=max_value)
+
+
 def _parse_rate_limits(raw: dict) -> RateLimitConfig:
     from .const import CONF_DEFAULT_RATE_LIMITS, DEFAULTS
     rl_defaults = DEFAULTS[CONF_DEFAULT_RATE_LIMITS]
     return RateLimitConfig(
-        max_push_per_second=int(raw.get("max_push_per_second", rl_defaults["max_push_per_second"])),
-        max_commands_per_minute=int(raw.get("max_commands_per_minute", rl_defaults["max_commands_per_minute"])),
+        max_push_per_second=_coerce_positive_int(
+            raw.get("max_push_per_second", rl_defaults["max_push_per_second"]),
+            "max_push_per_second",
+            max_value=1000,
+        ),
+        max_commands_per_minute=_coerce_positive_int(
+            raw.get("max_commands_per_minute", rl_defaults["max_commands_per_minute"]),
+            "max_commands_per_minute",
+            max_value=10000,
+        ),
         override_defaults=bool(raw.get("override_defaults", False)),
     )
 
 
 def _parse_session_config(raw: dict) -> SessionConfig:
+    # Caps chosen to match the panel UI: lifetime_minutes up to 24h,
+    # max_lifetime_minutes up to 30 days, max_renewals up to 1000,
+    # absolute_lifetime_hours up to 1 year.
     return SessionConfig(
-        lifetime_minutes=int(raw.get("lifetime_minutes", 60)),
-        max_lifetime_minutes=int(raw.get("max_lifetime_minutes", 1440)),
-        max_renewals=raw.get("max_renewals"),
-        absolute_lifetime_hours=raw.get("absolute_lifetime_hours"),
+        lifetime_minutes=_coerce_positive_int(
+            raw.get("lifetime_minutes", 60), "lifetime_minutes", max_value=1440,
+        ),
+        max_lifetime_minutes=_coerce_positive_int(
+            raw.get("max_lifetime_minutes", 1440), "max_lifetime_minutes", max_value=43200,
+        ),
+        max_renewals=_coerce_optional_positive_int(
+            raw.get("max_renewals"), "max_renewals", max_value=1000,
+        ),
+        absolute_lifetime_hours=_coerce_optional_positive_int(
+            raw.get("absolute_lifetime_hours"), "absolute_lifetime_hours", max_value=8760,
+        ),
     )
 
 
@@ -326,14 +376,15 @@ def _validate_max_sessions(raw: Any) -> int | None:
 
 
 _DISPLAY_TEXT_MAX_LEN = 200
-_DISPLAY_TEXT_FORBIDDEN_RE = re.compile(
-    r"[<>\"';\\]"
-    r"|--"
-    r"|/\*"
-    r"|\*/"
-    r"|\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|UNION|EXEC)\b",
-    re.IGNORECASE,
-)
+# Reject control characters that would corrupt logs, screen readers, or
+# copy-paste. Whitespace (tab/LF/CR) is allowed. All printable Unicode is
+# allowed including apostrophes, quotes, angle brackets, semicolons, and
+# backslashes - the actual XSS protection lives at the render layer in the
+# widget (error-states.js sets text via .textContent, which is HTML-safe).
+# Earlier revisions blocked HTML punctuation and SQL keywords here; that was
+# theatre that broke legitimate English ("It's offline", "Power < 50%",
+# "Light up the SELECT TV") without addressing a real threat at this layer.
+_DISPLAY_TEXT_FORBIDDEN_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
 
 
 def _validate_display_text(raw: Any, field_name: str) -> str:
@@ -345,13 +396,16 @@ def _validate_display_text(raw: Any, field_name: str) -> str:
         )
     if val and _DISPLAY_TEXT_FORBIDDEN_RE.search(val):
         raise web.HTTPBadRequest(
-            reason=f"{field_name} contains disallowed characters or keywords.",
+            reason=f"{field_name} contains disallowed control characters.",
         )
     return val
 
 
 _VALID_DAYS = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
-_HH_MM_RE = re.compile(r"^\d{2}:\d{2}$")
+# Reject impossible times like 99:99. Note: 24:00 is also rejected; use
+# 00:00 of the next day (or the midnight-crossing window pattern in
+# is_schedule_active) to express end-of-day.
+_HH_MM_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 def _parse_schedule(raw: dict | None) -> ActiveSchedule | None:
@@ -380,24 +434,93 @@ def _parse_schedule(raw: dict | None) -> ActiveSchedule | None:
 
 
 # ---------------------------------------------------------------------------
+# Base view
+# ---------------------------------------------------------------------------
+
+class _HarvestView(HomeAssistantView):
+    """Common base for HArvest panel API views.
+
+    The view is registered once per HA process; HA's HTTP layer has no
+    unregister API, so views persist across config-entry reloads AND across
+    uninstall+reinstall cycles. To avoid stale-manager refs, views hold
+    only ``(hass, entry_id)`` and resolve each manager per-request via the
+    @property accessors below.
+
+    Manager resolution goes through ``_utils.get_entry_data``, which
+    transparently falls back to whichever entry's data is currently live
+    if the captured ``entry_id`` is stale (the post-reinstall case, where
+    HA has assigned a fresh entry_id but cannot unregister these views).
+
+    Properties raise ``KeyError`` on bracket access when the entry data
+    dict is empty (i.e. the brief gap between unload and re-setup, or
+    when the integration is fully removed). Individual view methods that
+    depend on a specific manager handle that case at the call site -
+    typically by raising a 503.
+    """
+    requires_auth = True
+
+    def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
+        self._hass = hass
+        self._entry_id = entry_id
+
+    @property
+    def _data(self) -> dict:
+        return get_entry_data(self._hass, self._entry_id)
+
+    @property
+    def _token_manager(self) -> TokenManager:
+        return self._data["token_manager"]
+
+    @property
+    def _session_manager(self) -> SessionManager:
+        return self._data["session_manager"]
+
+    @property
+    def _activity_store(self) -> ActivityStore:
+        return self._data["activity_store"]
+
+    @property
+    def _event_bus(self) -> EventBus | None:
+        return self._data.get("event_bus")
+
+    @property
+    def _action_manager(self) -> HarvestActionManager:
+        return self._data["action_manager"]
+
+    @property
+    def _theme_manager(self) -> ThemeManager | None:
+        return self._data.get("theme_manager")
+
+    @property
+    def _pack_manager(self) -> PackManager | None:
+        return self._data.get("pack_manager")
+
+    @property
+    def _warnings_store(self):
+        # Imported lazily to avoid widening the module-level import surface
+        # for a single dot-access; type hint is informational.
+        return self._data.get("warnings_store")
+
+    @property
+    def _sensors(self) -> DiagnosticSensors | None:
+        return self._data.get("sensors")
+
+    @property
+    def _controls(self) -> ControlEntities | None:
+        return self._data.get("controls")
+
+
+# ---------------------------------------------------------------------------
 # Token views
 # ---------------------------------------------------------------------------
 
-class HarvestTokensView(HomeAssistantView):
+class HarvestTokensView(_HarvestView):
     """GET /api/harvest/tokens  - list all tokens.
     POST /api/harvest/tokens - create a new token.
     """
 
     url = "/api/harvest/tokens"
     name = "api:harvest:tokens"
-    requires_auth = True
-
-    def __init__(self, token_manager: TokenManager, session_manager: SessionManager, activity_store: ActivityStore, sensors: DiagnosticSensors | None = None, controls: ControlEntities | None = None) -> None:
-        self._token_manager = token_manager
-        self._session_manager = session_manager
-        self._activity_store = activity_store
-        self._sensors = sensors
-        self._controls = controls
 
     async def get(self, request: web.Request) -> web.Response:
         """Return all tokens with their active session counts."""
@@ -473,7 +596,7 @@ class HarvestTokensView(HomeAssistantView):
         return self.json(_token_to_dict(token), status_code=201)
 
 
-class HarvestTokenDetailView(HomeAssistantView):
+class HarvestTokenDetailView(_HarvestView):
     """GET /api/harvest/tokens/{token_id}   - fetch one token.
     PATCH /api/harvest/tokens/{token_id}  - update token fields.
     DELETE /api/harvest/tokens/{token_id} - revoke or delete a token.
@@ -481,18 +604,6 @@ class HarvestTokenDetailView(HomeAssistantView):
 
     url = "/api/harvest/tokens/{token_id}"
     name = "api:harvest:token_detail"
-    requires_auth = True
-
-    def __init__(self, hass: HomeAssistant, token_manager: TokenManager, session_manager: SessionManager, activity_store: ActivityStore, event_bus: EventBus, theme_manager: ThemeManager | None = None, pack_manager: PackManager | None = None, sensors: DiagnosticSensors | None = None, controls: ControlEntities | None = None) -> None:
-        self._hass = hass
-        self._token_manager = token_manager
-        self._session_manager = session_manager
-        self._activity_store = activity_store
-        self._event_bus = event_bus
-        self._theme_manager = theme_manager
-        self._pack_manager = pack_manager
-        self._sensors = sensors
-        self._controls = controls
 
     async def _push_theme_to_sessions(self, token_id: str) -> None:
         """Push updated theme data to all active sessions for a token."""
@@ -991,17 +1102,13 @@ class HarvestTokenDetailView(HomeAssistantView):
 # Session views
 # ---------------------------------------------------------------------------
 
-class HarvestSessionsView(HomeAssistantView):
+class HarvestSessionsView(_HarvestView):
     """GET /api/harvest/sessions - list active sessions, optionally filtered by token_id.
     DELETE /api/harvest/sessions?token_id=X - terminate all sessions for a token.
     """
 
     url = "/api/harvest/sessions"
     name = "api:harvest:sessions"
-    requires_auth = True
-
-    def __init__(self, session_manager: SessionManager) -> None:
-        self._session_manager = session_manager
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -1035,15 +1142,11 @@ class HarvestSessionsView(HomeAssistantView):
         return web.Response(status=204)
 
 
-class HarvestSessionTerminateView(HomeAssistantView):
+class HarvestSessionTerminateView(_HarvestView):
     """DELETE /api/harvest/sessions/{session_id} - terminate a single session."""
 
     url = "/api/harvest/sessions/{session_id}"
     name = "api:harvest:sessions:terminate"
-    requires_auth = True
-
-    def __init__(self, session_manager: SessionManager) -> None:
-        self._session_manager = session_manager
 
     async def delete(self, _request: web.Request, session_id: str) -> web.Response:
         user = _request.get("hass_user")
@@ -1063,7 +1166,7 @@ class HarvestSessionTerminateView(HomeAssistantView):
 # Activity views
 # ---------------------------------------------------------------------------
 
-class HarvestActivityView(HomeAssistantView):
+class HarvestActivityView(_HarvestView):
     """GET /api/harvest/activity - query the activity log with optional filters.
 
     Query params: token_id, event_types (comma-sep), since (ISO), until (ISO),
@@ -1072,11 +1175,6 @@ class HarvestActivityView(HomeAssistantView):
 
     url = "/api/harvest/activity"
     name = "api:harvest:activity"
-    requires_auth = True
-
-    def __init__(self, activity_store: ActivityStore, token_manager: TokenManager | None = None) -> None:
-        self._activity_store = activity_store
-        self._token_manager = token_manager
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -1117,15 +1215,11 @@ class HarvestActivityView(HomeAssistantView):
         return self.json({"events": events, "total": total, "limit": limit, "offset": offset})
 
 
-class HarvestActivityExportView(HomeAssistantView):
+class HarvestActivityExportView(_HarvestView):
     """GET /api/harvest/activity/export - download activity log as CSV."""
 
     url = "/api/harvest/activity/export"
     name = "api:harvest:activity_export"
-    requires_auth = True
-
-    def __init__(self, activity_store: ActivityStore) -> None:
-        self._activity_store = activity_store
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -1154,15 +1248,11 @@ class HarvestActivityExportView(HomeAssistantView):
         )
 
 
-class HarvestAggregatesView(HomeAssistantView):
+class HarvestAggregatesView(_HarvestView):
     """GET /api/harvest/activity/aggregates - hourly aggregate counts for graphs."""
 
     url = "/api/harvest/activity/aggregates"
     name = "api:harvest:activity_aggregates"
-    requires_auth = True
-
-    def __init__(self, activity_store: ActivityStore) -> None:
-        self._activity_store = activity_store
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -1187,7 +1277,7 @@ class HarvestAggregatesView(HomeAssistantView):
 # Actions views
 # ---------------------------------------------------------------------------
 
-class HarvestActionsView(HomeAssistantView):
+class HarvestActionsView(_HarvestView):
     """GET /api/harvest/actions     - list all harvest_actions.
     POST /api/harvest/actions    - create a new harvest_action.
     DELETE /api/harvest/actions/{action_id} - delete a harvest_action.
@@ -1195,10 +1285,6 @@ class HarvestActionsView(HomeAssistantView):
 
     url = "/api/harvest/actions"
     name = "api:harvest:actions"
-    requires_auth = True
-
-    def __init__(self, action_manager: HarvestActionManager) -> None:
-        self._action_manager = action_manager
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -1244,17 +1330,13 @@ class HarvestActionsView(HomeAssistantView):
         return self.json(dataclasses.asdict(action), status_code=201)
 
 
-class HarvestActionDetailView(HomeAssistantView):
+class HarvestActionDetailView(_HarvestView):
     """PATCH /api/harvest/actions/{action_id} - update a harvest_action.
     DELETE /api/harvest/actions/{action_id} - delete a harvest_action.
     """
 
     url = "/api/harvest/actions/{action_id}"
     name = "api:harvest:action_detail"
-    requires_auth = True
-
-    def __init__(self, action_manager: HarvestActionManager) -> None:
-        self._action_manager = action_manager
 
     async def patch(self, request: web.Request, action_id: str) -> web.Response:
         user = request.get("hass_user")
@@ -1302,7 +1384,18 @@ class HarvestActionDetailView(HomeAssistantView):
             await self._action_manager.delete(action_id)
         except KeyError:
             raise web.HTTPNotFound(reason=f"Action not found: {action_id}")
-        return web.Response(status=204)
+        # Clear dangling gesture_config references in any token that wired this
+        # action to a tap/hold/double_tap gesture. Without this the gesture
+        # would still pass authorization but raise KeyError at runtime.
+        action_entity_id = f"harvest_action.{action_id}"
+        cleared = await self._token_manager.cleanup_action_references(action_entity_id)
+        if cleared:
+            _LOGGER.info(
+                "Cleared %d dangling gesture reference(s) to deleted action %s: %s",
+                len(cleared), action_entity_id,
+                ", ".join(f"{tid}/{eid}/{gname}" for tid, eid, gname in cleared),
+            )
+        return self.json({"cleared_gesture_refs": len(cleared)}, status=200)
 
 
 # ---------------------------------------------------------------------------
@@ -1324,19 +1417,13 @@ def _validate_theme_name(name: str) -> str | None:
     return None
 
 
-class HarvestThemesView(HomeAssistantView):
+class HarvestThemesView(_HarvestView):
     """GET /api/harvest/themes  - list all themes.
     POST /api/harvest/themes - create a custom theme.
     """
 
     url = "/api/harvest/themes"
     name = "api:harvest:themes"
-    requires_auth = True
-
-    def __init__(self, theme_manager: ThemeManager, token_manager: TokenManager, pack_manager: PackManager | None = None) -> None:
-        self._theme_manager = theme_manager
-        self._token_manager = token_manager
-        self._pack_manager = pack_manager
 
     def _usage_counts(self) -> dict[str, int]:
         counts: dict[str, int] = {}
@@ -1403,7 +1490,7 @@ class HarvestThemesView(HomeAssistantView):
         return self.json(d, status_code=201)
 
 
-class HarvestThemeReloadView(HomeAssistantView):
+class HarvestThemeReloadView(_HarvestView):
     """POST /api/harvest/themes/reload - reload all bundled themes from disk.
 
     After reloading, pushes updated theme variables and renderer pack URLs
@@ -1412,19 +1499,6 @@ class HarvestThemeReloadView(HomeAssistantView):
 
     url = "/api/harvest/themes/reload"
     name = "api:harvest:themes:reload"
-    requires_auth = True
-
-    def __init__(
-        self,
-        theme_manager: ThemeManager,
-        token_manager: TokenManager,
-        session_manager: SessionManager,
-        pack_manager: PackManager | None = None,
-    ) -> None:
-        self._theme_manager = theme_manager
-        self._token_manager = token_manager
-        self._session_manager = session_manager
-        self._pack_manager = pack_manager
 
     async def post(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -1460,7 +1534,7 @@ class HarvestThemeReloadView(HomeAssistantView):
         return self.json({"status": "ok"})
 
 
-class HarvestThemeDetailView(HomeAssistantView):
+class HarvestThemeDetailView(_HarvestView):
     """GET /api/harvest/themes/{theme_id}    - get one theme.
     PATCH /api/harvest/themes/{theme_id}  - update a custom theme.
     DELETE /api/harvest/themes/{theme_id} - delete a custom theme.
@@ -1468,13 +1542,6 @@ class HarvestThemeDetailView(HomeAssistantView):
 
     url = "/api/harvest/themes/{theme_id}"
     name = "api:harvest:theme_detail"
-    requires_auth = True
-
-    def __init__(self, theme_manager: ThemeManager, token_manager: TokenManager, session_manager: SessionManager, pack_manager: PackManager | None = None) -> None:
-        self._theme_manager = theme_manager
-        self._token_manager = token_manager
-        self._session_manager = session_manager
-        self._pack_manager = pack_manager
 
     async def _push_theme_to_tokens(self, theme_id: str, theme: object) -> None:
         """Push updated theme variables to all active sessions using this theme."""
@@ -1607,7 +1674,7 @@ class HarvestThemeDetailView(HomeAssistantView):
         return web.Response(status=204)
 
 
-class HarvestThemeThumbnailView(HomeAssistantView):
+class HarvestThemeThumbnailView(_HarvestView):
     """GET /api/harvest/themes/{theme_id}/thumbnail  - serve thumbnail image.
     POST /api/harvest/themes/{theme_id}/thumbnail - upload thumbnail for custom theme.
     DELETE /api/harvest/themes/{theme_id}/thumbnail - remove custom thumbnail.
@@ -1615,11 +1682,6 @@ class HarvestThemeThumbnailView(HomeAssistantView):
 
     url = "/api/harvest/themes/{theme_id}/thumbnail"
     name = "api:harvest:theme_thumbnail"
-    requires_auth = True
-
-    def __init__(self, hass: HomeAssistant, theme_manager: ThemeManager) -> None:
-        self._hass = hass
-        self._theme_manager = theme_manager
 
     async def get(self, request: web.Request, theme_id: str) -> web.Response:
         path = self._theme_manager.get_thumbnail_path(theme_id)
@@ -1680,15 +1742,11 @@ class HarvestThemeThumbnailView(HomeAssistantView):
 # ---------------------------------------------------------------------------
 
 
-class HarvestPacksView(HomeAssistantView):
+class HarvestPacksView(_HarvestView):
     """GET /api/harvest/packs - list bundled packs + consent state."""
 
     url = "/api/harvest/packs"
     name = "api:harvest:packs"
-    requires_auth = True
-
-    def __init__(self, pack_manager: PackManager) -> None:
-        self._pack_manager = pack_manager
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -1701,15 +1759,11 @@ class HarvestPacksView(HomeAssistantView):
         })
 
 
-class HarvestPackAgreeView(HomeAssistantView):
+class HarvestPackAgreeView(_HarvestView):
     """POST /api/harvest/packs/agree - set renderer pack consent state."""
 
     url = "/api/harvest/packs/agree"
     name = "api:harvest:packs:agree"
-    requires_auth = True
-
-    def __init__(self, pack_manager: PackManager) -> None:
-        self._pack_manager = pack_manager
 
     async def post(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -1724,7 +1778,7 @@ class HarvestPackAgreeView(HomeAssistantView):
         return self.json({"agreed": agreed})
 
 
-class HarvestPackFileView(HomeAssistantView):
+class HarvestPackFileView(_HarvestView):
     """GET /api/harvest/packs/{pack_id}.js - serve a renderer pack JS file.
 
     No auth required - the widget on a remote page needs to fetch it.
@@ -1733,10 +1787,6 @@ class HarvestPackFileView(HomeAssistantView):
     url = "/api/harvest/packs/{pack_id}.js"
     name = "api:harvest:pack_file"
     requires_auth = False
-
-    def __init__(self, hass: HomeAssistant, pack_manager: PackManager) -> None:
-        self._hass = hass
-        self._pack_manager = pack_manager
 
     async def get(self, request: web.Request, pack_id: str) -> web.Response:
         path = self._pack_manager.get_pack_path(pack_id)
@@ -1750,15 +1800,11 @@ class HarvestPackFileView(HomeAssistantView):
         )
 
 
-class HarvestPackDetailView(HomeAssistantView):
+class HarvestPackDetailView(_HarvestView):
     """GET /api/harvest/packs/{pack_id} - get bundled pack info."""
 
     url = "/api/harvest/packs/{pack_id}"
     name = "api:harvest:pack_detail"
-    requires_auth = True
-
-    def __init__(self, pack_manager: PackManager) -> None:
-        self._pack_manager = pack_manager
 
     async def get(self, request: web.Request, pack_id: str) -> web.Response:
         user = request.get("hass_user")
@@ -1770,7 +1816,7 @@ class HarvestPackDetailView(HomeAssistantView):
         return self.json(pack_to_api_dict(pack))
 
 
-class HarvestPackCodeView(HomeAssistantView):
+class HarvestPackCodeView(_HarvestView):
     """GET/POST /api/harvest/packs/{pack_id}/code - view or update pack JS source.
 
     POST accepts arbitrary JavaScript from admin users. The code is written
@@ -1781,11 +1827,6 @@ class HarvestPackCodeView(HomeAssistantView):
 
     url = "/api/harvest/packs/{pack_id}/code"
     name = "api:harvest:pack_code"
-    requires_auth = True
-
-    def __init__(self, hass: HomeAssistant, pack_manager: PackManager) -> None:
-        self._hass = hass
-        self._pack_manager = pack_manager
 
     async def get(self, request: web.Request, pack_id: str) -> web.Response:
         user = request.get("hass_user")
@@ -1822,18 +1863,13 @@ class HarvestPackCodeView(HomeAssistantView):
 # Config view
 # ---------------------------------------------------------------------------
 
-class HarvestConfigView(HomeAssistantView):
+class HarvestConfigView(_HarvestView):
     """GET /api/harvest/config  - return integration global config.
     PATCH /api/harvest/config - update config (reloads integration entry).
     """
 
     url = "/api/harvest/config"
     name = "api:harvest:config"
-    requires_auth = True
-
-    def __init__(self, hass: HomeAssistant, session_manager: SessionManager) -> None:
-        self._hass = hass
-        self._session_manager = session_manager
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -2001,7 +2037,7 @@ class HarvestConfigView(HomeAssistantView):
 # Stats view
 # ---------------------------------------------------------------------------
 
-class HarvestStatsView(HomeAssistantView):
+class HarvestStatsView(_HarvestView):
     """GET /api/harvest/stats - global stats for the panel home screen.
 
     Returns the flat PanelStats shape the frontend expects:
@@ -2011,19 +2047,6 @@ class HarvestStatsView(HomeAssistantView):
 
     url = "/api/harvest/stats"
     name = "api:harvest:stats"
-    requires_auth = True
-
-    def __init__(
-        self,
-        sensors: DiagnosticSensors,
-        activity_store: ActivityStore,
-        session_manager: SessionManager,
-        token_manager: TokenManager,
-    ) -> None:
-        self._sensors = sensors
-        self._activity_store = activity_store
-        self._session_manager = session_manager
-        self._token_manager = token_manager
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -2042,10 +2065,195 @@ class HarvestStatsView(HomeAssistantView):
 
 
 # ---------------------------------------------------------------------------
+# Warnings (drift banner dismissal) - SPEC.md Section 12
+# ---------------------------------------------------------------------------
+
+class HarvestWarningsView(_HarvestView):
+    """GET  /api/harvest/warnings           - read dismiss state and current version.
+    POST /api/harvest/warnings/dismiss     - dismiss banners at current version.
+
+    Combined into a single view class with two URL routes via separate
+    sub-views below; this class owns the GET. The POST lives on
+    HarvestWarningsDismissView so each route maps to one verb cleanly.
+    """
+
+    url = "/api/harvest/warnings"
+    name = "api:harvest:warnings"
+
+    async def get(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        from .const import PLATFORM_VERSION
+        store = self._warnings_store
+        # During the brief gap between unload and re-setup, _warnings_store
+        # may be None. Treat as "not dismissed at this version" so the
+        # panel falls back to default behavior (show banners if any drift).
+        dismissed_at = store.dismissed_at_version if store is not None else None
+        return self.json({
+            "current_version": PLATFORM_VERSION,
+            "dismissed_at_version": dismissed_at,
+            "dismissed": dismissed_at == PLATFORM_VERSION,
+        })
+
+
+class HarvestWarningsDismissView(_HarvestView):
+    """POST /api/harvest/warnings/dismiss - record a dismissal at the
+    server's current PLATFORM_VERSION. Idempotent: posting twice in a
+    row is a no-op since the stored value already matches.
+    """
+
+    url = "/api/harvest/warnings/dismiss"
+    name = "api:harvest:warnings:dismiss"
+
+    async def post(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        store = self._warnings_store
+        if store is None:
+            raise web.HTTPServiceUnavailable(
+                reason="HArvest warnings store is not currently loaded."
+            )
+        from .const import PLATFORM_VERSION
+        await store.dismiss(PLATFORM_VERSION)
+        return self.json({
+            "current_version": PLATFORM_VERSION,
+            "dismissed_at_version": PLATFORM_VERSION,
+            "dismissed": True,
+        })
+
+
+# ---------------------------------------------------------------------------
+# URL reachability probe (panel-side mirror of the WP plugin's AJAX handler)
+# ---------------------------------------------------------------------------
+
+class HarvestCheckUrlView(_HarvestView):
+    """GET /api/harvest/check_url?url=... - probe a URL from the HA server side.
+
+    Used by the panel Settings page to render live reachability
+    indicators for the Override Host field (which determines the
+    HA-served snippet URL) and the custom widget_script_url field.
+    The browser can't fetch arbitrary cross-origin URLs because of
+    CORS; this endpoint proxies the HEAD request from HA so the
+    same-origin restriction does not apply.
+
+    The reported reachability is ADVISORY ONLY. A "not reachable"
+    result does not necessarily mean visitors will fail to load the
+    widget: visitors may be on a different network than HA (LAN-only
+    custom hosts, internal proxies). The panel surfaces this nuance
+    with prose, not a blocking error. SPEC.md Section 12.
+
+    Response shape (always all four fields):
+      {
+        ok: bool,        # true on a 2xx HEAD response
+        status: int,     # HTTP status code, 0 if no response received
+        reason: str,     # "reachable" | "unreachable" | "relative" | "invalid"
+        message: str,    # human-readable, suitable for direct display
+      }
+    """
+
+    url = "/api/harvest/check_url"
+    name = "api:harvest:check_url"
+
+    async def get(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+
+        raw = (request.query.get("url") or "").strip()
+        if not raw:
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "invalid",
+                "message": "Empty URL.",
+            })
+
+        # Defensive checks mirror the WP plugin's sanitize_custom_url + the
+        # AJAX handler so we never make outbound requests for obviously
+        # malformed values.
+        import re as _re
+        if _re.search(r"[\x00-\x1f\x7f]", raw) or _re.search(r'[\s"\'<>`]', raw):
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "invalid",
+                "message": "URL contains invalid characters.",
+            })
+        lowered = raw.lower()
+        if lowered.startswith(("javascript:", "data:", "vbscript:")):
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "invalid",
+                "message": "URL uses a disallowed scheme.",
+            })
+
+        # Relative paths cannot be probed - they only resolve in the
+        # visitor's browser, against whatever page they happen to be
+        # loading. Return the dedicated "relative" status so the panel
+        # can render its own informational indicator (vs. the warn-tone
+        # one for actual unreachable URLs).
+        if not _re.match(r"^https?://", raw, _re.IGNORECASE):
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "relative",
+                "message": (
+                    "Relative path. Will be resolved against the embed page at "
+                    "runtime; cannot verify from here."
+                ),
+            })
+
+        # Probe with HEAD. Short timeout so a hung remote does not lock
+        # up the panel. Allow a small number of redirects (CDNs that 301
+        # to a canonical URL).
+        import asyncio
+        import aiohttp as _aiohttp
+        from .const import PLATFORM_VERSION
+        try:
+            timeout = _aiohttp.ClientTimeout(total=4)
+            async with _aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.head(
+                    raw,
+                    allow_redirects=True,
+                    headers={"User-Agent": f"HArvest/{PLATFORM_VERSION} (URL reachability probe)"},
+                ) as response:
+                    status = response.status
+        except (asyncio.TimeoutError, _aiohttp.ClientError) as exc:
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "unreachable",
+                "message": (
+                    f"Could not reach the URL from Home Assistant ({exc.__class__.__name__}). "
+                    "Visitors may still be able to load it; save anyway if you know the "
+                    "URL is correct."
+                ),
+            })
+
+        ok = 200 <= status < 300
+        return self.json({
+            "ok": ok,
+            "status": status,
+            "reason": "reachable" if ok else "unreachable",
+            "message": (
+                f"URL is reachable (HTTP {status})."
+                if ok
+                else (
+                    f"Home Assistant got HTTP {status} when fetching this URL. "
+                    "Visitors may still see different behaviour."
+                )
+            ),
+        })
+
+
+# ---------------------------------------------------------------------------
 # Entity picker view
 # ---------------------------------------------------------------------------
 
-class HarvestEntitiesView(HomeAssistantView):
+class HarvestEntitiesView(_HarvestView):
     """GET /api/harvest/entities - all HA entity states for the entity picker.
 
     Returns a flat list of all entities known to HA, used by the panel wizard
@@ -2054,10 +2262,6 @@ class HarvestEntitiesView(HomeAssistantView):
 
     url = "/api/harvest/entities"
     name = "api:harvest:entities"
-    requires_auth = True
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        self._hass = hass
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -2076,7 +2280,7 @@ class HarvestEntitiesView(HomeAssistantView):
         ])
 
 
-class HarvestEntityDefinitionView(HomeAssistantView):
+class HarvestEntityDefinitionView(_HarvestView):
     """GET /api/harvest/preview/definition/{entity_id} - build an entity
     definition using the authoritative server-side logic.
 
@@ -2096,10 +2300,6 @@ class HarvestEntityDefinitionView(HomeAssistantView):
 
     url = "/api/harvest/preview/definition/{entity_id}"
     name = "api:harvest:preview:definition"
-    requires_auth = True
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        self._hass = hass
 
     async def get(self, request: web.Request, entity_id: str) -> web.Response:
         user = request.get("hass_user")
@@ -2162,7 +2362,7 @@ class HarvestEntityDefinitionView(HomeAssistantView):
 # Wizard helper views
 # ---------------------------------------------------------------------------
 
-class HarvestAliasView(HomeAssistantView):
+class HarvestAliasView(_HarvestView):
     """POST /api/harvest/alias - generate a random alias for an entity.
 
     Called by the panel wizard (Step 1) when each entity is selected.
@@ -2172,10 +2372,6 @@ class HarvestAliasView(HomeAssistantView):
 
     url = "/api/harvest/alias"
     name = "api:harvest:alias"
-    requires_auth = True
-
-    def __init__(self, token_manager: TokenManager) -> None:
-        self._token_manager = token_manager
 
     async def post(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -2190,7 +2386,7 @@ class HarvestAliasView(HomeAssistantView):
         return self.json({"entity_id": entity_id, "alias": alias})
 
 
-class HarvestPreviewTokenView(HomeAssistantView):
+class HarvestPreviewTokenView(_HarvestView):
     """POST /api/harvest/tokens/preview - create a short-lived wizard preview token.
 
     Body: {"entity_id": "light.bedroom", "capabilities": "read-write"}
@@ -2200,10 +2396,6 @@ class HarvestPreviewTokenView(HomeAssistantView):
 
     url = "/api/harvest/tokens/preview"
     name = "api:harvest:token_preview"
-    requires_auth = True
-
-    def __init__(self, token_manager: TokenManager) -> None:
-        self._token_manager = token_manager
 
     async def post(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -2229,7 +2421,7 @@ class HarvestPreviewTokenView(HomeAssistantView):
         }, status_code=201)
 
 
-class HarvestPanelJsView(HomeAssistantView):
+class HarvestPanelJsView(_HarvestView):
     """GET /api/harvest/panel.js - serve panel bundle with no-store headers.
 
     Bypasses HA's static file caching so an updated panel.js is picked up
@@ -2240,9 +2432,6 @@ class HarvestPanelJsView(HomeAssistantView):
     url = "/api/harvest/panel.js"
     name = "api:harvest:panel_js"
     requires_auth = False
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        self._hass = hass
 
     async def get(self, _request: web.Request) -> web.Response:
         panel_path = Path(self._hass.config.path(

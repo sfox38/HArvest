@@ -11,6 +11,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const CLIMATE_STYLES = /* css */`
   [part=card-body] {
@@ -90,14 +91,6 @@ const CLIMATE_STYLES = /* css */`
 
 const HVAC_MODES = ["off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"];
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class ClimateCard extends BaseCard {
   /** @type {HTMLSelectElement|null}  */ #modeSelect      = null;
@@ -170,7 +163,7 @@ export class ClimateCard extends BaseCard {
     const swingOptions  = swingModes.map((m) => `<option value="${_esc(m)}">${_esc(m)}</option>`).join("");
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${CLIMATE_STYLES}</style>
+      <style>${CLIMATE_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
@@ -263,7 +256,6 @@ export class ClimateCard extends BaseCard {
     this.renderIcon(this.def.icon ?? "mdi:thermostat", "card-icon");
 
     this.#modeSelect?.addEventListener("change", (e) => {
-      console.warn("[HArvest] climate: mode change ->", e.target.value);
       this.#pending.mode = e.target.value;
       this.#resetPendingTimer();
       this.config.card?.sendCommand("set_hvac_mode", { hvac_mode: e.target.value });

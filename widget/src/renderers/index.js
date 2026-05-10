@@ -65,6 +65,7 @@ const _registry = new Map([
   ["input_boolean",           InputBooleanCard],
   ["input_number",            InputNumberCard],
   ["input_select",            InputSelectCard],
+  ["select",                  InputSelectCard],
 
   // Timer
   ["timer",                   TimerCard],

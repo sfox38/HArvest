@@ -7,6 +7,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const _ICON_COLORS = {
   auto: "var(--hrv-color-primary)",
@@ -24,9 +25,18 @@ const _ICON_COLORS = {
   grey: "#9ca3af",
 };
 
+// "Off-like" states only meaningful for on/off-style domains. Informational
+// domains (sensor, input_number, input_select, weather) treat their state as
+// data; they should only count as inactive when the entity is unavailable.
 const _INACTIVE_STATES = new Set([
-  "off", "unavailable", "unknown", "idle", "closed", "standby", "not_home",
+  "off", "idle", "closed", "standby", "not_home",
   "locked", "jammed", "locking", "unlocking",
+]);
+const _UNAVAILABLE_STATES = new Set(["unavailable", "unknown"]);
+const _ONOFF_DOMAINS = new Set([
+  "light", "switch", "input_boolean", "fan", "climate", "cover",
+  "media_player", "timer", "person", "device_tracker", "lock",
+  "binary_sensor",
 ]);
 
 
@@ -44,6 +54,7 @@ const _DOMAIN_FALLBACK_ICON = {
   remote: "mdi:remote",
   input_number: "mdi:numeric",
   input_select: "mdi:format-list-bulleted",
+  select: "mdi:format-list-bulleted",
   harvest_action: "mdi:play-circle-outline",
 };
 
@@ -142,14 +153,6 @@ const BADGE_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class BadgeCard extends BaseCard {
   /** @type {HTMLElement|null} */ #iconEl = null;
@@ -167,7 +170,7 @@ export class BadgeCard extends BaseCard {
     const textCls = singleLine ? " single" : "";
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${BADGE_STYLES}</style>
+      <style>${BADGE_STYLES}</style>
       <div part="badge" aria-label="${_esc(this.def.friendly_name)}" title="${_esc(this.def.friendly_name)}">
         ${showIcon ? '<span part="badge-icon" aria-hidden="true"></span>' : ""}
         <span part="badge-text" class="${textCls}">
@@ -192,12 +195,27 @@ export class BadgeCard extends BaseCard {
   applyState(state, attributes) {
     const hints = this.def.display_hints ?? {};
     const colorKey = hints.badge_icon_color ?? "auto";
-    const isActive = !_INACTIVE_STATES.has(state);
+    // Domain-aware active: informational domains (sensor/input_select/etc.)
+    // are active unless the entity is unavailable. On/off domains also fall
+    // inactive when state matches an off-like value.
+    const isUnavailable = _UNAVAILABLE_STATES.has(state);
+    const isOnOffDomain = _ONOFF_DOMAINS.has(this.def.domain);
+    const isActive = !isUnavailable && (!isOnOffDomain || !_INACTIVE_STATES.has(state));
 
     if (this.#iconEl) {
-      const color = isActive
-        ? (_ICON_COLORS[colorKey] ?? _ICON_COLORS.auto)
-        : "#9ca3af";
+      // User-chosen color always wins. "auto" defers to active/inactive
+      // theme treatment (primary tint / muted grey).
+      let color;
+      if (colorKey !== "auto") {
+        color = _ICON_COLORS[colorKey] ?? _ICON_COLORS.auto;
+        // Slight dim for inactive so user can still see active/inactive
+        // distinction even with a custom color.
+        if (!isActive) this.#iconEl.style.opacity = "0.65";
+        else this.#iconEl.style.opacity = "1";
+      } else {
+        color = isActive ? _ICON_COLORS.auto : "#9ca3af";
+        this.#iconEl.style.opacity = "1";
+      }
       this.#iconEl.style.color = color;
 
       const fb = _DOMAIN_FALLBACK_ICON[this.def.domain] ?? "mdi:help-circle";

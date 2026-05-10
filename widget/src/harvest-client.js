@@ -11,6 +11,8 @@
  *   destroyClient(haUrl, tokenId)
  */
 
+import { getClientInfo } from "./client-info.js";
+
 // Reconnect delay sequence in milliseconds.
 const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
 
@@ -115,7 +117,7 @@ export class HarvestClient {
   /** @type {number|null} */ #maxRenewals = null;
 
   // last_updated timestamps per entity for out-of-order discard
-  /** @type {Map<string, {state: string, attributes: object, lastUpdated: Date}>} */ #entityStates = new Map();
+  /** @type {Map<string, {state: string, attributes: object, lastUpdated: Date, lastUpdatedRaw: string}>} */ #entityStates = new Map();
 
   // Flood protection: track malformed message timestamps
   /** @type {number[]} */ #malformedTimestamps = [];
@@ -439,7 +441,15 @@ export class HarvestClient {
    * (pending set plus already-registered cards that are not yet subscribed).
    */
   async #sendAuth() {
-    // Collect all entity IDs currently known to this client.
+    // Collect all entity refs currently known to this client. Each entry may
+    // be a real entity ID (from a card with `entity=`) or an alias (from a
+    // card with `alias=`); SPEC.md Section 5.1 explicitly accepts mixed
+    // arrays and the server resolves each ref against the token's entity
+    // list with alias-then-real-id lookup. There is no cross-token namespace
+    // risk here because clients are singletons keyed by (haUrl, tokenId), so
+    // every ref in #cards belongs to the same token's namespace; token swaps
+    // mid-element-life are not a supported code path (hrv-card's
+    // attributeChangedCallback does not swap the client).
     const entityIds = [...new Set([
       ...this.#pendingEntityIds,
       ...this.#cards.keys(),
@@ -453,6 +463,11 @@ export class HarvestClient {
       entity_ids: entityIds,
       page_path: window.location.pathname,
       msg_id: this.#nextMsgId(),
+      // Compatibility handshake (SPEC.md Section 5.1, Section 12).
+      // Server uses this block to detect version drift and surface
+      // banners in the panel; old servers ignore unknown fields, so
+      // including this on every connect is purely additive.
+      client: getClientInfo(),
     };
 
     if (this.#tokenSecret) {
@@ -524,12 +539,19 @@ export class HarvestClient {
     if (this.#permanentFailure) return;
     if (this.#ws && this.#ws.readyState === WebSocket.OPEN) return;
 
-    // Cancel pending backoff reconnect and connect now.
+    // Cancel pending backoff reconnect and connect now. Reset both transient
+    // counters: visibility wake represents a deliberate "user returned"
+    // signal, so previously-accumulated reauth failures (which may be hours
+    // old at this point) should not push the next attempt over MAX_REAUTH_
+    // ATTEMPTS on a single bad reconnect. Permanent error codes still
+    // trip #permanentFailure directly in #handleAuthFailed regardless of
+    // this reset.
     if (this.#reconnectTimer) {
       clearTimeout(this.#reconnectTimer);
       this.#reconnectTimer = null;
     }
     this.#reconnectAttempt = 0;
+    this.#reauthAttempts = 0;
     this.#openConnection();
   }
 
@@ -581,6 +603,30 @@ export class HarvestClient {
     const code = msg.code ?? "HRV_AUTH_FAILED";
     console.warn("[HArvest] Auth failed:", code);
 
+    // HRV_PROTOCOL_INCOMPATIBLE is its own permanent state, distinct
+    // from the generic auth-failed bucket. The visitor sees a clear
+    // "Widget version cannot connect to this server. Update your
+    // snippet" message rather than the generic "Widget unavailable",
+    // because the cause (stale cached snippet on a public page) is
+    // user-actionable. Server side: SPEC.md Section 5.3, Section 12.
+    if (code === "HRV_PROTOCOL_INCOMPATIBLE") {
+      this.#permanentFailure = true;
+      const serverInfo = msg.server || {};
+      console.error(
+        "[HArvest] Widget version cannot connect: client speaks protocol %d, " +
+        "server accepts [%d, %d]. Server version: %s. Update your snippet.",
+        getClientInfo().protocol,
+        serverInfo.min_client_protocol,
+        serverInfo.protocol,
+        serverInfo.version,
+      );
+      for (const card of this.#cards.values()) {
+        card.setErrorState?.("HRV_INCOMPATIBLE");
+      }
+      this.#ws?.close();
+      return;
+    }
+
     const permanentCodes = [
       "HRV_TOKEN_INVALID", "HRV_TOKEN_EXPIRED",
       "HRV_TOKEN_REVOKED",
@@ -616,11 +662,18 @@ export class HarvestClient {
     }
   }
 
-  #handleEntityDefinition(msg) {
+  #handleEntityDefinition(msg, _depth = 0) {
     // Defer until in-flight pack script finishes so the first render uses the
     // pack renderer directly (no flash of built-in renderer).
-    if (this.#packLoadPromise) {
-      this.#packLoadPromise.then(() => this.#handleEntityDefinition(msg));
+    //
+    // _depth caps the recursive defer in the pathological case where new
+    // renderer_pack messages keep arriving before each previous pack finishes
+    // loading - each defer would otherwise create a new .then() chain. Server
+    // does not spam pack messages in practice; depth > 5 means message
+    // ordering has gone sideways and dispatching with the currently-loaded
+    // pack (or built-in fallback) is the safer choice.
+    if (this.#packLoadPromise && _depth < 5) {
+      this.#packLoadPromise.then(() => this.#handleEntityDefinition(msg, _depth + 1));
       return;
     }
     const entityId = msg.entity_id;
@@ -637,9 +690,21 @@ export class HarvestClient {
     const incoming = new Date(msg.last_updated);
     const existing = this.#entityStates.get(entityId);
 
-    // Discard out-of-order updates unless this is an initial push.
-    if (existing && !msg.initial && incoming <= existing.lastUpdated) {
-      return;
+    // Two distinct checks because JS Date has only millisecond precision while
+    // HA's last_updated has microsecond precision in ISO form. Two genuine
+    // updates within the same millisecond would round to equal Dates, so
+    // using `<=` on Dates alone would silently drop the second.
+    //   - Byte-equal raw string -> true duplicate (e.g. reconnect resend); drop.
+    //   - Parsed Date strictly older -> out-of-order delivery; drop.
+    //   - Same parsed Date, different raw string -> distinct sub-millisecond
+    //     update; let it through, applied in arrival order.
+    if (existing && !msg.initial) {
+      if (msg.last_updated === existing.lastUpdatedRaw) {
+        return;
+      }
+      if (incoming < existing.lastUpdated) {
+        return;
+      }
     }
 
     // Merge delta attributes if not initial.
@@ -656,7 +721,12 @@ export class HarvestClient {
       }
     }
 
-    this.#entityStates.set(entityId, { state: msg.state, attributes, lastUpdated: incoming });
+    this.#entityStates.set(entityId, {
+      state: msg.state,
+      attributes,
+      lastUpdated: incoming,
+      lastUpdatedRaw: msg.last_updated,
+    });
 
     // Write to state cache (imported lazily to avoid circular deps at load time).
     try {
@@ -814,6 +884,11 @@ export class HarvestClient {
       console.warn("[HArvest] Failed to load renderer pack:", msg.url);
       document.head.removeChild(script);
       this.#packLoadPromise = null;
+      // Intentionally NOT clearing #activePack: a failed pack load should
+      // leave whatever pack was active before unchanged (or null on first
+      // load, in which case the renderer-lookup chain falls back to the
+      // built-in registry). _reRender is not fired here for the same reason
+      // - cards keep their existing renderers since nothing actually changed.
       resolve();
     };
     document.head.appendChild(script);

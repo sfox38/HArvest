@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import re
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
+
+from ._utils import slugify
 
 if TYPE_CHECKING:
     from .session_manager import Session
@@ -99,7 +100,7 @@ class HarvestActionManager:
         suffix if needed. Registers the entity state in HA's state machine.
         Saves to storage.
         """
-        base_slug = _slugify(label)
+        base_slug = slugify(label, fallback="action")
         action_id = _unique_slug(base_slug, set(self._actions.keys()))
 
         action = HarvestActionDefinition(
@@ -295,15 +296,6 @@ class HarvestActionManager:
 # ---------------------------------------------------------------------------
 # Module-level serialisation helpers
 # ---------------------------------------------------------------------------
-
-def _slugify(label: str) -> str:
-    """Convert a label to a lowercase slug with underscores."""
-    slug = label.lower().strip()
-    slug = re.sub(r"[\s\-]+", "_", slug)
-    slug = re.sub(r"[^a-z0-9_]", "", slug)
-    slug = re.sub(r"_+", "_", slug).strip("_")
-    return slug or "action"
-
 
 def _unique_slug(base: str, existing: set[str]) -> str:
     """Return base if not in existing, otherwise base_2, base_3, etc."""

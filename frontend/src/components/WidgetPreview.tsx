@@ -135,7 +135,7 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   input_boolean:  { domain: "input_boolean",  label: "Input Boolean",  friendly_name: "Guest Mode",       state: "on",       attributes: {} },
   input_number:   { domain: "input_number",   label: "Input Number",   friendly_name: "Target Humidity",  state: "42",       unit: "%",  attributes: { min: 0, max: 100, step: 1 } },
   input_select:   { domain: "input_select",   label: "Input Select",   friendly_name: "Scene Mode",       state: "Option B", attributes: { options: ["Option A", "Option B", "Option C"] } },
-  media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Bohemian Rhapsody", media_artist: "Queen", volume_level: 0.7 } },
+  media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Demo Track", media_artist: "Demo Artist", volume_level: 0.7 } },
   remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: {} },
   harvest_action: { domain: "harvest_action", label: "Action",         friendly_name: "Good Night",       state: "idle",     attributes: {} },
   timer:          { domain: "timer",          label: "Timer",          friendly_name: "Oven Timer",       state: "idle",     attributes: { duration: "0:25:00", remaining: "0:25:00" } },

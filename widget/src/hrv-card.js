@@ -74,6 +74,8 @@ export class HrvCard extends HTMLElement {
   /** @type {ReturnType<typeof setTimeout>|null} */ #optimisticTimer = null;
   /** @type {object|null}  */ #i18n          = null;
   /** @type {object|null}  */ #entityDef     = null;
+  /** @type {string}       */ #tokenColorScheme  = "auto";
+  /** @type {string}       */ #entityColorScheme = "auto";
   /** @type {string|null}  */ #lastState     = null;
   /** @type {object|null}  */ #lastAttributes = null;
   /** @type {Map<string, {state:string, attributes:object}>} */ #lastCompanionStates = new Map();
@@ -160,6 +162,15 @@ export class HrvCard extends HTMLElement {
     clearTimeout(this.#optimisticTimer);
     this.#optimisticTimer = null;
 
+    // Tear down the active renderer's external resources before the host
+    // element is GC'd. Renderers may hold setInterval handles (TimerCard),
+    // document/window listeners (InputSelectCard, pack ClimateCard, pack
+    // SensorCard), or RAF/pointer momentum-scroll handlers (WeatherCard).
+    // Without this, a single-page app or CMS page builder that mounts and
+    // unmounts hrv-card elements leaks one set of handles per cycle.
+    this.#renderer?.destroy?.();
+    this.#renderer = null;
+
     if (!this.#client) return;
 
     const entityRef = this.#entityId || this.#alias;
@@ -188,6 +199,20 @@ export class HrvCard extends HTMLElement {
    * @param {object} def - EntityDefinition from server
    */
   receiveDefinition(def) {
+    // Skip the full rebuild if the incoming definition is structurally equal
+    // to the one we already have. Renew flows (every lifetime_minutes) and
+    // reconnects resend entity_definitions with identical content; rebuilding
+    // the renderer mid-interaction would snap a slider thumb (or any active
+    // input) back to the server-confirmed value because the new renderer's
+    // isSliderActive() resets to false. JSON.stringify is byte-stable for
+    // server-delivered JSON (insertion order is consistent), so equal output
+    // means structurally equal input. Pack swaps go through _reRender(), not
+    // this path, so this check does not interfere with style updates.
+    if (this.#entityDef && this.#renderer
+        && JSON.stringify(def) === JSON.stringify(this.#entityDef)) {
+      return;
+    }
+
     this.#entityDef = def;
 
     // Apply server-side config from entity_definition.
@@ -198,11 +223,15 @@ export class HrvCard extends HTMLElement {
     this.#config.period = hints.period ?? 10;
     this.#config.animate = !!hints.animate;
     // Entity-level color_scheme overrides token-level only if explicitly set.
-    // "auto" means "defer to token_config", not "reset to auto".
+    // "auto" defers to the token-level scheme (#tokenColorScheme), which in
+    // turn falls back to the page-level scheme. The previous version only
+    // wrote to colorScheme when entityCS was non-auto, which meant flipping
+    // an entity from "dark" back to "auto" left colorScheme stuck on "dark".
     const entityCS = def.color_scheme ?? "auto";
-    if (entityCS !== "auto") {
-      this.#config.colorScheme = entityCS;
-    }
+    this.#entityColorScheme = entityCS;
+    this.#config.colorScheme = (entityCS !== "auto")
+      ? entityCS
+      : (this.#tokenColorScheme ?? "auto");
     this.#config.displayHints = hints;
 
     // Reflect color scheme on the host element and re-apply theme.
@@ -247,6 +276,10 @@ export class HrvCard extends HTMLElement {
 
     if (isBadge) this.setAttribute("data-hrv-badge", "");
     else this.removeAttribute("data-hrv-badge");
+
+    // Tear down the previous renderer (if any) so its observers and document
+    // listeners are released before the new instance is constructed.
+    this.#renderer?.destroy?.();
 
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
@@ -369,8 +402,13 @@ export class HrvCard extends HTMLElement {
     this.#config.offlineText = config.offlineText ?? "";
     this.#config.errorText = config.errorText ?? "";
     const newScheme = config.colorScheme ?? "auto";
-    const schemeChanged = newScheme !== this.#config.colorScheme;
-    this.#config.colorScheme = newScheme;
+    this.#tokenColorScheme = newScheme;
+    // Effective scheme: entity override (if explicit) wins over the token's.
+    const effective = (this.#entityColorScheme && this.#entityColorScheme !== "auto")
+      ? this.#entityColorScheme
+      : newScheme;
+    const schemeChanged = effective !== this.#config.colorScheme;
+    this.#config.colorScheme = effective;
     if (schemeChanged) {
       const cs = _resolveColorScheme(this.#config.colorScheme || _pageConfig.colorScheme || "");
       if (cs === "light" || cs === "dark") {
@@ -464,11 +502,10 @@ export class HrvCard extends HTMLElement {
    * Called when an ack message is routed to this card.
    * @param {object} _msg
    */
-  receiveAck(msg) {
-    console.warn(
-      `[HArvest] ack: ${msg?.entity_id} success=${msg?.success}`,
-      msg?.success ? "" : `${msg?.error_code} ${msg?.error_message ?? ""}`,
-    );
+  receiveAck(_msg) {
+    // Acks are routed here per the message-dispatch contract but currently
+    // have no per-card UI effect. Failure cases surface via setErrorState
+    // upstream; success cases are reflected by the ensuing state_update.
   }
 
   /**

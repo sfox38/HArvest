@@ -23,6 +23,8 @@ import type {
   HAEntityDetail,
   ThemeDefinition,
   PacksResponse,
+  WarningsState,
+  UrlCheckResult,
 } from "./types";
 
 const BASE = "/api/harvest";
@@ -33,6 +35,12 @@ const BASE = "/api/harvest";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _hass: any = null;
+
+// Readiness gate: _doReq awaits this Promise before any request runs, so any
+// caller firing before HA's first hass push (now or in some future code path)
+// queues until setHass() lands instead of crashing on `_hass.auth` being null.
+let _hassReadyResolve: () => void = () => {};
+const _hassReady: Promise<void> = new Promise(r => { _hassReadyResolve = r; });
 
 let _haDarkMode = false;
 const _darkModeListeners: Array<(dark: boolean) => void> = [];
@@ -50,6 +58,8 @@ export function onHaDarkModeChange(cb: (dark: boolean) => void): () => void {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function setHass(hass: any): void {
   _hass = hass;
+  // Idempotent: subsequent resolve() calls are no-ops on a resolved Promise.
+  _hassReadyResolve();
   const dark = hass?.themes?.darkMode ?? false;
   if (dark !== _haDarkMode) {
     _haDarkMode = dark;
@@ -59,6 +69,16 @@ export function setHass(hass: any): void {
 
 // ---------------------------------------------------------------------------
 // Connectivity state - tracks network reachability of HA
+//
+// Design note: _recoveryTimer is module-scoped and intentionally outlives
+// the panel custom element's mount/unmount cycles. It runs as a single
+// self-chaining timeout (bounded backoff capped at 15s, one tiny /stats
+// fetch per iteration) and self-terminates the moment HA responds OK.
+// If the user navigates away from the panel while HA is offline, the
+// background poll continues until HA recovers - this is a deliberate
+// trade-off: when the user returns to the panel, connectivity state is
+// already accurate. The cost is at most one ~1 KB request every 15s
+// during the (uncommon) "offline at navigate-away" window.
 // ---------------------------------------------------------------------------
 
 let _offline = false;
@@ -101,6 +121,46 @@ function _startRecoveryPoll(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Coordinated auth-token refresh
+//
+// Multiple panel API calls can fire concurrently (Dashboard's allSettled,
+// rapid clicks, etc.). Without coordination, each one independently calls
+// _hass.auth.refreshAccessToken() when it sees expires-soon or hits 401,
+// producing a refresh storm of redundant network round-trips.
+//
+// _coordinatedRefresh() funnels concurrent callers through a single in-flight
+// refresh. Failures set a 5-second cool-down so a persistently-broken refresh
+// (real session expiry, network down) does not produce 60s worth of repeated
+// attempts on every Dashboard auto-reload tick.
+// ---------------------------------------------------------------------------
+
+let _refreshInflight: Promise<void> | null = null;
+let _refreshFailedUntil = 0;
+const _REFRESH_COOLDOWN_MS = 5_000;
+
+function _coordinatedRefresh(): Promise<void> {
+  if (_refreshInflight) return _refreshInflight;
+  if (Date.now() < _refreshFailedUntil) {
+    return Promise.reject(new Error("auth refresh in cool-down after recent failure"));
+  }
+  if (!_hass?.auth) {
+    return Promise.reject(new Error("hass.auth not available"));
+  }
+  _refreshInflight = (async () => {
+    try {
+      await _hass.auth.refreshAccessToken();
+      _refreshFailedUntil = 0;
+    } catch (err) {
+      _refreshFailedUntil = Date.now() + _REFRESH_COOLDOWN_MS;
+      throw err;
+    } finally {
+      _refreshInflight = null;
+    }
+  })();
+  return _refreshInflight;
+}
+
+// ---------------------------------------------------------------------------
 // Core request helper with proactive token refresh and 401 retry
 // ---------------------------------------------------------------------------
 
@@ -111,10 +171,25 @@ async function _doReq<T>(
   retried = false,
   responseType: "json" | "text" = "json",
 ): Promise<T> {
+  // Wait for the first hass push before issuing any request. Today main.tsx
+  // already gates _root.render() on the first setHass() call, so this awaits
+  // an already-resolved Promise on every normal path. The gate exists to
+  // protect future callers (top-level effects, module-init imports, etc.)
+  // from racing the panel's bootstrap.
+  await _hassReady;
+
   if (!retried && _hass?.auth) {
     const expires: number | undefined = _hass.auth.data?.expires;
     if (expires !== undefined && Date.now() > expires - 60_000) {
-      await _hass.auth.refreshAccessToken();
+      // Coordinated: concurrent callers all await the same in-flight refresh.
+      // Failures throw and propagate to the caller as a fetch error.
+      try {
+        await _coordinatedRefresh();
+      } catch {
+        // Fall through; the unrefreshed token may still be valid for one
+        // more request, and the 401-retry path below handles the failure
+        // case with the friendly "session expired" message.
+      }
     }
   }
 
@@ -138,8 +213,18 @@ async function _doReq<T>(
 
   _setOffline(false);
 
-  if (res.status === 401 && !retried && _hass?.auth) {
-    await _hass.auth.refreshAccessToken();
+  // 401 handling: try one refresh, then surface a friendly error rather than
+  // the raw 401 body or an internal "Cannot read properties of null" if the
+  // refresh path itself throws.
+  if (res.status === 401) {
+    if (retried || !_hass?.auth) {
+      throw new Error("Panel session expired. Reload the page to re-authenticate.");
+    }
+    try {
+      await _coordinatedRefresh();
+    } catch {
+      throw new Error("Panel session expired. Reload the page to re-authenticate.");
+    }
     return _doReq<T>(method, path, body, true, responseType);
   }
 
@@ -222,8 +307,11 @@ export const api = {
     terminate: (sessionId: string): Promise<void> =>
       _delete(`/sessions/${sessionId}`),
 
-    terminateAll: (tokenId: string): Promise<void> =>
-      _delete(`/sessions`, { token_id: tokenId }),
+    // Pass tokenId to terminate that token's sessions only; pass nothing to
+     // terminate every active session globally (one server-side bulk op,
+     // avoiding N parallel DELETEs from the client).
+    terminateAll: (tokenId?: string): Promise<void> =>
+      _delete(`/sessions`, tokenId ? { token_id: tokenId } : undefined),
   },
 
   // ---------------------------------------------------------------------------
@@ -375,6 +463,27 @@ export const api = {
   stats: {
     get: (): Promise<PanelStats> =>
       _get<PanelStats>("/stats"),
+  },
+
+  // ---------------------------------------------------------------------------
+  // Warnings (drift-banner dismissal) - SPEC.md Section 12
+  // ---------------------------------------------------------------------------
+
+  warnings: {
+    get: (): Promise<WarningsState> =>
+      _get<WarningsState>("/warnings"),
+
+    dismiss: (): Promise<WarningsState> =>
+      _post<WarningsState>("/warnings/dismiss"),
+  },
+
+  // ---------------------------------------------------------------------------
+  // URL reachability probe - powers the live indicators in Settings
+  // ---------------------------------------------------------------------------
+
+  urlCheck: {
+    check: (url: string): Promise<UrlCheckResult> =>
+      _get<UrlCheckResult>("/check_url", { url }),
   },
 
   // ---------------------------------------------------------------------------

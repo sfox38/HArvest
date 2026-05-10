@@ -5,7 +5,6 @@ HA state machine, enabling dashboards, automations, and alerts.
 """
 from __future__ import annotations
 
-import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -18,24 +17,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
 
+from ._utils import slugify
 from .activity_store import ActivityStore
 from .session_manager import SessionManager
 from .token_manager import TokenManager
 
 _GLOBAL_UPDATE_INTERVAL = timedelta(seconds=30)
-
-
-def _slugify(label: str) -> str:
-    """Convert a token label to a slug suitable for entity_id use.
-
-    Lowercases, replaces spaces and hyphens with underscores, removes all
-    characters that are not alphanumeric or underscore.
-    """
-    slug = label.lower().strip()
-    slug = re.sub(r"[\s\-]+", "_", slug)
-    slug = re.sub(r"[^a-z0-9_]", "", slug)
-    slug = re.sub(r"_+", "_", slug).strip("_")
-    return slug or "unnamed"
 
 
 class DiagnosticSensors:
@@ -90,7 +77,7 @@ class DiagnosticSensors:
         Entity IDs follow: sensor.harvest_{label_slug}_{metric}
         where {label_slug} is the token label slugified.
         """
-        slug = _slugify(label)
+        slug = slugify(label)
         sensors: list[SensorEntity] = [
             HarvestTokenSessionsSensor(token_id, slug, self._session_manager),
             HarvestTokenLastSeenSensor(token_id, slug, self._activity_store),

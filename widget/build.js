@@ -7,13 +7,19 @@
  *                                      content changes (for cache-busting)
  *
  * Both files are committed to the repository so HACS users and jsDelivr
- * consumers do not need a build toolchain.
+ * consumers do not need a build toolchain. Only the current hashed file is
+ * kept in the working tree; previous hashed builds are removed at the start
+ * of each build to prevent dist/ growing without bound. Anyone needing a
+ * specific historical hash retrieves it via git history or jsDelivr's
+ * tag/commit resolution (e.g. cdn.jsdelivr.net/gh/sfox38/HArvest@{ref}/...).
  *
  * Build steps:
- *   1. Bundle src/harvest-entry.js with esbuild (ESM -> IIFE, minified)
- *   2. Compute a short content hash from the output bytes
- *   3. Write dist/harvest.min.{hash}.js
- *   4. Write dist/harvest.min.js (identical content, stable filename)
+ *   1. Remove any stale dist/harvest.min.{hash}.js files (keeping the
+ *      stable harvest.min.js).
+ *   2. Bundle src/harvest-entry.js with esbuild (ESM -> IIFE, minified)
+ *   3. Compute a short content hash from the output bytes
+ *   4. Write dist/harvest.min.{hash}.js
+ *   5. Write dist/harvest.min.js (identical content, stable filename)
  *
  * Run:  node build.js
  * Watch: node build.js --watch
@@ -21,28 +27,56 @@
 
 import * as esbuild from "esbuild";
 import { createHash } from "node:crypto";
-import { writeFileSync, mkdirSync, copyFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, copyFileSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SRC_ENTRY = resolve(__dirname, "src/harvest-entry.js");
 const DIST_DIR  = resolve(__dirname, "dist");
+
+// Read PLATFORM_VERSION and PROTOCOL_VERSION from the integration's const.py
+// so the widget bundle reports the same version the server is running. This
+// is what powers the client/server compatibility handshake (SPEC.md Section
+// 12) - the widget sends `client.widget` and `client.protocol` in its auth
+// payload and the server compares them to its own constants. Reading from
+// const.py here guarantees they match at any given release without manual
+// version bumping in widget/version.js.
+const CONST_PY_PATH = resolve(__dirname, "../custom_components/harvest/const.py");
+function readVersionConstants() {
+  const text = readFileSync(CONST_PY_PATH, "utf8");
+  const platform = text.match(/^PLATFORM_VERSION\s*=\s*"([^"]+)"/m);
+  const protocol = text.match(/^PROTOCOL_VERSION\s*=\s*(\d+)/m);
+  if (!platform || !protocol) {
+    throw new Error(
+      `build.js: failed to parse PLATFORM_VERSION / PROTOCOL_VERSION from ${CONST_PY_PATH}. ` +
+      `These constants drive the compatibility handshake; the widget cannot be built without them.`
+    );
+  }
+  return { widget: platform[1], protocol: parseInt(protocol[1], 10) };
+}
 const PACKS = [
   { entry: resolve(__dirname, "src/packs/minimus-pack.js"), out: resolve(__dirname, "../custom_components/harvest/packs/minimus.js") },
   { entry: resolve(__dirname, "src/packs/shrooms-pack.js"), out: resolve(__dirname, "../custom_components/harvest/packs/shrooms.js") },
 ];
 
 // Post-build copy destinations for the widget bundle.
+//
+// As of plugin v1.9.0 the WordPress plugin no longer ships its own copy of
+// harvest.min.js (SPEC.md Section 12, "HA-served" widget script source); the
+// plugin loads the bundle from the integration's /harvest_assets/ static
+// path instead. So the only consumer of this copy is the integration's panel
+// directory, which already serves the bundle at /harvest_assets/.
 const WIDGET_COPIES = [
   resolve(__dirname, "../custom_components/harvest/panel/harvest.min.js"),
-  resolve(__dirname, "../wordpress/assets/harvest.min.js"),
 ];
 
 // Post-build copy destinations for pack files.
 const PACK_COPIES = [];
 
 const isWatch = process.argv.includes("--watch");
+
+const versions = readVersionConstants();
 
 /** @type {import("esbuild").BuildOptions} */
 const buildOptions = {
@@ -56,9 +90,40 @@ const buildOptions = {
   treeShaking: true,
   write:       false,  // we handle writing ourselves for hash computation
   logLevel:    "info",
+  // Build-time constant injection for the compatibility handshake. The
+  // identifiers below appear in widget/src/version.js and are replaced
+  // verbatim at bundle time (esbuild's `define` works on identifiers, so
+  // the placeholders MUST be unique tokens that don't collide with any
+  // real variable name).
+  define: {
+    __HRV_WIDGET_VERSION__: JSON.stringify(versions.widget),
+    __HRV_PROTOCOL_VERSION__: String(versions.protocol),
+  },
 };
 
+/**
+ * Remove all dist/harvest.min.{hash}.js files. The stable harvest.min.js is
+ * preserved. Pattern matches exactly 8 lowercase hex characters between the
+ * dots so we never accidentally delete the stable name.
+ */
+function cleanStaleHashes() {
+  const hashedRe = /^harvest\.min\.[0-9a-f]{8}\.js$/;
+  let entries;
+  try {
+    entries = readdirSync(DIST_DIR);
+  } catch {
+    return; // dist dir not yet created
+  }
+  for (const name of entries) {
+    if (hashedRe.test(name)) {
+      unlinkSync(resolve(DIST_DIR, name));
+    }
+  }
+}
+
 async function build() {
+  cleanStaleHashes();
+
   const result = await esbuild.build(buildOptions);
 
   if (result.errors.length > 0) {

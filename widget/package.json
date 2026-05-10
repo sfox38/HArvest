@@ -1,6 +1,6 @@
 {
   "name": "@harvest/widget",
-  "version": "1.6.3",
+  "version": "0.9.4",
   "description": "HArvest widget - live Home Assistant entity cards for any webpage",
   "type": "module",
   "scripts": {

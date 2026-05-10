@@ -17,7 +17,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v0.9.4 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -141,22 +141,26 @@
         <section>
         <h2 id="widget-script">Widget script</h2>
 
-        <p>HACS installs the Home Assistant integration (the panel and WebSocket proxy) but not the widget script. The widget script is a separate JavaScript file called <code>harvest.min.js</code> that runs on your website.</p>
+        <p>You do not need to install or upload the widget script separately. HACS installs the Home Assistant integration, and the integration serves the widget bundle directly out of its own files at <code>{your-HA-URL}/harvest_assets/harvest.min.js</code>. The wizard generates snippets that point at this URL automatically.</p>
 
-        <p>You need to place this file on your web server. There are two ways to get it:</p>
-
-        <h3>From the GitHub release</h3>
-        <p>Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank">GitHub Releases</a>. Inside the zip, find <code>widget/dist/harvest.min.js</code> and upload it to your web server.</p>
-
-        <h3>From the repository</h3>
-        <p>If you cloned the repository, the file is at <code>widget/dist/harvest.min.js</code> in the project root.</p>
-
-        <p>Place the file wherever works best for your setup. The <code>&lt;script src="..."&gt;</code> path in your embed snippets must point to it. For example, if you upload it to your site root, use <code>src="/harvest.min.js"</code>. If you place it in an assets folder, use <code>src="/assets/harvest.min.js"</code>.</p>
+        <p>This means the widget always matches the version of HArvest currently running on your HA instance. When you update HArvest via HACS, every embedded widget on every site picks up the new bundle on the next page load. There is nothing to upload, no CDN to configure, and no version drift to worry about.</p>
 
         <div class="callout callout-tip">
           <span class="callout-label">WordPress users</span>
-          <p>If you use the <a href="wordpress.html">HArvest WordPress plugin</a>, you do not need to place the script manually. The plugin handles loading the widget script for you.</p>
+          <p>If you use the <a href="wordpress.html">HArvest WordPress plugin</a>, the plugin enqueues the widget script for you. The plugin's "Widget JS source" setting defaults to the same HA-served URL described above.</p>
         </div>
+
+        <h3>Hosting the script yourself (advanced)</h3>
+
+        <p>If for some reason you don't want visitors loading the widget JS from your HA instance (for example, your site needs to work even when HA is briefly offline), you can self-host instead:</p>
+
+        <ol>
+          <li>Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank">GitHub Releases</a>. Inside the zip, find <code>widget/dist/harvest.min.js</code>.</li>
+          <li>Upload it to your web server.</li>
+          <li>In the HArvest panel, go to <strong>Settings &gt; Connection &gt; Widget script source</strong> and switch to <strong>Custom URL</strong>. Enter the path to your hosted copy.</li>
+        </ol>
+
+        <p>The wizard will then generate snippets that use your custom URL instead. Note: when you do this, you become responsible for keeping the widget bundle in sync with the integration version. Use this option only if you have a specific reason to need it.</p>
         </section>
 
         <section>

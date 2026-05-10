@@ -14,13 +14,17 @@
  * called from synchronous paths such as connectedCallback. A fast djb2-style
  * integer hash is used instead, consistent with SPEC.md Section 9.
  *
+ * Hash collisions: a 32-bit hash makes collisions astronomically unlikely in
+ * practice (birthday-bound ~10^-7 at 50 entries) but not zero. Each cached
+ * value carries the originating (tokenId, entityId) and read() rejects the
+ * entry on mismatch so a colliding key never returns the wrong entity's state.
+ * Last-write-wins handles which entity occupies a colliding slot; the loser
+ * gets a cache miss and re-fetches from the server on next state_update.
+ *
  * All localStorage operations are wrapped in try/catch. Failures are silently
  * ignored so that the cache degrades gracefully in environments where
  * localStorage is unavailable (Safari private browsing, sandboxed iframes).
  */
-
-// 32-bit hash: collision-tolerant by design. Cache is best-effort; server
-// state replaces it on next WebSocket connect.
 /**
  * Compute a djb2-style hash of a string. Returns a 32-bit signed integer.
  * @param {string} str
@@ -66,6 +70,7 @@ export class StateCache {
       localStorage.setItem(
         key,
         JSON.stringify({
+          token_id: tokenId,
           entity_id: entityId,
           state,
           attributes,
@@ -80,17 +85,26 @@ export class StateCache {
 
   /**
    * Read a cached state snapshot. Returns null on cache miss, parse failure,
-   * or any localStorage error.
+   * any localStorage error, or hash-collision mismatch (the cached payload's
+   * token_id/entity_id must match the requested pair).
    *
    * @param {string} tokenId
    * @param {string} entityId
-   * @returns {{ entity_id: string, state: string, attributes: Record<string, unknown>, cached_at: string } | null}
+   * @returns {{ token_id: string, entity_id: string, state: string, attributes: Record<string, unknown>, cached_at: string } | null}
    */
   static read(tokenId, entityId) {
     try {
       const key = _keyFor(tokenId, entityId);
       const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      // Integrity check: defends against djb2 collisions and pre-fix entries
+      // (older entries lack token_id and will fail this check, behaving as a
+      // one-time cache flush after upgrade).
+      if (parsed?.token_id !== tokenId || parsed?.entity_id !== entityId) {
+        return null;
+      }
+      return parsed;
     } catch {
       // SecurityError, QuotaExceededError, or JSON.parse failure.
       // Return null so the caller renders a loading state instead of crashing.

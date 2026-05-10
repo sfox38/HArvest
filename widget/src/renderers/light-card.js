@@ -17,6 +17,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 // Light-specific CSS
 const LIGHT_CARD_STYLES = /* css */`
@@ -176,7 +177,7 @@ export class LightCard extends BaseCard {
     const maxCt         = this.def.feature_config?.max_color_temp_kelvin ?? 6500;
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${LIGHT_CARD_STYLES}</style>
+      <style>${LIGHT_CARD_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
@@ -405,15 +406,3 @@ export class LightCard extends BaseCard {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Utility: escape HTML special characters for safe insertion in innerHTML.
-// ---------------------------------------------------------------------------
-
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}

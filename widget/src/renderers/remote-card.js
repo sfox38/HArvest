@@ -8,6 +8,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const REMOTE_STYLES = /* css */`
   [part=card-body] {
@@ -51,14 +52,6 @@ const REMOTE_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class RemoteCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #commandBtn = null;
@@ -70,7 +63,7 @@ export class RemoteCard extends BaseCard {
     const commandLabel = this.config.tapAction?.data?.command ?? "power";
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${REMOTE_STYLES}</style>
+      <style>${REMOTE_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>

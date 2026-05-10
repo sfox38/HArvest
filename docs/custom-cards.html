@@ -17,7 +17,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v0.9.4 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -210,10 +210,13 @@
           <table>
             <thead><tr><th>Method</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>getSharedStyles()</code></td><td>Returns a CSS string with card layout defaults, companion zone styles, history graph styles, and error/stale indicator styles. Include in your <code>&lt;style&gt;</code> tag.</td></tr>
+              <tr><td><em>(no helper)</em></td><td>The shared base CSS (card layout, companion zone, history graph, gesture, error/stale states) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>. Your renderer's <code>&lt;style&gt;</code> tag only emits renderer-specific CSS. The historical <code>getSharedStyles()</code> helper was removed; do not call it.</td></tr>
               <tr><td><code>renderIcon(iconName, partName)</code></td><td>Inject an MDI SVG icon into the element with <code>part="&lt;partName&gt;"</code>. Caches internally and skips re-render if unchanged.</td></tr>
               <tr><td><code>resolveIcon(name, fallback)</code></td><td>Returns <code>name</code> if the icon is in the bundled set, otherwise returns <code>fallback</code>.</td></tr>
-              <tr><td><code>isFocused(element)</code></td><td>Returns true if <code>element</code> has focus in the shadow root. Use in <code>applyState()</code> to avoid overwriting user input (e.g. while dragging a slider).</td></tr>
+              <tr><td><code>isFocused(element)</code></td><td>Returns true if <code>element</code> has focus in the shadow root. Use in <code>applyState()</code> to avoid overwriting user input (e.g. while typing in a number input).</td></tr>
+              <tr><td><code>isSliderActive(element)</code></td><td>Returns true while the user is actively dragging a range slider (pointer down or pending un-grace period after release). Use in <code>applyState()</code> to skip slider updates while the user is interacting.</td></tr>
+              <tr><td><code>guardSlider(slider, debouncedSend)</code></td><td>One-call drag-protection wiring for a <code>&lt;input type="range"&gt;</code>. Adds pointer/keyboard handlers that mark the slider active and flush the debounced send on release. Pair with <code>isSliderActive()</code> in <code>applyState()</code>.</td></tr>
+              <tr><td><code>formatStateLabel(state, domain, deviceClass)</code></td><td>Returns the i18n-localised label for a state string, falling back to the raw state if the key is missing. Handles common domain conventions (sensor numeric values, binary_sensor on/off, etc.).</td></tr>
               <tr><td><code>renderCompanionZoneHTML()</code></td><td>Returns the HTML for the companion pill zone. Empty string if no companions configured.</td></tr>
               <tr><td><code>renderCompanions()</code></td><td>Populates the companion zone with pill elements. Call at the end of <code>render()</code>.</td></tr>
               <tr><td><code>renderHistoryZoneHTML()</code></td><td>Returns the HTML for the history graph placeholder. Empty string if history is not configured.</td></tr>
@@ -243,7 +246,6 @@
 
     this.root.innerHTML = `
       &lt;style&gt;
-        ${this.getSharedStyles()}
         [part=card-body] {
           display: flex;
           align-items: center;
@@ -345,7 +347,7 @@
 
         <ul>
           <li><strong>Check <code>capabilities</code></strong> - if the entity is <code>"read"</code>, do not render buttons, sliders, or any interactive controls. Only show state. Badge entities (<code>"badge"</code>) are routed to the badge renderer, not your card, so you do not need to handle that case.</li>
-          <li><strong>Include shared styles</strong> - call <code>this.getSharedStyles()</code> at the start of your <code>&lt;style&gt;</code> block. This provides the card layout, companion zone, history graph, and error state styles.</li>
+          <li><strong>Shared styles are automatic</strong> - the card layout, companion zone, history graph, gesture, and error/stale state styles are adopted into your shadow root automatically by <code>BaseCard</code>. Your <code>&lt;style&gt;</code> block only needs renderer-specific CSS; do not call <code>getSharedStyles()</code> (it no longer exists).</li>
           <li><strong>Use <code>part</code> attributes</strong> - every meaningful element should have a <code>part="..."</code> attribute so theme authors can target it with <code>::part()</code> selectors.</li>
           <li><strong>Include the standard zones</strong> - your template should include <code>renderAriaLiveHTML()</code>, <code>renderCompanionZoneHTML()</code>, and a <code>&lt;div part="stale-indicator"&gt;</code>. These enable accessibility, companion pills, and the stale-data indicator.</li>
           <li><strong>Call <code>renderCompanions()</code></strong> - at the end of <code>render()</code>, this populates the companion zone.</li>
@@ -456,7 +458,7 @@
 
         <p>Because your renderer is delivered as a pack, the embedding page needs nothing beyond the standard HArvest setup. The widget automatically loads the pack when it connects and finds the token's theme has a renderer pack. No extra script tags, no manual registration.</p>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
 &lt;/script&gt;
@@ -641,7 +643,7 @@ var(--hrv-transition-speed)  /* 150ms */</code></pre>
 
         <p>During development, uploading a pack after every change is slow. For faster iteration, you can use <code>HArvest.registerRenderer()</code> with a local script tag. This registers the renderer globally (not scoped to a theme) so you can test it immediately.</p>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script src="vacuum-card.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
@@ -769,7 +771,7 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
       const w = this.def.capabilities === "read-write";
 
       this.root.innerHTML = `
-        &lt;style&gt;${this.getSharedStyles()}${STYLES}&lt;/style&gt;
+        &lt;style&gt;${STYLES}&lt;/style&gt;
         &lt;div part="card"&gt;
           &lt;div part="card-header"&gt;
             &lt;span part="card-icon" aria-hidden="true"&gt;&lt;/span&gt;
@@ -896,7 +898,7 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
           <li>Embed the widget on a page. No extra script tags are needed - the pack loads automatically:</li>
         </ol>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({
     haUrl: "https://myhome.example.com",
@@ -922,7 +924,7 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
               <tr><td>Read-only mode</td><td>Card renders cleanly when <code>capabilities</code> is <code>"read"</code> (no buttons, sliders, or interactive controls).</td></tr>
               <tr><td>Unavailable state</td><td><code>applyState("unavailable", {})</code> disables controls and shows a clear status.</td></tr>
               <tr><td>Part attributes</td><td>Every meaningful element has a <code>part="..."</code> so themes can target it.</td></tr>
-              <tr><td>Shared styles</td><td><code>getSharedStyles()</code> is included in the style tag.</td></tr>
+              <tr><td>Shared styles</td><td>Adopted automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>; the renderer's <code>&lt;style&gt;</code> tag only contains renderer-specific CSS.</td></tr>
               <tr><td>Companion zone</td><td><code>renderCompanionZoneHTML()</code> in template, <code>renderCompanions()</code> called at end of <code>render()</code>.</td></tr>
               <tr><td>Accessibility</td><td><code>renderAriaLiveHTML()</code> in template, <code>announceState()</code> called in <code>applyState()</code>, interactive elements have <code>aria-label</code>.</td></tr>
               <tr><td>Stale indicator</td><td><code>&lt;div part="stale-indicator"&gt;</code> included in template.</td></tr>
