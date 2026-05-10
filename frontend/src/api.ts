@@ -24,6 +24,7 @@ import type {
   ThemeDefinition,
   PacksResponse,
   WarningsState,
+  UrlCheckResult,
 } from "./types";
 
 const BASE = "/api/harvest";
@@ -474,6 +475,15 @@ export const api = {
 
     dismiss: (): Promise<WarningsState> =>
       _post<WarningsState>("/warnings/dismiss"),
+  },
+
+  // ---------------------------------------------------------------------------
+  // URL reachability probe - powers the live indicators in Settings
+  // ---------------------------------------------------------------------------
+
+  urlCheck: {
+    check: (url: string): Promise<UrlCheckResult> =>
+      _get<UrlCheckResult>("/check_url", { url }),
   },
 
   // ---------------------------------------------------------------------------

@@ -82,6 +82,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestPanelJsView,
         HarvestWarningsView,
         HarvestWarningsDismissView,
+        HarvestCheckUrlView,
     ]
     for view_cls in views:
         hass.http.register_view(view_cls(hass, entry_id))
@@ -2120,6 +2121,131 @@ class HarvestWarningsDismissView(_HarvestView):
             "current_version": PLATFORM_VERSION,
             "dismissed_at_version": PLATFORM_VERSION,
             "dismissed": True,
+        })
+
+
+# ---------------------------------------------------------------------------
+# URL reachability probe (panel-side mirror of the WP plugin's AJAX handler)
+# ---------------------------------------------------------------------------
+
+class HarvestCheckUrlView(_HarvestView):
+    """GET /api/harvest/check_url?url=... - probe a URL from the HA server side.
+
+    Used by the panel Settings page to render live reachability
+    indicators for the Override Host field (which determines the
+    HA-served snippet URL) and the custom widget_script_url field.
+    The browser can't fetch arbitrary cross-origin URLs because of
+    CORS; this endpoint proxies the HEAD request from HA so the
+    same-origin restriction does not apply.
+
+    The reported reachability is ADVISORY ONLY. A "not reachable"
+    result does not necessarily mean visitors will fail to load the
+    widget: visitors may be on a different network than HA (LAN-only
+    custom hosts, internal proxies). The panel surfaces this nuance
+    with prose, not a blocking error. SPEC.md Section 12.
+
+    Response shape (always all four fields):
+      {
+        ok: bool,        # true on a 2xx HEAD response
+        status: int,     # HTTP status code, 0 if no response received
+        reason: str,     # "reachable" | "unreachable" | "relative" | "invalid"
+        message: str,    # human-readable, suitable for direct display
+      }
+    """
+
+    url = "/api/harvest/check_url"
+    name = "api:harvest:check_url"
+
+    async def get(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+
+        raw = (request.query.get("url") or "").strip()
+        if not raw:
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "invalid",
+                "message": "Empty URL.",
+            })
+
+        # Defensive checks mirror the WP plugin's sanitize_custom_url + the
+        # AJAX handler so we never make outbound requests for obviously
+        # malformed values.
+        import re as _re
+        if _re.search(r"[\x00-\x1f\x7f]", raw) or _re.search(r'[\s"\'<>`]', raw):
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "invalid",
+                "message": "URL contains invalid characters.",
+            })
+        lowered = raw.lower()
+        if lowered.startswith(("javascript:", "data:", "vbscript:")):
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "invalid",
+                "message": "URL uses a disallowed scheme.",
+            })
+
+        # Relative paths cannot be probed - they only resolve in the
+        # visitor's browser, against whatever page they happen to be
+        # loading. Return the dedicated "relative" status so the panel
+        # can render its own informational indicator (vs. the warn-tone
+        # one for actual unreachable URLs).
+        if not _re.match(r"^https?://", raw, _re.IGNORECASE):
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "relative",
+                "message": (
+                    "Relative path. Will be resolved against the embed page at "
+                    "runtime; cannot verify from here."
+                ),
+            })
+
+        # Probe with HEAD. Short timeout so a hung remote does not lock
+        # up the panel. Allow a small number of redirects (CDNs that 301
+        # to a canonical URL).
+        import asyncio
+        import aiohttp as _aiohttp
+        from .const import PLATFORM_VERSION
+        try:
+            timeout = _aiohttp.ClientTimeout(total=4)
+            async with _aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.head(
+                    raw,
+                    allow_redirects=True,
+                    headers={"User-Agent": f"HArvest/{PLATFORM_VERSION} (URL reachability probe)"},
+                ) as response:
+                    status = response.status
+        except (asyncio.TimeoutError, _aiohttp.ClientError) as exc:
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "unreachable",
+                "message": (
+                    f"Could not reach the URL from Home Assistant ({exc.__class__.__name__}). "
+                    "Visitors may still be able to load it; save anyway if you know the "
+                    "URL is correct."
+                ),
+            })
+
+        ok = 200 <= status < 300
+        return self.json({
+            "ok": ok,
+            "status": status,
+            "reason": "reachable" if ok else "unreachable",
+            "message": (
+                f"URL is reachable (HTTP {status})."
+                if ok
+                else (
+                    f"Home Assistant got HTTP {status} when fetching this URL. "
+                    "Visitors may still see different behaviour."
+                )
+            ),
         })
 
 

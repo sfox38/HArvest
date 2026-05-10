@@ -61,9 +61,14 @@ const PACKS = [
 ];
 
 // Post-build copy destinations for the widget bundle.
+//
+// As of plugin v1.9.0 the WordPress plugin no longer ships its own copy of
+// harvest.min.js (SPEC.md Section 12, "HA-served" widget script source); the
+// plugin loads the bundle from the integration's /harvest_assets/ static
+// path instead. So the only consumer of this copy is the integration's panel
+// directory, which already serves the bundle at /harvest_assets/.
 const WIDGET_COPIES = [
   resolve(__dirname, "../custom_components/harvest/panel/harvest.min.js"),
-  resolve(__dirname, "../wordpress/assets/harvest.min.js"),
 ];
 
 // Post-build copy destinations for pack files.

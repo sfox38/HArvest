@@ -134,6 +134,19 @@ export interface WarningsState {
 }
 
 // ---------------------------------------------------------------------------
+// URL reachability probe (mirror of WP plugin's AJAX check)
+// ---------------------------------------------------------------------------
+
+export type UrlCheckReason = "reachable" | "unreachable" | "relative" | "invalid";
+
+export interface UrlCheckResult {
+  ok: boolean;
+  status: number;
+  reason: UrlCheckReason;
+  message: string;
+}
+
+// ---------------------------------------------------------------------------
 // Activity log
 // ---------------------------------------------------------------------------
 

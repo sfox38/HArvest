@@ -129,21 +129,30 @@
             <tbody>
               <tr>
                 <td>Home Assistant URL</td>
-                <td>Your HA external HTTPS URL. e.g. <code>https://myhome.duckdns.org</code>. Used to set the <code>connect-src</code> Content-Security-Policy directive automatically and as the default HA URL for shortcodes.</td>
+                <td>Required. Your HA external HTTPS URL. e.g. <code>https://myhome.duckdns.org</code>. Used to set the <code>connect-src</code> Content-Security-Policy directive automatically and as the default HA URL for shortcodes.</td>
               </tr>
               <tr>
                 <td>Widget JS source</td>
-                <td>Three options:
+                <td>Two options:
                   <ul>
-                    <li><strong>HA-served (recommended, default for new installs)</strong> - the widget JS is fetched from your Home Assistant instance at <code>{your-HA-URL}/harvest_assets/harvest.min.js</code>. Updating HArvest via HACS automatically updates the widget on every WordPress page. Requires the Home Assistant URL field above to be set (the radio is disabled otherwise).</li>
-                    <li><strong>Bundled</strong> - uses the widget JS file shipped inside the plugin zip. You only get widget updates when you update the WordPress plugin itself. Useful for predictable, frozen widget behaviour or when your WP server can't reach your HA instance for the JS load.</li>
-                    <li><strong>Custom URL</strong> - point at a self-hosted copy of <code>harvest.min.js</code>. For staging environments or your own CDN.</li>
+                    <li><strong>HA-served (recommended, default)</strong> - the widget JS is fetched from your Home Assistant instance at <code>{your-HA-URL}/harvest_assets/harvest.min.js</code>. Updating HArvest via HACS automatically updates the widget on every WordPress page. Requires the Home Assistant URL field above to be set (the radio is disabled otherwise).</li>
+                    <li><strong>Custom URL</strong> - point at a self-hosted copy of <code>harvest.min.js</code>. For staging environments or your own CDN. Accepts full URLs (<code>https://example.com/harvest.min.js</code>), absolute paths (<code>/harvest.min.js</code>), and relative paths or bare filenames (<code>harvest.min.js</code>) for HTML files served alongside the script.</li>
                   </ul>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <h3>Live URL reachability check</h3>
+        <p>As you type or change either URL field, the plugin probes the URL from the WordPress server and shows a small status indicator next to the field:</p>
+        <ul>
+          <li><strong>✓ (green)</strong> - the URL responded with HTTP 2xx. Reachable.</li>
+          <li><strong>⚠ (amber)</strong> - the URL did not respond, or returned a 4xx/5xx. Doesn't necessarily mean the widget will fail for visitors: your visitors may be on a different network than your WordPress server (e.g. a LAN-hosted Home Assistant). Save anyway if you know the URL is correct from a visitor's perspective.</li>
+          <li><strong>ⓘ (amber)</strong> - the URL is a relative path or bare filename. Cannot be probed from the server side because it only resolves against the visitor's embed page; you'll need to verify it manually.</li>
+          <li><strong>✗ (red)</strong> - the URL is malformed or uses a disallowed scheme (<code>javascript:</code>, <code>data:</code>, etc.). The plugin will refuse to enqueue it.</li>
+        </ul>
+        <p>The check is informational only and never blocks save.</p>
         </section>
 
         <section>

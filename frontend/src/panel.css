@@ -2265,6 +2265,33 @@ button.entity-setting-group-title:focus-visible {
   border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--paper));
 }
 
+/* URL reachability indicator - SPEC.md Section 12 (Widget Script URL Settings).
+   Live ✓/⚠/ⓘ/✗/⏳ glyph + inline prose for non-OK states next to the
+   Override Host and Custom Widget URL fields in Settings. Advisory only;
+   never blocks save. */
+.hrv-url-indicator {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+.hrv-url-indicator-glyph {
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1.2;
+}
+.hrv-url-indicator-msg {
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+.hrv-url-indicator[data-status="checking"] { color: var(--text-secondary); }
+.hrv-url-indicator[data-status="ok"]       { color: var(--success, #00a32a); }
+.hrv-url-indicator[data-status="warn"]     { color: var(--warn); }
+.hrv-url-indicator[data-status="error"]    { color: var(--danger); }
+
 /* Drift banner - SPEC.md Section 12 (Client/Server Compatibility).
    Warning-tone (not danger): version drift is admin-actionable but never
    blocking. One row per (origin, source, source_version, widget_version)

@@ -286,12 +286,23 @@
           <table>
             <thead><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
             <tbody>
+              <tr><td>Override host</td><td>(empty)</td><td>The public URL the panel uses when generating embed snippets and the HA-served widget URL. Leave empty to use the URL of whatever HA host the admin is currently visiting. Set this if admins access HA via a different domain than visitors.</td></tr>
+              <tr><td>Widget script source</td><td>HA-served</td><td>Two radios: <strong>HA-served</strong> (snippet uses <code>{HA URL}/harvest_assets/harvest.min.js</code>; always matches the running integration version) or <strong>Custom URL</strong> (admin-supplied). HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration's own files.</td></tr>
               <tr><td>Auth timeout</td><td>10 seconds</td><td>Time to complete WebSocket auth before disconnect</td></tr>
               <tr><td>Keepalive interval</td><td>30 seconds</td><td>How often the server pings connected clients</td></tr>
               <tr><td>Client heartbeat timeout</td><td>60 seconds</td><td>Session dropped if no client message within this window</td></tr>
             </tbody>
           </table>
         </div>
+
+        <p>Both URL fields show a live reachability indicator that probes the URL from your Home Assistant server (so it works regardless of browser-side CORS):</p>
+        <ul>
+          <li><strong>✓ (green)</strong> - the URL responded with HTTP 2xx. Reachable.</li>
+          <li><strong>⚠ (amber)</strong> - the URL did not respond, or returned a 4xx/5xx. Doesn't necessarily mean visitors will fail to load the widget: visitors may be on a different network than HA. Save anyway if you know the URL is correct.</li>
+          <li><strong>ⓘ (amber)</strong> - the URL is a relative path or bare filename. Cannot be probed because it only resolves against the visitor's embed page; you'll need to verify it manually.</li>
+          <li><strong>✗ (red)</strong> - the URL is malformed or uses a disallowed scheme. The integration will refuse to use it.</li>
+        </ul>
+        <p>The check is informational only and never blocks save.</p>
 
         <h3>Rate limiting</h3>
         <div class="table-wrap">

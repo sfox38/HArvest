@@ -5,8 +5,8 @@
 #   The shipped zip used to be hand-assembled and accumulated 1,900+ dev-only
 #   files inside vendor/ (PHPUnit, sebastian/*, prophecy, etc.) plus
 #   composer.{json,lock}, phpunit.xml, tests/, .DS_Store, and similar cruft.
-#   This script always produces a clean zip containing only the eight runtime
-#   paths the WordPress plugin actually needs, wrapped inside the canonical
+#   This script always produces a clean zip containing only the runtime paths
+#   the WordPress plugin actually needs, wrapped inside the canonical
 #   `harvest/` top-level directory that WordPress expects.
 #
 # Layout produced:
@@ -15,39 +15,20 @@
 #       harvest.php
 #       uninstall.php
 #       includes/*.php
-#       assets/harvest.min.js
 #       languages/harvest.pot
 #
-# Staleness guard:
-#   assets/harvest.min.js must be at least as new as every file under
-#   widget/src/. If a source file is newer the script aborts. Run
-#   `node widget/build.js` to rebuild the bundle, then re-run this script.
+# Note: as of plugin v1.9.0 the widget bundle is no longer shipped inside the
+# plugin zip. The WordPress plugin always loads it from the integration's
+# /harvest_assets/harvest.min.js static path (SPEC.md Section 12), so the
+# previous assets/harvest.min.js shipment served no real purpose. Dropping
+# it removes ~150 KB and one cross-module dependency.
 
 set -euo pipefail
 
 WP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$WP_DIR/.." && pwd)"
 cd "$WP_DIR"
 
-BUNDLE="$WP_DIR/assets/harvest.min.js"
 ZIP_PATH="$WP_DIR/harvest.zip"
-
-if [ ! -f "$BUNDLE" ]; then
-    echo "ERROR: $BUNDLE is missing." >&2
-    echo "Run 'node widget/build.js' first to produce the widget bundle." >&2
-    exit 1
-fi
-
-# Staleness check: any file under widget/src/ that is newer than the bundle
-# means the bundle would ship outdated JS. -newer is POSIX-portable.
-NEWER=$(find "$REPO_ROOT/widget/src" -type f -name '*.js' -newer "$BUNDLE" 2>/dev/null | head -5)
-if [ -n "$NEWER" ]; then
-    echo "ERROR: widget bundle is older than source files:" >&2
-    echo "$NEWER" | sed 's|^|  |' >&2
-    echo "  bundle: $BUNDLE" >&2
-    echo "Run 'node widget/build.js' to rebuild, then re-run this script." >&2
-    exit 1
-fi
 
 # Stage the runtime files inside a `harvest/` directory so the zip extracts
 # to wp-content/plugins/harvest/ when uploaded through WordPress admin.
@@ -58,7 +39,6 @@ mkdir -p "$STAGE/harvest"
 cp "$WP_DIR/harvest.php"   "$STAGE/harvest/"
 cp "$WP_DIR/uninstall.php" "$STAGE/harvest/"
 cp -R "$WP_DIR/includes"   "$STAGE/harvest/"
-cp -R "$WP_DIR/assets"     "$STAGE/harvest/"
 cp -R "$WP_DIR/languages"  "$STAGE/harvest/"
 
 # Build the zip from the staged tree. The excludes are belt-and-braces against

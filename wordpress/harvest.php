@@ -3,7 +3,7 @@
  * Plugin Name:       HArvest
  * Plugin URI:        https://github.com/sfox38/HArvest
  * Description:       Embed live Home Assistant entity widgets on any page or post.
- * Version:           0.9.3
+ * Version:           0.9.3.6
  * Requires at least: 5.0
  * Requires PHP:      7.4
  * Author:            HArvest Contributors

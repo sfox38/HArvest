@@ -13,6 +13,7 @@ import { api } from "../api";
 import { Spinner, ErrorBanner, Card, Hint, fmtBytes } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
+import { UrlReachabilityIndicator } from "./UrlReachabilityIndicator";
 import buildVersion from "../buildVersion.json";
 
 // ---------------------------------------------------------------------------
@@ -185,15 +186,37 @@ function validateOverrideHost(v: string): string | null {
 }
 
 function validateWidgetScriptUrl(v: string): string | null {
-  if (!v) return null;
-  if (v.startsWith("/")) return null;
-  try {
-    const u = new URL(v);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return "Must be a path (e.g. /harvest.min.js) or a full https:// URL";
-    return null;
-  } catch {
-    return "Must be a path (e.g. /harvest.min.js) or a full https:// URL";
+  // The widget script src can legitimately be a full URL, an absolute path,
+  // or a relative path / bare filename (for HTML files served alongside
+  // harvest.min.js). The previous version rejected the relative-path forms,
+  // which surprised admins. Match the WP plugin's sanitize_custom_url():
+  // accept any of those three forms; reject only obviously dangerous values.
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+
+  // Reject characters that would break out of the script src="" attribute
+  // or open a new attribute. Internal whitespace is also invalid for a
+  // script URL (anyone who needs a literal space can URL-encode).
+  if (/[\s"'<>`]/.test(trimmed)) {
+    return "URL must not contain spaces or quotes";
   }
+  // Control characters are never legitimate inside a URL here.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+    return "URL must not contain control characters";
+  }
+  // XSS vectors.
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("vbscript:")) {
+    return "URL must not use a javascript:, data:, or vbscript: scheme";
+  }
+  // For full URLs, gate on http/https only. Other schemes (file:, ftp:)
+  // are not useful here.
+  const schemeMatch = trimmed.match(/^([a-z][a-z0-9+.\-]*):/i);
+  if (schemeMatch && !/^https?:\/\//i.test(trimmed)) {
+    return "Full URLs must use http:// or https://";
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -272,6 +295,9 @@ function WidgetScriptSourceField({ value, overrideHost, onChange }: WidgetScript
             <div className="col" style={{ gap: 2, flex: 1, minWidth: 0 }}>
               <div>HA-served <span className="muted fs-12">(recommended)</span></div>
               <div className="muted fs-12" style={{ overflowWrap: "anywhere" }}>{preview}</div>
+              {uiMode === "ha" && (
+                <UrlReachabilityIndicator url={preview} />
+              )}
             </div>
           </label>
 
@@ -287,7 +313,10 @@ function WidgetScriptSourceField({ value, overrideHost, onChange }: WidgetScript
             <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
               <div>Custom URL</div>
               {uiMode === "custom" && (
-                <WidgetScriptUrlInput value={value} onChange={onChange} />
+                <>
+                  <WidgetScriptUrlInput value={value} onChange={onChange} />
+                  <UrlReachabilityIndicator url={value} />
+                </>
               )}
             </div>
           </label>
@@ -336,7 +365,7 @@ function WidgetScriptUrlInput({ value, onChange }: { value: string; onChange: (v
         <input
           type="text"
           value={localVal}
-          placeholder="https://example.com/harvest.min.js"
+          placeholder="https://example.com/harvest.min.js, /harvest.min.js, or harvest.min.js"
           onChange={e => handleChange(e.target.value)}
           onBlur={() => commit(localVal)}
           className="input"
