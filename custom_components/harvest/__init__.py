@@ -179,12 +179,22 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if unsub := data.get(key):
             unsub()
 
-    # Signal the running sensor to go offline before teardown.
+    # Signal the running sensor to go offline, then remove all diagnostic
+    # entities from HA's state machine. Without this, the entity_id slots
+    # remain occupied; the next async_setup_entry (e.g., after HACS
+    # reinstall, which does not restart HA) tries to register sensors with
+    # the same unique_ids and HA's _entity_id_already_exists check aborts
+    # the addition - leaving the new install with no diagnostic sensors.
     if sensors := data.get("sensors"):
         sensors.stop_updates()
         for entity in sensors.get_entities():
             if hasattr(entity, "set_running"):
                 entity.set_running(False)
+            if entity.hass is not None:
+                try:
+                    await entity.async_remove()
+                except Exception:  # noqa: BLE001 - best-effort teardown
+                    _LOGGER.exception("Failed to remove diagnostic entity %s", entity.entity_id)
 
     # Flush and close the activity store.
     if activity_store := data.get("activity_store"):

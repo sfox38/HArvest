@@ -423,15 +423,21 @@ class _HarvestView(HomeAssistantView):
     """Common base for HArvest panel API views.
 
     The view is registered once per HA process; HA's HTTP layer has no
-    unregister API, so views persist across config-entry reloads. To avoid
-    stale-manager refs, views hold only ``(hass, entry_id)`` and resolve
-    each manager per-request via the @property accessors below, which read
-    live values from ``hass.data[DOMAIN][entry_id]``.
+    unregister API, so views persist across config-entry reloads AND across
+    uninstall+reinstall cycles. To avoid stale-manager refs, views hold
+    only ``(hass, entry_id)`` and resolve each manager per-request via the
+    @property accessors below.
 
-    Properties return ``None`` (or raise on bracket access) when the entry
-    data dict is empty (i.e. the brief gap between unload and re-setup).
-    Individual view methods that depend on a specific manager handle that
-    case at the call site - typically by raising a 503.
+    Manager resolution goes through ``_utils.get_entry_data``, which
+    transparently falls back to whichever entry's data is currently live
+    if the captured ``entry_id`` is stale (the post-reinstall case, where
+    HA has assigned a fresh entry_id but cannot unregister these views).
+
+    Properties raise ``KeyError`` on bracket access when the entry data
+    dict is empty (i.e. the brief gap between unload and re-setup, or
+    when the integration is fully removed). Individual view methods that
+    depend on a specific manager handle that case at the call site -
+    typically by raising a 503.
     """
     requires_auth = True
 

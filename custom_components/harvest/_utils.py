@@ -13,17 +13,33 @@ from .const import DOMAIN, ERR_TOKEN_INACTIVE
 
 
 def get_entry_data(hass: HomeAssistant, entry_id: str) -> dict:
-    """Return the live integration data dict for a config entry.
+    """Return the live integration data dict for the (single) HArvest entry.
 
-    Views and other long-lived registrations look up managers through this
-    helper instead of caching them as instance fields. On config-entry
-    reload, ``hass.data[DOMAIN][entry_id]`` is repopulated with fresh
-    manager instances; cached refs would otherwise point at the unloaded
-    set. Returns an empty dict during the brief gap between unload and
-    re-setup so callers can degrade gracefully (return None / 503 / etc.)
-    rather than raise KeyError on a transient race.
+    HArvest is single-instance by design: ``config_flow.py`` uses ``DOMAIN``
+    as the unique_id and aborts on duplicates. Views and other long-lived
+    registrations look up managers through this helper rather than caching
+    them as instance fields, so a config-entry reload (which repopulates
+    ``hass.data[DOMAIN]``) does not leave them pointing at unloaded
+    managers.
+
+    The ``entry_id`` parameter is the entry_id captured at view construction.
+    On a normal reload it is still the live key, so we try it first. After
+    an uninstall+reinstall, HA assigns a brand-new entry_id and cannot
+    unregister the long-lived HTTP/WS views, so the captured entry_id is
+    stale forever; we then fall back to whichever live entry data exists.
+    Returns ``{}`` during the brief gap between unload and re-setup, or
+    when the integration is fully removed, so callers can degrade
+    gracefully instead of raising ``KeyError``.
     """
-    return hass.data.get(DOMAIN, {}).get(entry_id, {})
+    domain_data = hass.data.get(DOMAIN, {})
+    direct = domain_data.get(entry_id)
+    if isinstance(direct, dict) and "token_manager" in direct:
+        return direct
+    # Stale entry_id (post-reinstall) - find the live entry's data dict.
+    for value in domain_data.values():
+        if isinstance(value, dict) and "token_manager" in value:
+            return value
+    return {}
 
 
 async def close_ws(ws: Any) -> None:
