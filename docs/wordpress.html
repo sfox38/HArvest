@@ -132,8 +132,14 @@
                 <td>Your HA external HTTPS URL. e.g. <code>https://myhome.duckdns.org</code>. Used to set the <code>connect-src</code> Content-Security-Policy directive automatically and as the default HA URL for shortcodes.</td>
               </tr>
               <tr>
-                <td>Widget source</td>
-                <td>"Bundled" (default) uses the widget JS file included with the plugin. "Custom URL" lets you specify a CDN or self-hosted URL. Use "Bundled" unless you need a specific widget version.</td>
+                <td>Widget JS source</td>
+                <td>Three options:
+                  <ul>
+                    <li><strong>HA-served (recommended, default for new installs)</strong> - the widget JS is fetched from your Home Assistant instance at <code>{your-HA-URL}/harvest_assets/harvest.min.js</code>. Updating HArvest via HACS automatically updates the widget on every WordPress page. Requires the Home Assistant URL field above to be set (the radio is disabled otherwise).</li>
+                    <li><strong>Bundled</strong> - uses the widget JS file shipped inside the plugin zip. You only get widget updates when you update the WordPress plugin itself. Useful for predictable, frozen widget behaviour or when your WP server can't reach your HA instance for the JS load.</li>
+                    <li><strong>Custom URL</strong> - point at a self-hosted copy of <code>harvest.min.js</code>. For staging environments or your own CDN.</li>
+                  </ul>
+                </td>
               </tr>
             </tbody>
           </table>

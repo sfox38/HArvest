@@ -230,6 +230,8 @@
           <table>
             <thead><tr><th>Setting</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
+              <tr><td>Override host</td><td>(empty)</td><td>The public URL the panel uses when generating snippets and computing the HA-served widget script URL. Empty means use the URL of whatever HA host the admin is currently visiting. Set this to your external HA URL when admins access HA via a different domain than visitors will use.</td></tr>
+              <tr><td>Widget script source</td><td>HA-served</td><td>Two radios: HA-served (default, snippet uses <code>{HA_URL}/harvest_assets/harvest.min.js</code>; always matches the running integration), or Custom URL (admin-supplied). HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration.</td></tr>
               <tr><td>Auth timeout</td><td>10s</td><td>WebSocket auth must complete within this window.</td></tr>
               <tr><td>Keepalive interval</td><td>30s</td><td>Server-to-client ping frequency.</td></tr>
               <tr><td>Client heartbeat timeout</td><td>60s</td><td>Session dropped if no client message within this window.</td></tr>
@@ -294,6 +296,7 @@
               <tr><td><code>HRV_ORIGIN_DENIED</code></td><td>Origin (or <code>page_path</code>) not in the token's allowed list.</td></tr>
               <tr><td><code>HRV_IP_DENIED</code></td><td>Client IP not in the token's <code>allowed_ips</code> ranges.</td></tr>
               <tr><td><code>HRV_SIGNATURE_INVALID</code></td><td>HMAC signature verification failed (bad signature, stale timestamp, or timestamp more than 5 seconds in the future).</td></tr>
+              <tr><td><code>HRV_PROTOCOL_INCOMPATIBLE</code></td><td>The widget speaks a WebSocket protocol version the server cannot accept. Typically a stale cached snippet outliving an integration update. The <code>auth_failed</code> response includes a <code>server</code> block (with <code>protocol</code>, <code>version</code>, and <code>min_client_protocol</code>) so the widget can render a useful diagnostic. Visitors see "Widget version cannot connect to this server. Update your snippet" rather than the generic "Widget unavailable". Permanent; no reconnect.</td></tr>
               <tr><td><code>HRV_ENTITY_NOT_IN_TOKEN</code></td><td>None of the submitted entity references resolved within the token's scope. Individual unresolvable refs are silently skipped during auth and logged to the activity store with internal code <code>ENTITY_REF_DROPPED</code>; this code is returned only when zero refs resolve.</td></tr>
               <tr><td><code>HRV_ENTITY_INCOMPATIBLE</code></td><td>Entity domain is on the Tier 3 blocked list. Returned at token creation time; per-ref incompatibility during auth is silently skipped (and logged as <code>ENTITY_REF_DROPPED</code>).</td></tr>
               <tr><td><code>HRV_SESSION_LIMIT_REACHED</code></td><td>Token's <code>max_sessions</code> or <code>max_renewals</code> limit reached.</td></tr>
@@ -310,7 +313,7 @@
           </table>
         </div>
 
-        <p>The widget defines three additional client-only states that never appear in server activity logs: <code>HRV_OFFLINE</code> (cannot reach the server), <code>HRV_STALE</code> (heartbeat timeout), and <code>HRV_CONNECTING</code> (initial handshake in progress). These are documented in SPEC.md Section 8.</p>
+        <p>The widget defines four additional client-only states that never appear in server activity logs: <code>HRV_OFFLINE</code> (cannot reach the server), <code>HRV_STALE</code> (heartbeat timeout), <code>HRV_CONNECTING</code> (initial handshake in progress), and <code>HRV_INCOMPATIBLE</code> (the widget-side state name set when an <code>auth_failed</code> with <code>HRV_PROTOCOL_INCOMPATIBLE</code> arrives; permanent, no reconnect). These are documented in SPEC.md Section 8.</p>
 
       </div>
     </main>

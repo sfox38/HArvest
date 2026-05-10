@@ -120,7 +120,7 @@
         <p>The snippet has two parts. First, a one-time setup block that loads the widget script and tells it where your Home Assistant instance is. Second, one <code>&lt;hrv-card&gt;</code> tag for each entity you want to show.</p>
 
         <pre><code class="language-html">&lt;!-- Part 1: Load the script and connect to your HA instance (once per page) --&gt;
-&lt;script src="/harvest.min.js"&gt;&lt;/script&gt;
+&lt;script src="https://myhome.duckdns.org/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({
     haUrl: "https://myhome.duckdns.org",
@@ -134,9 +134,9 @@
 
         <p>The setup block only needs to appear once, no matter how many cards you add. Place <code>&lt;hrv-card&gt;</code> tags anywhere in the page body where you want a widget to appear.</p>
 
-        <div class="callout callout-warn">
-          <span class="callout-label">Where is harvest.min.js?</span>
-          <p>The widget script is not installed automatically by HACS. You need to download it and place it on your web server. See <a href="installation.html#widget-script">Widget script</a> on the installation page for details.</p>
+        <div class="callout callout-tip">
+          <span class="callout-label">Where does harvest.min.js come from?</span>
+          <p>The script URL points at your Home Assistant instance. The HArvest integration serves the widget bundle directly out of its own files at <code>/harvest_assets/harvest.min.js</code>. This means the widget always matches the running integration version - update HArvest via HACS and every embedded widget picks up the new bundle on the next page load. No separate widget upload, no CDN, no version drift.</p>
         </div>
 
         <div class="callout callout-tip">

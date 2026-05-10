@@ -458,7 +458,7 @@
 
         <p>Because your renderer is delivered as a pack, the embedding page needs nothing beyond the standard HArvest setup. The widget automatically loads the pack when it connects and finds the token's theme has a renderer pack. No extra script tags, no manual registration.</p>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
 &lt;/script&gt;
@@ -643,7 +643,7 @@ var(--hrv-transition-speed)  /* 150ms */</code></pre>
 
         <p>During development, uploading a pack after every change is slow. For faster iteration, you can use <code>HArvest.registerRenderer()</code> with a local script tag. This registers the renderer globally (not scoped to a theme) so you can test it immediately.</p>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script src="vacuum-card.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
@@ -898,7 +898,7 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
           <li>Embed the widget on a page. No extra script tags are needed - the pack loads automatically:</li>
         </ol>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({
     haUrl: "https://myhome.example.com",

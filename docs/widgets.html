@@ -84,7 +84,7 @@
         <h3>Custom element mode</h3>
         <p>Uses <code>&lt;hrv-card&gt;</code> and <code>&lt;hrv-group&gt;</code> as native HTML custom elements.</p>
 
-        <pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+        <pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
 &lt;/script&gt;
@@ -97,10 +97,12 @@
   &lt;hrv-card entity="light.dining_room"&gt;&lt;/hrv-card&gt;
 &lt;/hrv-group&gt;</code></pre>
 
+        <p>The script <code>src</code> points at your HA instance, which serves the widget bundle directly out of the integration's own files at <code>/harvest_assets/harvest.min.js</code>. The widget always matches the running integration version - update HArvest via HACS and every embedded widget picks up the new bundle on the next page load.</p>
+
         <h3>Data attribute mode</h3>
         <p>Uses plain <code>&lt;div&gt;</code> elements with <code>data-</code> attributes. Mostly useful in environments that sanitize custom HTML tags - some page builders, CMSes, or email templates won't allow unknown elements like <code>&lt;hrv-card&gt;</code>.</p>
 
-        <pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+        <pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 
 &lt;div class="hrv-group" data-token="hwt_..." data-ha-url="https://myhome.example.com"&gt;
   &lt;div class="hrv-mount" data-entity="light.bedroom_main"&gt;&lt;/div&gt;
