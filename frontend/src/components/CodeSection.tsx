@@ -9,7 +9,6 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Token } from "../types";
-import { DEFAULT_WIDGET_SCRIPT_URL } from "../types";
 import { api } from "../api";
 import { Card, Hint } from "./Shared";
 import { Toggle } from "./Toggle";
@@ -168,7 +167,16 @@ export function CodeSection({ token, setToken, setError, hmacSecret, bare }: { t
 
   const haUrl = overrideHost || window.location.origin;
   const isPage = cardMode === "page";
-  const scriptUrl = widgetScriptUrl.trim() || DEFAULT_WIDGET_SCRIPT_URL;
+  // SPEC.md Section 12 (Widget Script URL Settings): when widget_script_url
+  // is empty in config, the snippet uses the HA-served bundle at
+  // {haUrl}/harvest_assets/harvest.min.js. This always matches the running
+  // integration version (the bundle ships inside the integration's own
+  // files) and eliminates widget-vs-server drift by construction.
+  // Previously this fell back to DEFAULT_WIDGET_SCRIPT_URL = "" which
+  // produced <script src=""></script> in the copied snippet.
+  const trimmedCustom = widgetScriptUrl.trim();
+  const scriptUrl = trimmedCustom
+    || `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`;
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
   if (isPage && hmacSecret) pageConfigParts.push(`tokenSecret: "${hmacSecret}"`);

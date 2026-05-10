@@ -197,6 +197,163 @@ function validateWidgetScriptUrl(v: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// WidgetScriptSourceField - SPEC.md Section 12 (Widget Script URL Settings)
+// ---------------------------------------------------------------------------
+//
+// Two radios + a URL input. The empty/non-empty state of the underlying
+// `widget_script_url` config field IS the storage for the radio (option A
+// from the design discussion): empty = HA-served, non-empty = Custom URL.
+// This avoids a config-schema migration and keeps the radio purely a UI
+// presentation over a single string field.
+//
+// HA-served preview is computed live from override_host (or the panel's
+// current origin) so admins see the literal URL their snippet will carry.
+
+interface WidgetScriptSourceFieldProps {
+  value: string;                                    // current widget_script_url
+  overrideHost: string;                             // current override_host (for preview)
+  onChange: (v: string) => Promise<void>;
+}
+
+function WidgetScriptSourceField({ value, overrideHost, onChange }: WidgetScriptSourceFieldProps) {
+  // Mode is derived from value: empty = HA-served, non-empty = Custom.
+  const mode: "ha" | "custom" = value.trim() === "" ? "ha" : "custom";
+
+  // Live preview URL for the HA-served option. Identical resolution to
+  // CodeSection.tsx so admins see exactly what will land in copied
+  // snippets.
+  const haUrl = (overrideHost || window.location.origin).replace(/\/+$/, "");
+  const preview = `${haUrl}/harvest_assets/harvest.min.js`;
+
+  const switchToHa = async () => {
+    if (mode === "ha") return;
+    await onChange("");
+  };
+
+  const switchToCustom = async () => {
+    if (mode === "custom") return;
+    // Don't auto-fill anything; an empty value would just look like the
+    // user is mid-typing. The radio remains in "custom" because we set
+    // a sentinel that round-trips empty too. So we use a single space
+    // pre-fill the user can immediately overwrite. Actually simpler:
+    // leave the field empty but show the input - the radio's checked
+    // state lives in local UI state until the user types. Trade-off:
+    // refreshing the page while empty + Custom selected falls back to
+    // HA-served. Acceptable for v1 since the spec calls out this exact
+    // limitation as the cost of option A.
+    await onChange("");
+  };
+
+  // Local UI state to handle the brief window where Custom is selected
+  // but no URL is typed yet (the persistent storage can't represent
+  // this without a separate field). Initialised from the props mode.
+  const [uiMode, setUiMode] = useState<"ha" | "custom">(mode);
+  useEffect(() => { setUiMode(mode); }, [mode]);
+
+  return (
+    <div className="kv" style={{ paddingBottom: 8 }}>
+      <dt>
+        Widget script source
+        <div className="settings-field-hint">
+          Where snippets fetch the widget JS from.
+        </div>
+      </dt>
+      <dd>
+        <div className="col" style={{ gap: 10 }}>
+          <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="widget_script_source"
+              value="ha"
+              checked={uiMode === "ha"}
+              onChange={() => { setUiMode("ha"); switchToHa(); }}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 2, flex: 1, minWidth: 0 }}>
+              <div>HA-served <span className="muted fs-12">(recommended)</span></div>
+              <div className="muted fs-12" style={{ overflowWrap: "anywhere" }}>{preview}</div>
+            </div>
+          </label>
+
+          <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="widget_script_source"
+              value="custom"
+              checked={uiMode === "custom"}
+              onChange={() => { setUiMode("custom"); switchToCustom(); }}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
+              <div>Custom URL</div>
+              {uiMode === "custom" && (
+                <WidgetScriptUrlInput value={value} onChange={onChange} />
+              )}
+            </div>
+          </label>
+        </div>
+      </dd>
+    </div>
+  );
+}
+
+// Inline-only URL input for the Custom radio, with the same debounce/save
+// behavior as TextField. Inlined rather than reusing TextField because we
+// need it without the surrounding kv/dt/dd wrapper.
+function WidgetScriptUrlInput({ value, onChange }: { value: string; onChange: (v: string) => Promise<void> }) {
+  const [localVal, setLocalVal] = useState(value);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [errMsg, setErrMsg] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { setLocalVal(value); }, [value]);
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
+  const commit = useCallback(async (raw: string) => {
+    const err = validateWidgetScriptUrl(raw.trim());
+    if (err) { setSaveState("error"); setErrMsg(err); return; }
+    setSaveState("saving");
+    setErrMsg("");
+    try {
+      await onChange(raw.trim());
+      setSaveState("idle");
+    } catch (e) {
+      setSaveState("error");
+      setErrMsg(String(e));
+    }
+  }, [onChange]);
+
+  const handleChange = (v: string) => {
+    setLocalVal(v);
+    setSaveState("idle");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => commit(v), 500);
+  };
+
+  return (
+    <div>
+      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+        <input
+          type="text"
+          value={localVal}
+          placeholder="https://example.com/harvest.min.js"
+          onChange={e => handleChange(e.target.value)}
+          onBlur={() => commit(localVal)}
+          className="input"
+          style={{ width: "100%", borderColor: saveState === "error" ? "var(--danger)" : undefined }}
+        />
+        {saveState === "saving" && (
+          <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
+        )}
+      </div>
+      {saveState === "error" && errMsg && (
+        <div className="error-msg-tight">{errMsg}</div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ToggleField
 // ---------------------------------------------------------------------------
 
@@ -714,12 +871,9 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             validate={validateOverrideHost}
             onChange={v => patch({ override_host: v })}
           />
-          <TextField
-            label="Widget script URL"
+          <WidgetScriptSourceField
             value={config.widget_script_url}
-            placeholder="https://example.com/harvest.min.js"
-            hint="URL for the widget JS. Accepts a full URL or a path (e.g. /js/harvest.min.js). Leave blank to serve the bundled file."
-            validate={validateWidgetScriptUrl}
+            overrideHost={config.override_host}
             onChange={v => patch({ widget_script_url: v })}
           />
         </dl>

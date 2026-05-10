@@ -54,7 +54,29 @@ class Harvest_Assets {
 
         $source = Harvest_Settings::get_widget_source();
 
-        if ( $source === 'custom' ) {
+        if ( $source === 'ha' ) {
+            // SPEC.md Section 12 (Widget Script URL Settings). The widget
+            // bundle ships inside the integration's own files at
+            // /harvest_assets/harvest.min.js, so loading it from the HA
+            // host always yields a version that matches the running
+            // integration. Eliminates widget-vs-server drift by
+            // construction. Falls back to the bundled file if the admin
+            // hasn't configured an HA URL yet (the radio is disabled in
+            // that state, but defend against direct DB edits).
+            $ha_url = Harvest_Settings::get_ha_url();
+            if ( $ha_url ) {
+                $src = rtrim( $ha_url, '/' ) . '/harvest_assets/harvest.min.js';
+                // Cache-busting is the HA host's responsibility (the
+                // static path is registered with cache_headers=False).
+                $ver = null;
+            } else {
+                // No HA URL configured - degrade to bundled rather than
+                // emit a broken empty-host URL. Admin will fix the HA
+                // URL field and switch back next visit.
+                $src = HARVEST_PLUGIN_URL . 'assets/harvest.min.js';
+                $ver = self::bundled_version();
+            }
+        } elseif ( $source === 'custom' ) {
             $custom_url = Harvest_Settings::get_widget_custom_url();
             if ( $custom_url ) {
                 $src = $custom_url;
@@ -67,6 +89,7 @@ class Harvest_Assets {
                 $ver = self::bundled_version();
             }
         } else {
+            // 'bundled' - explicit legacy mode. Loads from plugin zip.
             $src = HARVEST_PLUGIN_URL . 'assets/harvest.min.js';
             $ver = self::bundled_version();
         }

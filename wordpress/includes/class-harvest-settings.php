@@ -49,7 +49,11 @@ class Harvest_Settings {
         register_setting( 'harvest_settings_group', 'harvest_widget_source', [
             'type'              => 'string',
             'sanitize_callback' => [ self::class, 'sanitize_widget_source' ],
-            'default'           => 'bundled',
+            // 'ha' (HA-served) is the recommended default for new installs
+            // since it always loads a widget bundle that matches the running
+            // integration version. SPEC.md Section 12. Old installs that
+            // saved 'bundled' continue to work via sanitize_widget_source.
+            'default'           => 'ha',
         ] );
 
         register_setting( 'harvest_settings_group', 'harvest_widget_custom_url', [
@@ -70,7 +74,12 @@ class Harvest_Settings {
     }
 
     public static function sanitize_widget_source( ?string $source ): string {
-        return in_array( $source, [ 'bundled', 'custom' ], true ) ? $source : 'bundled';
+        // 'ha' is the new HA-served mode (SPEC.md Section 12). 'bundled'
+        // is preserved for backward compat with installs that explicitly
+        // chose to load assets/harvest.min.js out of the plugin zip;
+        // unknown / blank values default to 'ha' so new installs land on
+        // the recommended option without user action.
+        return in_array( $source, [ 'ha', 'bundled', 'custom' ], true ) ? $source : 'ha';
     }
 
     public static function sanitize_custom_url( ?string $url ): string {
@@ -128,7 +137,38 @@ class Harvest_Settings {
                             <?php esc_html_e( 'Widget JS source', 'harvest' ); ?>
                         </th>
                         <td>
-                            <?php $source = get_option( 'harvest_widget_source', 'bundled' ); ?>
+                            <?php
+                            $source     = get_option( 'harvest_widget_source', 'ha' );
+                            $ha_no_url  = $ha_url === '';
+                            // HA-served is the recommended option but requires
+                            // the HA URL to be set (PHP has no equivalent of
+                            // window.location.origin to fall back to). When
+                            // unset, the radio is disabled and the legend
+                            // points the admin at the field above.
+                            $ha_preview = $ha_no_url ? '' : ( $ha_url . '/harvest_assets/harvest.min.js' );
+                            ?>
+                            <label>
+                                <input type="radio"
+                                    name="harvest_widget_source"
+                                    value="ha"
+                                    <?php checked( $source, 'ha' ); ?>
+                                    <?php disabled( $ha_no_url, true ); ?>>
+                                <?php esc_html_e( 'HA-served (recommended)', 'harvest' ); ?>
+                            </label>
+                            <span id="harvest-ha-preview-wrap"
+                                style="<?php echo $source === 'ha' ? 'display:block;margin-left:24px;color:#646970;font-size:12px;font-family:Consolas,Monaco,monospace;word-break:break-all;' : 'display:none;'; ?>">
+                                <?php
+                                if ( $ha_no_url ) {
+                                    esc_html_e(
+                                        'Set the Home Assistant URL above to enable this option.',
+                                        'harvest'
+                                    );
+                                } else {
+                                    echo esc_html( $ha_preview );
+                                }
+                                ?>
+                            </span>
+                            <br>
                             <label>
                                 <input type="radio"
                                     name="harvest_widget_source"
@@ -158,17 +198,19 @@ class Harvest_Settings {
                             <script>
                             document.addEventListener('DOMContentLoaded', function(){
                                 var radios = document.querySelectorAll('input[name="harvest_widget_source"]');
-                                var wrap = document.getElementById('harvest-custom-url-wrap');
+                                var customWrap = document.getElementById('harvest-custom-url-wrap');
+                                var haWrap     = document.getElementById('harvest-ha-preview-wrap');
                                 for (var i = 0; i < radios.length; i++) {
                                     radios[i].addEventListener('change', function(){
-                                        wrap.style.display = this.value === 'custom' ? '' : 'none';
+                                        customWrap.style.display = this.value === 'custom' ? '' : 'none';
+                                        haWrap.style.display     = this.value === 'ha'     ? 'block' : 'none';
                                     });
                                 }
                             });
                             </script>
                             <p class="description">
                                 <?php esc_html_e(
-                                    'Bundled is recommended for stability. Custom URL lets you serve the widget from your own host.',
+                                    'HA-served always loads the widget bundle that matches your running integration. Bundled and Custom URL are kept for legacy and self-hosting use cases.',
                                     'harvest'
                                 ); ?>
                             </p>
@@ -268,7 +310,10 @@ class Harvest_Settings {
     }
 
     public static function get_widget_source(): string {
-        return (string) get_option( 'harvest_widget_source', 'bundled' );
+        // Default for fresh installs: 'ha' (HA-served, SPEC.md Section 12).
+        // Existing installs that explicitly chose 'bundled' or 'custom'
+        // continue with their stored preference.
+        return (string) get_option( 'harvest_widget_source', 'ha' );
     }
 
     public static function get_widget_custom_url(): string {

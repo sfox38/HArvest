@@ -352,7 +352,6 @@ export interface HAEntityDetail {
 // Shared constants
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_WIDGET_SCRIPT_URL = "";
 
 // ---------------------------------------------------------------------------
 // Shared validation

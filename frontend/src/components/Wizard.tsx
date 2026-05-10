@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Token, ThemeDefinition } from "../types";
-import { validateLabel as validateLabelWiz, DEFAULT_WIDGET_SCRIPT_URL } from "../types";
+import { validateLabel as validateLabelWiz } from "../types";
 import { api } from "../api";
 import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, useThemeThumbs, useDragScroll } from "./Shared";
 import { Icon } from "./Icon";
@@ -1008,7 +1008,13 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
   }, [token.token_id]);
 
   const haUrl = overrideHost || window.location.origin;
-  const scriptUrl = widgetScriptUrl.trim() || DEFAULT_WIDGET_SCRIPT_URL;
+  // SPEC.md Section 12: empty widget_script_url means HA-served. Compute
+  // {haUrl}/harvest_assets/harvest.min.js so the wizard's preview snippet
+  // matches what the integration actually serves at runtime, instead of
+  // emitting <script src=""></script>.
+  const trimmedCustom = widgetScriptUrl.trim();
+  const scriptUrl = trimmedCustom
+    || `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`;
   const isPage = cardMode === "page";
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
