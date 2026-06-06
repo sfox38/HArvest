@@ -365,6 +365,7 @@
   transition: color 120ms;
 }
 
+a.nav-item { text-decoration: none; color: var(--ink-3); }
 .nav-item:hover { color: var(--ink); }
 
 .nav-item[aria-current="page"] {

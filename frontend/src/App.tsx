@@ -166,6 +166,15 @@ export function App() {
               <span className="nav-label">{label}</span>
             </button>
           ))}
+          <a
+            className="nav-item"
+            href="https://sfox38.github.io/HArvest/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span className="nav-icon"><Icon name="external" size={16} /></span>
+            <span className="nav-label">Documentation</span>
+          </a>
           <div className="nav-spacer" />
           {NAV_FOOT.map(({ id, label, icon }) => (
             <button
