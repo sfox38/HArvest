@@ -165,12 +165,43 @@
         <p>Forecast data is fetched directly from HA's <code>weather/subscribe_forecast</code> API and pushed to the widget automatically. This works correctly on HA 2024.4+ where the <code>forecast</code> state attribute was removed.</p>
         <p><strong>History graph:</strong> not supported.</p>
 
+        <h3>lock</h3>
+        <p>Lock and Unlock buttons. Both buttons are disabled while the lock is transitioning (locking, unlocking) or jammed. The current state is shown as a text label. Read-only capability hides the buttons and shows the state label only.</p>
+        <p><strong>States:</strong> locked, unlocked, locking, unlocking, jammed. The jammed state is highlighted in error colour.</p>
+        <p><strong>Optimistic UI:</strong> the card predicts the transitioning state immediately after a command, then reverts to the server-confirmed state when the real update arrives.</p>
+
+        <h3>person</h3>
+        <p>Read-only. Displays the person's presence state: Home, Away, or the name of the zone they are in.</p>
+
+        <h3>button</h3>
+        <p>A single full-width Press button. No ongoing state is tracked. The button is disabled when the entity is unavailable.</p>
+
+        <h3>number</h3>
+        <p>Range slider spanning the entity's min/max, with current value display. Functionally identical to <code>input_number</code>. Used by integrations such as smart thermostats and LED controllers.</p>
+        <p><strong>History graph:</strong> supported</p>
+
+        <h3>select</h3>
+        <p>Dropdown selector showing all available options. Functionally identical to <code>input_select</code>. Used by integrations such as AV receivers and tuners.</p>
+
+        <h3>script</h3>
+        <p>Run button that triggers the script. Variables are pre-configured by the widget owner at token creation time in the wizard and baked into the token - visitors cannot change them. The card shows a pulse animation while the script is running.</p>
+        <p><strong>States:</strong> off (idle), on (running).</p>
+
+        <h3>automation</h3>
+        <p>Trigger button that fires the automation regardless of its on/off state. An enable/disable toggle lets visitors turn the automation on or off.</p>
+        <p><strong>States:</strong> on (enabled), off (disabled).</p>
+
         <h3>harvest_action</h3>
         <p>A virtual entity domain for safe, panel-configured button actions. Each action is a pre-defined service call or automation trigger set up in the HArvest panel's Actions tab. The card renders as a full-width trigger button. Actions run with HA's full permissions but only execute the specific service calls you configured - visitors can't invoke arbitrary HA services.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">harvest_action bypasses the service whitelist</span>
-          <p>Normal entities can only call services listed in <a href="#allowed-services">ALLOWED_SERVICES</a>. Harvest actions are different: they can call <em>any</em> HA service, including services in Tier 3 domains (lock, alarm, script, etc.). This is by design - they are admin-defined server-side mappings that give you full flexibility. The tradeoff is that a misconfigured action could expose a high-risk service to public visitors. Review your action definitions carefully, especially if they target security-sensitive domains.</p>
+          <p>Normal entities can only call services listed in <a href="#allowed-services">ALLOWED_SERVICES</a>. Harvest actions are different: they can call <em>any</em> HA service, including services in Tier 3 domains (alarm, etc.). This is by design - they are admin-defined server-side mappings that give you full flexibility. The tradeoff is that a misconfigured action could expose a high-risk service to public visitors. Review your action definitions carefully, especially if they target security-sensitive domains.</p>
+        </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">When to use harvest_action vs. button or script</span>
+          <p>Use <code>button</code> or <code>script</code> entities directly when the action is straightforward and the entity is something you are comfortable exposing. Use <code>harvest_action</code> when you need to wrap multiple service calls into a single trigger, or when you want to execute services in domains that HArvest does not directly support (e.g. calling a service on a Tier 3 entity).</p>
         </div>
         </section>
 
@@ -185,7 +216,7 @@
           <li>A basic toggle, if the domain supports <code>turn_on</code> / <code>turn_off</code></li>
         </ul>
 
-        <p>Some examples of Tier 2 domains: <code>number</code>, <code>select</code>, <code>text</code>, <code>date</code>, <code>time</code>, <code>event</code>, <code>calendar</code>.</p>
+        <p>Some examples of Tier 2 domains: <code>text</code>, <code>date</code>, <code>time</code>, <code>event</code>, <code>calendar</code>.</p>
 
         <p>By default, Tier 2 domains are display-only. However, admins can enable commands for any Tier 2 domain by registering its allowed services in the panel under <strong>Settings &gt; Custom Domains</strong>. See the <a href="#custom-domains">Custom domains</a> section for details.</p>
         </section>
@@ -200,22 +231,17 @@
             <thead><tr><th>Domain</th><th>Why blocked</th></tr></thead>
             <tbody>
               <tr><td><code>alarm_control_panel</code></td><td>Security system - only arm/disarm from trusted interfaces</td></tr>
-              <tr><td><code>lock</code></td><td>Physical security device - high risk if exposed publicly</td></tr>
-              <tr><td><code>person</code></td><td>Location tracking - privacy risk</td></tr>
-              <tr><td><code>device_tracker</code></td><td>Location tracking - privacy risk</td></tr>
+              <tr><td><code>device_tracker</code></td><td>Privacy concern - exposes real-time location. Use <code>person</code> domain instead</td></tr>
               <tr><td><code>camera</code></td><td>Live video feed - significant bandwidth and privacy risk</td></tr>
-              <tr><td><code>script</code></td><td>Arbitrary HA scripting - use <code>harvest_action</code> for controlled execution</td></tr>
-              <tr><td><code>automation</code></td><td>Arbitrary HA automation triggers</td></tr>
               <tr><td><code>scene</code></td><td>Deferred to v2 review</td></tr>
               <tr><td><code>update</code></td><td>HA update management - admin-only operation</td></tr>
-              <tr><td><code>button</code></td><td>Arbitrary HA button press - use <code>harvest_action</code> instead</td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="callout callout-tip">
-          <span class="callout-label">Need a button or script trigger?</span>
-          <p>Use the <code>harvest_action</code> virtual domain. Create an action in the HArvest panel's Actions tab that points to your script or service call. The visitor gets a button that triggers the pre-defined action. This keeps you in control of exactly what can be executed.</p>
+          <span class="callout-label">Need to trigger something in a blocked domain?</span>
+          <p>Use the <code>harvest_action</code> virtual domain. Create an action in the HArvest panel's Actions tab that maps to any HA service call, including services in blocked domains. The visitor gets a button; you control what it does server-side.</p>
         </div>
         </section>
 
@@ -234,6 +260,7 @@
               <tr><td><code>fan</code></td><td>Toggle on/off</td><td>Fan power state alongside a climate or light card</td></tr>
               <tr><td><code>binary_sensor</code></td><td>Read-only</td><td>Motion, door/window state, occupancy indicator inside a light card</td></tr>
               <tr><td><code>sensor</code></td><td>Read-only</td><td>Temperature next to a climate card, power draw next to a switch</td></tr>
+              <tr><td><code>lock</code></td><td>Lock/Unlock</td><td>Lock state shown alongside a door sensor or light card</td></tr>
               <tr><td><code>cover</code></td><td>Read-only</td><td>Cover position indicator alongside a related entity</td></tr>
               <tr><td><code>remote</code></td><td>Read-only power state</td><td>Remote power status alongside a media player card</td></tr>
             </tbody>
@@ -268,6 +295,12 @@
               <tr><td><code>timer</code></td><td><code>start</code>, <code>pause</code>, <code>cancel</code>, <code>finish</code></td></tr>
               <tr><td><code>media_player</code></td><td><code>media_play_pause</code>, <code>media_next_track</code>, <code>media_previous_track</code>, <code>volume_up</code>, <code>volume_down</code>, <code>volume_set</code>, <code>volume_mute</code>, <code>select_source</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
               <tr><td><code>remote</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>send_command</code></td></tr>
+              <tr><td><code>lock</code></td><td><code>lock</code>, <code>unlock</code>, <code>open</code></td></tr>
+              <tr><td><code>button</code></td><td><code>press</code></td></tr>
+              <tr><td><code>number</code></td><td><code>set_value</code></td></tr>
+              <tr><td><code>select</code></td><td><code>select_option</code></td></tr>
+              <tr><td><code>script</code></td><td><code>turn_on</code></td></tr>
+              <tr><td><code>automation</code></td><td><code>trigger</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
               <tr><td><code>harvest_action</code></td><td><code>trigger</code> (executes the pre-configured service call defined in the panel)</td></tr>
             </tbody>
           </table>

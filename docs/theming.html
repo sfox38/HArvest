@@ -72,9 +72,9 @@
             <li><a href="#bundled-themes">Bundled themes</a></li>
             <li><a href="#custom-themes">Creating custom themes</a></li>
             <li><a href="#custom-renderers">Custom renderers</a></li>
-            <li><a href="#renderer-packs">Renderer overrides</a></li>
-            <li><a href="#pack-wiring">Pairing a renderer with a theme</a></li>
-            <li><a href="#pack-distribution">Distributing a theme with a renderer</a></li>
+            <li><a href="#renderer-overrides">Renderer overrides</a></li>
+            <li><a href="#renderer-wiring">Pairing a renderer with a theme</a></li>
+            <li><a href="#renderer-distribution">Distributing a theme with a renderer</a></li>
           </ol>
         </div>
 
@@ -553,7 +553,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
           <p>Custom renderers are display-only. They cannot bypass server-side entity permission enforcement. A custom renderer for <code>alarm_control_panel</code> won't receive data for that entity - the integration blocks Tier 3 domains at the protocol level regardless of what the renderer requests.</p>
         </div>
 
-        <h2 id="renderer-packs">Renderer overrides</h2>
+        <h2 id="renderer-overrides">Renderer overrides</h2>
 
         <p>A renderer override is a <code>renderer.js</code> file bundled inside a theme zip. It registers multiple custom renderers at once. Renderer overrides apply only to the theme they ship with - activating a different theme deactivates the override.</p>
 
@@ -565,7 +565,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
         </ul>
 
         <h3>Renderer registration in renderer.js</h3>
-        <p>Renderers are registered into <code>window.HArvest._packs[packId]</code> - a separate namespace from the global renderer registry. This keeps renderer overrides scoped to tokens using that theme:</p>
+        <p>Renderers are registered into <code>window.HArvest._renderers[rendererKey]</code> - a separate namespace from the global renderer registry. This keeps renderer overrides scoped to tokens using that theme:</p>
 
         <pre><code class="language-javascript">// The IIFE pattern avoids polluting the global scope
 (function () {
@@ -589,10 +589,10 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
     }
   }
 
-  // Register using your theme's ID as the pack key
+  // Register using your theme's ID as the renderer key
   window.HArvest = window.HArvest || {};
-  window.HArvest._packs = window.HArvest._packs || {};
-  window.HArvest._packs["my-theme-id"] = {
+  window.HArvest._renderers = window.HArvest._renderers || {};
+  window.HArvest._renderers["my-theme-id"] = {
     "light": DialLightCard,
     "fan":   MinimalFanCard,
     "sensor.temperature": MyTempCard,
@@ -612,7 +612,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
         <h3>Re-render on activation</h3>
         <p>When a renderer override is activated, the widget automatically re-renders all active cards. Cached state and history data are replayed so cards populate immediately without waiting for the next state update.</p>
 
-        <h2 id="pack-wiring">Pairing a renderer with a theme</h2>
+        <h2 id="renderer-wiring">Pairing a renderer with a theme</h2>
 
         <p>Bundle <code>theme.json</code> and <code>renderer.js</code> together in a <code>.zip</code> file and import it via the Themes tab. The server activates the renderer automatically for any token assigned that theme.</p>
 
@@ -629,7 +629,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
 
         <p>The <code>has_renderer</code> flag is set automatically on import when <code>renderer.js</code> is present in the zip. You do not need to set it manually.</p>
 
-        <h2 id="pack-distribution">Distributing a theme with a renderer</h2>
+        <h2 id="renderer-distribution">Distributing a theme with a renderer</h2>
 
         <p>A theme with a renderer override is distributed as a single <code>.zip</code> file containing both <code>theme.json</code> and <code>renderer.js</code>.</p>
         <ul>
@@ -640,7 +640,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
 
         <div class="callout callout-tip">
           <span class="callout-label">Distributing theme + renderer together</span>
-          <p>Put both files in a GitHub repo, provide a download link to the zip, and document what the renderer changes. Users import the zip in one step. No separate pack registry or URL registration needed.</p>
+          <p>Put both files in a GitHub repo, provide a download link to the zip, and document what the renderer changes. Users import the zip in one step. No separate renderer registry or URL registration needed.</p>
         </div>
 
       </div>

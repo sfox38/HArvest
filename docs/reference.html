@@ -117,7 +117,7 @@
               <tr><td><code>HArvest.registerRenderer(key, Class)</code></td><td>Register a custom renderer for a domain or domain.device_class. Last write wins.</td></tr>
               <tr><td><code>HArvest.renderers</code></td><td>Object containing all built-in renderer classes for extension.</td></tr>
               <tr><td><code>HArvest.track.anyState(callback)</code></td><td>Register a callback for all entity state changes on the page.</td></tr>
-              <tr><td><code>HArvest._packs</code> <span class="badge badge-grey">internal</span></td><td>Renderer pack namespace. Used by renderer pack authors to register alternative card renderers. Not part of the public API; may change between versions.</td></tr>
+              <tr><td><code>HArvest._renderers</code> <span class="badge badge-grey">internal</span></td><td>Renderer override namespace. Used by renderer override authors to register alternative card renderers. Not part of the public API; may change between versions.</td></tr>
             </tbody>
           </table>
         </div>
@@ -208,7 +208,7 @@
               <tr><td>Graph type</td><td>"line" | "bar" | null</td><td>null</td><td>History graph for sensors and input_number. Null = no graph. Stored in <code>display_hints.graph</code>.</td></tr>
               <tr><td>Graph hours</td><td>1-168</td><td>24</td><td>Time window for history graph. Stored in <code>display_hints.hours</code>.</td></tr>
               <tr><td>Graph period</td><td>1-60</td><td>10</td><td>Aggregation period in minutes per data point. Stored in <code>display_hints.period</code>.</td></tr>
-              <tr><td>Fan display mode</td><td>"auto" | "on-off" | "continuous" | "stepped" | "cycle"</td><td>"auto"</td><td>Controls which fan speed UI is shown. "auto" lets the renderer decide based on the entity's features. Stored in <code>display_hints.display_mode</code>. Only visible when the active theme pack supports it.</td></tr>
+              <tr><td>Fan display mode</td><td>"auto" | "on-off" | "continuous" | "stepped" | "cycle"</td><td>"auto"</td><td>Controls which fan speed UI is shown. "auto" lets the renderer decide based on the entity's features. Stored in <code>display_hints.display_mode</code>. Only visible when the active theme renderer supports it.</td></tr>
               <tr><td>Animate fan</td><td>boolean</td><td>false</td><td>Spin the fan icon when entity is on. Stored in <code>display_hints.animate</code>.</td></tr>
               <tr><td>Companions</td><td>entity list</td><td>-</td><td>Companion entities displayed inside this card. Managed in the Entity Settings card; do not appear in the entity list. 50-entity token budget applies. See <a href="entities.html#companions">companion eligibility</a>.</td></tr>
               <tr><td>Badge: show icon</td><td>boolean</td><td>true</td><td>Show icon in badge pill. Only visible when capability is <code>"badge"</code>. Stored in <code>display_hints.badge_show_icon</code>.</td></tr>
@@ -278,7 +278,7 @@
   },
   "author": "string (optional)",
   "version": "string (optional)",
-  "renderer_pack": "pack-id | true (optional)"
+  "has_renderer": "boolean (optional, true when renderer.js is present)"
 }</code></pre>
 
         <h2 id="error-codes">Error codes</h2>
