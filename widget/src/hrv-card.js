@@ -182,7 +182,7 @@ export class HrvCard extends HTMLElement {
 
     // Tear down the active renderer's external resources before the host
     // element is GC'd. Renderers may hold setInterval handles (TimerCard),
-    // document/window listeners (InputSelectCard, pack ClimateCard, pack
+    // document/window listeners (InputSelectCard, override ClimateCard,
     // SensorCard), or RAF/pointer momentum-scroll handlers (WeatherCard).
     // Without this, a single-page app or CMS page builder that mounts and
     // unmounts hrv-card elements leaks one set of handles per cycle.
@@ -224,7 +224,7 @@ export class HrvCard extends HTMLElement {
     // input) back to the server-confirmed value because the new renderer's
     // isSliderActive() resets to false. JSON.stringify is byte-stable for
     // server-delivered JSON (insertion order is consistent), so equal output
-    // means structurally equal input. Pack swaps go through _reRender(), not
+    // means structurally equal input. Renderer swaps go through _reRender(), not
     // this path, so this check does not interfere with style updates.
     if (this.#entityDef && this.#renderer
         && JSON.stringify(def) === JSON.stringify(this.#entityDef)) {
@@ -288,8 +288,8 @@ export class HrvCard extends HTMLElement {
 
     const isBadge = def.capabilities === "badge";
     const RendererClass = isBadge
-      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
-      : (this.#client?._getPackRenderer?.(def.domain, def.device_class ?? null)
+      ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getRendererOverride?.(def.domain, def.device_class ?? null)
         || lookupRenderer(def.domain, def.device_class ?? null));
 
     if (isBadge) this.setAttribute("data-hrv-badge", "");
@@ -448,8 +448,8 @@ export class HrvCard extends HTMLElement {
     if (!this.#entityDef || !this.#renderer) return;
     this.#renderer.destroy?.();
     const Cls = this.#entityDef.capabilities === "badge"
-      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
-      : (this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
+      ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getRendererOverride?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
         || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null));
     this.#renderer = new Cls(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
@@ -474,8 +474,8 @@ export class HrvCard extends HTMLElement {
   _reRender() {
     if (!this.#entityDef || !this.#renderer) return;
     const NewRenderer = this.#entityDef.capabilities === "badge"
-      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
-      : (this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
+      ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getRendererOverride?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
         || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null));
     if (NewRenderer === this.#renderer.constructor) return;
     this.#renderer.destroy?.();
@@ -554,7 +554,7 @@ export class HrvCard extends HTMLElement {
    * @param {object}   attributes - Entity attributes ({brightness: 180, ...})
    * @param {object}   [themeVars] - CSS custom properties to apply
    */
-  setPreview(entityDef, state, attributes, themeVars, packId, graphType = null, animate = false) {
+  setPreview(entityDef, state, attributes, themeVars, rendererId, graphType = null, animate = false) {
     if (!this.shadowRoot) return;
 
     // Force read-write unless entityDef says otherwise.
@@ -586,18 +586,18 @@ export class HrvCard extends HTMLElement {
     }));
     this.#config.companions = this.#companions;
 
-    // Check pack renderer first, then fall back to global registry.
+    // Check renderer override first, then fall back to global registry.
     let RendererClass = null;
     const isBadge = entityDef.capabilities === "badge";
-    if (packId) {
-      const pack = window.HArvest?._packs?.[packId];
-      if (pack) {
+    if (rendererId) {
+      const reg = window.HArvest?._renderers?.[rendererId];
+      if (reg) {
         if (isBadge) {
-          RendererClass = pack["badge"] || null;
+          RendererClass = reg["badge"] || null;
         } else {
           const dc = entityDef.device_class ?? null;
           const specificKey = dc ? `${entityDef.domain}.${dc}` : null;
-          RendererClass = (specificKey && pack[specificKey]) || pack[entityDef.domain] || null;
+          RendererClass = (specificKey && reg[specificKey]) || reg[entityDef.domain] || null;
         }
       }
     }

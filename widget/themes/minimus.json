@@ -3,7 +3,8 @@
   "author": "sfox38",
   "version": "1.0",
   "harvest_version": 1,
-  "renderer_pack": true,
+  "description": "Dial-based light control, ring gauges, and compact card layouts.",
+  "has_renderer": true,
   "capabilities": {
     "fan":          { "display_modes": ["on-off", "continuous", "stepped", "cycle"] },
     "input_number": { "display_modes": ["slider", "buttons"] },

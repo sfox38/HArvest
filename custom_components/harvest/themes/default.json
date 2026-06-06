@@ -2,8 +2,8 @@
   "name": "Default",
   "author": "sfox38",
   "version": "1.0",
-  "description": "Clean, neutral design with automatic light and dark mode. A solid starting point for any page.",
   "harvest_version": 1,
+  "description": "Clean, neutral baseline theme with light and dark mode support.",
   "variables": {
     "--hrv-card-min-width":        "260px",
     "--hrv-color-primary":         "#6ea5f9",

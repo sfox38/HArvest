@@ -368,13 +368,13 @@ def fetch_themes(url: str, llat: str) -> list[dict]:
     return []
 
 
-def fetch_packs(url: str, llat: str) -> list[dict]:
+def fetch_renderers(url: str, llat: str) -> list[dict]:
     try:
-        status, body = _request("GET", f"{url}/api/harvest/packs", llat)
+        status, body = _request("GET", f"{url}/api/harvest/renderers", llat)
         if status == 200:
             data = json.loads(body)
             if data.get("agreed"):
-                return data.get("packs", [])
+                return data.get("renderers", [])
     except Exception:
         pass
     return []
@@ -1334,10 +1334,10 @@ def main() -> None:
     cap_map = {1: "badge", 2: "read", 3: "read-write", 4: "smart"}
     cap_mode = cap_map[cap_choice]
 
-    # Step 6: Theme/Pack
-    print("\nStep 6: Theme / Renderer Pack")
+    # Step 6: Theme/Renderer
+    print("\nStep 6: Theme / Renderer Override")
     themes = fetch_themes(ha_url, llat)
-    packs = fetch_packs(ha_url, llat)
+    renderers = fetch_renderers(ha_url, llat)
 
     theme_url = ""
     if themes:
@@ -1345,8 +1345,8 @@ def main() -> None:
         print("    0. None (default appearance)")
         for i, t in enumerate(themes, 1):
             name = t.get("name", t.get("theme_id", "Unknown"))
-            pack_tag = " [has renderer pack]" if t.get("renderer_pack") else ""
-            print(f"    {i}. {name}{pack_tag}")
+            renderer_tag = " [has renderer override]" if t.get("has_renderer") else ""
+            print(f"    {i}. {name}{renderer_tag}")
 
         raw = input("  Select theme [0]: ").strip()
         if raw and raw != "0":

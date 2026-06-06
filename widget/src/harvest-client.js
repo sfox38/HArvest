@@ -133,9 +133,8 @@ export class HarvestClient {
   // Permanent shutdown flag - set after MAX_REAUTH_ATTEMPTS failures
   /** @type {boolean} */ #permanentFailure = false;
 
-  /** @type {string|null} */ #activePack = null;
-  // Resolves when the in-flight pack script finishes loading. null when idle.
-  /** @type {Promise<void>|null} */ #packLoadPromise = null;
+  /** @type {string|null} */ #activeRenderer = null;
+  /** @type {Promise<void>|null} */ #rendererLoadPromise = null;
 
   // Buffered messages for entities not yet registered (companion race condition).
   /** @type {Map<string, object>} */ #pendingDefinitions = new Map();
@@ -379,12 +378,12 @@ export class HarvestClient {
     return this.#cards.get(entityId) ?? null;
   }
 
-  _getPackRenderer(domain, deviceClass) {
-    if (!this.#activePack) return null;
-    const pack = window.HArvest?._packs?.[this.#activePack];
-    if (!pack) return null;
+  _getRendererOverride(domain, deviceClass) {
+    if (!this.#activeRenderer) return null;
+    const reg = window.HArvest?._renderers?.[this.#activeRenderer];
+    if (!reg) return null;
     const specificKey = deviceClass ? `${domain}.${deviceClass}` : null;
-    return (specificKey && pack[specificKey]) || pack[domain] || null;
+    return (specificKey && reg[specificKey]) || reg[domain] || null;
   }
 
   /**
@@ -649,7 +648,7 @@ export class HarvestClient {
       case "error":            return this.#handleError(msg);
       case "theme":            return this.#handleTheme(msg);
       case "token_config":    return this.#handleTokenConfig(msg);
-      case "renderer_pack":   return this.#handleRendererPack(msg);
+      case "renderer":        return this.#handleRenderer(msg);
       case "keepalive":        return; // heartbeat reset already done in #onMessage
       default:
         console.debug("[HArvest] Unknown message type:", msg.type);
@@ -739,17 +738,17 @@ export class HarvestClient {
   }
 
   #handleEntityDefinition(msg, _depth = 0) {
-    // Defer until in-flight pack script finishes so the first render uses the
-    // pack renderer directly (no flash of built-in renderer).
+    // Defer until in-flight renderer script finishes so the first render uses
+    // the override renderer directly (no flash of built-in renderer).
     //
     // _depth caps the recursive defer in the pathological case where new
-    // renderer_pack messages keep arriving before each previous pack finishes
+    // renderer messages keep arriving before each previous one finishes
     // loading - each defer would otherwise create a new .then() chain. Server
-    // does not spam pack messages in practice; depth > 5 means message
+    // does not spam renderer messages in practice; depth > 5 means message
     // ordering has gone sideways and dispatching with the currently-loaded
-    // pack (or built-in fallback) is the safer choice.
-    if (this.#packLoadPromise && _depth < 5) {
-      this.#packLoadPromise.then(() => this.#handleEntityDefinition(msg, _depth + 1));
+    // renderer (or built-in fallback) is the safer choice.
+    if (this.#rendererLoadPromise && _depth < 5) {
+      this.#rendererLoadPromise.then(() => this.#handleEntityDefinition(msg, _depth + 1));
       return;
     }
     const entityId = msg.entity_id;
@@ -923,55 +922,47 @@ export class HarvestClient {
     }
   }
 
-  #handleRendererPack(msg) {
+  #handleRenderer(msg) {
     if (!msg.url) {
-      this.#activePack = null;
+      this.#activeRenderer = null;
       for (const card of this.#cards.values()) {
         card._reRender?.();
       }
       return;
     }
-    // Strip query string before extracting pack ID so ?v=timestamp never breaks the match.
     const urlPath = msg.url.split("?")[0];
-    // Validate URL is a relative path (defense-in-depth against malicious server messages).
     if (msg.url && (msg.url.includes("://") || msg.url.startsWith("//"))) {
-      console.warn("[HArvest] Rejected renderer_pack with absolute URL:", msg.url);
+      console.warn("[HArvest] Rejected renderer message with absolute URL:", msg.url);
       return;
     }
     const match = urlPath.match(/\/([^/]+)\.js$/);
-    const packId = match ? match[1] : null;
-    if (window.HArvest?._packs?.[packId]) {
-      this.#activePack = packId;
+    const rendererId = match ? match[1] : null;
+    if (window.HArvest?._renderers?.[rendererId]) {
+      this.#activeRenderer = rendererId;
       for (const card of this.#cards.values()) {
         card._reRender?.();
       }
       return;
     }
-    // Pack not yet loaded - set a promise so entity_definition messages wait.
     let resolve;
-    this.#packLoadPromise = new Promise(r => { resolve = r; });
+    this.#rendererLoadPromise = new Promise(r => { resolve = r; });
     const script = document.createElement("script");
     const sep = msg.url.includes("?") ? "&" : "?";
     script.src = this.#haUrl + msg.url + sep + "_=" + Date.now();
-    script.dataset.packId = packId;
+    script.dataset.rendererId = rendererId;
     script.onload = () => {
       document.head.removeChild(script);
-      this.#activePack = packId;
-      this.#packLoadPromise = null;
+      this.#activeRenderer = rendererId;
+      this.#rendererLoadPromise = null;
       resolve();
       for (const card of this.#cards.values()) {
         card._reRender?.();
       }
     };
     script.onerror = () => {
-      console.warn("[HArvest] Failed to load renderer pack:", msg.url);
+      console.warn("[HArvest] Failed to load renderer:", msg.url);
       document.head.removeChild(script);
-      this.#packLoadPromise = null;
-      // Intentionally NOT clearing #activePack: a failed pack load should
-      // leave whatever pack was active before unchanged (or null on first
-      // load, in which case the renderer-lookup chain falls back to the
-      // built-in registry). _reRender is not fired here for the same reason
-      // - cards keep their existing renderers since nothing actually changed.
+      this.#rendererLoadPromise = null;
       resolve();
     };
     document.head.appendChild(script);

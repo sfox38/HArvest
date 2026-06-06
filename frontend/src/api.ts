@@ -22,7 +22,7 @@ import type {
   HAEntity,
   HAEntityDetail,
   ThemeDefinition,
-  PacksResponse,
+  RenderersResponse,
   WarningsState,
   UrlCheckResult,
 } from "./types";
@@ -383,10 +383,10 @@ export const api = {
     get: (themeId: string): Promise<ThemeDefinition> =>
       _get<ThemeDefinition>(`/themes/${themeId}`),
 
-    create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; description?: string; renderer_pack?: boolean; capabilities?: unknown; pack_settings?: string[] }): Promise<ThemeDefinition> =>
+    create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; description?: string; has_renderer?: boolean; capabilities?: unknown; renderer_settings?: string[] }): Promise<ThemeDefinition> =>
       _post<ThemeDefinition>("/themes", data),
 
-    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; description: string; variables: Record<string, string>; dark_variables: Record<string, string>; renderer_pack: boolean; capabilities: unknown; pack_settings: string[] }>): Promise<ThemeDefinition> =>
+    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; description: string; variables: Record<string, string>; dark_variables: Record<string, string>; has_renderer: boolean; capabilities: unknown; renderer_settings: string[] }>): Promise<ThemeDefinition> =>
       _patch<ThemeDefinition>(`/themes/${themeId}`, data),
 
     delete: (themeId: string): Promise<void> =>
@@ -398,7 +398,7 @@ export const api = {
     reloadById: (themeId: string): Promise<{ status: string; theme: ThemeDefinition }> =>
       _post<{ status: string; theme: ThemeDefinition }>(`/themes/${themeId}/reload`, {}),
 
-    importZip: async (file: File): Promise<ThemeDefinition & { has_pack: boolean; error?: string }> => {
+    importZip: async (file: File): Promise<ThemeDefinition & { has_renderer_file: boolean; error?: string }> => {
       const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
       const form = new FormData();
       form.append("file", file);
@@ -467,21 +467,21 @@ export const api = {
   },
 
   // ---------------------------------------------------------------------------
-  // Renderer packs
+  // Renderers
   // ---------------------------------------------------------------------------
 
-  packs: {
-    list: (): Promise<PacksResponse> =>
-      _get<PacksResponse>("/packs"),
+  renderers: {
+    list: (): Promise<RenderersResponse> =>
+      _get<RenderersResponse>("/renderers"),
 
     agree: (agreed: boolean): Promise<{ agreed: boolean }> =>
-      _post<{ agreed: boolean }>("/packs/agree", { agreed }),
+      _post<{ agreed: boolean }>("/renderers/agree", { agreed }),
 
-    getCode: (packId: string): Promise<{ pack_id: string; code: string }> =>
-      _get<{ pack_id: string; code: string }>(`/packs/${packId}/code`),
+    getCode: (rendererId: string): Promise<{ renderer_id: string; code: string }> =>
+      _get<{ renderer_id: string; code: string }>(`/renderers/${rendererId}/code`),
 
-    updateCode: (packId: string, code: string): Promise<{ pack_id: string; status: string }> =>
-      _post<{ pack_id: string; status: string }>(`/packs/${packId}/code`, { code }),
+    updateCode: (rendererId: string, code: string): Promise<{ renderer_id: string; status: string }> =>
+      _post<{ renderer_id: string; status: string }>(`/renderers/${rendererId}/code`, { code }),
   },
 
   // ---------------------------------------------------------------------------

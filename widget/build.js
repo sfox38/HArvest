@@ -55,9 +55,9 @@ function readVersionConstants() {
   }
   return { widget: platform[1], protocol: parseInt(protocol[1], 10) };
 }
-const PACKS = [
-  { entry: resolve(__dirname, "src/packs/minimus-pack.js"), out: resolve(__dirname, "../custom_components/harvest/packs/minimus.js") },
-  { entry: resolve(__dirname, "src/packs/shrooms-pack.js"), out: resolve(__dirname, "../custom_components/harvest/packs/shrooms.js") },
+const RENDERERS = [
+  { entry: resolve(__dirname, "src/renderers/minimus-renderer.js"), out: resolve(__dirname, "../custom_components/harvest/renderers/minimus.js") },
+  { entry: resolve(__dirname, "src/renderers/shrooms-renderer.js"), out: resolve(__dirname, "../custom_components/harvest/renderers/shrooms.js") },
 ];
 
 // Post-build copy destinations for the widget bundle.
@@ -71,8 +71,8 @@ const WIDGET_COPIES = [
   resolve(__dirname, "../custom_components/harvest/panel/harvest.min.js"),
 ];
 
-// Post-build copy destinations for pack files.
-const PACK_COPIES = [];
+// Post-build copy destinations for renderer files.
+const RENDERER_COPIES = [];
 
 const isWatch = process.argv.includes("--watch");
 
@@ -157,10 +157,10 @@ async function build() {
     console.log(`  -> ${dest.replace(resolve(__dirname, ".."), "..")}`);
   }
 
-  // Build renderer packs
-  for (const pack of PACKS) {
-    const packResult = await esbuild.build({
-      entryPoints: [pack.entry],
+  // Build renderer overrides
+  for (const renderer of RENDERERS) {
+    const rendererResult = await esbuild.build({
+      entryPoints: [renderer.entry],
       bundle:      false,
       minify:      true,
       format:      "iife",
@@ -170,22 +170,22 @@ async function build() {
       logLevel:    "info",
     });
 
-    if (packResult.errors.length > 0) {
-      console.error("Pack build failed:", packResult.errors);
+    if (rendererResult.errors.length > 0) {
+      console.error("Renderer build failed:", rendererResult.errors);
       process.exit(1);
     }
 
-    const packBytes = packResult.outputFiles[0].contents;
-    writeFileSync(pack.out, packBytes);
+    const rendererBytes = rendererResult.outputFiles[0].contents;
+    writeFileSync(renderer.out, rendererBytes);
 
-    for (const dest of PACK_COPIES) {
+    for (const dest of RENDERER_COPIES) {
       mkdirSync(dirname(dest), { recursive: true });
-      copyFileSync(pack.out, dest);
+      copyFileSync(renderer.out, dest);
     }
 
-    const name = pack.out.split("/").pop();
-    const pkb = (packBytes.byteLength / 1024).toFixed(1);
-    console.log(`Pack: ${pkb} KB  packs/${name}`);
+    const name = renderer.out.split("/").pop();
+    const rkb = (rendererBytes.byteLength / 1024).toFixed(1);
+    console.log(`Renderer: ${rkb} KB  renderers/${name}`);
   }
 }
 

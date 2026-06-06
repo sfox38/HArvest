@@ -3,6 +3,7 @@
   "author": "sfox38",
   "version": "1.0",
   "harvest_version": 1,
+  "description": "Clean, neutral baseline theme with light and dark mode support.",
   "variables": {
     "--hrv-card-min-width":        "260px",
     "--hrv-color-primary":         "#6ea5f9",

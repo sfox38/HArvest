@@ -20,7 +20,7 @@ from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager
 from .http_views import register_views
-from .pack_manager import PackManager
+from .renderer_manager import RendererManager
 from .secondary_server import SecondaryServer
 from .theme_manager import ThemeManager
 from .panel import register_panel
@@ -66,8 +66,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     theme_manager = ThemeManager(hass)
     await theme_manager.load()
-    pack_manager = PackManager(hass)
-    await pack_manager.load()
+    renderer_manager = RendererManager(hass)
+    await renderer_manager.load()
 
     warnings_store = WarningsStore(hass)
     await warnings_store.load()
@@ -168,7 +168,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "event_bus":        event_bus,
         "action_manager":   action_manager,
         "theme_manager":    theme_manager,
-        "pack_manager":     pack_manager,
+        "renderer_manager": renderer_manager,
         "warnings_store":   warnings_store,
         "sensors":          sensors,
         "controls":         controls,

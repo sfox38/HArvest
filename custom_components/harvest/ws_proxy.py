@@ -51,7 +51,7 @@ from .event_bus import EventBus
 from .harvest_action import HarvestActionManager
 from .rate_limiter import RateLimiter
 from .session_manager import Session, SessionManager
-from .pack_manager import PackManager
+from .renderer_manager import RendererManager
 from .theme_manager import ThemeManager, theme_url_to_id
 from .token_manager import EntityAccess, Token, TokenManager
 
@@ -219,8 +219,8 @@ class HarvestWsView(HomeAssistantView):
         return self._data.get("theme_manager")
 
     @property
-    def _pack_manager(self) -> PackManager | None:
-        return self._data.get("pack_manager")
+    def _renderer_manager(self) -> RendererManager | None:
+        return self._data.get("renderer_manager")
 
     @property
     def _config(self) -> dict:
@@ -598,18 +598,18 @@ class HarvestWsView(HomeAssistantView):
                     "dark_variables": theme_def.dark_variables,
                 })
 
-        # --- Step 4a.2: Send renderer pack URL if token has one ---
+        # --- Step 4a.2: Send renderer URL if token has one ---
         if token.renderer_pack:
-            pack_mgr = self._pack_manager
-            pack_path = pack_mgr.get_pack_path(token.renderer_pack) if pack_mgr and pack_mgr.agreed else None
-            if pack_path:
+            renderer_mgr = self._renderer_manager
+            renderer_path = renderer_mgr.get_renderer_path(token.renderer_pack) if renderer_mgr and renderer_mgr.agreed else None
+            if renderer_path:
                 try:
-                    mtime = int(pack_path.stat().st_mtime)
+                    mtime = int(renderer_path.stat().st_mtime)
                 except OSError:
                     mtime = 0
                 await ws.send_json({
-                    "type": "renderer_pack",
-                    "url": f"/api/harvest/packs/{token.renderer_pack}.js?v={mtime}",
+                    "type": "renderer",
+                    "url": f"/api/harvest/renderers/{token.renderer_pack}.js?v={mtime}",
                 })
 
         # --- Steps 4b/6/7: Initial state, message loop, and cleanup ---

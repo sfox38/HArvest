@@ -141,7 +141,7 @@ BLOCKED_ATTRIBUTES: frozenset[str] = frozenset({
     "attribution",
     "editable",
     "id",
-    # "assumed_state" intentionally NOT blocked: pack renderers (fan, switch,
+    # "assumed_state" intentionally NOT blocked: renderer overrides (fan, switch,
     # cover) use it to detect entities whose state is fire-and-forget and
     # adjust their UX accordingly (e.g. suppress data-active button reflection
     # when HA cannot confirm the actual device state).

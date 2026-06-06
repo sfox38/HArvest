@@ -11,7 +11,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import type { Token, ThemeDefinition, HAEntityDetail } from "../types";
 import { api } from "../api";
 import { Spinner } from "./Shared";
-import { loadWidgetScript, loadPackScript, isPackLoaded, generateMockHistory } from "./WidgetPreview";
+import { loadWidgetScript, loadRendererScript, isRendererLoaded, generateMockHistory } from "./WidgetPreview";
 
 const _MOCK_WEATHER_FORECAST_DAILY = [
   { datetime: "2025-06-10T12:00:00", condition: "sunny",        temperature: 27, templow: 18 },
@@ -47,15 +47,15 @@ export function EntityPreview({
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [serverDef, setServerDef] = useState<{ definition: Record<string, unknown>; state: string; attributes: Record<string, unknown> } | null>(null);
-  const packId = theme?.renderer_pack ? theme.theme_id : undefined;
+  const rendererId = theme?.has_renderer ? theme.theme_id : undefined;
 
   useEffect(() => {
-    if (packId && !isPackLoaded(packId)) setReady(false);
+    if (rendererId && !isRendererLoaded(rendererId)) setReady(false);
     loadWidgetScript()
-      .then(() => packId ? loadPackScript(packId) : Promise.resolve())
+      .then(() => rendererId ? loadRendererScript(rendererId) : Promise.resolve())
       .then(() => setReady(true))
       .catch(() => setLoadError(true));
-  }, [packId]);
+  }, [rendererId]);
 
   const entityAccessJson = useMemo(() => JSON.stringify(entityAccess), [entityAccess.capabilities, entityAccess.name_override, entityAccess.icon_override, entityAccess.color_scheme, entityAccess.exclude_attributes, entityAccess.display_hints, entityAccess.gesture_config]);
   const defKey = `${entity.entity_id}:${entityAccessJson}:${companions.map(c => `${c.entity_id}:${c.capabilities}`).join(",")}`;
@@ -123,7 +123,7 @@ export function EntityPreview({
 
     const graphType = (entityAccess.display_hints?.graph as string) ?? null;
     const opts: Record<string, unknown> = {};
-    if (packId) opts.packId = packId;
+    if (rendererId) opts.rendererId = rendererId;
     if (graphType && graphType !== "none") {
       opts.graph = graphType;
       opts.hours = 24;

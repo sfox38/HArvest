@@ -7,11 +7,11 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { ThemeDefinition, Token, PacksResponse } from "../types";
+import type { ThemeDefinition, Token, RenderersResponse } from "../types";
 import { api } from "../api";
 import { Card, ConfirmDialog, Spinner, ErrorBanner, useThemeThumbs, useDragScroll } from "./Shared";
 import { Icon } from "./Icon";
-import { WidgetPreview, clearPackCache } from "./WidgetPreview";
+import { WidgetPreview, clearRendererCache } from "./WidgetPreview";
 
 // ---------------------------------------------------------------------------
 // Theme URL mapping helpers
@@ -78,20 +78,20 @@ export function Themes({ onSelectToken }: ThemesProps) {
   // Code editor visibility (hidden by default, auto-shown for new themes)
   const [showCodeEditors, setShowCodeEditors] = useState(false);
 
-  // Renderer pack state
-  const [packsData, setPacksData] = useState<PacksResponse | null>(null);
-  const [packCode, setPackCode] = useState<string | null>(null);
-  const [packCodeDirty, setPackCodeDirty] = useState(false);
-  const [packCodeSaving, setPackCodeSaving] = useState(false);
+  // Renderer state
+  const [renderersData, setRenderersData] = useState<RenderersResponse | null>(null);
+  const [rendererCode, setRendererCode] = useState<string | null>(null);
+  const [rendererCodeDirty, setRendererCodeDirty] = useState(false);
+  const [rendererCodeSaving, setRendererCodeSaving] = useState(false);
   const [showAgree, setShowAgree] = useState(false);
   const [agreeText, setAgreeText] = useState("");
   const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
 
 
-  // Pack upload reminder (shown after importing a theme that has a renderer_pack)
-  const [showPackReminder, setShowPackReminder] = useState(false);
+  // Renderer upload reminder (shown after importing a theme with has_renderer)
+  const [showRendererReminder, setShowRendererReminder] = useState(false);
 
-  // Incremented after a pack JS is uploaded to force the widget preview to remount
+  // Incremented after a renderer JS is uploaded to force the widget preview to remount
   const [previewKey, setPreviewKey] = useState(0);
 
   // Delete confirm
@@ -104,7 +104,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const thumbRef = useRef<HTMLInputElement>(null);
-  const packJsRef = useRef<HTMLInputElement>(null);
+  const rendererJsRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async () => {
     // allSettled: themes is the primary content; tokens is only used for
@@ -128,19 +128,19 @@ export function Themes({ onSelectToken }: ThemesProps) {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
-  useEffect(() => { api.packs.list().then(setPacksData).catch(() => {}); }, []);
+  useEffect(() => { api.renderers.list().then(setRenderersData).catch(() => {}); }, []);
 
   const selectedTheme = themes.find(t => t.theme_id === selected) ?? null;
-  const packId = selectedTheme?.renderer_pack ? selectedTheme.theme_id : null;
-  const selectedPack = packId
-    ? packsData?.packs.find(p => p.pack_id === packId) ?? null
+  const rendererId = selectedTheme?.has_renderer ? selectedTheme.theme_id : null;
+  const selectedRenderer = rendererId
+    ? renderersData?.renderers.find(r => r.renderer_id === rendererId) ?? null
     : null;
 
   useEffect(() => {
-    if (!packId) { setPackCode(null); setPackCodeDirty(false); return; }
-    api.packs.getCode(packId).then(r => setPackCode(r.code)).catch(() => setPackCode(null));
-    setPackCodeDirty(false);
-  }, [packId]);
+    if (!rendererId) { setRendererCode(null); setRendererCodeDirty(false); return; }
+    api.renderers.getCode(rendererId).then(r => setRendererCode(r.code)).catch(() => setRendererCode(null));
+    setRendererCodeDirty(false);
+  }, [rendererId]);
 
   const requireConsent = (action: () => Promise<void>) => {
     // The AGREE dialog (rendered later in this file as role="dialog"
@@ -150,15 +150,15 @@ export function Themes({ onSelectToken }: ThemesProps) {
     // change adds a periodic refresh or other background mutation of the
     // Themes screen, this assumption breaks and `action` should be replaced
     // with an intent (themeId + action type) re-resolved inside confirmAgree.
-    if (packsData?.agreed) { action(); return; }
+    if (renderersData?.agreed) { action(); return; }
     setPendingAction(() => action);
     setShowAgree(true);
   };
 
   const confirmAgree = async () => {
     try {
-      await api.packs.agree(true);
-      setPacksData(prev => prev ? { ...prev, agreed: true } : prev);
+      await api.renderers.agree(true);
+      setRenderersData(prev => prev ? { ...prev, agreed: true } : prev);
       setShowAgree(false);
       setAgreeText("");
       if (pendingAction) { await pendingAction(); setPendingAction(null); }
@@ -180,14 +180,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
       version: selectedTheme.version,
       harvest_version: selectedTheme.harvest_version,
     };
-    if (selectedTheme.renderer_pack) {
-      obj.renderer_pack = true;
+    if (selectedTheme.has_renderer) {
+      obj.has_renderer = true;
     }
     if (selectedTheme.capabilities) {
       obj.capabilities = selectedTheme.capabilities;
     }
-    if (selectedTheme.pack_settings?.length) {
-      obj.pack_settings = selectedTheme.pack_settings;
+    if (selectedTheme.renderer_settings?.length) {
+      obj.renderer_settings = selectedTheme.renderer_settings;
     }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
@@ -271,15 +271,15 @@ export function Themes({ onSelectToken }: ThemesProps) {
           dark_variables: selectedTheme.dark_variables,
           author: "",
           version: "1.0",
-          renderer_pack: selectedTheme.renderer_pack,
+          has_renderer: selectedTheme.has_renderer,
           capabilities: selectedTheme.capabilities ?? undefined,
-          pack_settings: selectedTheme.pack_settings?.length ? selectedTheme.pack_settings : undefined,
+          renderer_settings: selectedTheme.renderer_settings?.length ? selectedTheme.renderer_settings : undefined,
         });
-        if (selectedTheme.renderer_pack && selectedTheme.has_pack) {
+        if (selectedTheme.has_renderer && selectedTheme.has_renderer_file) {
           try {
-            const src = await api.packs.getCode(selectedTheme.theme_id);
-            if (src?.code) await api.packs.updateCode(theme.theme_id, src.code);
-          } catch (_e) { /* pack copy is best-effort */ }
+            const src = await api.renderers.getCode(selectedTheme.theme_id);
+            if (src?.code) await api.renderers.updateCode(theme.theme_id, src.code);
+          } catch (_e) { /* renderer copy is best-effort */ }
         }
         const updated = await reload();
         if (updated) {
@@ -290,9 +290,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
             version: theme.version,
             harvest_version: theme.harvest_version,
           };
-          if (theme.renderer_pack) obj.renderer_pack = true;
+          if (theme.has_renderer) obj.has_renderer = true;
           if (theme.capabilities) obj.capabilities = theme.capabilities;
-          if (theme.pack_settings?.length) obj.pack_settings = theme.pack_settings;
+          if (theme.renderer_settings?.length) obj.renderer_settings = theme.renderer_settings;
           obj.variables = theme.variables;
           if (Object.keys(theme.dark_variables ?? {}).length > 0) obj.dark_variables = theme.dark_variables;
           setEditedJson(JSON.stringify(obj, null, 2));
@@ -303,7 +303,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
         }
       } catch (e) { setError(String(e)); }
     };
-    if (selectedTheme.renderer_pack) { requireConsent(doDuplicate); }
+    if (selectedTheme.has_renderer) { requireConsent(doDuplicate); }
     else { doDuplicate(); }
   };
 
@@ -341,7 +341,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
           setError(`Theme reload failed for: ${msgs}`);
         }
       }
-      if (packId) clearPackCache(packId);
+      if (rendererId) clearRendererCache(rendererId);
       await reload();
       setPreviewKey(k => k + 1);
     } catch (e) { setError(String(e)); }
@@ -382,9 +382,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
           version: parsed.version ?? selectedTheme.version,
           variables: parsed.variables,
           dark_variables: parsed.dark_variables ?? {},
-          renderer_pack: !!parsed.renderer_pack,
+          has_renderer: !!parsed.has_renderer,
           capabilities: parsed.capabilities ?? null,
-          pack_settings: parsed.pack_settings ?? [],
+          renderer_settings: parsed.renderer_settings ?? [],
         });
         setDirty(false);
         setParsedVars(null);
@@ -395,7 +395,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
     };
     try {
       const parsed = JSON.parse(editedJson);
-      if (parsed.renderer_pack && !selectedTheme.renderer_pack) {
+      if (parsed.has_renderer && !selectedTheme.has_renderer) {
         requireConsent(doSave);
       } else {
         await doSave();
@@ -411,14 +411,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
       version: selectedTheme.version,
       harvest_version: selectedTheme.harvest_version,
     };
-    if (selectedTheme.renderer_pack) {
-      obj.renderer_pack = true;
+    if (selectedTheme.has_renderer) {
+      obj.has_renderer = true;
     }
     if (selectedTheme.capabilities) {
       obj.capabilities = selectedTheme.capabilities;
     }
-    if (selectedTheme.pack_settings?.length) {
-      obj.pack_settings = selectedTheme.pack_settings;
+    if (selectedTheme.renderer_settings?.length) {
+      obj.renderer_settings = selectedTheme.renderer_settings;
     }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
@@ -477,31 +477,31 @@ export function Themes({ onSelectToken }: ThemesProps) {
     } catch (e) { setError(String(e)); }
   };
 
-  const handlePackJsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRendererJsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedTheme?.renderer_pack) return;
+    if (!file || !selectedTheme?.has_renderer) return;
     const expectedName = `${selectedTheme.name.toLowerCase()}.js`;
     if (file.name.toLowerCase() !== expectedName) {
-      setError(`Expected file "${expectedName}" but got "${file.name}". The pack JS file must match the theme name.`);
-      if (packJsRef.current) packJsRef.current.value = "";
+      setError(`Expected file "${expectedName}" but got "${file.name}". The renderer JS file must match the theme name.`);
+      if (rendererJsRef.current) rendererJsRef.current.value = "";
       return;
     }
     try {
       const code = await file.text();
-      const pid = selectedTheme.theme_id;
-      await api.packs.updateCode(pid, code);
+      const rid = selectedTheme.theme_id;
+      await api.renderers.updateCode(rid, code);
       const [updated, codeResult] = await Promise.all([
-        api.packs.list(),
-        api.packs.getCode(pid),
+        api.renderers.list(),
+        api.renderers.getCode(rid),
       ]);
-      setPacksData(updated);
-      setPackCode(codeResult.code);
-      setPackCodeDirty(false);
-      clearPackCache(pid);
+      setRenderersData(updated);
+      setRendererCode(codeResult.code);
+      setRendererCodeDirty(false);
+      clearRendererCache(rid);
       setPreviewKey(k => k + 1);
       await reload();
     } catch (err) { setError(String(err)); }
-    if (packJsRef.current) packJsRef.current.value = "";
+    if (rendererJsRef.current) rendererJsRef.current.value = "";
   };
 
   const handleThumbnailUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -529,7 +529,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const previewDarkVars = parsedDarkVars ?? selectedTheme?.dark_variables ?? {};
 
   const jsonCopy = useCopy(editedJson);
-  const packCodeCopy = useCopy(packCode ?? "");
+  const rendererCodeCopy = useCopy(rendererCode ?? "");
 
   if (loading) {
     return (
@@ -576,12 +576,12 @@ export function Themes({ onSelectToken }: ThemesProps) {
                   ) : (
                     <div className="theme-strip-thumb" />
                   )}
-                  {t.renderer_pack && (
+                  {t.has_renderer && (
                     <span
-                      className={`theme-pack-star${!t.has_pack ? " pack-missing" : ""}`}
-                      title={t.has_pack ? "Theme includes a custom renderer pack" : "Renderer pack JS file is missing"}
+                      className={`theme-renderer-star${!t.has_renderer_file ? " renderer-missing" : ""}`}
+                      title={t.has_renderer_file ? "Theme includes custom renderers" : "Renderer JS file is missing"}
                     >
-                      {t.has_pack ? "★" : "⚠"}
+                      {t.has_renderer_file ? "★" : "⚠"}
                     </span>
                   )}
                 </div>
@@ -596,7 +596,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
         </div>
         <input ref={fileRef} type="file" accept=".zip" style={{ display: "none" }} onChange={handleImport} />
         <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />
-        <input ref={packJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handlePackJsUpload} />
+        <input ref={rendererJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handleRendererJsUpload} />
       </Card>
 
       {selectedTheme && (
@@ -714,7 +714,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
           {/* Preview card */}
           <Card title="Preview">
-            <WidgetPreview key={`preview-${selected}-${previewKey}`} variables={previewVars} darkVariables={previewDarkVars} packId={packId || undefined} />
+            <WidgetPreview key={`preview-${selected}-${previewKey}`} variables={previewVars} darkVariables={previewDarkVars} rendererId={rendererId || undefined} />
           </Card>
 
           {showCodeEditors && (
@@ -748,28 +748,28 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 </div>
               </Card>
 
-              {/* Renderer Pack card - bundled pack */}
-              {packId && selectedPack && (
+              {/* Renderer card - bundled renderer */}
+              {rendererId && selectedRenderer && (
                 <Card title="Renderer">
                   <div className="col" style={{ gap: 10 }}>
                     <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                      <strong>{selectedPack.name}</strong>
-                      {selectedPack.is_bundled && <span className="badge badge-muted">Bundled</span>}
+                      <strong>{selectedRenderer.name}</strong>
+                      {selectedRenderer.is_bundled && <span className="badge badge-muted">Bundled</span>}
                     </div>
-                    {selectedPack.description && (
-                      <div className="muted fs-12">{selectedPack.description}</div>
+                    {selectedRenderer.description && (
+                      <div className="muted fs-12">{selectedRenderer.description}</div>
                     )}
-                    {packCode !== null && (
+                    {rendererCode !== null && (
                       <div className="col" style={{ gap: 8, marginTop: 4 }}>
                         <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
                           <div className="label-strong">Renderer Source</div>
-                          <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
-                            <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
+                          <button className={`btn btn-ghost btn-sm${rendererCodeCopy.copied ? " btn-success" : ""}`} onClick={rendererCodeCopy.copy}>
+                            <Icon name="copy" size={13} /> {rendererCodeCopy.copied ? "Copied" : "Copy"}
                           </button>
                         </div>
                         <textarea
                           className="theme-code-textarea"
-                          value={packCode}
+                          value={rendererCode}
                           readOnly
                           spellCheck={false}
                           style={{ minHeight: 200 }}
@@ -780,21 +780,21 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 </Card>
               )}
 
-              {/* Renderer Pack card - user pack with code loaded */}
-              {packId && !selectedPack && packCode !== null && (
+              {/* Renderer card - user renderer with code loaded */}
+              {rendererId && !selectedRenderer && rendererCode !== null && (
                 <Card title="Renderer">
                   <div className="col" style={{ gap: 10 }}>
                     <div className="col gap-8">
                       <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
                         <div className="label-strong">Renderer Source</div>
-                        <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
-                          <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
+                        <button className={`btn btn-ghost btn-sm${rendererCodeCopy.copied ? " btn-success" : ""}`} onClick={rendererCodeCopy.copy}>
+                          <Icon name="copy" size={13} /> {rendererCodeCopy.copied ? "Copied" : "Copy"}
                         </button>
                       </div>
                       <textarea
                         className="theme-code-textarea"
-                        value={packCode}
-                        onChange={e => { setPackCode(e.target.value); setPackCodeDirty(true); }}
+                        value={rendererCode}
+                        onChange={e => { setRendererCode(e.target.value); setRendererCodeDirty(true); }}
                         readOnly={selectedTheme.is_bundled}
                         spellCheck={false}
                         style={{ minHeight: 200 }}
@@ -802,18 +802,18 @@ export function Themes({ onSelectToken }: ThemesProps) {
                       {!selectedTheme.is_bundled && (
                         <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
                           <button className="btn btn-sm" onClick={() => {
-                            if (packId) api.packs.getCode(packId).then(r => { setPackCode(r.code); setPackCodeDirty(false); }).catch(() => {});
-                          }} disabled={!packCodeDirty}>Cancel</button>
-                          <button className="btn btn-sm btn-primary" disabled={!packCodeDirty || packCodeSaving} onClick={async () => {
-                            if (!packId) return;
-                            setPackCodeSaving(true);
+                            if (rendererId) api.renderers.getCode(rendererId).then(r => { setRendererCode(r.code); setRendererCodeDirty(false); }).catch(() => {});
+                          }} disabled={!rendererCodeDirty}>Cancel</button>
+                          <button className="btn btn-sm btn-primary" disabled={!rendererCodeDirty || rendererCodeSaving} onClick={async () => {
+                            if (!rendererId) return;
+                            setRendererCodeSaving(true);
                             try {
-                              await api.packs.updateCode(packId, packCode);
-                              setPackCodeDirty(false);
+                              await api.renderers.updateCode(rendererId, rendererCode);
+                              setRendererCodeDirty(false);
                             } catch (e) { setError(String(e)); }
-                            setPackCodeSaving(false);
+                            setRendererCodeSaving(false);
                           }}>
-                            {packCodeSaving ? "Saving..." : "Save"}
+                            {rendererCodeSaving ? "Saving..." : "Save"}
                           </button>
                         </div>
                       )}
@@ -822,15 +822,15 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 </Card>
               )}
 
-              {/* Renderer Pack card - pack JS not yet uploaded */}
-              {packId && !selectedPack && packCode === null && (
+              {/* Renderer card - renderer JS not yet uploaded */}
+              {rendererId && !selectedRenderer && rendererCode === null && (
                 <Card title="Renderer">
                   <div className="col" style={{ gap: 10 }}>
                     <div className="muted fs-13">
                       This theme includes a custom renderer but the JS file is not installed yet.
                     </div>
                     <div className="fs-12">Upload <code>{selectedTheme.name.toLowerCase()}.js</code> to enable it.</div>
-                    <button className="btn btn-sm btn-primary" style={{ alignSelf: "flex-start" }} onClick={() => packJsRef.current?.click()}>
+                    <button className="btn btn-sm btn-primary" style={{ alignSelf: "flex-start" }} onClick={() => rendererJsRef.current?.click()}>
                       <Icon name="upload" size={13} /> Upload Renderer JS
                     </button>
                   </div>
@@ -863,20 +863,20 @@ export function Themes({ onSelectToken }: ThemesProps) {
       )}
 
 
-      {showPackReminder && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="pack-remind-title" onClick={() => setShowPackReminder(false)}>
+      {showRendererReminder && (
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="renderer-remind-title" onClick={() => setShowRendererReminder(false)}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 id="pack-remind-title" className="dialog-title">Upload Renderer Pack</h3>
+            <h3 id="renderer-remind-title" className="dialog-title">Upload Renderer</h3>
             <div className="dialog-body">
               <p>
-                This theme includes a renderer pack. Select the matching <code>.js</code> file to enable it.
+                This theme includes custom renderers. Select the matching <code>.js</code> file to enable them.
               </p>
             </div>
             <div className="dialog-actions">
-              <button className="btn" onClick={() => setShowPackReminder(false)}>
+              <button className="btn" onClick={() => setShowRendererReminder(false)}>
                 Skip
               </button>
-              <button className="btn btn-primary" autoFocus onClick={() => { setShowPackReminder(false); setTimeout(() => packJsRef.current?.click(), 100); }}>
+              <button className="btn btn-primary" autoFocus onClick={() => { setShowRendererReminder(false); setTimeout(() => rendererJsRef.current?.click(), 100); }}>
                 Upload JS
               </button>
             </div>
@@ -885,13 +885,13 @@ export function Themes({ onSelectToken }: ThemesProps) {
       )}
 
       {showAgree && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="pack-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="renderer-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 id="pack-agree-title" className="dialog-title">Renderer Pack Warning</h3>
+            <h3 id="renderer-agree-title" className="dialog-title">Renderer Warning</h3>
             <div className="dialog-body">
               <p>
-                This theme includes a renderer pack that executes JavaScript from your HA instance
-                inside the widget on the embedding page. Only enable themes with packs you trust.
+                This theme includes custom renderers that execute JavaScript from your HA instance
+                inside the widget on the embedding page. Only enable themes with renderers you trust.
               </p>
               <p style={{ marginTop: 12 }}>
                 Type <strong>AGREE</strong> below to confirm.

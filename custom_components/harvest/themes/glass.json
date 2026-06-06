@@ -2,8 +2,8 @@
   "name": "Glass",
   "author": "sfox38",
   "version": "1.0",
-  "description": "Frosted-glass cards with blur and translucency. Works best over a colourful background image.",
   "harvest_version": 1,
+  "description": "Frosted glass aesthetic with backdrop blur and translucent surfaces.",
   "variables": {
     "--hrv-card-min-width":        "260px",
     "--hrv-color-primary":         "#6200ea",

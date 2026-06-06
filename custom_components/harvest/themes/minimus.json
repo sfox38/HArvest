@@ -2,9 +2,9 @@
   "name": "Minimus",
   "author": "sfox38",
   "version": "1.0",
-  "description": "Minimal monochrome style with dial-based light controls and an enhanced media player. Includes a custom renderer.",
   "harvest_version": 1,
-  "renderer_pack": true,
+  "description": "Dial-based light control, ring gauges, and compact card layouts.",
+  "has_renderer": true,
   "capabilities": {
     "fan":          { "display_modes": ["on-off", "continuous", "stepped", "cycle"] },
     "input_number": { "display_modes": ["slider", "buttons"] },

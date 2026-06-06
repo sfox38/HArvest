@@ -104,7 +104,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [themeFilter, setThemeFilter] = useState("");
   const [themes, setThemes] = useState<ThemeDefinition[]>([]);
-  const [packsAgreed, setPacksAgreed] = useState<boolean | null>(null);
+  const [renderersAgreed, setRenderersAgreed] = useState<boolean | null>(null);
   const [showAgree, setShowAgree] = useState(false);
   const [agreeText, setAgreeText] = useState("");
   const [pendingThemeId, setPendingThemeId] = useState<string | null>(null);
@@ -137,7 +137,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
       .catch(() => {});
   }, []);
   useEffect(() => { api.themes.list().then(setThemes).catch(() => {}); }, []);
-  useEffect(() => { api.packs.list().then(d => setPacksAgreed(d.agreed)).catch(() => {}); }, []);
+  useEffect(() => { api.renderers.list().then(d => setRenderersAgreed(d.agreed)).catch(() => {}); }, []);
 
   useEffect(() => {
     if (selectedEntityId && !attrCache[selectedEntityId]) {
@@ -167,8 +167,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const thumbUrls = useThemeThumbs(themes);
   const currentThemeId = themeUrlToId(token.theme_url ?? "");
   const selectedTheme = themes.find(t => t.theme_id === currentThemeId) ?? null;
-  const packCap = selectedTheme?.capabilities ?? null;
-  const packSettings = selectedTheme?.pack_settings ?? [];
+  const rendererCap = selectedTheme?.capabilities ?? null;
+  const rendererSettings = selectedTheme?.renderer_settings ?? [];
 
   const selectedEntity = selectedEntityId
     ? entities.find(e => e.entity_id === selectedEntityId && !e.companion_of) ?? null
@@ -498,7 +498,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
 
   const changeTheme = (themeId: string) => {
     const target = themes.find(t => t.theme_id === themeId);
-    if (target?.renderer_pack && !packsAgreed) {
+    if (target?.has_renderer && !renderersAgreed) {
       setPendingThemeId(themeId);
       setShowAgree(true);
       return;
@@ -508,8 +508,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
 
   const confirmAgree = async () => {
     try {
-      await api.packs.agree(true);
-      setPacksAgreed(true);
+      await api.renderers.agree(true);
+      setRenderersAgreed(true);
       setShowAgree(false);
       setAgreeText("");
       if (pendingThemeId) {
@@ -628,8 +628,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   ) : (
                     <div className="theme-strip-thumb" />
                   )}
-                  {t.renderer_pack && (
-                    <span className="theme-pack-star" title="Includes renderer pack">&#9733;</span>
+                  {t.has_renderer && (
+                    <span className="theme-renderer-star" title="Includes custom renderers">&#9733;</span>
                   )}
                 </div>
                 <span className="theme-strip-name">{t.name}</span>
@@ -889,7 +889,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && packSettings.includes("layout") && (
+            {selectedEntity.capabilities !== "badge" && rendererSettings.includes("layout") && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Layout</label>
               <div className="segmented-toggle" role="group" aria-label="Card layout" style={{ marginLeft: "auto" }}>
@@ -959,11 +959,11 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "light" && (hasFeature(packCap, "light", "brightness") || hasFeature(packCap, "light", "color_temp") || hasFeature(packCap, "light", "rgb")) && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "light" && (hasFeature(rendererCap, "light", "brightness") || hasFeature(rendererCap, "light", "color_temp") || hasFeature(rendererCap, "light", "rgb")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Light settings</div>
                 <div className="settings-toggle-grid">
-                  {hasFeature(packCap, "light", "brightness") && (
+                  {hasFeature(rendererCap, "light", "brightness") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_brightness !== false}
@@ -973,7 +973,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <span>Brightness</span>
                     </label>
                   )}
-                  {hasFeature(packCap, "light", "color_temp") && (
+                  {hasFeature(rendererCap, "light", "color_temp") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_color_temp !== false}
@@ -983,7 +983,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <span>Color temp</span>
                     </label>
                   )}
-                  {hasFeature(packCap, "light", "rgb") && (
+                  {hasFeature(rendererCap, "light", "rgb") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_rgb !== false}
@@ -1056,20 +1056,20 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   >
                     <option value="auto">Auto</option>
                     <option value="on-off">On/Off only</option>
-                    {hasFeature(packCap, "fan", "continuous") && <option value="continuous">Continuous</option>}
-                    {hasFeature(packCap, "fan", "stepped") && <option value="stepped">Stepped</option>}
-                    {hasFeature(packCap, "fan", "cycle") && <option value="cycle">Cycle</option>}
+                    {hasFeature(rendererCap, "fan", "continuous") && <option value="continuous">Continuous</option>}
+                    {hasFeature(rendererCap, "fan", "stepped") && <option value="stepped">Stepped</option>}
+                    {hasFeature(rendererCap, "fan", "cycle") && <option value="cycle">Cycle</option>}
                   </select>
                 </div>
               </div>
               );
             })()}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "climate" && (hasFeature(packCap, "climate", "hvac_modes") || hasFeature(packCap, "climate", "presets") || hasFeature(packCap, "climate", "fan_mode") || hasFeature(packCap, "climate", "swing_mode")) && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "climate" && (hasFeature(rendererCap, "climate", "hvac_modes") || hasFeature(rendererCap, "climate", "presets") || hasFeature(rendererCap, "climate", "fan_mode") || hasFeature(rendererCap, "climate", "swing_mode")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Climate settings</div>
                 <div className="settings-toggle-grid">
-                  {hasFeature(packCap, "climate", "hvac_modes") && (
+                  {hasFeature(rendererCap, "climate", "hvac_modes") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_hvac_modes !== false}
@@ -1079,7 +1079,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <span>HVAC modes</span>
                     </label>
                   )}
-                  {hasFeature(packCap, "climate", "presets") && (
+                  {hasFeature(rendererCap, "climate", "presets") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_presets !== false}
@@ -1089,7 +1089,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <span>Presets</span>
                     </label>
                   )}
-                  {hasFeature(packCap, "climate", "fan_mode") && (
+                  {hasFeature(rendererCap, "climate", "fan_mode") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_fan_mode !== false}
@@ -1099,7 +1099,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <span>Fan mode</span>
                     </label>
                   )}
-                  {hasFeature(packCap, "climate", "swing_mode") && (
+                  {hasFeature(rendererCap, "climate", "swing_mode") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_swing_mode !== false}
@@ -1113,11 +1113,11 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "cover" && (hasFeature(packCap, "cover", "position") || hasFeature(packCap, "cover", "tilt")) && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "cover" && (hasFeature(rendererCap, "cover", "position") || hasFeature(rendererCap, "cover", "tilt")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Cover settings</div>
                 <div className="settings-toggle-grid">
-                  {hasFeature(packCap, "cover", "position") && (
+                  {hasFeature(rendererCap, "cover", "position") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_position !== false}
@@ -1127,7 +1127,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <span>Position slider</span>
                     </label>
                   )}
-                  {hasFeature(packCap, "cover", "tilt") && (
+                  {hasFeature(rendererCap, "cover", "tilt") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_tilt !== false}
@@ -1141,11 +1141,11 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "media_player" && (hasFeature(packCap, "media_player", "transport") || hasFeature(packCap, "media_player", "volume") || hasFeature(packCap, "media_player", "source")) && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "media_player" && (hasFeature(rendererCap, "media_player", "transport") || hasFeature(rendererCap, "media_player", "volume") || hasFeature(rendererCap, "media_player", "source")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Media player settings</div>
                 <div className="settings-toggle-grid">
-                  {hasFeature(packCap, "media_player", "transport") && (
+                  {hasFeature(rendererCap, "media_player", "transport") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_transport !== false}
@@ -1155,7 +1155,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <span>Transport</span>
                     </label>
                   )}
-                  {hasFeature(packCap, "media_player", "volume") && (
+                  {hasFeature(rendererCap, "media_player", "volume") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_volume !== false}
@@ -1165,7 +1165,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <span>Volume</span>
                     </label>
                   )}
-                  {hasFeature(packCap, "media_player", "source") && (
+                  {hasFeature(rendererCap, "media_player", "source") && (
                     <label className="settings-toggle-item">
                       <Toggle
                         checked={selectedEntity.display_hints?.show_source !== false}
@@ -1238,7 +1238,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "input_number" && hasFeature(packCap, "input_number", "buttons") && (
+            {selectedEntity.capabilities !== "badge" && selectedDomain === "input_number" && hasFeature(rendererCap, "input_number", "buttons") && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Display mode</div>
                 <div className="segmented-toggle">
@@ -1258,7 +1258,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && (selectedDomain === "input_select" || selectedDomain === "select") && hasFeature(packCap, selectedDomain, "dropdown") && (
+            {selectedEntity.capabilities !== "badge" && (selectedDomain === "input_select" || selectedDomain === "select") && hasFeature(rendererCap, selectedDomain, "dropdown") && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Select settings</div>
                 <div className="settings-toggle-grid">
@@ -1390,13 +1390,13 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
       )}
 
       {showAgree && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="td-pack-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="td-renderer-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
           <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 id="td-pack-agree-title" className="dialog-title">Renderer Pack Warning</h3>
+            <h3 id="td-renderer-agree-title" className="dialog-title">Renderer Warning</h3>
             <div className="dialog-body">
               <p>
-                This theme includes a renderer pack that executes JavaScript from your HA instance
-                inside the widget on the embedding page. Only enable themes with packs you trust.
+                This theme includes custom renderers that execute JavaScript from your HA instance
+                inside the widget on the embedding page. Only enable themes with renderers you trust.
               </p>
               <p style={{ marginTop: 12 }}>
                 Type <strong>AGREE</strong> below to confirm.

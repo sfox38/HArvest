@@ -2,8 +2,8 @@
  * _utils/esc.js - HTML entity escaping for renderer template strings.
  *
  * Single canonical implementation; previously copy-pasted into 20+ renderer
- * files. Built-in renderers import this directly. Standalone packs (loaded
- * as separate IIFE scripts at runtime) reference it via window.HArvest.esc
+ * files. Built-in renderers import this directly. Standalone renderer
+ * overrides (loaded as separate IIFE scripts at runtime) use window.HArvest.esc
  * which is exposed by harvest-entry.js.
  */
 

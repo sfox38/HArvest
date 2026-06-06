@@ -13,7 +13,7 @@ import { api } from "../api";
 import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, useThemeThumbs, useDragScroll } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
-import { loadWidgetScript, loadPackScript } from "./WidgetPreview";
+import { loadWidgetScript, loadRendererScript } from "./WidgetPreview";
 import { getEntityCache, loadEntityCache, useEntityCache } from "../entityCache";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 
@@ -305,14 +305,14 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
   const [loadError, setLoadError] = useState(false);
   const [serverDef, setServerDef] = useState<{ definition: Record<string, unknown>; state: string; attributes: Record<string, unknown> } | null>(null);
   const renderedKeyRef = useRef<string>("");
-  const packId = theme?.renderer_pack ? theme.theme_id : undefined;
+  const rendererId = theme?.has_renderer ? theme.theme_id : undefined;
 
   useEffect(() => {
     loadWidgetScript()
-      .then(() => packId ? loadPackScript(packId) : Promise.resolve())
+      .then(() => rendererId ? loadRendererScript(rendererId) : Promise.resolve())
       .then(() => setReady(true))
       .catch(() => setLoadError(true));
-  }, [packId]);
+  }, [rendererId]);
 
   const companionIds = companions.map(c => c.entity_id);
   const defKey = `${entityId}:${capability}:${companionIds.join(",")}`;
@@ -375,7 +375,7 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
     }
 
     const opts: Record<string, unknown> = {};
-    if (packId) opts.packId = packId;
+    if (rendererId) opts.rendererId = rendererId;
 
     const card = window.HArvest!.preview(
       container, entityDef, previewState, attrs, themeObj as never,
@@ -511,8 +511,8 @@ function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[];
               ) : (
                 <div className="theme-strip-thumb" />
               )}
-              {t.renderer_pack && (
-                <span className="theme-pack-star" title="Theme includes a custom renderer pack">&#9733;</span>
+              {t.has_renderer && (
+                <span className="theme-renderer-star" title="Theme includes custom renderers">&#9733;</span>
               )}
             </div>
             <span className="theme-strip-name">{t.name}</span>

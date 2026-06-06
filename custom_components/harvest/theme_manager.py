@@ -41,11 +41,11 @@ class ThemeDefinition:
     variables: dict[str, str]
     dark_variables: dict[str, str]
     created_at: str
-    has_renderer_pack: bool = False
+    has_renderer: bool = False
     created_by: str = ""
     is_bundled: bool = False
     capabilities: dict | None = None
-    pack_settings: list[str] = dataclasses.field(default_factory=list)
+    renderer_settings: list[str] = dataclasses.field(default_factory=list)
     description: str = ""
     icon_font_family: str = ""
 
@@ -82,9 +82,9 @@ class ThemeManager:
                     harvest_version=raw.get("harvest_version", 1),
                     variables=raw.get("variables", {}),
                     dark_variables=raw.get("dark_variables", {}),
-                    has_renderer_pack=bool(raw.get("renderer_pack", False)),
+                    has_renderer=bool(raw.get("has_renderer", raw.get("renderer_pack", False))),
                     capabilities=raw.get("capabilities") or None,
-                    pack_settings=list(raw.get("pack_settings") or []),
+                    renderer_settings=list(raw.get("renderer_settings", raw.get("pack_settings") or []) or []),
                     description=raw.get("description", ""),
                     created_by="system",
                     created_at="",
@@ -167,9 +167,9 @@ class ThemeManager:
         created_by: str,
         author: str = "",
         version: str = "1.0",
-        has_renderer_pack: bool = False,
+        has_renderer: bool = False,
         capabilities: dict | None = None,
-        pack_settings: list[str] | None = None,
+        renderer_settings: list[str] | None = None,
         description: str = "",
         icon_font_family: str = "",
     ) -> ThemeDefinition:
@@ -182,9 +182,9 @@ class ThemeManager:
             harvest_version=1,
             variables=variables,
             dark_variables=dark_variables or {},
-            has_renderer_pack=has_renderer_pack,
+            has_renderer=has_renderer,
             capabilities=capabilities or None,
-            pack_settings=list(pack_settings or []),
+            renderer_settings=list(renderer_settings or []),
             description=description,
             icon_font_family=icon_font_family,
             created_by=created_by,
@@ -203,7 +203,7 @@ class ThemeManager:
         if theme is None:
             raise KeyError(f"Theme not found: {theme_id}")
 
-        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer_pack", "capabilities", "pack_settings", "description", "icon_font_family"}
+        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer", "capabilities", "renderer_settings", "description", "icon_font_family"}
         for field, value in updates.items():
             if field in _UPDATABLE:
                 setattr(theme, field, value)
@@ -334,7 +334,7 @@ def _theme_to_dict(theme: ThemeDefinition) -> dict:
         "harvest_version": theme.harvest_version,
         "variables": theme.variables,
         "dark_variables": theme.dark_variables,
-        "renderer_pack": theme.has_renderer_pack,
+        "has_renderer": theme.has_renderer,
         "created_by": theme.created_by,
         "created_at": theme.created_at,
     }
@@ -342,8 +342,8 @@ def _theme_to_dict(theme: ThemeDefinition) -> dict:
         d["description"] = theme.description
     if theme.capabilities:
         d["capabilities"] = theme.capabilities
-    if theme.pack_settings:
-        d["pack_settings"] = theme.pack_settings
+    if theme.renderer_settings:
+        d["renderer_settings"] = theme.renderer_settings
     if theme.icon_font_family:
         d["icon_font_family"] = theme.icon_font_family
     return d
@@ -359,9 +359,9 @@ def _theme_from_dict(d: dict) -> ThemeDefinition:
         harvest_version=d.get("harvest_version", 1),
         variables=d.get("variables", {}),
         dark_variables=d.get("dark_variables", {}),
-        has_renderer_pack=bool(d.get("renderer_pack", False)),
+        has_renderer=bool(d.get("has_renderer", d.get("renderer_pack", False))),
         capabilities=d.get("capabilities") or None,
-        pack_settings=list(d.get("pack_settings") or []),
+        renderer_settings=list(d.get("renderer_settings", d.get("pack_settings") or []) or []),
         description=d.get("description", ""),
         icon_font_family=d.get("icon_font_family", ""),
         created_by=d.get("created_by", ""),
@@ -381,7 +381,7 @@ def theme_to_api_dict(
     d["has_thumbnail"] = has_thumbnail
     d["description"] = theme.description
     d["capabilities"] = theme.capabilities
-    d["pack_settings"] = theme.pack_settings
+    d["renderer_settings"] = theme.renderer_settings
     if font_url and theme.icon_font_family:
         d["icon_font"] = {"family": theme.icon_font_family, "url": font_url}
     else:

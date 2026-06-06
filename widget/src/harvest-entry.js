@@ -142,7 +142,7 @@ function anyState(callback) {
  * @param {string} state         - Entity state value
  * @param {object} attributes    - Entity attributes
  * @param {object} [themeVars]   - CSS custom properties to apply
- * @param {object} [options]     - Additional options (graph, hours, historyData, packId)
+ * @param {object} [options]     - Additional options (graph, hours, historyData, rendererId)
  * @returns {HrvCard}
  */
 function preview(container, entityDef, state, attributes, themeVars, options) {
@@ -154,7 +154,7 @@ function preview(container, entityDef, state, attributes, themeVars, options) {
   // setPreview must run after connectedCallback (which is synchronous).
   card.setPreview(
     entityDef, state, attributes, themeVars,
-    options?.packId ?? null,
+    options?.rendererId ?? null,
     options?.graph ?? null,
     !!options?.animate,
   );
@@ -177,8 +177,8 @@ window.HArvest = {
   buildEntityDef,
   filterAttributes,
   registerRenderer,
-  // Shared HTML-entity escaper, exposed for use by standalone packs that
-  // are loaded as separate IIFE scripts and cannot import from the bundle.
+  // Shared HTML-entity escaper, exposed for use by standalone renderer
+  // overrides that are loaded as separate IIFE scripts.
   esc,
   renderers: {
     BaseCard:             Renderers.BaseCard,

@@ -229,23 +229,23 @@ export interface ThemeDefinition {
   harvest_version: number;
   variables: Record<string, string>;
   dark_variables: Record<string, string>;
-  renderer_pack: boolean;
-  has_pack: boolean;
+  has_renderer: boolean;
+  has_renderer_file: boolean;
   is_bundled: boolean;
   has_thumbnail: boolean;
   usage_count: number;
   created_by: string;
   created_at: string;
   capabilities: ThemeCapabilities | null;
-  pack_settings: string[];
+  renderer_settings: string[];
 }
 
 // ---------------------------------------------------------------------------
-// Renderer packs
+// Renderers
 // ---------------------------------------------------------------------------
 
-export interface RendererPack {
-  pack_id: string;
+export interface RendererDefinition {
+  renderer_id: string;
   name: string;
   description: string;
   version: string;
@@ -253,9 +253,9 @@ export interface RendererPack {
   is_bundled: boolean;
 }
 
-export interface PacksResponse {
+export interface RenderersResponse {
   agreed: boolean;
-  packs: RendererPack[];
+  renderers: RendererDefinition[];
 }
 
 // ---------------------------------------------------------------------------

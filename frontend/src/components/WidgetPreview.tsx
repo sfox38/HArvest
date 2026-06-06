@@ -177,7 +177,7 @@ declare global {
         state: string,
         attributes: Record<string, unknown>,
         themeVars?: Record<string, string> | { variables: Record<string, string>; dark_variables?: Record<string, string> },
-        options?: { graph?: string; hours?: number; historyData?: Array<{ t: string; s: string }>; packId?: string },
+        options?: { graph?: string; hours?: number; historyData?: Array<{ t: string; s: string }>; rendererId?: string },
       ) => HTMLElement;
       buildEntityDef: (
         rawEntity: { domain: string; state: string; friendly_name: string; attributes: Record<string, unknown>; unit?: string },
@@ -205,46 +205,44 @@ export function loadWidgetScript(): Promise<void> {
   return _widgetScriptLoading;
 }
 
-const _loadedPacks = new Set<string>();
-const _loadingPacks = new Map<string, Promise<void>>();
-const _packCacheBust = new Map<string, string>();
+const _loadedRenderers = new Set<string>();
+const _loadingRenderers = new Map<string, Promise<void>>();
+const _rendererCacheBust = new Map<string, string>();
 
-export function isPackLoaded(packId: string): boolean {
-  return _loadedPacks.has(packId);
+export function isRendererLoaded(rendererId: string): boolean {
+  return _loadedRenderers.has(rendererId);
 }
 
-export function loadPackScript(packId: string): Promise<void> {
-  if (_loadedPacks.has(packId)) return Promise.resolve();
-  const existing = _loadingPacks.get(packId);
+export function loadRendererScript(rendererId: string): Promise<void> {
+  if (_loadedRenderers.has(rendererId)) return Promise.resolve();
+  const existing = _loadingRenderers.get(rendererId);
   if (existing) return existing;
-  const bust = _packCacheBust.get(packId) || String(buildVersion.build);
+  const bust = _rendererCacheBust.get(rendererId) || String(buildVersion.build);
   const p = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `/api/harvest/packs/${encodeURIComponent(packId)}.js?v=${bust}`;
-    // Tell the pack IIFE which ID to register under (may differ from its hardcoded default)
-    (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = packId;
+    script.src = `/api/harvest/renderers/${encodeURIComponent(rendererId)}.js?v=${bust}`;
+    (window as { __HARVEST_RENDERER_ID__?: string | null }).__HARVEST_RENDERER_ID__ = rendererId;
     script.onload = () => {
-      (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = null;
-      _loadedPacks.add(packId);
-      _loadingPacks.delete(packId);
+      (window as { __HARVEST_RENDERER_ID__?: string | null }).__HARVEST_RENDERER_ID__ = null;
+      _loadedRenderers.add(rendererId);
+      _loadingRenderers.delete(rendererId);
       resolve();
     };
     script.onerror = () => {
-      (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = null;
-      _loadingPacks.delete(packId);
-      reject(new Error(`Failed to load pack ${packId}`));
+      (window as { __HARVEST_RENDERER_ID__?: string | null }).__HARVEST_RENDERER_ID__ = null;
+      _loadingRenderers.delete(rendererId);
+      reject(new Error(`Failed to load renderer ${rendererId}`));
     };
     document.head.appendChild(script);
   });
-  _loadingPacks.set(packId, p);
+  _loadingRenderers.set(rendererId, p);
   return p;
 }
 
-/** Call after uploading new pack JS to force a fresh script fetch on next preview render. */
-export function clearPackCache(packId: string): void {
-  _loadedPacks.delete(packId);
-  _loadingPacks.delete(packId);
-  _packCacheBust.set(packId, String(Date.now()));
+export function clearRendererCache(rendererId: string): void {
+  _loadedRenderers.delete(rendererId);
+  _loadingRenderers.delete(rendererId);
+  _rendererCacheBust.set(rendererId, String(Date.now()));
 }
 
 export function resolveVars(
@@ -306,13 +304,13 @@ export function generateMockHistory(domain: string, graphType: GraphType, state:
 // RealWidget - renders a single hrv-card preview
 // ---------------------------------------------------------------------------
 
-function RealWidget({ mock, themeObj, capability, features, graphType, packId, colorScheme }: {
+function RealWidget({ mock, themeObj, capability, features, graphType, rendererId, colorScheme }: {
   mock: MockEntity;
   themeObj: { variables: Record<string, string>; dark_variables: Record<string, string> };
   capability: "read" | "read-write" | "badge";
   features: Record<string, boolean>;
   graphType: GraphType;
-  packId?: string;
+  rendererId?: string;
   colorScheme?: "light" | "dark" | "auto";
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -322,18 +320,18 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId, c
 
   useEffect(() => {
     const load = async () => {
-      if (packId && !_loadedPacks.has(packId)) {
+      if (rendererId && !_loadedRenderers.has(rendererId)) {
         setReady(false);
       }
       await loadWidgetScript();
-      if (packId) await loadPackScript(packId).catch(() => {});
+      if (rendererId) await loadRendererScript(rendererId).catch(() => {});
       setReady(true);
     };
     load().catch(() => setLoadError(true));
-  }, [packId]);
+  }, [rendererId]);
 
   const featKey = Object.entries(features).filter(([, v]) => v).map(([k]) => k).sort().join(",");
-  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${packId ?? ""}:${colorScheme ?? "auto"}`;
+  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${rendererId ?? ""}:${colorScheme ?? "auto"}`;
 
   useEffect(() => {
     if (!ready || !containerRef.current || !window.HArvest) return;
@@ -356,7 +354,7 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId, c
       graphOpts.hours = 24;
       graphOpts.historyData = generateMockHistory(mock.domain, graphType, mock.state);
     }
-    if (packId) graphOpts.packId = packId;
+    if (rendererId) graphOpts.rendererId = rendererId;
     if (features.animate) graphOpts.animate = true;
     const opts = Object.keys(graphOpts).length > 0 ? graphOpts : undefined;
 
@@ -405,7 +403,7 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId, c
 interface WidgetPreviewProps {
   variables: Record<string, string>;
   darkVariables?: Record<string, string>;
-  packId?: string;
+  rendererId?: string;
 }
 
 const _ls = {
@@ -414,7 +412,7 @@ const _ls = {
   del: (k: string) => { try { localStorage.removeItem(k); } catch { /* */ } },
 };
 
-export function WidgetPreview({ variables, darkVariables, packId }: WidgetPreviewProps) {
+export function WidgetPreview({ variables, darkVariables, rendererId }: WidgetPreviewProps) {
   const _initRenderer = _ls.get("hrv_preview_renderer") ?? "light";
   const _initEntity   = _ls.get("hrv_preview_entity") ?? "";
 
@@ -596,7 +594,7 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
             background: bgGray == null ? undefined : `rgb(${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)})`,
           }}
         >
-          <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} packId={packId} colorScheme={colorMode} />
+          <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} rendererId={rendererId} colorScheme={colorMode} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
           <input

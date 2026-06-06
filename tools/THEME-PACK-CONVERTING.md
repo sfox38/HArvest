@@ -1,24 +1,24 @@
-# THEME-PACK-CONVERTING.md
+# THEME-RENDERER-CONVERTING.md
 
-Guide for converting existing Home Assistant dashboard card designs into HArvest renderer packs. Written for AI agents and developers who may not have access to the HArvest source code.
+Guide for converting existing Home Assistant dashboard card designs into HArvest renderer overrides. Written for AI agents and developers who may not have access to the HArvest source code.
 
 This document is agnostic, not specific to any theme. It is intended to be used to ease the conversion of any existing Home Assistant Lovelace dashboard theme to a HArvest theme. It is a "living document" and should be updated whenever new information is learned.
 
 ---
 
-## What is a renderer pack?
+## What is a renderer override?
 
-A renderer pack is a single JavaScript file that replaces how HArvest renders entity cards. HArvest ships with built-in "standard" renderers for every supported domain. A pack overrides some or all of those renderers with custom visuals while using the same data pipeline.
+A renderer override is a single JavaScript file that replaces how HArvest renders entity cards. HArvest ships with built-in "standard" renderers for every supported domain. A renderer override replaces some or all of those renderers with custom visuals while using the same data pipeline.
 
-Packs are loaded at runtime via `<script>` injection. They have zero build dependencies and zero runtime dependencies beyond the browser and the `window.HArvest` global that the core widget provides.
+Renderer overrides are loaded at runtime via `<script>` injection. They have zero build dependencies and zero runtime dependencies beyond the browser and the `window.HArvest` global that the core widget provides.
 
-A theme JSON file accompanies each pack, defining CSS custom properties and linking to the pack ID.
+A theme JSON file accompanies each renderer override, defining CSS custom properties and linking to the renderer ID.
 
 ---
 
-## What packs can and cannot do
+## What renderer overrides can and cannot do
 
-### Packs CAN
+### Renderer overrides CAN
 
 - Replace the visual appearance of any supported domain card (light, switch, fan, climate, cover, media_player, sensor, binary_sensor, input_number, input_select, timer, remote, harvest_action).
 - Use any entity attribute that Home Assistant exposes. HArvest forwards all attributes except a small blocklist (`supported_features`, `supported_color_modes`, `friendly_name`, `attribution`, `editable`, `id`, `forecast`). Any individual attribute value exceeding 8KB is also dropped.
@@ -30,9 +30,9 @@ A theme JSON file accompanies each pack, defining CSS custom properties and link
 - Use companion entity data for multi-entity layouts. The companion system is a data pipeline, not a rendering mandate.
 - Render history graphs by calling `this.renderHistoryZoneHTML()` in the template. The framework populates it automatically.
 
-### Packs CANNOT
+### Renderer overrides CANNOT
 
-- Import ES modules. Packs are plain IIFE scripts, not ES modules. All code must be self-contained.
+- Import ES modules. Renderer overrides are plain IIFE scripts, not ES modules. All code must be self-contained.
 - Access the WebSocket directly. All communication goes through `sendCommand()`.
 - Access Home Assistant APIs, tokens, or other entities beyond what the entity definition and state updates provide.
 - Modify the core widget behavior, message routing, or authentication flow.
@@ -44,34 +44,34 @@ A theme JSON file accompanies each pack, defining CSS custom properties and link
 
 ## File structure
 
-A complete renderer pack consists of two files:
+A complete renderer override consists of two files:
 
 ```
-widget/src/packs/<pack-name>-pack.js    # Source (development)
-widget/dist/<pack-name>.min.js          # Minified (production)
-widget/themes/<pack-name>.json          # Theme definition
+widget/src/renderers/<renderer-name>-renderer.js    # Source (development)
+widget/dist/<renderer-name>.min.js                  # Minified (production)
+widget/themes/<renderer-name>.json                  # Theme definition
 ```
 
-User-contributed packs live in a separate directory:
+User-contributed renderer overrides live in a separate directory:
 
 ```
-User Contributed Themes/<pack-name>/<pack-name>-pack.js   # Source
-User Contributed Themes/<pack-name>/<pack-name>.js         # Minified
-User Contributed Themes/<pack-name>/<pack-name>.json       # Theme JSON
+User Contributed Themes/<renderer-name>/<renderer-name>-renderer.js   # Source
+User Contributed Themes/<renderer-name>/<renderer-name>.js             # Minified
+User Contributed Themes/<renderer-name>/<renderer-name>.json           # Theme JSON
 ```
 
-User packs are installed to:
+User renderer overrides are installed to:
 
 ```
-custom_components/harvest/packs/user/<pack-name>.js     # Minified pack JS
-custom_components/harvest/themes/user/<pack-name>.json   # Theme JSON
+custom_components/harvest/renderers/user/<renderer-name>.js     # Minified renderer JS
+custom_components/harvest/themes/user/<renderer-name>.json      # Theme JSON
 ```
 
 ---
 
-## Pack skeleton
+## Renderer override skeleton
 
-Every pack follows this structure:
+Every renderer override follows this structure:
 
 ```javascript
 (function () {
@@ -79,7 +79,7 @@ Every pack follows this structure:
 
   const HArvest = window.HArvest;
   if (!HArvest || !HArvest.renderers || !HArvest.renderers.BaseCard) {
-    console.warn("[HArvest PackName] HArvest not found - pack not loaded.");
+    console.warn("[HArvest RendererName] HArvest not found - renderer not loaded.");
     return;
   }
 
@@ -95,9 +95,9 @@ Every pack follows this structure:
   // ... (one class per domain, extending BaseCard)
 
   // --- Registration ---
-  HArvest._packs = HArvest._packs || {};
-  const _packKey = window.__HARVEST_PACK_ID__ || "pack-name";
-  HArvest._packs[_packKey] = {
+  HArvest._renderers = HArvest._renderers || {};
+  const _rendererKey = window.__HARVEST_RENDERER_ID__ || "renderer-name";
+  HArvest._renderers[_rendererKey] = {
     "light":          LightCard,
     "switch":         SwitchCard,
     "sensor":         SensorCard,
@@ -118,28 +118,28 @@ Every pack follows this structure:
 })();
 ```
 
-The pack ID can come from `window.__HARVEST_PACK_ID__` (set by the panel preview) or from `document.currentScript.dataset.packId` (set via a `data-pack-id` attribute on the `<script>` tag). Always fall back to a hardcoded default.
+The renderer ID can come from `window.__HARVEST_RENDERER_ID__` (set by the panel preview) or from `document.currentScript.dataset.rendererId` (set via a `data-renderer-id` attribute on the `<script>` tag). Always fall back to a hardcoded default.
 
 ```javascript
-const _packKey = window.__HARVEST_PACK_ID__
-  || (document.currentScript && document.currentScript.dataset.packId)
-  || "pack-name";
+const _rendererKey = window.__HARVEST_RENDERER_ID__
+  || (document.currentScript && document.currentScript.dataset.rendererId)
+  || "renderer-name";
 ```
 
-`window.__HARVEST_PACK_ID__` must be checked first. The panel preview sets this global before injecting the script, and it is the only mechanism that works for duplicated packs. `document.currentScript.dataset.packId` is a fallback for direct `<script>` tag loading.
+`window.__HARVEST_RENDERER_ID__` must be checked first. The panel preview sets this global before injecting the script, and it is the only mechanism that works for duplicated renderer overrides. `document.currentScript.dataset.rendererId` is a fallback for direct `<script>` tag loading.
 
 ---
 
-## Pack capability manifest
+## Renderer capability manifest
 
-Each renderer pack can declare a `_capabilities` object alongside its renderer map. This tells the panel's Entity Settings UI which display options the pack actually supports, so only relevant controls are shown to the user.
+Each renderer override can declare a `_capabilities` object alongside its renderer map. This tells the panel's Entity Settings UI which display options the renderer override actually supports, so only relevant controls are shown to the user.
 
 ### Declaration
 
-Add `_capabilities` as a property of the pack registration object, keyed by domain:
+Add `_capabilities` as a property of the renderer registration object, keyed by domain:
 
 ```javascript
-HArvest._packs[_packKey] = {
+HArvest._renderers[_rendererKey] = {
   "light":          LightCard,
   "fan":            FanCard,
   // ... other renderers ...
@@ -158,22 +158,22 @@ HArvest._packs[_packKey] = {
 
 | Property | Type | Purpose |
 |----------|------|---------|
-| `display_modes` | `string[]` | Lists the display mode strings the pack's renderer supports for that domain. The Entity Settings UI only shows these modes in the display mode selector. |
-| `features` | `string[]` | Lists the feature toggles the pack's renderer supports for that domain. The Entity Settings UI only shows toggles for these features. |
+| `display_modes` | `string[]` | Lists the display mode strings the renderer override supports for that domain. The Entity Settings UI only shows these modes in the display mode selector. |
+| `features` | `string[]` | Lists the feature toggles the renderer override supports for that domain. The Entity Settings UI only shows toggles for these features. |
 
-### Pack-level settings (`pack_settings` in theme JSON)
+### Renderer-level settings (`renderer_settings` in theme JSON)
 
-Domain capabilities cover per-domain options. For card settings that apply across all domains (such as layout orientation), declare them in the theme JSON's top-level `pack_settings` array:
+Domain capabilities cover per-domain options. For card settings that apply across all domains (such as layout orientation), declare them in the theme JSON's top-level `renderer_settings` array:
 
 ```json
 {
-  "renderer_pack": true,
-  "pack_settings": ["layout"],
+  "has_renderer": true,
+  "renderer_settings": ["layout"],
   "capabilities": { ... }
 }
 ```
 
-The panel reads `pack_settings` from the active theme and shows or hides universal card controls accordingly. If `pack_settings` is absent or empty, those controls are hidden.
+The panel reads `renderer_settings` from the active theme and shows or hides universal card controls accordingly. If `renderer_settings` is absent or empty, those controls are hidden.
 
 Currently supported values:
 
@@ -181,7 +181,7 @@ Currently supported values:
 |-------|--------|
 | `"layout"` | Shows the Layout (Horizontal/Vertical) segmented toggle in Entity Settings |
 
-Add `"layout"` if your pack reads `display_hints.layout` and applies it (e.g. via `:host([data-layout=vertical])` CSS and `_applyLayout(this)` in `render()`). Omit it if your pack has a fixed layout.
+Add `"layout"` if your renderer override reads `display_hints.layout` and applies it (e.g. via `:host([data-layout=vertical])` CSS and `_applyLayout(this)` in `render()`). Omit it if your renderer override has a fixed layout.
 
 ### How renderers consume display options
 
@@ -191,7 +191,7 @@ Renderers read selected display options from two sources, merged with a fallback
 const hints = this.config.displayHints ?? this.def.display_hints ?? {};
 ```
 
-`this.config.displayHints` is populated by the panel preview when previewing with overrides. `this.def.display_hints` is the persisted per-entity hints from the token configuration (set in Entity Settings). Always check both with the fallback chain above. The pack does not need to parse `_capabilities` at runtime; it only declares them so the UI knows what to offer.
+`this.config.displayHints` is populated by the panel preview when previewing with overrides. `this.def.display_hints` is the persisted per-entity hints from the token configuration (set in Entity Settings). Always check both with the fallback chain above. The renderer override does not need to parse `_capabilities` at runtime; it only declares them so the UI knows what to offer.
 
 Common display hint keys used across domains:
 
@@ -225,13 +225,13 @@ Boolean hints default to `true` when absent. Check with `!== false` rather than 
 
 ### Backward compatibility
 
-`_capabilities` is optional. If a pack omits it entirely, the Entity Settings UI shows all display options for all domains. This preserves backward compatibility with existing packs that were written before this feature existed.
+`_capabilities` is optional. If a renderer override omits it entirely, the Entity Settings UI shows all display options for all domains. This preserves backward compatibility with existing renderer overrides that were written before this feature existed.
 
 Domains not listed inside `_capabilities` also default to showing all options. Only domains explicitly listed are filtered.
 
-### Pack switching behavior
+### Renderer switching behavior
 
-When a user switches from one pack to another, display hints that the new pack does not support are hidden in the Entity Settings UI but kept in storage. If the user switches back to the original pack, the previously selected options reappear. This avoids data loss when experimenting with different packs.
+When a user switches from one renderer override to another, display hints that the new renderer override does not support are hidden in the Entity Settings UI but kept in storage. If the user switches back to the original renderer override, the previously selected options reappear. This avoids data loss when experimenting with different renderer overrides.
 
 ---
 
@@ -509,9 +509,9 @@ sendCommand("turn_off", {})
 
 ## Card template pattern
 
-Badge entities (`def.capabilities === "badge"`) skip the full card template entirely and use the `BadgeCard` renderer registered under the `"badge"` key in the pack registry. The badge renderer is a separate class that renders a compact pill (icon + name + state). See the built-in `BadgeCard` in `widget/src/renderers/badge-card.js` as a reference implementation. Badges do not support gestures, companions, or history.
+Badge entities (`def.capabilities === "badge"`) skip the full card template entirely and use the `BadgeCard` renderer registered under the `"badge"` key in the renderer registry. The badge renderer is a separate class that renders a compact pill (icon + name + state). See the built-in `BadgeCard` in `widget/src/renderers/badge-card.js` as a reference implementation. Badges do not support gestures, companions, or history.
 
-Pack badge implementations must follow these rules:
+Renderer override badge implementations must follow these rules:
 
 - **`:host` overrides:** Set `min-width: unset !important`, `display: inline-block !important`, and `contain: none !important`. The `contain` override is critical; without it the inline-block pill collapses to zero width because the shared base styles set `contain: inline-size`.
 - **Icon resolution:** Use `this.resolveIcon(iconName, fallback)` instead of passing icon names directly to `renderIcon`. The entity definition may contain HA registry icons that are not in the widget's MDI bundle. Provide a domain-specific fallback (e.g., `"mdi:lightbulb"` for light) so the badge shows a sensible icon when the bundled set lacks the exact name.
@@ -604,7 +604,7 @@ Every command your card sends should have a corresponding `predictState` entry. 
 
 ## Panel preview integration
 
-The panel includes a live preview system that renders cards without a real HA connection. When building a pack, be aware of how the preview creates entity definitions.
+The panel includes a live preview system that renders cards without a real HA connection. When building a renderer override, be aware of how the preview creates entity definitions.
 
 ### Preview feature toggles
 
@@ -657,7 +657,7 @@ BaseCard provides a default companion rendering system:
 
 ### Custom companion rendering
 
-Packs can override `updateCompanionState()` to render companion data however they want. The companion system is a data pipeline: the framework delivers state updates for companion entities, but the pack decides how (or whether) to display them.
+Renderer overrides can override `updateCompanionState()` to render companion data however they want. The companion system is a data pipeline: the framework delivers state updates for companion entities, but the renderer override decides how (or whether) to display them.
 
 Companions with `capabilities: "read"` must never have interactive controls or trigger commands.
 
@@ -673,7 +673,7 @@ Gesture configuration arrives in the entity definition as `gesture_config` and i
 
 If a pack uses `addEventListener("click", ...)` or `addEventListener("pointerup", ...)` directly, gesture configuration has no effect. Tapping always fires the hardcoded handler. "Do nothing" still toggles. Double-tap just toggles twice quickly instead of firing the configured action. Hold never fires at all.
 
-This was the single most common bug in early pack development.
+This was the single most common bug in early renderer override development.
 
 ### Two patterns
 
@@ -942,7 +942,7 @@ Update the fill width in the `input` event handler alongside the debounced comma
 
 ## Theme JSON format
 
-Each pack needs a theme file that links to it:
+Each renderer override needs a theme file that links to it:
 
 ```json
 {
@@ -950,7 +950,7 @@ Each pack needs a theme file that links to it:
   "author": "Author name",
   "version": "1.0",
   "harvest_version": 1,
-  "renderer_pack": true,
+  "has_renderer": true,
   "variables": {
     "--hrv-color-primary": "#6366f1",
     "--hrv-color-on-primary": "#ffffff",
@@ -984,9 +984,9 @@ Each pack needs a theme file that links to it:
 }
 ```
 
-The `renderer_pack` field is a boolean indicating that this theme has a paired renderer pack. The pack JS file must share the same filename as the theme JSON (e.g. `mytheme.json` pairs with `mytheme.js`). The pack ID used in `HArvest._packs[packId]` registration must match the theme ID. Variables in `dark_variables` override `variables` when the user's color scheme is dark.
+The `has_renderer` field is a boolean indicating that this theme has a paired renderer override. The renderer JS file must share the same filename as the theme JSON (e.g. `mytheme.json` pairs with `mytheme.js`). The renderer ID used in `HArvest._renderers[rendererId]` registration must match the theme ID. Variables in `dark_variables` override `variables` when the user's color scheme is dark.
 
-Packs may define additional custom CSS variables (prefixed with `--hrv-ex-` or a pack-specific prefix) for pack-internal styling that should be theme-configurable.
+Renderer overrides may define additional custom CSS variables (prefixed with `--hrv-ex-` or a renderer-specific prefix) for renderer-internal styling that should be theme-configurable.
 
 ### Complete CSS custom property reference
 
@@ -1055,7 +1055,7 @@ All properties are optional. Missing properties fall back to base-card defaults.
 
 ---
 
-## Conversion process: HA card to pack
+## Conversion process: HA card to renderer override
 
 ### Step 1: Audit the source card
 
@@ -1113,8 +1113,8 @@ For each domain, create a class extending BaseCard. Follow these principles:
 ### Step 5: CSS considerations
 
 - Each renderer's shadow root receives base CSS (card layout, companion styles, history graph, gesture, error/stale states) automatically via `adoptedStyleSheets` - the BaseCard constructor adopts a single shared `CSSStyleSheet` instance into every renderer. Your renderer's `<style>` tag only needs your renderer-specific overrides.
-- Packs typically override the base card styles heavily. Use `!important` sparingly.
-- By default, respect `prefers-reduced-motion` by wrapping animations in a media query and providing a static fallback. However, if the source card's design identity depends on its animations (spinning fans, bouncing buttons, expanding controls), the pack author may choose to ignore the media query. This is a deliberate design decision, not a bug. Document the choice in a comment near the animation CSS.
+- Renderer overrides typically override the base card styles heavily. Use `!important` sparingly.
+- By default, respect `prefers-reduced-motion` by wrapping animations in a media query and providing a static fallback. However, if the source card's design identity depends on its animations (spinning fans, bouncing buttons, expanding controls), the renderer author may choose to ignore the media query. This is a deliberate design decision, not a bug. Document the choice in a comment near the animation CSS.
 - Respect `this.config.animate` for icon spin animations (e.g. fan blades). Only animate when the entity is on AND `config.animate` is `true`. The standard pattern is to set `data-animate` on the icon element and target it in CSS: `[part=card-icon][data-animate=true] svg { animation: spin 1.5s linear infinite; }`.
 - The `[part=card]` element has `overflow: hidden` from the base styles. If your design needs visible overflow, override it.
 - Use `var(--ndl-fg)` or similar internal variables for foreground colors if your cards have dynamic backgrounds. Do not hardcode colors that cannot adapt.
@@ -1133,22 +1133,22 @@ For each domain, create a class extending BaseCard. Follow these principles:
 
 ### Step 7: Minify and sync
 
-For built-in packs:
+For built-in renderer overrides:
 
 ```bash
-npx esbuild widget/src/packs/<name>-pack.js \
+npx esbuild widget/src/renderers/<name>-renderer.js \
   --bundle=false --minify --format=iife \
   --target=es2020 --charset=utf8 \
   --outfile=widget/dist/<name>.min.js
 
-cp widget/dist/<name>.min.js custom_components/harvest/packs/user/<name>.js
+cp widget/dist/<name>.min.js custom_components/harvest/renderers/user/<name>.js
 cp widget/themes/<name>.json custom_components/harvest/themes/user/<name>.json
 ```
 
-For user-contributed packs (source and output live together):
+For user-contributed renderer overrides (source and output live together):
 
 ```bash
-npx esbuild "User Contributed Themes/<name>/<name>-pack.js" \
+npx esbuild "User Contributed Themes/<name>/<name>-renderer.js" \
   --bundle=false --minify --format=iife \
   --target=es2020 --charset=utf8 \
   --outfile="User Contributed Themes/<name>/<name>.js"
@@ -1160,7 +1160,7 @@ npx esbuild "User Contributed Themes/<name>/<name>-pack.js" \
 
 ### Using addEventListener instead of _attachGestureHandlers
 
-The most common pack bug. If a toggle button uses `addEventListener("click", ...)`, admin-configured gestures (tap override, hold, double-tap) are completely ignored. The card always toggles on click regardless of gesture configuration. Use `_attachGestureHandlers` for all primary interactions. See the "Gesture support" section for the two patterns (toggle-type and read-only).
+The most common renderer override bug. If a toggle button uses `addEventListener("click", ...)`, admin-configured gestures (tap override, hold, double-tap) are completely ignored. The card always toggles on click regardless of gesture configuration. Use `_attachGestureHandlers` for all primary interactions. See the "Gesture support" section for the two patterns (toggle-type and read-only).
 
 ### Feature name mismatches
 
@@ -1222,21 +1222,21 @@ When placing an icon `<span>` inside a flex-layout button, the icon may appear o
 
 ## Lessons learned
 
-Practical lessons learned from converting HA custom cards into HArvest renderer packs.
+Practical lessons learned from converting HA custom cards into HArvest renderer overrides.
 
-1. **Attribute availability is not the bottleneck.** HArvest forwards all HA attributes except a small blocklist. If an attribute exists in HA, it is available to the pack.
+1. **Attribute availability is not the bottleneck.** HArvest forwards all HA attributes except a small blocklist. If an attribute exists in HA, it is available to the renderer override.
 
-2. **The companion system is a data pipeline.** Packs receive companion state updates but decide how to render them. The default pills are opt-in via `renderCompanions()`, not automatic.
+2. **The companion system is a data pipeline.** Renderer overrides receive companion state updates but decide how to render them. The default pills are opt-in via `renderCompanions()`, not automatic.
 
 3. **Feature names differ between the feature flag (what the entity supports) and the command (what you send).** `set_speed` is a feature, `set_percentage` is the command. `direction` is a feature, `set_direction` is the command.
 
 4. **The panel preview is the primary testing tool.** Every control must work in preview mode via `predictState`. The preview has no server connection, so commands go nowhere. Visual feedback comes entirely from predictions.
 
-5. **Pack CSS is self-contained.** Packs define their own visual language. They can ignore the theme's `--hrv-*` variables for card internals and define their own internal variables. The theme variables are most useful for the card wrapper (radius, shadow, padding) and companion pills.
+5. **Renderer override CSS is self-contained.** Renderer overrides define their own visual language. They can ignore the theme's `--hrv-*` variables for card internals and define their own internal variables. The theme variables are most useful for the card wrapper (radius, shadow, padding) and companion pills.
 
 6. **Dynamic card backgrounds (gradient per domain/state) need a foreground color strategy.** If the background changes based on entity state, text/icon colors must adapt. Use a CSS variable or compute foreground color from the background.
 
-7. **`device_class` enables sub-domain specialization.** The pack registration supports `domain.device_class` keys (e.g. `sensor.temperature`), allowing different renderers for different device classes within the same domain.
+7. **`device_class` enables sub-domain specialization.** The renderer registration supports `domain.device_class` keys (e.g. `sensor.temperature`), allowing different renderers for different device classes within the same domain.
 
 8. **Attribute lists are the source of truth for dynamic choices.** Options, sources, sound modes, and effect lists live in state attributes, not in the entity definition's `feature_config`. The definition tells you what features exist; the attributes tell you what the current choices are.
 
@@ -1270,9 +1270,10 @@ Practical lessons learned from converting HA custom cards into HArvest renderer 
 
 23. **Slider "unfilled portion" overlay must use opposite tones per color scheme.** A semi-transparent cover over a slider gradient needs `rgba(255,255,255,...)` (white overlay) in light mode to lighten the unfilled area, and `rgba(0,0,0,...)` (black overlay) in dark mode to darken it. Using the same color for both modes produces inverted contrast in one scheme. Define separate values in `variables` and `dark_variables` in the theme JSON.
 
-24. **Add missing MDI icons to the widget icon bundle before referencing them.** Pack renderers use `this.renderIcon()` which looks up SVG paths from `widget/src/icons.js`. If the icon name is not in the bundle (e.g. `mdi:brightness-4`), the icon silently falls back to `mdi:help-circle`. Always verify the icon exists with `grep` before using it, and add the SVG path data if missing. Rebuild the widget after adding icons.
+24. **Add missing MDI icons to the widget icon bundle before referencing them.** Renderer overrides use `this.renderIcon()` which looks up SVG paths from `widget/src/icons.js`. If the icon name is not in the bundle (e.g. `mdi:brightness-4`), the icon silently falls back to `mdi:help-circle`. Always verify the icon exists with `grep` before using it, and add the SVG path data if missing. Rebuild the widget after adding icons.
 
-25. **Cache-busting on initial WebSocket pack URL.** The WebSocket `renderer_pack` message must include a cache-busting query parameter (e.g. `?v={mtime}`) on the pack URL. Without it, browsers may serve a stale cached version of the pack JS even with `Cache-Control: no-store` on the HTTP response. Theme reload and push-to-sessions paths already include this; the initial connection path is easy to miss.
+
+25. **Cache-busting on initial WebSocket renderer URL.** The WebSocket `renderer` message must include a cache-busting query parameter (e.g. `?v={mtime}`) on the renderer URL. Without it, browsers may serve a stale cached version of the renderer JS even with `Cache-Control: no-store` on the HTTP response. Theme reload and push-to-sessions paths already include this; the initial connection path is easy to miss.
 
 26. **Match the source card's exact colors with a color picker.** Do not guess hex values for slider fills, accent colors, or backgrounds by eyeballing or referencing Material Design palettes. Use a color picker tool (Photoshop eyedropper, browser dev tools, etc.) on a screenshot of the original card to get the exact color value. Small differences in hue or saturation are immediately noticeable side-by-side.
 
@@ -1286,13 +1287,13 @@ Practical lessons learned from converting HA custom cards into HArvest renderer 
 
 31. **Near-white light colors need darkening for slider visibility.** When deriving accent colors from a light entity's `rgb_color`, near-white values (high luminance) produce sliders that are invisible against white card backgrounds. Check luminance (`0.299*R + 0.587*G + 0.114*B`) and darken by multiplying channels by 0.75-0.8 when luminance exceeds ~0.85. Similarly, color temperature values near daylight (5000-6500K) need cooler, more saturated blues to be distinguishable from white.
 
-32. **Use `npx terser` (not esbuild) for user-contributed packs.** While the docs show esbuild for built-in packs, user-contributed packs minify better with terser: `npx terser "source.js" -o "output.js" --compress --mangle`. Terser handles the IIFE wrapper and long CSS template literals more predictably than esbuild's `--bundle=false` mode.
+32. **Use `npx terser` (not esbuild) for user-contributed renderer overrides.** While the docs show esbuild for built-in renderer overrides, user-contributed renderer overrides minify better with terser: `npx terser "source.js" -o "output.js" --compress --mangle`. Terser handles the IIFE wrapper and long CSS template literals more predictably than esbuild's `--bundle=false` mode.
 
 33. **Hide slider shading overlays for non-brightness modes.** Light cards often use a semi-transparent cover overlay to shade the unfilled portion of the brightness slider. When the same slider element is reused for color temperature or hue modes (which have their own gradient backgrounds), the shading overlay must be hidden. Set `cover.style.display = "none"` for color/temp modes and restore it for brightness mode. Otherwise the overlay clashes with the gradient and produces muddy colors.
 
 34. **Drop-down menus need drop-up detection.** For cards that render dropdown menus (input_select, climate mode pickers), check available space below the trigger button using `getBoundingClientRect()` and `window.innerHeight`. If the dropdown would overflow the viewport, position it above the button instead. Set `bottom: calc(100% + 4px)` and `top: auto` for drop-up, or `top: calc(100% + 4px)` and `bottom: auto` for drop-down.
 
-35. **Some fans are stateless - detect via `attributes.assumed_state`.** Not all fans report accurate state. Many RF-controlled devices (ceiling fans with RF remotes, Bond Bridge fans, etc.) provide no real feedback - HA reports default or assumed values for power, speed, oscillation, direction, and preset mode regardless of the actual state. HA flags such entities with `assumed_state: true` in their state attributes. Other fans (smart fans with Wi-Fi, Zigbee, or Z-Wave) omit this flag (or set it to false) and report accurate state for everything. Pack renderers should branch on `attributes.assumed_state` in `applyState()`: when truthy, treat all commands as fire-and-forget. Buttons should not visually reflect attribute values (no `data-active` from attributes, no colour or text changes based on state). Each click sends the command; the button always looks neutral. This applies to `applyState()` only - click handlers still send the correct command payloads. For fans with real state feedback (`assumed_state` falsy or absent), reflect attributes visually as normal. The same flag applies to `switch`, `cover`, `light` and other domains where HA may report assumed state.
+35. **Some fans are stateless - detect via `attributes.assumed_state`.** Not all fans report accurate state. Many RF-controlled devices (ceiling fans with RF remotes, Bond Bridge fans, etc.) provide no real feedback - HA reports default or assumed values for power, speed, oscillation, direction, and preset mode regardless of the actual state. HA flags such entities with `assumed_state: true` in their state attributes. Other fans (smart fans with Wi-Fi, Zigbee, or Z-Wave) omit this flag (or set it to false) and report accurate state for everything. Renderer overrides should branch on `attributes.assumed_state` in `applyState()`: when truthy, treat all commands as fire-and-forget. Buttons should not visually reflect attribute values (no `data-active` from attributes, no colour or text changes based on state). Each click sends the command; the button always looks neutral. This applies to `applyState()` only - click handlers still send the correct command payloads. For fans with real state feedback (`assumed_state` falsy or absent), reflect attributes visually as normal. The same flag applies to `switch`, `cover`, `light` and other domains where HA may report assumed state.
 
 36. **Do not pre-collapse interactive controls in `render()` based on assumed state.** A common pattern is to render with `<div data-collapsed="true">` and rely on `applyState` to expand when the entity is on. This breaks the rare case where the first state update is delayed past the first paint: the card sits looking "off" while the entity is actually on. The user taps to "turn it on", which sends `toggle`, and the entity actually turns off. Initialise the controls in their open/neutral state and let `applyState` collapse them only when the state genuinely arrives as off. The brief flash of expanded controls during the off-state path is preferable to silently lying about state.
 
@@ -1302,15 +1303,15 @@ Practical lessons learned from converting HA custom cards into HArvest renderer 
 
 39. **Position thumbs with `clamp(min, calc(var(--progress) * 1%), max)`.** A thumb at the extreme ends of a slider track visually overshoots the track unless clamped. Wrap the percentage-based position in `clamp()` with the thumb's half-width as min and `100% - half-width` as max. Pure CSS - no JS positioning code - and the slider self-corrects at any width.
 
-40. **`ResizeObserver` inside shadow DOM works fine for responsive class toggling.** A pack-level `_layoutObserver(card)` helper that observes `[part=card]` and toggles classes (`ndl-mini` / `ndl-compact`) at width thresholds (e.g. 110px / 150px) gives container-query-like behaviour without container queries. Cards opt in by calling it from `render()` and tear down in `destroy()`. Width-based class targets (`[part=card].ndl-compact .ndl-light-mode-btn`) keep the per-breakpoint styling readable in one place.
+40. **`ResizeObserver` inside shadow DOM works fine for responsive class toggling.** A renderer-level `_layoutObserver(card)` helper that observes `[part=card]` and toggles classes (`ndl-mini` / `ndl-compact`) at width thresholds (e.g. 110px / 150px) gives container-query-like behaviour without container queries. Cards opt in by calling it from `render()` and tear down in `destroy()`. Width-based class targets (`[part=card].ndl-compact .ndl-light-mode-btn`) keep the per-breakpoint styling readable in one place.
 
-41. **When porting an HA-native pack, treat HA tokens (`--ha-card-background`, `--primary-text-color`, `--warning-color`) as the *contract*, not the values.** The source code uses these names because that is HA's theming surface. The destination platform (HArvest) uses its own prefix (`--hrv-*`). Map at the theme JSON layer: define `--hrv-color-surface`, `--hrv-color-text`, etc. with the same semantic roles, then mechanically rename in the pack CSS. The `color-mix(in srgb, var(--accent) 18%, var(--surface))` recipes carry over unchanged - only the variable names differ.
+41. **When porting an HA-native renderer override, treat HA tokens (`--ha-card-background`, `--primary-text-color`, `--warning-color`) as the *contract*, not the values.** The source code uses these names because that is HA's theming surface. The destination platform (HArvest) uses its own prefix (`--hrv-*`). Map at the theme JSON layer: define `--hrv-color-surface`, `--hrv-color-text`, etc. with the same semantic roles, then mechanically rename in the renderer override CSS. The `color-mix(in srgb, var(--accent) 18%, var(--surface))` recipes carry over unchanged - only the variable names differ.
 
 42. **A circular dial built from a single SVG `<circle>` + `stroke-dasharray` is cleaner than a `<path>` arc.** For thermostat-style controls with a partial circle (e.g. 270 sweep with the bottom 90 hidden), the trick is: one `<circle>` for the track, one for the progress, both share `stroke-dasharray: <visible-length> <hidden-length>` and `transform: rotate(<start-angle>deg)`. The progress circle additionally sets `stroke-dasharray: var(--progress-length) <full-circumference>` to vary how much of the visible arc is filled. Thumb position comes from `cos`/`sin` of the angle, written to CSS variables (`--thumb-left`, `--thumb-top`) and applied via `left/top: var(--thumb-left)`. No JS arc-path math, no SVG path manipulation, just trig in two functions and CSS variables.
 
 43. **Dial drag needs an inner dead zone or the centre buttons stop working.** A circular drag-to-set control where the user can also tap mode buttons in the centre needs an inner radius dead zone in the pointer-to-value function. If the click point is within (e.g.) 42% of the outer radius, return null/the fallback value instead of computing an angle. The pointerdown handler then bails out and lets the click bubble through to the centre button. Without this, every tap on the centre buttons accidentally jerks the temperature to whatever angle the centre happened to fall on.
 
-44. **Auto-detect stateless entities via `attributes.assumed_state`.** Home Assistant flags entities whose state cannot be confirmed (RF / Bond / button-only platforms) with `assumed_state: true`. Pack renderers should branch on this attribute in `applyState()` and suppress visual reflection of attribute values on buttons (no `data-active` from `attributes.oscillating`, `attributes.preset_mode`, etc.) - each tap fires the command and the button stays neutral. The slider can still update from state echoes (often the only feedback the user has) but should not fight a mid-drag value. This pattern applies cross-domain: fans, switches, covers, lights with assumed-state. **Note for HArvest**: ensure `assumed_state` is NOT in `BLOCKED_ATTRIBUTES` in `entity_definition.py` - the integration must forward it to the widget for this detection to work.
+44. **Auto-detect stateless entities via `attributes.assumed_state`.** Home Assistant flags entities whose state cannot be confirmed (RF / Bond / button-only platforms) with `assumed_state: true`. Renderer overrides should branch on this attribute in `applyState()` and suppress visual reflection of attribute values on buttons (no `data-active` from `attributes.oscillating`, `attributes.preset_mode`, etc.) - each tap fires the command and the button stays neutral. The slider can still update from state echoes (often the only feedback the user has) but should not fight a mid-drag value. This pattern applies cross-domain: fans, switches, covers, lights with assumed-state. **Note for HArvest**: ensure `assumed_state` is NOT in `BLOCKED_ATTRIBUTES` in `entity_definition.py` - the integration must forward it to the widget for this detection to work.
 
 45. **A toggleable disclosure panel is cheaper than always-visible secondary controls.** When a domain has many infrequently-used options (e.g. fan preset modes), Daniel hides them behind a toggle button on the slider row. Click the toggle, the panel slides down via CSS transitions on `max-height` and `opacity`. Implementation: a single boolean class field, an action button with `data-active` reflecting the panel state, and the panel itself with `data-open="true|false"` driving CSS. Cheaper than implementing a context menu, friendlier than always-visible chips at small widths, and stable - the panel content lives in the static DOM, not rebuilt per state.
 

@@ -26,7 +26,7 @@ The script walks you through each step interactively:
 3. Choose which tabs/views to convert (skip dev tabs, unsupported content, etc.)
 4. Review a summary of entities, domains, and any issues
 5. Set capability defaults (badge, read, read-write, or smart auto-detection)
-6. Pick an installed HArvest theme or renderer pack
+6. Pick an installed HArvest theme or renderer override
 7. Optionally set an origin restriction for the generated tokens
 8. Specify the path to your `harvest.min.js` file
 9. Tokens are created (one per tab) and the HTML file is written
@@ -82,18 +82,18 @@ Custom Lovelace cards (Bubble, Mushroom, etc.) are handled as follows:
 
 ## THEME-PACK-CONVERTING.md
 
-A comprehensive guide for converting existing Home Assistant Lovelace card designs (like Mushroom, Bubble, etc.) into HArvest renderer packs. Written for both AI agents and human developers.
+A comprehensive guide for converting existing Home Assistant Lovelace card designs (like Mushroom, Bubble, etc.) into HArvest renderer overrides. Written for both AI agents and human developers.
 
 ### When to use this
 
-Use this document when you want to create a new HArvest theme pack that replicates the look-and-feel of an existing HA card set. Feed it to an AI assistant alongside the source CSS/JS of the card you want to replicate, or follow it manually as a developer.
+Use this document when you want to create a new HArvest theme with renderer override that replicates the look-and-feel of an existing HA card set. Feed it to an AI assistant alongside the source CSS/JS of the card you want to replicate, or follow it manually as a developer.
 
 ### What it covers
 
-- What renderer packs can and cannot do
-- The pack file structure and registration pattern
+- What renderer overrides can and cannot do
+- The renderer override file structure and registration pattern
 - How to map HA card features to HArvest's data model (entity definitions, state updates, commands)
 - Domain-by-domain conversion guidance with attribute references
-- The companion system and how to use it in pack cards
+- The companion system and how to use it in renderer override cards
 - Testing and debugging workflow
 - Common pitfalls and their solutions

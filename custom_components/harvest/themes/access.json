@@ -2,8 +2,8 @@
   "name": "Access",
   "author": "sfox38",
   "version": "1.0",
-  "description": "High-contrast WCAG AA compliant theme with no animations. Designed for maximum readability and accessibility.",
   "harvest_version": 1,
+  "description": "High-contrast accessible theme with no animations and strong borders.",
   "variables": {
     "--hrv-card-min-width":        "260px",
     "--hrv-color-primary":         "#0047ab",

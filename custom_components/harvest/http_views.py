@@ -28,7 +28,7 @@ from .entity_definition import build_badge_definition, build_entity_definition, 
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager, ServiceCall
 from .session_manager import SessionManager
-from .pack_manager import PackManager, pack_to_api_dict
+from .renderer_manager import RendererManager, renderer_to_api_dict
 from .theme_manager import ThemeManager, theme_to_api_dict, theme_url_to_id
 from .token_manager import (
     ActiveSchedule,
@@ -47,7 +47,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
 
     All views are prefixed with /api/harvest/. All views require HA
     authentication (panel runs in authenticated context) except the public
-    pack-file and panel.js endpoints.
+    renderer-file and panel.js endpoints.
 
     Each view holds only ``(hass, entry_id)`` and resolves managers per-request
     via ``_HarvestView``'s @property accessors. This avoids stale-manager refs
@@ -70,11 +70,11 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestThemeReloadByIdView,
         HarvestThemeThumbnailView,
         HarvestThemeFontView,
-        HarvestPacksView,
-        HarvestPackAgreeView,
-        HarvestPackFileView,
-        HarvestPackDetailView,
-        HarvestPackCodeView,
+        HarvestRenderersView,
+        HarvestRendererAgreeView,
+        HarvestRendererFileView,
+        HarvestRendererDetailView,
+        HarvestRendererCodeView,
         HarvestConfigView,
         HarvestStatsView,
         HarvestAliasView,
@@ -497,8 +497,8 @@ class _HarvestView(HomeAssistantView):
         return self._data.get("theme_manager")
 
     @property
-    def _pack_manager(self) -> PackManager | None:
-        return self._data.get("pack_manager")
+    def _renderer_manager(self) -> RendererManager | None:
+        return self._data.get("renderer_manager")
 
     @property
     def _warnings_store(self):
@@ -631,20 +631,20 @@ class HarvestTokenDetailView(_HarvestView):
                 except Exception:
                     pass
 
-    async def _push_renderer_pack_to_sessions(self, token_id: str) -> None:
-        """Push renderer pack URL to all active sessions for a token."""
+    async def _push_renderer_to_sessions(self, token_id: str) -> None:
+        """Push renderer URL to all active sessions for a token."""
         token = self._token_manager.get(token_id)
         if not token:
             return
-        msg: dict[str, Any] = {"type": "renderer_pack", "url": ""}
-        if token.renderer_pack and self._pack_manager:
-            path = self._pack_manager.get_pack_path(token.renderer_pack)
+        msg: dict[str, Any] = {"type": "renderer", "url": ""}
+        if token.renderer_pack and self._renderer_manager:
+            path = self._renderer_manager.get_renderer_path(token.renderer_pack)
             if path:
                 try:
                     mtime = int(path.stat().st_mtime)
                 except OSError:
                     mtime = 0
-                msg["url"] = f"/api/harvest/packs/{token.renderer_pack}.js?v={mtime}"
+                msg["url"] = f"/api/harvest/renderers/{token.renderer_pack}.js?v={mtime}"
         for session in self._session_manager.get_all_for_token(token_id):
             if not session.ws.closed:
                 try:
@@ -945,7 +945,7 @@ class HarvestTokenDetailView(_HarvestView):
             if self._theme_manager:
                 theme_id = theme_url_to_id(new_theme_url)
                 theme_def = self._theme_manager.get(theme_id)
-                updates["renderer_pack"] = theme_id if theme_def and theme_def.has_renderer_pack else ""
+                updates["renderer_pack"] = theme_id if theme_def and theme_def.has_renderer else ""
 
         if "custom_messages" in body:
             if not isinstance(body["custom_messages"], bool):
@@ -1036,7 +1036,7 @@ class HarvestTokenDetailView(_HarvestView):
 
         if "theme_url" in updates:
             await self._push_theme_to_sessions(token_id)
-            await self._push_renderer_pack_to_sessions(token_id)
+            await self._push_renderer_to_sessions(token_id)
 
         _TOKEN_CONFIG_FIELDS = {"lang", "a11y", "color_scheme", "custom_messages", "on_offline", "on_error", "offline_text", "error_text"}
         if _TOKEN_CONFIG_FIELDS & updates.keys():
@@ -1448,10 +1448,10 @@ class HarvestThemesView(_HarvestView):
             _font_url = f"/api/harvest/themes/{theme.theme_id}/font" if _fp else None
             d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme.theme_id), font_url=_font_url)
             d["usage_count"] = counts.get(theme.theme_id, 0)
-            if theme.has_renderer_pack and self._pack_manager is not None:
-                d["has_pack"] = self._pack_manager.get_pack_path(theme.theme_id) is not None
+            if theme.has_renderer and self._renderer_manager is not None:
+                d["has_renderer"] = self._renderer_manager.get_renderer_path(theme.theme_id) is not None
             else:
-                d["has_pack"] = False
+                d["has_renderer"] = False
             result.append(d)
         return self.json(result)
 
@@ -1479,8 +1479,8 @@ class HarvestThemesView(_HarvestView):
 
         raw_cap = body.get("capabilities")
         capabilities = raw_cap if isinstance(raw_cap, dict) else None
-        raw_ps = body.get("pack_settings")
-        pack_settings = list(raw_ps) if isinstance(raw_ps, list) else None
+        raw_ps = body.get("renderer_settings")
+        renderer_settings = list(raw_ps) if isinstance(raw_ps, list) else None
         theme = await self._theme_manager.create(
             name=name,
             variables=variables,
@@ -1488,13 +1488,13 @@ class HarvestThemesView(_HarvestView):
             created_by=user.id,
             author=str(body.get("author", "")),
             version=str(body.get("version", "1.0")),
-            has_renderer_pack=bool(body.get("renderer_pack", False)),
+            has_renderer=bool(body.get("has_renderer", False)),
             capabilities=capabilities,
-            pack_settings=pack_settings,
+            renderer_settings=renderer_settings,
             description=str(body.get("description", "")),
         )
         d = theme_to_api_dict(theme)
-        d["has_pack"] = False
+        d["has_renderer"] = False
         return self.json(d, status_code=201)
 
 
@@ -1507,7 +1507,7 @@ class HarvestThemeImportView(_HarvestView):
 
     Returns the created ThemeDefinition.
     If the zip includes renderer.js and the admin has not yet agreed to
-    run renderer pack JS, returns 409 with {"error": "renderer_consent_required"}.
+    run renderer JS, returns 409 with {"error": "renderer_consent_required"}.
     """
 
     url = "/api/harvest/themes/import"
@@ -1578,13 +1578,13 @@ class HarvestThemeImportView(_HarvestView):
         has_renderer_js = "renderer.js" in zf.namelist()
         has_renderer_flag = bool(raw.get("has_renderer", raw.get("renderer_pack", False)))
 
-        if has_renderer_js and self._pack_manager is not None and not self._pack_manager.agreed:
+        if has_renderer_js and self._renderer_manager is not None and not self._renderer_manager.agreed:
             return self.json({"error": "renderer_consent_required"}, status_code=409)
 
         raw_cap = raw.get("capabilities")
         capabilities = raw_cap if isinstance(raw_cap, dict) else None
-        raw_ps = raw.get("pack_settings")
-        pack_settings = list(raw_ps) if isinstance(raw_ps, list) else None
+        raw_ps = raw.get("renderer_settings", raw.get("pack_settings"))
+        renderer_settings = list(raw_ps) if isinstance(raw_ps, list) else None
 
         raw_font = raw.get("icon_font") or {}
         icon_font_family = str(raw_font.get("family", "")).strip() if isinstance(raw_font, dict) else ""
@@ -1598,16 +1598,16 @@ class HarvestThemeImportView(_HarvestView):
             created_by=user.id,
             author=str(raw.get("author", "")),
             version=str(raw.get("version", "1.0")),
-            has_renderer_pack=has_renderer_js or has_renderer_flag,
+            has_renderer=has_renderer_js or has_renderer_flag,
             capabilities=capabilities,
-            pack_settings=pack_settings,
+            renderer_settings=renderer_settings,
             description=str(raw.get("description", "")),
             icon_font_family=icon_font_family if has_font else "",
         )
 
-        if has_renderer_js and self._pack_manager is not None:
+        if has_renderer_js and self._renderer_manager is not None:
             js_code = zf.read("renderer.js").decode("utf-8")
-            await self._pack_manager.update_code(theme.theme_id, js_code)
+            await self._renderer_manager.update_code(theme.theme_id, js_code)
 
         if has_font:
             font_bytes = zf.read(font_filename)
@@ -1617,7 +1617,7 @@ class HarvestThemeImportView(_HarvestView):
 
         font_url = f"/api/harvest/themes/{theme.theme_id}/font" if has_font else None
         d = theme_to_api_dict(theme, font_url=font_url)
-        d["has_pack"] = has_renderer_js and self._pack_manager is not None
+        d["has_renderer"] = has_renderer_js and self._renderer_manager is not None
         return self.json(d, status_code=201)
 
 
@@ -1657,12 +1657,12 @@ class HarvestThemeExportView(_HarvestView):
             }
             if theme.description:
                 obj["description"] = theme.description
-            if theme.has_renderer_pack:
+            if theme.has_renderer:
                 obj["has_renderer"] = True
             if theme.capabilities:
                 obj["capabilities"] = theme.capabilities
-            if theme.pack_settings:
-                obj["pack_settings"] = theme.pack_settings
+            if theme.renderer_settings:
+                obj["renderer_settings"] = theme.renderer_settings
             font_path = self._theme_manager.get_font_path(theme_id)
             if theme.icon_font_family and font_path is not None:
                 obj["icon_font"] = {"family": theme.icon_font_family, "file": "font.woff2"}
@@ -1671,9 +1671,9 @@ class HarvestThemeExportView(_HarvestView):
                 obj["dark_variables"] = theme.dark_variables
             zf.writestr("theme.json", _json.dumps(obj, indent=2))
 
-            # Include renderer.js if the pack file exists.
-            if theme.has_renderer_pack and self._pack_manager is not None:
-                js_path = self._pack_manager.get_pack_path(theme_id)
+            # Include renderer.js if the renderer file exists.
+            if theme.has_renderer and self._renderer_manager is not None:
+                js_path = self._renderer_manager.get_renderer_path(theme_id)
                 if js_path is not None:
                     js_bytes = await self._hass.async_add_executor_job(
                         js_path.read_bytes
@@ -1697,7 +1697,7 @@ class HarvestThemeExportView(_HarvestView):
 class HarvestThemeReloadView(_HarvestView):
     """POST /api/harvest/themes/reload - reload all bundled themes from disk.
 
-    After reloading, pushes updated theme variables and renderer pack URLs
+    After reloading, pushes updated theme variables and renderer URLs
     to all active sessions that reference a bundled theme.
     """
 
@@ -1721,16 +1721,16 @@ class HarvestThemeReloadView(_HarvestView):
                 "variables": theme_def.variables,
                 "dark_variables": theme_def.dark_variables,
             }
-            pack_msg: dict[str, Any] = {"type": "renderer_pack", "url": ""}
-            if token.renderer_pack and self._pack_manager:
-                if self._pack_manager.get_pack_path(token.renderer_pack):
-                    pack_msg["url"] = f"/api/harvest/packs/{token.renderer_pack}.js?v={ts}"
+            renderer_msg: dict[str, Any] = {"type": "renderer", "url": ""}
+            if token.renderer_pack and self._renderer_manager:
+                if self._renderer_manager.get_renderer_path(token.renderer_pack):
+                    renderer_msg["url"] = f"/api/harvest/renderers/{token.renderer_pack}.js?v={ts}"
             for session in self._session_manager.get_all_for_token(token.token_id):
                 if not session.ws.closed:
                     try:
                         await session.ws.send_json(theme_msg)
                         if token.renderer_pack:
-                            await session.ws.send_json(pack_msg)
+                            await session.ws.send_json(renderer_msg)
                     except Exception:
                         pass
         if errors:
@@ -1779,10 +1779,10 @@ class HarvestThemeDetailView(_HarvestView):
             if theme_url_to_id(t.theme_url) == theme_id
         )
         d["usage_count"] = count
-        if theme.has_renderer_pack and self._pack_manager is not None:
-            d["has_pack"] = self._pack_manager.get_pack_path(theme_id) is not None
+        if theme.has_renderer and self._renderer_manager is not None:
+            d["has_renderer_file"] = self._renderer_manager.get_renderer_path(theme_id) is not None
         else:
-            d["has_pack"] = False
+            d["has_renderer_file"] = False
         return self.json(d)
 
     async def patch(self, request: web.Request, theme_id: str) -> web.Response:
@@ -1816,14 +1816,14 @@ class HarvestThemeDetailView(_HarvestView):
             if not isinstance(body["dark_variables"], dict):
                 raise web.HTTPBadRequest(reason="dark_variables must be an object.")
             updates["dark_variables"] = body["dark_variables"]
-        if "renderer_pack" in body:
-            updates["has_renderer_pack"] = bool(body["renderer_pack"])
+        if "has_renderer" in body:
+            updates["has_renderer"] = bool(body["has_renderer"])
         if "capabilities" in body:
             raw_cap = body["capabilities"]
             updates["capabilities"] = raw_cap if isinstance(raw_cap, dict) else None
-        if "pack_settings" in body:
-            raw_ps = body["pack_settings"]
-            updates["pack_settings"] = list(raw_ps) if isinstance(raw_ps, list) else []
+        if "renderer_settings" in body:
+            raw_ps = body["renderer_settings"]
+            updates["renderer_settings"] = list(raw_ps) if isinstance(raw_ps, list) else []
         if "description" in body:
             updates["description"] = str(body["description"])
 
@@ -1840,10 +1840,10 @@ class HarvestThemeDetailView(_HarvestView):
         _fp = self._theme_manager.get_font_path(theme_id)
         _font_url = f"/api/harvest/themes/{theme_id}/font" if _fp else None
         d = theme_to_api_dict(theme, font_url=_font_url)
-        if theme.has_renderer_pack and self._pack_manager is not None:
-            d["has_pack"] = self._pack_manager.get_pack_path(theme_id) is not None
+        if theme.has_renderer and self._renderer_manager is not None:
+            d["has_renderer_file"] = self._renderer_manager.get_renderer_path(theme_id) is not None
         else:
-            d["has_pack"] = False
+            d["has_renderer_file"] = False
         return self.json(d)
 
     async def delete(self, request: web.Request, theme_id: str) -> web.Response:
@@ -1871,13 +1871,13 @@ class HarvestThemeDetailView(_HarvestView):
                 if not session.ws.closed:
                     try:
                         await session.ws.send_json({"type": "theme", "variables": {}})
-                        await session.ws.send_json({"type": "renderer_pack"})
+                        await session.ws.send_json({"type": "renderer"})
                     except Exception:
                         pass
 
-        if self._pack_manager:
+        if self._renderer_manager:
             try:
-                await self._pack_manager.delete_user_pack(theme_id)
+                await self._renderer_manager.delete_user_renderer(theme_id)
             except Exception:
                 pass
 
@@ -1975,7 +1975,7 @@ class HarvestThemeReloadByIdView(_HarvestView):
     For bundled themes, re-reads the JSON from disk. For user themes, pushes
     the current stored variables to active sessions (useful after a manual
     file edit). In both cases, pushes updated theme variables and renderer
-    pack URL to all active sessions that reference the theme.
+    URL to all active sessions that reference the theme.
     """
 
     url = "/api/harvest/themes/{theme_id}/reload"
@@ -2005,56 +2005,56 @@ class HarvestThemeReloadByIdView(_HarvestView):
         for token in self._token_manager.get_all():
             if theme_url_to_id(token.theme_url) != theme_id:
                 continue
-            pack_url = ""
-            if token.renderer_pack and self._pack_manager:
-                if self._pack_manager.get_pack_path(token.renderer_pack):
-                    pack_url = f"/api/harvest/packs/{token.renderer_pack}.js?v={ts}"
+            renderer_url = ""
+            if token.renderer_pack and self._renderer_manager:
+                if self._renderer_manager.get_renderer_path(token.renderer_pack):
+                    renderer_url = f"/api/harvest/renderers/{token.renderer_pack}.js?v={ts}"
             for session in self._session_manager.get_all_for_token(token.token_id):
                 if not session.ws.closed:
                     try:
                         await session.ws.send_json(theme_msg)
                         if token.renderer_pack:
-                            await session.ws.send_json({"type": "renderer_pack", "url": pack_url})
+                            await session.ws.send_json({"type": "renderer", "url": renderer_url})
                     except Exception:
                         pass
 
         _fp = self._theme_manager.get_font_path(theme_id)
         _font_url = f"/api/harvest/themes/{theme_id}/font" if _fp else None
         d = theme_to_api_dict(theme, font_url=_font_url)
-        if theme.has_renderer_pack and self._pack_manager is not None:
-            d["has_pack"] = self._pack_manager.get_pack_path(theme_id) is not None
+        if theme.has_renderer and self._renderer_manager is not None:
+            d["has_renderer"] = self._renderer_manager.get_renderer_path(theme_id) is not None
         else:
-            d["has_pack"] = False
+            d["has_renderer"] = False
         return self.json({"status": "ok", "theme": d})
 
 
 # ---------------------------------------------------------------------------
-# Renderer pack views
+# Renderer views
 # ---------------------------------------------------------------------------
 
 
-class HarvestPacksView(_HarvestView):
-    """GET /api/harvest/packs - list bundled packs + consent state."""
+class HarvestRenderersView(_HarvestView):
+    """GET /api/harvest/renderers - list bundled renderers + consent state."""
 
-    url = "/api/harvest/packs"
-    name = "api:harvest:packs"
+    url = "/api/harvest/renderers"
+    name = "api:harvest:renderers"
 
     async def get(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
-        packs = self._pack_manager.get_all()
+        renderers = self._renderer_manager.get_all()
         return self.json({
-            "agreed": self._pack_manager.agreed,
-            "packs": [pack_to_api_dict(p) for p in packs],
+            "agreed": self._renderer_manager.agreed,
+            "renderers": [renderer_to_api_dict(r) for r in renderers],
         })
 
 
-class HarvestPackAgreeView(_HarvestView):
-    """POST /api/harvest/packs/agree - set renderer pack consent state."""
+class HarvestRendererAgreeView(_HarvestView):
+    """POST /api/harvest/renderers/agree - set renderer consent state."""
 
-    url = "/api/harvest/packs/agree"
-    name = "api:harvest:packs:agree"
+    url = "/api/harvest/renderers/agree"
+    name = "api:harvest:renderers:agree"
 
     async def post(self, request: web.Request) -> web.Response:
         user = request.get("hass_user")
@@ -2065,22 +2065,22 @@ class HarvestPackAgreeView(_HarvestView):
         except Exception:
             raise web.HTTPBadRequest(reason="Invalid JSON body.")
         agreed = bool(body.get("agreed", False))
-        await self._pack_manager.set_agreed(agreed)
+        await self._renderer_manager.set_agreed(agreed)
         return self.json({"agreed": agreed})
 
 
-class HarvestPackFileView(_HarvestView):
-    """GET /api/harvest/packs/{pack_id}.js - serve a renderer pack JS file.
+class HarvestRendererFileView(_HarvestView):
+    """GET /api/harvest/renderers/{renderer_id}.js - serve a renderer JS file.
 
     No auth required - the widget on a remote page needs to fetch it.
     """
 
-    url = "/api/harvest/packs/{pack_id}.js"
-    name = "api:harvest:pack_file"
+    url = "/api/harvest/renderers/{renderer_id}.js"
+    name = "api:harvest:renderer_file"
     requires_auth = False
 
-    async def get(self, request: web.Request, pack_id: str) -> web.Response:
-        path = self._pack_manager.get_pack_path(pack_id)
+    async def get(self, request: web.Request, renderer_id: str) -> web.Response:
+        path = self._renderer_manager.get_renderer_path(renderer_id)
         if path is None:
             raise web.HTTPNotFound()
         data = await self._hass.async_add_executor_job(path.read_bytes)
@@ -2091,46 +2091,46 @@ class HarvestPackFileView(_HarvestView):
         )
 
 
-class HarvestPackDetailView(_HarvestView):
-    """GET /api/harvest/packs/{pack_id} - get bundled pack info."""
+class HarvestRendererDetailView(_HarvestView):
+    """GET /api/harvest/renderers/{renderer_id} - get bundled renderer info."""
 
-    url = "/api/harvest/packs/{pack_id}"
-    name = "api:harvest:pack_detail"
+    url = "/api/harvest/renderers/{renderer_id}"
+    name = "api:harvest:renderer_detail"
 
-    async def get(self, request: web.Request, pack_id: str) -> web.Response:
+    async def get(self, request: web.Request, renderer_id: str) -> web.Response:
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
-        pack = self._pack_manager.get(pack_id)
-        if pack is None:
-            raise web.HTTPNotFound(reason=f"Pack not found: {pack_id}")
-        return self.json(pack_to_api_dict(pack))
+        renderer = self._renderer_manager.get(renderer_id)
+        if renderer is None:
+            raise web.HTTPNotFound(reason=f"Renderer not found: {renderer_id}")
+        return self.json(renderer_to_api_dict(renderer))
 
 
-class HarvestPackCodeView(_HarvestView):
-    """GET/POST /api/harvest/packs/{pack_id}/code - view or update pack JS source.
+class HarvestRendererCodeView(_HarvestView):
+    """GET/POST /api/harvest/renderers/{renderer_id}/code - view or update renderer JS source.
 
     POST accepts arbitrary JavaScript from admin users. The code is written
-    to disk unsigned and served without auth via the public pack JS endpoint.
-    Connected widgets auto-load new pack code at next reconnect. This is
-    intentional: renderer packs are admin-authored extensions by design.
+    to disk unsigned and served without auth via the public renderer JS endpoint.
+    Connected widgets auto-load new renderer code at next reconnect. This is
+    intentional: renderer overrides are admin-authored extensions by design.
     """
 
-    url = "/api/harvest/packs/{pack_id}/code"
-    name = "api:harvest:pack_code"
+    url = "/api/harvest/renderers/{renderer_id}/code"
+    name = "api:harvest:renderer_code"
 
-    async def get(self, request: web.Request, pack_id: str) -> web.Response:
+    async def get(self, request: web.Request, renderer_id: str) -> web.Response:
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
-        if not self._pack_manager.get_pack_path(pack_id):
+        if not self._renderer_manager.get_renderer_path(renderer_id):
             raise web.HTTPNotFound()
         code = await self._hass.async_add_executor_job(
-            self._pack_manager.get_code, pack_id,
+            self._renderer_manager.get_code, renderer_id,
         )
-        return self.json({"pack_id": pack_id, "code": code or ""})
+        return self.json({"renderer_id": renderer_id, "code": code or ""})
 
-    async def post(self, request: web.Request, pack_id: str) -> web.Response:
+    async def post(self, request: web.Request, renderer_id: str) -> web.Response:
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
@@ -2142,12 +2142,12 @@ class HarvestPackCodeView(_HarvestView):
         if code is None or not isinstance(code, str):
             raise web.HTTPBadRequest(reason="'code' field (string) is required.")
         try:
-            await self._pack_manager.update_code(pack_id, code)
+            await self._renderer_manager.update_code(renderer_id, code)
         except ValueError as exc:
             raise web.HTTPForbidden(reason=str(exc))
         except KeyError as exc:
             raise web.HTTPNotFound(reason=str(exc))
-        return self.json({"pack_id": pack_id, "status": "ok"})
+        return self.json({"renderer_id": renderer_id, "status": "ok"})
 
 
 # ---------------------------------------------------------------------------
