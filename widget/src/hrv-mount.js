@@ -21,6 +21,7 @@
  *   data-token        -> token
  *   data-ha-url       -> ha-url
  *   data-token-secret -> token-secret
+ *   data-layout       -> layout
  *
  * Gesture configuration (tap/hold/double-tap actions) is managed server-side
  * per entity on the token and delivered via the entity_definition message.
@@ -152,6 +153,8 @@ function mountCard(el) {
   // entity takes priority over alias.
   if (el.dataset.entity)           card.setAttribute("entity",       el.dataset.entity);
   else if (el.dataset.alias)       card.setAttribute("alias",        el.dataset.alias);
+
+  if (el.dataset.layout)           card.setAttribute("layout",       el.dataset.layout);
 
   el.appendChild(card);
 }

@@ -67,7 +67,6 @@ CONF_OVERRIDE_HOST = "override_host"
 CONF_WIDGET_SCRIPT_URL = "widget_script_url"
 CONF_KILL_SWITCH = "kill_switch"
 CONF_CUSTOM_DOMAINS = "custom_domains"
-CONF_EXTERNAL_HOST = "external_host"
 CONF_EXTERNAL_PORT = "external_port"
 
 # Default values matching SPEC.md Section 19
@@ -120,8 +119,7 @@ DEFAULTS: dict[str, object] = {
     "default_offline_text": "",
     "default_error_text": "",
     CONF_CUSTOM_DOMAINS: [],
-    # Secondary server - empty string means disabled.
-    CONF_EXTERNAL_HOST: "",
+    # Alternate port server - 0 means disabled.
     CONF_EXTERNAL_PORT: 0,
 }
 

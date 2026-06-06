@@ -229,8 +229,11 @@ async function _doReq<T>(
   }
 
   if (!res.ok) {
-    const reason = await res.text().catch(() => "");
-    throw new Error(`${method} ${path} failed: ${res.status}${reason ? ` - ${reason}` : ""}`);
+    const raw = await res.text().catch(() => "");
+    // Strip the leading HTTP status code the backend sometimes prepends
+    // (e.g. "400: Port must be ...") so the user sees just the message.
+    const reason = raw.replace(/^\d{3}:\s*/, "");
+    throw new Error(reason || `Request failed (HTTP ${res.status}).`);
   }
 
   if (res.status === 204) return undefined as T;

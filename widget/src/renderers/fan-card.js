@@ -167,6 +167,7 @@ const FAN_CARD_STYLES = /* css */`
 
 
 export class FanCard extends BaseCard {
+  /** @type {HTMLButtonElement|null} */ #rowToggle       = null;
   /** @type {HTMLButtonElement|null} */ #toggleBtn       = null;
   /** @type {HTMLInputElement|null}  */ #speedSlider     = null;
   /** @type {HTMLElement|null}       */ #speedValue      = null;
@@ -256,6 +257,7 @@ export class FanCard extends BaseCard {
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          ${isWritable ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>` : `<span part="row-control"><span part="row-state"></span></span>`}
         </div>
         <div part="card-body">
           ${isWritable ? `<button part="toggle-button" type="button"></button>` : ""}
@@ -290,6 +292,7 @@ export class FanCard extends BaseCard {
       </div>
     `;
 
+    this.#rowToggle     = this.root.querySelector("[part=row-toggle]");
     this.#toggleBtn     = this.root.querySelector("[part=toggle-button]");
     this.#speedSlider   = this.root.querySelector("[part=speed-slider]");
     this.#speedValue    = this.root.querySelector("[part=speed-value]");
@@ -305,13 +308,13 @@ export class FanCard extends BaseCard {
 
     this.renderIcon(this.resolveIcon(this.def.icon, "mdi:fan-off"), "card-icon");
 
-    this._attachGestureHandlers(this.#toggleBtn, {
-      onTap: () => {
-        const tap = this.config.gestureConfig?.tap;
-        if (tap) { this._runAction(tap); return; }
-        this.config.card?.sendCommand(this.#isOn ? "turn_off" : "turn_on", {});
-      },
-    });
+    const onTap = () => {
+      const tap = this.config.gestureConfig?.tap;
+      if (tap) { this._runAction(tap); return; }
+      this.config.card?.sendCommand(this.#isOn ? "turn_off" : "turn_on", {});
+    };
+    this._attachGestureHandlers(this.#toggleBtn, { onTap });
+    this._attachGestureHandlers(this.#rowToggle, { onTap });
 
     if (this.#speedSlider) {
       this.#speedSlider.addEventListener("input", (e) => {
@@ -413,6 +416,14 @@ export class FanCard extends BaseCard {
       );
       this.#toggleBtn.disabled = isUnavailable;
     }
+
+    if (this.#rowToggle) {
+      this.#rowToggle.setAttribute("aria-pressed", String(this.#isOn));
+      this.#rowToggle.disabled = isUnavailable;
+    }
+
+    const rowStateEl = this.root.querySelector("[part=row-state]");
+    if (rowStateEl) rowStateEl.textContent = label;
 
     if (this.#speedSlider && !this.isSliderActive(this.#speedSlider)) {
       this.#speedSlider.value = String(this.#percentage);

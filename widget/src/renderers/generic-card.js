@@ -36,6 +36,7 @@ const GENERIC_STYLES = /* css */`
 
 export class GenericCard extends BaseCard {
   /** @type {HTMLElement|null} */ #stateLabel = null;
+  /** @type {HTMLElement|null} */ #rowValue   = null;
 
   render() {
     this.root.innerHTML = /* html */`
@@ -44,6 +45,7 @@ export class GenericCard extends BaseCard {
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-value"></span></span>
           <span class="hrv-generic-domain">${_esc(this.def.domain)}</span>
         </div>
         <div part="card-body">
@@ -56,6 +58,7 @@ export class GenericCard extends BaseCard {
     `;
 
     this.#stateLabel = this.root.querySelector("[part=state-label]");
+    this.#rowValue   = this.root.querySelector("[part=row-value]");
     this.renderIcon(this.def.icon ?? "mdi:eye", "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -66,6 +69,7 @@ export class GenericCard extends BaseCard {
       ? this.i18n.t(`state.${state}`)
       : state;
     if (this.#stateLabel) this.#stateLabel.textContent = label;
+    if (this.#rowValue) this.#rowValue.textContent = label;
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 }

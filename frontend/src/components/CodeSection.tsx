@@ -89,13 +89,29 @@ export function groupEntities(entities: Token["entities"]): PrimaryWithCompanion
   return primaries.map(p => ({ primary: p, companions: companionMap.get(p.entity_id) ?? [] }));
 }
 
-function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null): string {
+function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null, entitiesBlock = false): string {
   const groups = groupEntities(token.entities);
   const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
 
   function cardLine(g: PrimaryWithCompanions, indent = ""): string {
     const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
     return `${indent}<hrv-card ${attr}></hrv-card>`;
+  }
+
+  if (entitiesBlock) {
+    const groupAttrs = `ha-url="${haUrl}" token="${token.token_id}"${secretAttr}`;
+    if (mode === "page") {
+      const cards = groups.map(g => cardLine(g, "  ")).join("\n");
+      return `<hrv-entities-block>\n${cards}\n</hrv-entities-block>`;
+    }
+    if (mode === "group") {
+      const cards = groups.map(g => cardLine(g, "    ")).join("\n");
+      return `<hrv-group ${groupAttrs}>\n  <hrv-entities-block>\n${cards}\n  </hrv-entities-block>\n</hrv-group>`;
+    }
+    const g = groups[0];
+    if (!g) return "";
+    const entityAttr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
+    return `<hrv-entities-block>\n  <hrv-card ${groupAttrs} ${entityAttr}></hrv-card>\n</hrv-entities-block>`;
   }
 
   if (mode === "page") {
@@ -112,13 +128,30 @@ function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haU
   return `<hrv-card ${groupAttrs} ${entityAttr}></hrv-card>`;
 }
 
-function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null): string {
+function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null, entitiesBlock = false): string {
   const groups = groupEntities(token.entities);
   const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
 
   function shortcodeLine(g: PrimaryWithCompanions, indent = ""): string {
     const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
     return `${indent}[harvest ${attr}]`;
+  }
+
+  if (entitiesBlock) {
+    if (mode === "page") {
+      const lines = groups.map(g => {
+        const attr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
+        return `  [harvest token="${token.token_id}"${secretAttr} ${attr}]`;
+      }).join("\n");
+      return `[harvest_entities_block]\n${lines}\n[/harvest_entities_block]`;
+    }
+    if (mode === "group") {
+      return `[harvest_entities_block]\n[harvest_group token="${token.token_id}"${secretAttr}]\n${groups.map(g => shortcodeLine(g, "  ")).join("\n")}\n[/harvest_group]\n[/harvest_entities_block]`;
+    }
+    const g = groups[0];
+    if (!g) return "";
+    const entityAttr = useAliases && g.primary.alias ? `alias="${g.primary.alias}"` : `entity="${g.primary.entity_id}"`;
+    return `[harvest_entities_block]\n  [harvest token="${token.token_id}"${secretAttr} ${entityAttr}]\n[/harvest_entities_block]`;
   }
 
   if (mode === "page") {
@@ -146,6 +179,8 @@ export function CodeSection({ token, setToken, setError, hmacSecret, bare }: { t
   const [useAliases,      setUseAliases]      = useState(() => { try { return localStorage.getItem("hrv_use_aliases") === "true"; } catch { return false; } });
   const [tab,             setTab]             = useState<"web" | "wordpress">(() => { try { return localStorage.getItem("hrv_code_tab") === "wordpress" ? "wordpress" : "web"; } catch { return "web"; } });
   const primaryCount = token.entities.filter(e => !e.companion_of).length;
+  const hasCompanions = token.entities.some(e => e.companion_of);
+  const entitiesBlock = token.entities_block ?? false;
   const [cardMode,        setCardMode]        = useState<CardMode>(token.embed_mode ?? "single");
 
   const changeMode = async (mode: CardMode) => {
@@ -155,28 +190,32 @@ export function CodeSection({ token, setToken, setError, hmacSecret, bare }: { t
       setToken(updated);
     } catch (e) { setError(String(e)); }
   };
+
+  const toggleEntitiesBlock = async (v: boolean) => {
+    try {
+      const updated = await api.tokens.update(token.token_id, { entities_block: v });
+      setToken(updated);
+    } catch (e) { setError(String(e)); }
+  };
   const [overrideHost,    setOverrideHost]    = useState("");
   const [widgetScriptUrl, setWidgetScriptUrl] = useState("");
+  const [externalPort,    setExternalPort]    = useState(0);
 
   useEffect(() => {
     api.config.get().then(c => {
       setOverrideHost(c.override_host || "");
       setWidgetScriptUrl(c.widget_script_url || "");
+      setExternalPort(c.external_port ?? 0);
     }).catch(() => {});
   }, []);
 
   const haUrl = overrideHost || window.location.origin;
   const isPage = cardMode === "page";
-  // SPEC.md Section 12 (Widget Script URL Settings): when widget_script_url
-  // is empty in config, the snippet uses the HA-served bundle at
-  // {haUrl}/harvest_assets/harvest.min.js. This always matches the running
-  // integration version (the bundle ships inside the integration's own
-  // files) and eliminates widget-vs-server drift by construction.
-  // Previously this fell back to DEFAULT_WIDGET_SCRIPT_URL = "" which
-  // produced <script src=""></script> in the copied snippet.
   const trimmedCustom = widgetScriptUrl.trim();
   const scriptUrl = trimmedCustom
-    || `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`;
+    || (externalPort > 0
+      ? (() => { try { const u = new URL(haUrl); return `${u.protocol}//${u.hostname}:${externalPort}/harvest.min.js`; } catch { return `${haUrl.replace(/\/+$/, "")}:${externalPort}/harvest.min.js`; } })()
+      : `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`);
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
   if (isPage && hmacSecret) pageConfigParts.push(`tokenSecret: "${hmacSecret}"`);
@@ -184,9 +223,10 @@ export function CodeSection({ token, setToken, setError, hmacSecret, bare }: { t
     ? `${scriptTag}\n<script>HArvest.config({ ${pageConfigParts.join(", ")} });</script>`
     : scriptTag;
 
+  const activeBlock = entitiesBlock && !hasCompanions;
   const cardSnippet = tab === "web"
-    ? buildCardSnippet(token, useAliases, cardMode, haUrl, hmacSecret)
-    : buildWordPressSnippet(token, useAliases, cardMode, hmacSecret);
+    ? buildCardSnippet(token, useAliases, cardMode, haUrl, hmacSecret, activeBlock)
+    : buildWordPressSnippet(token, useAliases, cardMode, hmacSecret, activeBlock);
 
   const setupCopy = useCopy(setupSnippet);
   const cardCopy = useCopy(cardSnippet);
@@ -200,16 +240,29 @@ export function CodeSection({ token, setToken, setError, hmacSecret, bare }: { t
 
   const codeBody = (
     <>
-      {/* Mode selector */}
-      <div className="segmented" role="group" aria-label="Embed mode" style={{ marginBottom: 12 }}>
-        <button
-          aria-pressed={cardMode === "single"}
-          onClick={() => changeMode("single")}
-          disabled={primaryCount > 1}
-          title={primaryCount > 1 ? "Single card requires exactly one primary entity" : undefined}
-        >Single card</button>
-        <button aria-pressed={cardMode === "group"} onClick={() => changeMode("group")}>Group</button>
-        <button aria-pressed={cardMode === "page"} onClick={() => changeMode("page")}>Page</button>
+      {/* Mode selector + entities block toggle */}
+      <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <div className="segmented" role="group" aria-label="Embed mode">
+          <button
+            aria-pressed={cardMode === "single"}
+            onClick={() => changeMode("single")}
+            disabled={primaryCount > 1}
+            title={primaryCount > 1 ? "Single card requires exactly one primary entity" : undefined}
+          >Single card</button>
+          <button aria-pressed={cardMode === "group"} onClick={() => changeMode("group")}>Group</button>
+          <button aria-pressed={cardMode === "page"} onClick={() => changeMode("page")}>Page</button>
+        </div>
+        <div className="row" style={{ gap: 6, fontSize: 13, flexShrink: 0, marginLeft: "auto" }}>
+          <Toggle
+            checked={entitiesBlock}
+            onChange={toggleEntitiesBlock}
+            disabled={hasCompanions}
+          />
+          <span>Entities block</span>
+          <Hint text={hasCompanions
+            ? "Entities block is unavailable because one or more entities have companions. Remove companions first."
+            : "Renders cards as compact rows inside a shared container, similar to a Home Assistant entities card."} />
+        </div>
       </div>
 
       {/* Step 1 - script (HTML only; WordPress plugin handles it) */}

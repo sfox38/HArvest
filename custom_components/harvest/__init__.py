@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import async_track_time_interval
 
 from .activity_store import ActivityStore
-from .const import DEFAULTS, DOMAIN, CONF_EXTERNAL_HOST, CONF_EXTERNAL_PORT
+from .const import DEFAULTS, DOMAIN, CONF_EXTERNAL_PORT
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
@@ -145,16 +145,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     widget_dir = Path(hass.config.path("custom_components", DOMAIN, "panel"))
     themes_dir = Path(hass.config.path("custom_components", DOMAIN, "themes"))
     secondary_server = SecondaryServer(widget_dir, themes_dir, ws_view)
-    ext_host = config.get(CONF_EXTERNAL_HOST, "")
     ext_port = int(config.get(CONF_EXTERNAL_PORT, 0) or 0)
-    if ext_host and ext_port:
+    if ext_port:
         try:
-            await secondary_server.start(ext_host, ext_port)
+            await secondary_server.start(ext_port)
         except Exception:  # noqa: BLE001
             _LOGGER.exception(
-                "HArvest secondary server failed to start on %s:%s. "
+                "HArvest alternate-port server failed to start on port %s. "
                 "Continuing without it.",
-                ext_host,
                 ext_port,
             )
 

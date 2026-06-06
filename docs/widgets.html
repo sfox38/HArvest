@@ -201,6 +201,11 @@ document.getElementById("sidebar").appendChild(card2);</code></pre>
             <div class="attr-name">token-secret <span class="attr-optional">optional</span> <span class="attr-type">string</span></div>
             <div class="attr-desc">HMAC signing secret. Required when the token has HMAC authentication enabled. The secret is used to sign auth messages client-side so the server can verify that auth requests came from a legitimate page embed.</div>
           </div>
+
+          <div class="attr-block">
+            <div class="attr-name">layout <span class="attr-optional">optional</span> <span class="attr-type">string</span></div>
+            <div class="attr-desc">Set to <code>"row"</code> to render the card as a compact single-row layout (icon, name, and primary control on one line). Used to build entities-block style groupings. See <a href="#entities-block">Entities block</a> below.</div>
+          </div>
         </div>
 
         <h2 id="hrv-group">hrv-group attributes</h2>
@@ -223,6 +228,37 @@ document.getElementById("sidebar").appendChild(card2);</code></pre>
             <div class="attr-desc">HMAC secret, inherited by all child cards.</div>
           </div>
         </div>
+        </section>
+
+        <section>
+        <h2 id="entities-block">Entities block</h2>
+
+        <p>An entities block groups multiple cards into a single visual container where each card appears as a compact row. This is useful for dashboards where you want several entities listed together inside one card-like container, similar to the entities card in Lovelace.</p>
+
+        <p>To create an entities block, wrap multiple <code>&lt;hrv-card&gt;</code> elements with <code>layout="row"</code> inside a <code>&lt;div class="hrv-entities-block"&gt;</code>:</p>
+
+<pre><code class="language-html">&lt;div class="hrv-entities-block"&gt;
+  &lt;hrv-card entity="light.living_room" layout="row"&gt;&lt;/hrv-card&gt;
+  &lt;hrv-card entity="switch.fan" layout="row"&gt;&lt;/hrv-card&gt;
+  &lt;hrv-card entity="sensor.temperature" layout="row"&gt;&lt;/hrv-card&gt;
+  &lt;hrv-card entity="binary_sensor.motion" layout="row"&gt;&lt;/hrv-card&gt;
+&lt;/div&gt;</code></pre>
+
+        <p>When <code>layout="row"</code> is set, the card strips its own card chrome (background, shadow, border-radius) and renders as a single horizontal row: icon, name, then the primary control or state value. The parent <code>.hrv-entities-block</code> container provides the shared card appearance, border-radius, and row separator lines.</p>
+
+        <p>Add this CSS to your page (or include it in your site's stylesheet) to style the container:</p>
+
+<pre><code class="language-css">.hrv-entities-block {
+  background: var(--hrv-color-surface, #fff);
+  border-radius: var(--hrv-border-radius, 12px);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+.hrv-entities-block hrv-card + hrv-card {
+  border-top: 1px solid rgba(0,0,0,0.06);
+}</code></pre>
+
+        <p>Each card in the block is still an independent <code>&lt;hrv-card&gt;</code> with its own entity subscription and state. You can mix row-layout cards and normal cards on the same page, and row cards still support companions and gestures configured server-side.</p>
         </section>
 
         <section>

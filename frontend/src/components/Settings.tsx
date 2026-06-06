@@ -185,6 +185,7 @@ function validateOverrideHost(v: string): string | null {
   }
 }
 
+
 function validateWidgetScriptUrl(v: string): string | null {
   // The widget script src can legitimately be a full URL, an absolute path,
   // or a relative path / bare filename (for HTML files served alongside
@@ -223,11 +224,12 @@ function validateWidgetScriptUrl(v: string): string | null {
 // WidgetScriptSourceField - SPEC.md Section 12 (Widget Script URL Settings)
 // ---------------------------------------------------------------------------
 //
-// Two radios + a URL input. The empty/non-empty state of the underlying
-// `widget_script_url` config field IS the storage for the radio (option A
-// from the design discussion): empty = HA-served, non-empty = Custom URL.
-// This avoids a config-schema migration and keeps the radio purely a UI
-// presentation over a single string field.
+// Three radios: HA-served, Alternate port, Custom URL.
+//
+// Storage mapping:
+//   - HA-served: widget_script_url="" and external_port=0
+//   - Alternate port: widget_script_url="" and external_port=N
+//   - Custom URL: widget_script_url="<url>" (external_port unchanged)
 //
 // HA-served preview is computed live from override_host (or the panel's
 // current origin) so admins see the literal URL their snippet will carry.
@@ -235,49 +237,77 @@ function validateWidgetScriptUrl(v: string): string | null {
 interface WidgetScriptSourceFieldProps {
   value: string;                                    // current widget_script_url
   overrideHost: string;                             // current override_host (for preview)
-  externalHost?: string;
-  externalPort?: number;
-  onChange: (v: string) => Promise<void>;
+  externalPort: number;
+  onScriptUrlChange: (v: string) => Promise<void>;
+  onPortChange: (v: number) => Promise<void>;
 }
 
-function WidgetScriptSourceField({ value, overrideHost, externalHost, externalPort, onChange }: WidgetScriptSourceFieldProps) {
-  // Mode is derived from value: empty = HA-served, non-empty = Custom.
-  const mode: "ha" | "custom" = value.trim() === "" ? "ha" : "custom";
+function WidgetScriptSourceField({ value, overrideHost, externalPort, onScriptUrlChange, onPortChange }: WidgetScriptSourceFieldProps) {
+  const haBase = (overrideHost || window.location.origin).replace(/\/+$/, "");
+  const haPreview = `${haBase}/harvest_assets/harvest.min.js`;
+  const haPort = (() => { try { return Number(new URL(haBase).port) || (new URL(haBase).protocol === "https:" ? 443 : 80); } catch { return 8123; } })();
 
-  // Live preview URL. When external host/port are both set, use that address.
-  // Otherwise fall back to override_host or the browser origin.
-  const haUrl = (() => {
-    if (externalHost && externalPort) {
-      return `http://${externalHost}:${externalPort}`;
-    }
-    return (overrideHost || window.location.origin).replace(/\/+$/, "");
-  })();
-  const preview = `${haUrl}/harvest.min.js`;
+  type SourceMode = "ha" | "alt-port" | "custom";
+  const derivedMode: SourceMode = value.trim() !== "" ? "custom" : externalPort > 0 ? "alt-port" : "ha";
+
+  const [uiMode, setUiMode] = useState<SourceMode>(derivedMode);
+  const [localPort, setLocalPort] = useState(String(externalPort || ""));
+  const [portState, setPortState] = useState<SaveState>("idle");
+  const [portErr, setPortErr] = useState("");
+  const [reachTrigger, setReachTrigger] = useState(0);
+
+  useEffect(() => { setUiMode(derivedMode); }, [derivedMode]);
+  useEffect(() => { setLocalPort(String(externalPort || "")); }, [externalPort]);
+
+  const altPortUrl = (port: number) => {
+    if (!port) return "";
+    try {
+      const u = new URL(haBase);
+      return `${u.protocol}//${u.hostname}:${port}/harvest.min.js`;
+    } catch { return `${haBase}:${port}/harvest.min.js`; }
+  };
+  const altPortCommitted = altPortUrl(externalPort);
+
+  const activeUrl = uiMode === "custom" ? value.trim() : uiMode === "alt-port" ? altPortCommitted : haPreview;
+  const reachUrl = uiMode === "alt-port" ? altPortCommitted : activeUrl;
 
   const switchToHa = async () => {
-    if (mode === "ha") return;
-    await onChange("");
+    setUiMode("ha");
+    if (value.trim()) await onScriptUrlChange("");
+    if (externalPort > 0) await onPortChange(0);
   };
 
-  const switchToCustom = async () => {
-    if (mode === "custom") return;
-    // Don't auto-fill anything; an empty value would just look like the
-    // user is mid-typing. The radio remains in "custom" because we set
-    // a sentinel that round-trips empty too. So we use a single space
-    // pre-fill the user can immediately overwrite. Actually simpler:
-    // leave the field empty but show the input - the radio's checked
-    // state lives in local UI state until the user types. Trade-off:
-    // refreshing the page while empty + Custom selected falls back to
-    // HA-served. Acceptable for v1 since the spec calls out this exact
-    // limitation as the cost of option A.
-    await onChange("");
+  const switchToAltPort = async () => {
+    setUiMode("alt-port");
+    if (value.trim()) await onScriptUrlChange("");
   };
 
-  // Local UI state to handle the brief window where Custom is selected
-  // but no URL is typed yet (the persistent storage can't represent
-  // this without a separate field). Initialised from the props mode.
-  const [uiMode, setUiMode] = useState<"ha" | "custom">(mode);
-  useEffect(() => { setUiMode(mode); }, [mode]);
+  const switchToCustom = () => {
+    setUiMode("custom");
+  };
+
+  const commitPort = useCallback(async (raw: string) => {
+    const trimmed = raw.trim();
+    const n = Number(trimmed);
+    if (!trimmed || n === 0 || n === haPort) {
+      setLocalPort("");
+      setPortState("saving");
+      setPortErr("");
+      try { await onPortChange(0); setPortState("idle"); }
+      catch (e) { setPortState("error"); setPortErr(String(e)); }
+      return;
+    }
+    if (isNaN(n) || !Number.isInteger(n)) { setPortState("error"); setPortErr("Must be a number."); return; }
+    if (n < 1 || n > 65535) { setPortState("error"); setPortErr("Must be 1-65535."); return; }
+    setPortState("saving");
+    setPortErr("");
+    try {
+      await onPortChange(n);
+      setPortState("idle");
+      setTimeout(() => setReachTrigger(t => t + 1), 1000);
+    }
+    catch (e) { setPortState("error"); setPortErr(String(e)); }
+  }, [onPortChange, haPort]);
 
   return (
     <div className="kv" style={{ paddingBottom: 8 }}>
@@ -289,40 +319,78 @@ function WidgetScriptSourceField({ value, overrideHost, externalHost, externalPo
       </dt>
       <dd>
         <div className="col" style={{ gap: 10 }}>
+          {/* Active URL + reachability */}
+          {activeUrl && (
+            <div className="col" style={{ gap: 2 }}>
+              <div className="mono fs-12" style={{ overflowWrap: "anywhere", color: "var(--text-secondary)" }}>{activeUrl}</div>
+              <UrlReachabilityIndicator url={reachUrl} triggerKey={reachTrigger} />
+            </div>
+          )}
+          {portState === "error" && portErr && <div className="error-msg-tight">{portErr}</div>}
+
+          {/* HA-served */}
           <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
             <input
               type="radio"
               name="widget_script_source"
               value="ha"
               checked={uiMode === "ha"}
-              onChange={() => { setUiMode("ha"); switchToHa(); }}
+              onChange={switchToHa}
               style={{ marginTop: 4 }}
             />
-            <div className="col" style={{ gap: 2, flex: 1, minWidth: 0 }}>
-              <div>HA-served <span className="muted fs-12">(recommended)</span></div>
-              <div className="muted fs-12" style={{ overflowWrap: "anywhere" }}>{preview}</div>
-              {uiMode === "ha" && (
-                <UrlReachabilityIndicator url={preview} />
-              )}
+            <div>HA-served <span className="muted fs-12">(recommended)</span></div>
+          </label>
+
+          {/* Alternate port */}
+          <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="widget_script_source"
+              value="alt-port"
+              checked={uiMode === "alt-port"}
+              onChange={switchToAltPort}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
+              <div className="row gap-8" style={{ alignItems: "center" }}>
+                <span>Alternate port</span>
+                {uiMode === "alt-port" && (
+                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={localPort}
+                      placeholder={String(haPort)}
+                      onChange={e => { setLocalPort(e.target.value); setPortState("idle"); }}
+                      onBlur={() => commitPort(localPort)}
+                      onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                      onClick={e => e.stopPropagation()}
+                      className="input"
+                      style={{ width: 90, borderColor: portState === "error" ? "var(--danger)" : undefined }}
+                    />
+                    {portState === "saving" && (
+                      <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </label>
 
+          {/* Custom URL */}
           <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
             <input
               type="radio"
               name="widget_script_source"
               value="custom"
               checked={uiMode === "custom"}
-              onChange={() => { setUiMode("custom"); switchToCustom(); }}
+              onChange={switchToCustom}
               style={{ marginTop: 4 }}
             />
             <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
               <div>Custom URL</div>
               {uiMode === "custom" && (
-                <>
-                  <WidgetScriptUrlInput value={value} onChange={onChange} />
-                  <UrlReachabilityIndicator url={value} />
-                </>
+                <WidgetScriptUrlInput value={value} onChange={onScriptUrlChange} />
               )}
             </div>
           </label>
@@ -387,6 +455,7 @@ function WidgetScriptUrlInput({ value, onChange }: { value: string; onChange: (v
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // ToggleField
@@ -909,24 +978,9 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
           <WidgetScriptSourceField
             value={config.widget_script_url}
             overrideHost={config.override_host}
-            externalHost={config.external_host}
-            externalPort={config.external_port}
-            onChange={v => patch({ widget_script_url: v })}
-          />
-          <TextField
-            label="External host"
-            value={config.external_host ?? ""}
-            placeholder="0.0.0.0"
-            hint="Serve the widget JS and WebSocket on a secondary address. Leave blank to disable. Requires External port."
-            onChange={v => patch({ external_host: v })}
-          />
-          <NumberField
-            label="External port"
-            value={config.external_port ?? 0}
-            min={0}
-            max={65535}
-            hint="Port for the secondary server (e.g. 9050). Set to 0 to disable. Requires External host."
-            onChange={patchNum("external_port")}
+            externalPort={config.external_port ?? 0}
+            onScriptUrlChange={v => patch({ widget_script_url: v })}
+            onPortChange={patchNum("external_port")}
           />
         </dl>
       </Card>

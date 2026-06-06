@@ -8,26 +8,7 @@
 import { BaseCard } from "./base-card.js";
 import { esc as _esc } from "../_utils/esc.js";
 
-const INPUT_BOOLEAN_ROW_STYLES = /* css */`
-  [part=row-toggle] {
-    padding: 2px var(--hrv-spacing-s);
-    border: none;
-    border-radius: var(--hrv-radius-s);
-    font-size: var(--hrv-font-size-xs);
-    font-weight: var(--hrv-font-weight-medium);
-    font-family: inherit;
-    cursor: pointer;
-    min-width: 44px;
-    transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
-  }
-  [part=row-toggle][aria-pressed=true]  { background: var(--hrv-color-state-on); color: var(--hrv-color-text-inverse); }
-  [part=row-toggle][aria-pressed=false] { background: var(--hrv-color-state-off); color: var(--hrv-color-text); }
-  [part=row-toggle]:disabled { opacity: 0.4; cursor: not-allowed; }
-  [part=row-state] {
-    font-size: var(--hrv-font-size-xs);
-    color: var(--hrv-color-text-secondary);
-  }
-`;
+const INPUT_BOOLEAN_ROW_STYLES = /* css */``;
 
 const INPUT_BOOLEAN_STYLES = /* css */`
   [part=card-body] {

@@ -147,6 +147,12 @@ class Token:
     revoke_reason: str | None
     paused: bool = False
     embed_mode: str = "single"             # "single", "group", or "page"
+    entities_block: bool = False
+    block_label: str | None = "Entities"
+    block_icon: str | None = None
+    block_show_label: bool = True
+    block_highlight_rows: bool = False
+    block_show_icons: bool = True
     theme_url: str = ""                    # bundled theme URL or custom theme URL; empty means default
     renderer_pack: str = ""                # "" = none; derived from theme_id when theme has a pack
     lang: str = "auto"                     # BCP 47 language tag or "auto"
@@ -279,6 +285,7 @@ class TokenManager:
         active_schedule: ActiveSchedule | None,
         allowed_ips: list[str],
         embed_mode: str = "single",
+        entities_block: bool = False,
         theme_url: str = "",
     ) -> Token:
         """Create, persist, and return a new token.
@@ -326,6 +333,7 @@ class TokenManager:
             revoked_at=None,
             revoke_reason=None,
             embed_mode=embed_mode,
+            entities_block=entities_block,
             theme_url=theme_url,
         )
         self._tokens[token.token_id] = token
@@ -518,7 +526,9 @@ class TokenManager:
         _UPDATABLE_FIELDS = {
             "label", "origins", "entities", "expires", "token_secret",
             "rate_limits", "session", "max_sessions", "allowed_ips",
-            "active_schedule", "paused", "embed_mode", "theme_url",
+            "active_schedule", "paused", "embed_mode", "entities_block",
+            "block_label", "block_icon", "block_show_label", "block_highlight_rows",
+            "block_show_icons", "theme_url",
             "renderer_pack", "lang", "a11y", "color_scheme", "custom_messages",
             "on_offline", "on_error", "offline_text", "error_text",
         }
@@ -958,6 +968,12 @@ class TokenManager:
             revoke_reason=d.get("revoke_reason"),
             paused=d.get("paused", False),
             embed_mode=d.get("embed_mode", "single"),
+            entities_block=d.get("entities_block", False),
+            block_label=d.get("block_label", "Entities"),
+            block_icon=d.get("block_icon"),
+            block_show_label=d.get("block_show_label", True),
+            block_highlight_rows=d.get("block_highlight_rows", False),
+            block_show_icons=d.get("block_show_icons", True),
             theme_url=d.get("theme_url", ""),
             renderer_pack=d.get("renderer_pack", ""),
             lang=d.get("lang", "auto"),

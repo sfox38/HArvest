@@ -27,6 +27,7 @@ import * as Renderers                      from "./renderers/index.js";
 import { buildEntityDef, filterAttributes } from "./entity-def-builder.js";
 import { esc } from "./_utils/esc.js";
 import "./hrv-mount.js";
+import "./hrv-entities-block.js";
 
 /**
  * Public HArvest.config() entry point. Stores page-level defaults AND, when

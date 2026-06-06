@@ -64,7 +64,8 @@ function _batteryIcon(level) {
 export class BatterySensorCard extends BaseCard {
   static staleOnMount = true;
 
-  /** @type {HTMLElement|null} */ #valueEl = null;
+  /** @type {HTMLElement|null} */ #valueEl     = null;
+  /** @type {HTMLElement|null} */ #rowValue    = null;
   /** @type {string|null} */      #currentIcon = null;
 
   render() {
@@ -74,6 +75,7 @@ export class BatterySensorCard extends BaseCard {
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-value"></span></span>
         </div>
         <div part="card-body">
           <span part="battery-icon-wrap" aria-hidden="true"></span>
@@ -87,7 +89,8 @@ export class BatterySensorCard extends BaseCard {
       </div>
     `;
 
-    this.#valueEl = this.root.querySelector("[part=sensor-value]");
+    this.#valueEl  = this.root.querySelector("[part=sensor-value]");
+    this.#rowValue = this.root.querySelector("[part=row-value]");
     this.renderIcon(this.def.icon ?? "mdi:battery", "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -98,13 +101,15 @@ export class BatterySensorCard extends BaseCard {
 
     this.#valueEl.textContent = state;
 
+    const unit = this.def.unit_of_measurement ?? "%";
+    if (this.#rowValue) this.#rowValue.textContent = `${state} ${unit}`;
+
     const icon = _batteryIcon(state === "unavailable" ? null : state);
     if (icon !== this.#currentIcon) {
       this.#currentIcon = icon;
       this.renderIcon(icon, "battery-icon-wrap");
     }
 
-    const unit = this.def.unit_of_measurement ?? "%";
     this.announceState(`${this.def.friendly_name}, ${state} ${unit}`);
   }
 }

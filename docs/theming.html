@@ -101,7 +101,7 @@ hrv-card::part(brightness-slider) {
 }</code></pre>
 
         <h3>Tier 3 - Custom renderers</h3>
-        <p>Replace the entire card UI for any entity domain with your own class. Full control over HTML structure, CSS, and behavior. Custom renderers are registered via <code>HArvest.registerRenderer()</code> or packaged into a renderer pack. See <a href="#custom-renderers">Custom renderers</a> below.</p>
+        <p>Replace the entire card UI for any entity domain with your own class. Full control over HTML structure, CSS, and behavior. Custom renderers are registered via <code>HArvest.registerRenderer()</code> or bundled as a <code>renderer.js</code> file inside a theme zip. See <a href="#custom-renderers">Custom renderers</a> below.</p>
 
         <h2 id="theme-json">Theme JSON format</h2>
 
@@ -144,14 +144,34 @@ hrv-card::part(brightness-slider) {
         </div>
 
         <h3>Theme zip format</h3>
-        <p>Import and export use a <code>.zip</code> file. The zip may contain:</p>
+        <p>Import and export use a <code>.zip</code> file. The zip must contain files with these exact names:</p>
         <ul>
-          <li><code>theme.json</code> (required)</li>
-          <li><code>renderer.js</code> (optional - replaces built-in card renderers when this theme is active)</li>
+          <li><code>theme.json</code> (required) - the theme definition. Must be named exactly <code>theme.json</code>.</li>
+          <li><code>renderer.js</code> (optional) - a custom renderer override. Must be named exactly <code>renderer.js</code>. Replaces built-in card renderers when this theme is active.</li>
+          <li><code>font.woff2</code> (optional) - a custom icon font. Must be named exactly <code>font.woff2</code>. See <a href="#custom-fonts">Custom fonts</a> below.</li>
         </ul>
-        <p>Maximum upload size is 10 MB. When <code>renderer.js</code> is present, the panel shows a renderer consent dialog before completing the import.</p>
+        <p>The zip file itself can be named anything (e.g. <code>my-cool-theme.zip</code>), but the files inside must use the exact names above. Maximum upload size is 10 MB. When <code>renderer.js</code> is present, the panel shows a renderer consent dialog before completing the import.</p>
 
         <p>Unknown fields and unknown variable names are silently ignored, which makes themes forward-compatible. Only use variable names from the published list below.</p>
+
+        <h3 id="custom-fonts">Custom fonts</h3>
+        <p>Themes can bundle a custom icon font to replace the default Material Design Icons. To include a custom font:</p>
+        <ol>
+          <li>Add an <code>icon_font</code> object to your <code>theme.json</code> with <code>family</code> (the CSS font-family name) and <code>file</code> (always <code>"font.woff2"</code>):</li>
+        </ol>
+<pre><code>{
+  "name": "My Theme",
+  "icon_font": {
+    "family": "MyIcons",
+    "file": "font.woff2"
+  },
+  "variables": { ... }
+}</code></pre>
+        <ol start="2">
+          <li>Include the <code>font.woff2</code> file in the root of the zip alongside <code>theme.json</code>.</li>
+          <li>In your renderer or CSS variables, reference the font with <code>font-family: "MyIcons"</code>.</li>
+        </ol>
+        <p>The widget automatically injects a <code>@font-face</code> declaration when a theme with a custom font is active. Only WOFF2 format is supported. The font file is served by the integration at <code>/api/harvest/themes/{theme_id}/font</code>.</p>
 
         <h2 id="css-variables">CSS variable reference</h2>
 
@@ -614,7 +634,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
 
         <h2 id="renderer-wiring">Pairing a renderer with a theme</h2>
 
-        <p>Bundle <code>theme.json</code> and <code>renderer.js</code> together in a <code>.zip</code> file and import it via the Themes tab. The server activates the renderer automatically for any token assigned that theme.</p>
+        <p>Bundle your theme definition and renderer into a <code>.zip</code> file and import it via the Themes tab. The files inside the zip must be named exactly <code>theme.json</code> and <code>renderer.js</code> - these are fixed filenames, not placeholders. The zip file itself can be named anything (e.g. <code>dial-theme.zip</code>).</p>
 
         <pre><code class="language-json">{
   "name": "Dial Theme",
@@ -631,7 +651,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
 
         <h2 id="renderer-distribution">Distributing a theme with a renderer</h2>
 
-        <p>A theme with a renderer override is distributed as a single <code>.zip</code> file containing both <code>theme.json</code> and <code>renderer.js</code>.</p>
+        <p>A theme with a renderer override is distributed as a single <code>.zip</code> file. The zip always contains <code>theme.json</code> (required) and <code>renderer.js</code> (the custom renderer). It may also include <code>font.woff2</code> (a custom icon font). Name the zip file itself after your theme (e.g. <code>dial-theme.zip</code>).</p>
         <ul>
           <li>Share the <code>.zip</code> directly (GitHub release, repo attachment, etc.)</li>
           <li>Users import it via the HArvest panel Themes tab - Import .zip</li>

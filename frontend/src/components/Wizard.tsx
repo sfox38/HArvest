@@ -50,6 +50,7 @@ interface SelectedEntity {
 
 interface WizardState {
   mode: "single" | "group" | "page";
+  entitiesBlock: boolean;
   entities: SelectedEntity[];
   label: string;
   labelAutoset: boolean;
@@ -113,11 +114,27 @@ function fmtExpiry(option: string): string {
 }
 
 function buildCardSnippetFromState(
-  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, haUrl: string,
+  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, haUrl: string, entitiesBlock = false,
 ): string {
   function cardLine(e: SelectedEntity, indent = ""): string {
     const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
     return `${indent}<hrv-card ${entityAttr}></hrv-card>`;
+  }
+
+  if (entitiesBlock) {
+    const groupAttrs = `ha-url="${haUrl}" token="${tokenId}"`;
+    if (mode === "page") {
+      const cards = entities.map(e => cardLine(e, "  ")).join("\n");
+      return `<hrv-entities-block>\n${cards}\n</hrv-entities-block>`;
+    }
+    if (mode === "group") {
+      const cards = entities.map(e => cardLine(e, "    ")).join("\n");
+      return `<hrv-group ${groupAttrs}>\n  <hrv-entities-block>\n${cards}\n  </hrv-entities-block>\n</hrv-group>`;
+    }
+    const e = entities[0];
+    if (!e) return "";
+    const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
+    return `<hrv-entities-block>\n  <hrv-card ${groupAttrs} ${entityAttr}></hrv-card>\n</hrv-entities-block>`;
   }
 
   if (mode === "page") {
@@ -135,11 +152,28 @@ function buildCardSnippetFromState(
 }
 
 function buildWordPressSnippetFromState(
-  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string,
+  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, entitiesBlock = false,
 ): string {
   function shortcodeLine(e: SelectedEntity, indent = ""): string {
     const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
     return `${indent}[harvest ${entityAttr}]`;
+  }
+
+  if (entitiesBlock) {
+    if (mode === "page") {
+      const lines = entities.map(e => {
+        const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
+        return `  [harvest token="${tokenId}" ${entityAttr}]`;
+      }).join("\n");
+      return `[harvest_entities_block]\n${lines}\n[/harvest_entities_block]`;
+    }
+    if (mode === "group") {
+      return `[harvest_entities_block]\n[harvest_group token="${tokenId}"]\n${entities.map(e => shortcodeLine(e, "  ")).join("\n")}\n[/harvest_group]\n[/harvest_entities_block]`;
+    }
+    const e = entities[0];
+    if (!e) return "";
+    const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
+    return `[harvest_entities_block]\n  [harvest token="${tokenId}" ${entityAttr}]\n[/harvest_entities_block]`;
   }
 
   if (mode === "page") {
@@ -523,6 +557,43 @@ function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[];
   );
 }
 
+const ENTITIES_BLOCK_DOMAINS = new Set(["light", "switch", "fan", "input_boolean", "binary_sensor", "lock", "cover", "sensor"]);
+const ENTITIES_BLOCK_READONLY_DOMAINS = new Set(["binary_sensor", "sensor"]);
+
+function EntitiesBlockPreview({ entities, capability }: { entities: SelectedEntity[]; capability: "badge" | "read" | "read-write" }) {
+  const showToggle = capability === "read-write";
+  return (
+    <div style={{
+      background: "var(--surface)", borderRadius: 12,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.08)", overflow: "hidden",
+    }}>
+      {entities.map((e, i) => {
+        const domain = e.entity_id.split(".")[0];
+        const cached = getEntityCache().find(c => c.entity_id === e.entity_id);
+        const name = cached?.friendly_name ?? e.entity_id;
+        return (
+          <div
+            key={e.entity_id}
+            className="row"
+            style={{
+              padding: "10px 14px", gap: 12, alignItems: "center",
+              borderTop: i > 0 ? "1px solid rgba(0,0,0,0.06)" : undefined,
+            }}
+          >
+            <div className="widget-thumb" style={{ width: 28, height: 28, flexShrink: 0 }}>
+              <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={14} />
+            </div>
+            <span style={{ flex: 1, fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+            {showToggle && !ENTITIES_BLOCK_READONLY_DOMAINS.has(domain) && (
+              <Toggle checked={true} onChange={() => {}} disabled />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Step1({ state, onChange, existingLabels, maxEntities }: { state: WizardState; onChange: (u: Partial<WizardState>) => void; existingLabels: string[]; maxEntities: number }) {
   const [entityInput, setEntityInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
@@ -570,6 +641,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
     }
 
     onChange(updates);
+    setPreviewEntityId(entityId);
   };
 
   const removeEntity = (entityId: string) => {
@@ -605,25 +677,35 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
 
   return (
     <div className="col" style={{ gap: 16 }}>
-      <div className="segmented" role="group" aria-label="Widget mode">
-        {(["single", "group", "page"] as const).map(m => (
-          <button key={m} aria-pressed={state.mode === m} onClick={() => {
-            if (m === state.mode) return;
-            const carried = m === "single" ? state.entities.slice(0, 1) : state.entities;
-            onChange({ mode: m, entities: carried });
-          }}>
-            {m === "single" ? "Single card" : m === "group" ? "Group of cards" : "Page of cards"}
-          </button>
-        ))}
+      <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="segmented" role="group" aria-label="Widget mode">
+          {(["single", "group", "page"] as const).map(m => (
+            <button key={m} aria-pressed={state.mode === m} onClick={() => {
+              if (m === state.mode) return;
+              const carried = m === "single" ? state.entities.slice(0, 1) : state.entities;
+              onChange({ mode: m, entities: carried });
+            }}>
+              {m === "single" ? "Single card" : m === "group" ? "Group of cards" : "Page of cards"}
+            </button>
+          ))}
+        </div>
+        <div className="row" style={{ gap: 6, fontSize: 13, flexShrink: 0, marginLeft: "auto" }}>
+          <Toggle
+            checked={state.entitiesBlock}
+            onChange={v => {
+              if (v && state.entities.some(e => e.companions.length > 0)) return;
+              onChange({ entitiesBlock: v, ...(v && state.capability === "badge" ? { capability: "read" } : {}) });
+            }}
+            disabled={state.entities.some(e => e.companions.length > 0)}
+          />
+          <span
+            style={{ cursor: "default" }}
+            title={state.entities.some(e => e.companions.length > 0)
+              ? "Remove companions first to enable entities block mode."
+              : "Renders cards as compact rows inside a shared container."}
+          >Entities block</span>
+        </div>
       </div>
-
-      <p className="muted fs-13">
-        {state.mode === "single"
-          ? "Choose one entity. Optionally add companion entities shown alongside it."
-          : state.mode === "group"
-            ? "Add multiple entities for a group widget. Each card can have companion entities."
-            : "Add entities for a full page of widgets. Cards inherit ha-url and token from a page-level config call."}
-      </p>
 
       {showPicker && (
         <EntityAutocomplete
@@ -633,6 +715,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
           disabled={loadingAlias !== null}
           placeholder={state.mode === "single" ? "Search entity ID or friendly name..." : multiMode ? "Add entity..." : "Add entity..."}
           excludeIds={primaryIds}
+          filterDomains={state.entitiesBlock ? ENTITIES_BLOCK_DOMAINS : undefined}
         />
       )}
 
@@ -678,7 +761,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                   <div className="widget-thumb" style={{ width: 24, height: 24 }}>
                     <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={12} />
                   </div>
-                  {state.capability !== "badge" && (
+                  {state.capability !== "badge" && !state.entitiesBlock && (
                   <span
                     role="button"
                     tabIndex={0}
@@ -707,7 +790,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                     <Icon name="close" size={10} />
                   </span>
                 </button>
-                {state.capability !== "badge" && isExpanded && (
+                {state.capability !== "badge" && !state.entitiesBlock && isExpanded && (
                   <CompanionPicker
                     companions={e.companions}
                     excludeIds={primaryIds}
@@ -756,7 +839,9 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
             <div className="col" style={{ gap: 4 }}>
               <label className="label-strong">Permissions</label>
               <div className="segmented" role="group" aria-label="Capability">
-                <button aria-pressed={state.capability === "badge"} onClick={() => { onChange({ capability: "badge", entities: state.entities.map(e => ({ ...e, companions: [] })) }); saveMemory({ capability: "badge" }); }}>Badge</button>
+                {!state.entitiesBlock && (
+                  <button aria-pressed={state.capability === "badge"} onClick={() => { onChange({ capability: "badge", entities: state.entities.map(e => ({ ...e, companions: [] })) }); saveMemory({ capability: "badge" }); }}>Badge</button>
+                )}
                 <button aria-pressed={state.capability === "read"} onClick={() => { onChange({ capability: "read", entities: state.entities.map(e => ({ ...e, companions: e.companions.map(c => ({ ...c, read_only: true })) })) }); saveMemory({ capability: "read" }); }}>View only</button>
                 <button aria-pressed={state.capability === "read-write"} onClick={() => { onChange({ capability: "read-write" }); saveMemory({ capability: "read-write" }); }}>Control</button>
               </div>
@@ -771,7 +856,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
       )}
 
       {/* Live entity preview */}
-      {activePreviewId && (
+      {activePreviewId && !state.entitiesBlock && (
         <div className="col gap-8" role="region" aria-label="Entity preview" aria-live="polite">
           <label className="label-strong">Preview</label>
           <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
@@ -805,6 +890,14 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Entities block preview */}
+      {state.entitiesBlock && state.entities.length > 0 && (
+        <div className="col gap-8" role="region" aria-label="Entities block preview" aria-live="polite">
+          <label className="label-strong">Preview</label>
+          <EntitiesBlockPreview entities={state.entities} capability={state.capability} />
         </div>
       )}
     </div>
@@ -1055,7 +1148,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
 // ---------------------------------------------------------------------------
 
 
-function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, selectedEntities, widgetScriptUrl, cardMode, onAcknowledgedChange }: {
+function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, selectedEntities, widgetScriptUrl, externalPort, cardMode, entitiesBlock, onAcknowledgedChange }: {
   token: Token;
   tokenSecret: string | null;
   originMode: "specific" | "any";
@@ -1063,7 +1156,9 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
   overrideHost: string;
   selectedEntities: SelectedEntity[];
   widgetScriptUrl: string;
+  externalPort: number;
   cardMode: "single" | "group" | "page";
+  entitiesBlock: boolean;
   onAcknowledgedChange?: (v: boolean) => void;
 }) {
   const [useAliases,   setUseAliases]   = useState(() => localStorage.getItem("hrv_use_aliases") === "true");
@@ -1087,7 +1182,9 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
   // emitting <script src=""></script>.
   const trimmedCustom = widgetScriptUrl.trim();
   const scriptUrl = trimmedCustom
-    || `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`;
+    || (externalPort > 0
+      ? (() => { try { const u = new URL(haUrl); return `${u.protocol}//${u.hostname}:${externalPort}/harvest.min.js`; } catch { return `${haUrl.replace(/\/+$/, "")}:${externalPort}/harvest.min.js`; } })()
+      : `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`);
   const isPage = cardMode === "page";
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
@@ -1095,8 +1192,8 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
     ? `${scriptTag}\n<script>HArvest.config({ ${pageConfigParts.join(", ")} });</script>`
     : scriptTag;
   const cardSnippet = tab === "web"
-    ? buildCardSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, haUrl)
-    : buildWordPressSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id);
+    ? buildCardSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, haUrl, entitiesBlock)
+    : buildWordPressSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, entitiesBlock);
   const hostDisplay = originMode === "any" ? "Anywhere" : (originUrl || haUrl);
 
   const saveWidgetName = async (name: string) => {
@@ -1221,6 +1318,7 @@ function freshState(): WizardState {
   const mem = loadMemory();
   return {
     mode: "single",
+    entitiesBlock: false,
     entities: [],
     label: "",
     labelAutoset: true,
@@ -1244,6 +1342,7 @@ export function Wizard({ onClose }: WizardProps) {
   const [confirmClose, setConfirmClose] = useState(false);
   const [overrideHost,       setOverrideHost]       = useState("");
   const [widgetScriptUrl,    setWidgetScriptUrl]    = useState("");
+  const [externalPort,       setExternalPort]       = useState(0);
   const [existingLabels,     setExistingLabels]     = useState<string[]>([]);
   const [maxEntities,        setMaxEntities]        = useState(50);
   const [secretAcknowledged, setSecretAcknowledged] = useState(false);
@@ -1279,6 +1378,7 @@ export function Wizard({ onClose }: WizardProps) {
     api.config.get().then(c => {
       setOverrideHost(c.override_host || "");
       setWidgetScriptUrl(c.widget_script_url || "");
+      setExternalPort(c.external_port ?? 0);
       if (c.max_entities_per_token) setMaxEntities(c.max_entities_per_token);
     }).catch(() => {});
     api.tokens.list().then(ts => {
@@ -1351,6 +1451,7 @@ export function Wizard({ onClose }: WizardProps) {
           origins,
           expires,
           embed_mode: wState.mode,
+          entities_block: wState.entitiesBlock,
           theme_url: wState.themeUrl,
         });
         patchState({ generatedToken: token });
@@ -1444,7 +1545,9 @@ export function Wizard({ onClose }: WizardProps) {
               overrideHost={overrideHost}
               selectedEntities={wState.entities}
               widgetScriptUrl={widgetScriptUrl}
+              externalPort={externalPort}
               cardMode={wState.mode}
+              entitiesBlock={wState.entitiesBlock}
               onAcknowledgedChange={setSecretAcknowledged}
             />
           )}

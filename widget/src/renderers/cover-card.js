@@ -98,6 +98,7 @@ export class CoverCard extends BaseCard {
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-state"></span></span>
         </div>
         <div part="card-body">
           ${!isWritable ? `<span part="state-label"></span>` : ""}
@@ -170,6 +171,9 @@ export class CoverCard extends BaseCard {
       : state;
 
     if (this.#stateLabel) this.#stateLabel.textContent = label;
+
+    const rowStateEl = this.root.querySelector("[part=row-state]");
+    if (rowStateEl) rowStateEl.textContent = label;
 
     const isMoving = state === "opening" || state === "closing";
     if (this.#stopBtn) this.#stopBtn.disabled = !isMoving;

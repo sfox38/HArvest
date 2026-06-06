@@ -287,10 +287,13 @@ export class HrvCard extends HTMLElement {
     this.#config.companions = this.#companions;
 
     const isBadge = def.capabilities === "badge";
+    const isRow = this.getAttribute("layout") === "row";
     const RendererClass = isBadge
       ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
-      : (this.#client?._getRendererOverride?.(def.domain, def.device_class ?? null)
-        || lookupRenderer(def.domain, def.device_class ?? null));
+      : (isRow
+        ? lookupRenderer(def.domain, def.device_class ?? null)
+        : (this.#client?._getRendererOverride?.(def.domain, def.device_class ?? null)
+          || lookupRenderer(def.domain, def.device_class ?? null)));
 
     if (isBadge) this.setAttribute("data-hrv-badge", "");
     else this.removeAttribute("data-hrv-badge");
@@ -813,13 +816,21 @@ export class HrvCard extends HTMLElement {
   }
 
   /**
-   * Walk up the DOM to find the nearest <hrv-group> ancestor and inherit
-   * any config values not already set by this card's own attributes.
+   * Walk up the DOM to find ancestor <hrv-group> or <hrv-entities-block>
+   * elements and inherit config values not already set by this card's own
+   * attributes. <hrv-entities-block> forces row layout on its children.
    */
   #inheritFromGroup() {
     let ancestor = this.parentElement;
     while (ancestor) {
-      if (ancestor.tagName?.toLowerCase() === "hrv-group") {
+      const tag = ancestor.tagName?.toLowerCase();
+      if (tag === "hrv-entities-block") {
+        if (!this.#config.layout) {
+          this.#config.layout = "row";
+          this.setAttribute("layout", "row");
+        }
+      }
+      if (tag === "hrv-group") {
         if (!this.#config.tokenId) this.#config.tokenId = ancestor.getAttribute("token") ?? "";
         if (!this.#config.haUrl)   this.#config.haUrl   = ancestor.getAttribute("ha-url") ?? "";
         if (!this.#config.tokenSecret) this.#config.tokenSecret = ancestor.getAttribute("token-secret") ?? null;

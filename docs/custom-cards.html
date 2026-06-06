@@ -96,7 +96,7 @@
 
         <p>Building a custom card has two sides:</p>
         <ol>
-          <li><strong>Display</strong> - write a renderer class that extends <code>BaseCard</code> and package it as a <code>renderer.js</code> file inside a theme zip. The zip is imported through the HArvest panel. The renderer is automatically loaded by the widget for any token that uses that theme. No script tags are needed on the embedding page.</li>
+          <li><strong>Display</strong> - write a renderer class that extends <code>BaseCard</code> and save it as <code>renderer.js</code> (this exact filename is required). Bundle it into a theme zip alongside <code>theme.json</code> and import through the HArvest panel. The renderer is automatically loaded by the widget for any token that uses that theme. No script tags are needed on the embedding page.</li>
           <li><strong>Commands</strong> - the HA admin registers allowed services for the domain in the HArvest panel under Settings. This opens the server-side whitelist so the card's commands are accepted.</li>
         </ol>
 
@@ -104,7 +104,7 @@
 
         <div class="callout callout-warn">
           <span class="callout-label">Renderer overrides vs. standalone scripts</span>
-          <p>Custom cards intended for production are delivered as <code>renderer.js</code> files bundled inside a theme <code>.zip</code>. Import the zip through the HArvest panel - the renderer is activated automatically for any token using that theme. The person embedding the widget does not need to add any extra <code>&lt;script&gt;</code> tags.</p>
+          <p>Custom cards intended for production are saved as <code>renderer.js</code> (this exact filename is required) and bundled alongside <code>theme.json</code> inside a <code>.zip</code> file. The zip itself can be named anything (e.g. <code>my-vacuum-theme.zip</code>). Import the zip through the HArvest panel - the renderer is activated automatically for any token using that theme. The person embedding the widget does not need to add any extra <code>&lt;script&gt;</code> tags.</p>
           <p>During development, you can use <code>HArvest.registerRenderer()</code> with a local <code>&lt;script&gt;</code> tag for faster iteration. This guide covers both approaches.</p>
         </div>
         </section>
@@ -360,9 +360,9 @@
         <section>
         <h2 id="renderer-overrides">Creating a renderer override</h2>
 
-        <p>A renderer override is a <code>renderer.js</code> file bundled inside a theme <code>.zip</code>. It registers one or more custom renderer classes with HArvest. When a token uses the associated theme, the widget automatically activates the renderer - the person embedding the widget does not need to add any extra script tags.</p>
+        <p>A renderer override is saved as <code>renderer.js</code> (this exact filename is required) and bundled inside a theme <code>.zip</code> alongside <code>theme.json</code>. It registers one or more custom renderer classes with HArvest. When a token uses the associated theme, the widget automatically activates the renderer - the person embedding the widget does not need to add any extra script tags.</p>
 
-        <h3>renderer.js structure</h3>
+        <h3>File structure</h3>
 
         <p>The file is an IIFE (immediately invoked function expression) that reads <code>BaseCard</code> from the global <code>HArvest</code> object and registers the renderers under the theme's renderer key:</p>
 
@@ -408,7 +408,7 @@
         <h3>Importing the renderer</h3>
 
         <ol>
-          <li>Bundle <code>theme.json</code> and <code>renderer.js</code> together in a <code>.zip</code> file.</li>
+          <li>Create a <code>.zip</code> file (name it anything, e.g. <code>my-theme.zip</code>) containing exactly <code>theme.json</code> and <code>renderer.js</code>.</li>
           <li>In the HArvest panel, go to <strong>Themes</strong> and click <strong>Import .zip</strong>.</li>
           <li>The panel shows a renderer consent dialog before completing the import.</li>
           <li>Assign the theme to a token. Any widget using that token will automatically load the renderer override.</li>
@@ -669,7 +669,7 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
         <section>
         <h2 id="complete-example">Complete example: vacuum card</h2>
 
-        <p>This is a full, working vacuum card packaged as a renderer override. It displays state, battery level, and fan speed, with start, stop, and return-to-base buttons. Save this code as <code>renderer.js</code>, bundle it with a <code>theme.json</code> in a <code>.zip</code>, and import it via the Themes tab.</p>
+        <p>This is a full, working vacuum card packaged as a renderer override. It displays state, battery level, and fan speed, with start, stop, and return-to-base buttons. Save this code in a file named exactly <code>renderer.js</code>, create a <code>theme.json</code> alongside it, zip them together (e.g. <code>vacuum-theme.zip</code>), and import the zip via the Themes tab.</p>
 
 <pre><code class="language-javascript">/**
  * vacuum-renderer.js - HArvest renderer override for robot vacuums.
@@ -892,7 +892,7 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
         <h3>Setup steps</h3>
 
         <ol>
-          <li>In the HArvest panel, go to <strong>Themes</strong>. Bundle <code>theme.json</code> and the <code>renderer.js</code> above into a <code>.zip</code> file and import it via <strong>Import .zip</strong>.</li>
+          <li>In the HArvest panel, go to <strong>Themes</strong>. Create a <code>.zip</code> containing the <code>theme.json</code> and <code>renderer.js</code> above (both filenames must be exact), then import it via <strong>Import .zip</strong>.</li>
           <li>Add <code>vacuum.roomba</code> to a HArvest token with <code>read-write</code> capability. Assign the theme you just configured.</li>
           <li>In <strong>Settings &gt; Custom Domains</strong>, select <code>vacuum</code> and enable: <code>start</code>, <code>stop</code>, <code>pause</code>, <code>return_to_base</code>, <code>set_fan_speed</code>.</li>
           <li>Embed the widget on a page. No extra script tags are needed - the renderer loads automatically:</li>

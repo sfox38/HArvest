@@ -179,7 +179,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
     return (
       <TokenDetail
         tokenId={selectedId}
-        onBack={() => setSelectedId(null)}
+        onBack={() => { setSelectedId(null); load(); }}
         onOpenWizard={onOpenWizard}
         onDeleted={() => { setSelectedId(null); load(); }}
       />

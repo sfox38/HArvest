@@ -10,7 +10,7 @@
  * snapshot stale state.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail } from "../types";
 import { api } from "../api";
 import { ConfirmDialog, Card, Spinner, EntityAutocomplete, useThemeThumbs, useDragScroll } from "./Shared";
@@ -18,6 +18,7 @@ import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { doCopy, groupEntities } from "./CodeSection";
 import { EntityPreview } from "./EntityPreview";
+import { loadWidgetScript } from "./WidgetPreview";
 import { loadEntityCache, getEntityCache, useEntityCache } from "../entityCache";
 import { WIDGET_ICONS, WIDGET_ICON_NAMES } from "../widgetIcons";
 
@@ -71,6 +72,7 @@ interface EntitiesEditorProps {
 }
 
 const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor"]);
+const ENTITIES_BLOCK_DOMAINS = new Set(["light", "switch", "fan", "input_boolean", "binary_sensor", "lock", "cover", "sensor"]);
 const HISTORY_DOMAINS = new Set(["sensor", "input_number", "binary_sensor"]);
 const HOURS_OPTIONS = [1, 6, 12, 24, 48, 72, 168];
 
@@ -97,6 +99,146 @@ function hasFeature(cap: ThemeCapabilities | null, domain: string, feature: stri
   return list.includes(feature);
 }
 
+function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowLabel, blockHighlightRows, blockShowIcons, colorScheme }: {
+  entities: Token["entities"];
+  theme: ThemeDefinition | null;
+  blockLabel: string | null;
+  blockIcon: string | null;
+  blockShowLabel: boolean;
+  blockHighlightRows: boolean;
+  blockShowIcons: boolean;
+  colorScheme: "auto" | "light" | "dark";
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const blockRef = useRef<HTMLElement | null>(null);
+  const cardRefs = useRef<HTMLElement[]>([]);
+  const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [defs, setDefs] = useState<Record<string, { definition: Record<string, unknown>; state: string; attributes: Record<string, unknown>; _key?: string }>>({});
+  const primaries = entities.filter(e => !e.companion_of);
+
+  useEffect(() => {
+    loadWidgetScript()
+      .then(() => setReady(true))
+      .catch(() => setLoadError(true));
+  }, []);
+
+  const defDepKey = primaries.map(e => `${e.entity_id}:${e.capabilities}:${e.name_override}:${e.icon_override}:${colorScheme}`).join(",");
+  useEffect(() => {
+    for (const e of primaries) {
+      const cacheKey = `${e.capabilities}:${colorScheme}`;
+      const cached = defs[e.entity_id];
+      if (cached && cached._key === cacheKey) continue;
+      api.entities.getDefinition(e.entity_id, {
+        capabilities: e.capabilities,
+        name_override: e.name_override ?? undefined,
+        icon_override: e.icon_override ?? undefined,
+        color_scheme: colorScheme,
+      }).then(result => {
+        setDefs(prev => ({ ...prev, [e.entity_id]: { ...result, _key: cacheKey } }));
+      }).catch(() => {});
+    }
+  }, [defDepKey]);
+
+  const themeObj = useMemo(() => {
+    if (!theme) return { variables: {}, dark_variables: {} };
+    return { variables: theme.variables ?? {}, dark_variables: theme.dark_variables ?? {} };
+  }, [theme?.theme_id]);
+
+  const cardKey = primaries.map(e => `${e.entity_id}:${e.capabilities}:${defs[e.entity_id]?.state ?? ""}:${defs[e.entity_id]?._key ?? ""}`).join("|")
+    + `:${theme?.theme_id ?? ""}:${blockLabel}:${blockShowLabel}:${blockHighlightRows}:${blockShowIcons}:${blockIcon}:${colorScheme}`;
+
+  useEffect(() => {
+    if (!ready || !containerRef.current || !window.HArvest) return;
+    const container = containerRef.current;
+
+    // Clean up previous block safely (avoid innerHTML which fights React)
+    if (blockRef.current && blockRef.current.parentNode === container) {
+      container.removeChild(blockRef.current);
+    }
+    blockRef.current = null;
+    cardRefs.current = [];
+
+    const block = document.createElement("hrv-entities-block") as HTMLElement & {
+      applyPreviewTheme?: (v: Record<string, unknown>) => void;
+      setHeader?: (label: string | null, iconSvg: string | null, show: boolean) => void;
+    };
+    block.style.cssText = "width:100%;max-width:360px";
+
+    // Append block to DOM first so connectedCallback fires and shadow DOM is ready
+    container.appendChild(block);
+    blockRef.current = block;
+
+    // Set header (icon + label)
+    const iconPath = blockIcon && WIDGET_ICONS[blockIcon]
+      ? `<svg viewBox="0 0 24 24" width="16" height="16"><path d="${WIDGET_ICONS[blockIcon]}" fill="currentColor"/></svg>`
+      : null;
+    block.setHeader?.(blockLabel, iconPath, blockShowLabel);
+
+    if (blockHighlightRows) {
+      block.setAttribute("data-highlight-rows", "");
+    } else {
+      block.removeAttribute("data-highlight-rows");
+    }
+
+    if (colorScheme === "light" || colorScheme === "dark") {
+      block.setAttribute("data-color-scheme", colorScheme);
+    } else {
+      block.removeAttribute("data-color-scheme");
+    }
+
+    // Add cards - no custom rendererId in entities block (standard renderers only)
+    for (const e of primaries) {
+      const def = defs[e.entity_id];
+      if (!def) continue;
+      const card = window.HArvest!.preview(
+        block, def.definition, def.state, def.attributes, themeObj as never,
+      );
+      if (!blockShowIcons) {
+        card.style.setProperty("--hrv-icon-display", "none");
+      }
+      if (colorScheme === "light" || colorScheme === "dark") {
+        card.setAttribute("data-color-scheme", colorScheme);
+      }
+      cardRefs.current.push(card);
+    }
+
+    block.applyPreviewTheme?.(themeObj);
+
+    return () => {
+      if (blockRef.current && blockRef.current.parentNode === container) {
+        container.removeChild(blockRef.current);
+      }
+      blockRef.current = null;
+      cardRefs.current = [];
+    };
+  }, [ready, cardKey]);
+
+  const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
+  useEffect(() => {
+    const block = blockRef.current as (HTMLElement & { applyPreviewTheme?: (v: Record<string, unknown>) => void }) | null;
+    if (block?.applyPreviewTheme) block.applyPreviewTheme(themeObj);
+    for (const card of cardRefs.current) {
+      const c = card as HTMLElement & { applyPreviewTheme?: (v: Record<string, unknown>) => void };
+      if (c.applyPreviewTheme) c.applyPreviewTheme(themeObj);
+    }
+  }, [themeJson]);
+
+  if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
+  const defsReady = primaries.every(e => {
+    const cached = defs[e.entity_id];
+    return cached && cached._key === `${e.capabilities}:${colorScheme}`;
+  });
+  const minH = primaries.length * 48 + 40;
+  if (!ready || !defsReady) {
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: minH, padding: 12 }}><Spinner size={20} /></div>;
+  }
+  return (
+    <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entities block preview"
+      style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: minH, padding: "12px 0" }} />
+  );
+}
+
 export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError, setSavedMsg, bare }: EntitiesEditorProps & { bare?: boolean }) {
   const [addInput, setAddInput] = useState("");
   const [adding, setAdding] = useState(false);
@@ -109,6 +251,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const [agreeText, setAgreeText] = useState("");
   const [pendingThemeId, setPendingThemeId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
+  const [blockLabelInput, setBlockLabelInput] = useState<string>(token.block_label ?? "Entities");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [iconFilter, setIconFilter] = useState("");
   const [previewBgGray, setPreviewBgGray] = useState<number | null>(null);
@@ -194,10 +337,13 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
     setShowCompanions(hasCompanions);
     setIconPickerOpen(false);
     setIconFilter("");
+    if (selectedEntityId === "__block__") {
+      setBlockLabelInput(token.block_label ?? "Entities");
+    }
   }, [selectedEntityId]);
 
   useEffect(() => {
-    if (selectedEntityId && !entities.some(e => e.entity_id === selectedEntityId && !e.companion_of)) {
+    if (selectedEntityId && selectedEntityId !== "__block__" && !entities.some(e => e.entity_id === selectedEntityId && !e.companion_of)) {
       setSelectedEntityId(null);
     }
   }, [entities, selectedEntityId]);
@@ -530,6 +676,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               onSelect={addEntity}
               disabled={adding || saving}
               excludeIds={existingIds}
+              filterDomains={token.entities_block ? ENTITIES_BLOCK_DOMAINS : undefined}
               placeholder="Add entity..."
             />
           </div>
@@ -551,6 +698,30 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             row?.focus();
           }}
         >
+          {token.entities_block && (
+            <button
+              className={`entity-list-row${selectedEntityId === "__block__" ? " selected" : ""}`}
+              onClick={() => {
+                const next = selectedEntityId === "__block__" ? null : "__block__";
+                setSelectedEntityId(next);
+                if (next && window.innerWidth <= 720) {
+                  requestAnimationFrame(() => configPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+                }
+              }}
+              aria-selected={selectedEntityId === "__block__"}
+              role="option"
+              data-entity-id="__block__"
+              type="button"
+            >
+              <div className="widget-thumb" style={{ width: 24, height: 24, background: "var(--accent-weak)" }}>
+                <Icon name="list" size={12} />
+              </div>
+              <div className="entity-list-id">
+                <span className="entity-list-name">Entities Block</span>
+                <span className="entity-list-eid mono">{grouped.length} entities</span>
+              </div>
+            </button>
+          )}
           {grouped.map(g => {
             const e = g.primary;
             const domain = e.entity_id.split(".")[0];
@@ -638,6 +809,247 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
           </div>
         </div>
 
+        {selectedEntityId === "__block__" && token.entities_block && (() => {
+          const blockLabel = token.block_label ?? "Entities";
+          const blockIcon = token.block_icon ?? null;
+          const blockShowLabel = token.block_show_label !== false;
+          const blockHighlightRows = token.block_highlight_rows === true;
+          const blockShowIcons = token.block_show_icons !== false;
+          return (
+          <div className="entity-config-section">
+            <div className="entity-config-title">Entities Block</div>
+
+            <div style={{ display: "flex", alignItems: "stretch", gap: 8, marginBottom: 12 }}>
+              <div className="entity-preview-stage" style={{
+                flex: 1, borderRadius: 8,
+                background: previewBgGray == null ? undefined : `rgb(${Math.round(previewBgGray * 2.55)},${Math.round(previewBgGray * 2.55)},${Math.round(previewBgGray * 2.55)})`,
+                transition: "background 0.15s",
+              }}>
+                <BlockPreviewWidget
+                  entities={entities}
+                  theme={selectedTheme}
+                  blockLabel={blockLabel}
+                  blockIcon={blockIcon}
+                  blockShowLabel={blockShowLabel}
+                  blockHighlightRows={blockHighlightRows}
+                  blockShowIcons={blockShowIcons}
+                  colorScheme={token.color_scheme}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={previewBgGray ?? 50}
+                  onChange={ev => setPreviewBgGray(Number(ev.target.value))}
+                  {...{ orient: "vertical" } as React.InputHTMLAttributes<HTMLInputElement>}
+                  aria-label="Preview background tone"
+                  title="Adjust preview background tone"
+                  className="preview-bg-slider"
+                />
+              </div>
+            </div>
+
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Display name</label>
+              <div style={{ display: "flex", gap: 6, flex: 1, alignItems: "center", position: "relative" }}>
+                <div style={{ position: "relative" }}>
+                  <button
+                    className="icon-picker-btn"
+                    title={blockIcon ? `Icon: ${blockIcon}` : "Pick icon"}
+                    disabled={!canEdit}
+                    onClick={() => { setIconPickerOpen(v => !v); setIconFilter(""); }}
+                    type="button"
+                    aria-label="Pick block icon"
+                    aria-expanded={iconPickerOpen}
+                  >
+                    {blockIcon && WIDGET_ICONS[blockIcon] ? (
+                      <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" style={{ display: "block" }}>
+                        <path d={WIDGET_ICONS[blockIcon]} fill="currentColor" />
+                      </svg>
+                    ) : (
+                      <Icon name="tune" size={14} />
+                    )}
+                  </button>
+                  {iconPickerOpen && (
+                    <div className="icon-picker-popover" role="dialog" aria-label="Icon picker">
+                      <input
+                        className="input icon-picker-filter"
+                        type="text"
+                        placeholder="Filter icons..."
+                        value={iconFilter}
+                        onChange={ev => setIconFilter(ev.target.value)}
+                        autoFocus
+                      />
+                      {blockIcon && (
+                        <button
+                          className="icon-picker-clear"
+                          type="button"
+                          onClick={async () => {
+                            setIconPickerOpen(false);
+                            setIconFilter("");
+                            try {
+                              const updated = await api.tokens.update(token.token_id, { block_icon: null });
+                              setToken(updated);
+                            } catch (e) { setError(String(e)); }
+                          }}
+                        >
+                          <Icon name="close" size={11} /> Reset to default
+                        </button>
+                      )}
+                      <div className="icon-picker-grid" role="listbox" aria-label="Icons">
+                        {WIDGET_ICON_NAMES
+                          .filter(n => !iconFilter || n.replace("mdi:", "").includes(iconFilter.toLowerCase()))
+                          .map(iconKey => (
+                            <button
+                              key={iconKey}
+                              className={"icon-picker-tile" + (blockIcon === iconKey ? " selected" : "")}
+                              type="button"
+                              role="option"
+                              aria-selected={blockIcon === iconKey}
+                              title={iconKey}
+                              onClick={async () => {
+                                setIconPickerOpen(false);
+                                setIconFilter("");
+                                try {
+                                  const updated = await api.tokens.update(token.token_id, { block_icon: iconKey });
+                                  setToken(updated);
+                                } catch (e) { setError(String(e)); }
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24" width={18} height={18} aria-hidden="true">
+                                <path d={WIDGET_ICONS[iconKey]} fill="currentColor" />
+                              </svg>
+                            </button>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  className="input flex-1"
+                  value={blockLabelInput}
+                  onChange={ev => setBlockLabelInput(ev.target.value)}
+                  onBlur={async () => {
+                    const val = blockLabelInput.trim() || null;
+                    if (val !== (token.block_label ?? null)) {
+                      try {
+                        const updated = await api.tokens.update(token.token_id, { block_label: val });
+                        setToken(updated);
+                      } catch (e) { setError(String(e)); }
+                    }
+                  }}
+                  onKeyDown={ev => {
+                    if (ev.key === "Enter") (ev.target as HTMLInputElement).blur();
+                  }}
+                  disabled={!canEdit}
+                  placeholder="No header"
+                  maxLength={100}
+                />
+              </div>
+            </div>
+
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Access</label>
+              <div className="segmented-toggle" role="group" aria-label="Access level" style={{ marginLeft: "auto" }}>
+                <button
+                  className={entities[0]?.capabilities === "read" ? "active" : ""}
+                  aria-pressed={entities[0]?.capabilities === "read"}
+                  onClick={() => {
+                    if (!canEdit) return;
+                    patchEntities(entities.map(en => en.companion_of ? en : { ...en, capabilities: "read" }));
+                  }}
+                  disabled={!canEdit}
+                  type="button"
+                >View only</button>
+                <button
+                  className={entities[0]?.capabilities === "read-write" ? "active" : ""}
+                  aria-pressed={entities[0]?.capabilities === "read-write"}
+                  onClick={() => {
+                    if (!canEdit) return;
+                    patchEntities(entities.map(en => en.companion_of ? en : { ...en, capabilities: "read-write" }));
+                  }}
+                  disabled={!canEdit}
+                  type="button"
+                >Control</button>
+              </div>
+            </div>
+
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Always use</label>
+              <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
+                {(["auto", "light", "dark"] as const).map(scheme => (
+                  <button
+                    key={scheme}
+                    className={token.color_scheme === scheme ? "active" : ""}
+                    aria-pressed={token.color_scheme === scheme}
+                    onClick={async () => {
+                      if (!canEdit) return;
+                      try {
+                        const updated = await api.tokens.update(token.token_id, { color_scheme: scheme });
+                        setToken(updated);
+                      } catch (e) { setError(String(e)); }
+                    }}
+                    disabled={!canEdit}
+                    type="button"
+                  >
+                    {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="entity-setting-group">
+              <div className="entity-setting-group-title">Settings</div>
+              <div className="settings-toggle-grid">
+                <div className="settings-toggle-item">
+                  <Toggle
+                    checked={blockShowLabel}
+                    onChange={async v => {
+                      try {
+                        const updated = await api.tokens.update(token.token_id, { block_show_label: v });
+                        setToken(updated);
+                      } catch (e) { setError(String(e)); }
+                    }}
+                    disabled={!canEdit}
+                  />
+                  <span>Display header</span>
+                </div>
+                <div className="settings-toggle-item">
+                  <Toggle
+                    checked={blockHighlightRows}
+                    onChange={async v => {
+                      try {
+                        const updated = await api.tokens.update(token.token_id, { block_highlight_rows: v });
+                        setToken(updated);
+                      } catch (e) { setError(String(e)); }
+                    }}
+                    disabled={!canEdit}
+                  />
+                  <span>Highlight rows</span>
+                </div>
+                <div className="settings-toggle-item">
+                  <Toggle
+                    checked={blockShowIcons}
+                    onChange={async v => {
+                      try {
+                        const updated = await api.tokens.update(token.token_id, { block_show_icons: v });
+                        setToken(updated);
+                      } catch (e) { setError(String(e)); }
+                    }}
+                    disabled={!canEdit}
+                  />
+                  <span>Show entity icons</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
+
         {selectedEntity && selectedDomain && (() => {
           const friendlyName = getEntityCache().find(c => c.entity_id === selectedEntity.entity_id)?.friendly_name;
           const entitySnippet = entitySnippetAlias && selectedEntity.alias
@@ -655,6 +1067,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 : selectedEntity.entity_id}
             </div>
 
+            {!token.entities_block && (
             <div className="entity-snippet-row">
               <pre
                 className="entity-snippet-code"
@@ -673,8 +1086,9 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 <span>Alias</span>
               </div>
             </div>
+            )}
 
-            {entityDetail[selectedEntity.entity_id] && (() => {
+            {!token.entities_block && entityDetail[selectedEntity.entity_id] && (() => {
               const bgColor = previewBgGray == null
                 ? undefined
                 : `rgb(${Math.round(previewBgGray * 2.55)},${Math.round(previewBgGray * 2.55)},${Math.round(previewBgGray * 2.55)})`;
@@ -782,6 +1196,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             </div>
 
+            {!token.entities_block && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Access</label>
               <div className="segmented-toggle" role="group" aria-label="Access level" style={{ marginLeft: "auto" }}>
@@ -808,7 +1223,9 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 >Control</button>
               </div>
             </div>
+            )}
 
+            {!token.entities_block && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Always use</label>
               <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
@@ -826,8 +1243,9 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 ))}
               </div>
             </div>
+            )}
 
-            {selectedEntity.capabilities === "badge" && (
+            {selectedEntity.capabilities === "badge" && !token.entities_block && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Badge settings</div>
                 <div className="settings-toggle-grid">
@@ -889,7 +1307,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && rendererSettings.includes("layout") && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && rendererSettings.includes("layout") && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Layout</label>
               <div className="segmented-toggle" role="group" aria-label="Card layout" style={{ marginLeft: "auto" }}>
@@ -909,7 +1327,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && (
             <div className="entity-setting-group">
               <button className="entity-setting-group-title" onClick={() => setShowCompanions(!showCompanions)} type="button" aria-expanded={showCompanions}>
                 Companions ({selectedGroup?.companions.length ?? 0})
@@ -959,7 +1377,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "light" && (hasFeature(rendererCap, "light", "brightness") || hasFeature(rendererCap, "light", "color_temp") || hasFeature(rendererCap, "light", "rgb")) && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && selectedDomain === "light" && (hasFeature(rendererCap, "light", "brightness") || hasFeature(rendererCap, "light", "color_temp") || hasFeature(rendererCap, "light", "rgb")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Light settings</div>
                 <div className="settings-toggle-grid">
@@ -997,7 +1415,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "fan" && (() => {
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && selectedDomain === "fan" && (() => {
               const fanDetail = entityDetail[selectedEntity.entity_id];
               const fanBits = Number(fanDetail?.attributes?.supported_features ?? 0);
               const fanHasOscillate = !!(fanBits & 2);
@@ -1065,7 +1483,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               );
             })()}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "climate" && (hasFeature(rendererCap, "climate", "hvac_modes") || hasFeature(rendererCap, "climate", "presets") || hasFeature(rendererCap, "climate", "fan_mode") || hasFeature(rendererCap, "climate", "swing_mode")) && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && selectedDomain === "climate" && (hasFeature(rendererCap, "climate", "hvac_modes") || hasFeature(rendererCap, "climate", "presets") || hasFeature(rendererCap, "climate", "fan_mode") || hasFeature(rendererCap, "climate", "swing_mode")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Climate settings</div>
                 <div className="settings-toggle-grid">
@@ -1113,7 +1531,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "cover" && (hasFeature(rendererCap, "cover", "position") || hasFeature(rendererCap, "cover", "tilt")) && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && selectedDomain === "cover" && (hasFeature(rendererCap, "cover", "position") || hasFeature(rendererCap, "cover", "tilt")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Cover settings</div>
                 <div className="settings-toggle-grid">
@@ -1141,7 +1559,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "media_player" && (hasFeature(rendererCap, "media_player", "transport") || hasFeature(rendererCap, "media_player", "volume") || hasFeature(rendererCap, "media_player", "source")) && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && selectedDomain === "media_player" && (hasFeature(rendererCap, "media_player", "transport") || hasFeature(rendererCap, "media_player", "volume") || hasFeature(rendererCap, "media_player", "source")) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Media player settings</div>
                 <div className="settings-toggle-grid">
@@ -1179,7 +1597,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "weather" && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && selectedDomain === "weather" && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Weather settings</div>
                 <div className="settings-toggle-grid">
@@ -1195,7 +1613,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && HISTORY_DOMAINS.has(selectedDomain) && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && HISTORY_DOMAINS.has(selectedDomain) && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Graph settings</div>
                 <div className="entity-graph-settings">
@@ -1238,7 +1656,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && selectedDomain === "input_number" && hasFeature(rendererCap, "input_number", "buttons") && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && selectedDomain === "input_number" && hasFeature(rendererCap, "input_number", "buttons") && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Display mode</div>
                 <div className="segmented-toggle">
@@ -1258,7 +1676,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && (selectedDomain === "input_select" || selectedDomain === "select") && hasFeature(rendererCap, selectedDomain, "dropdown") && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && (selectedDomain === "input_select" || selectedDomain === "select") && hasFeature(rendererCap, selectedDomain, "dropdown") && (
               <div className="entity-setting-group">
                 <div className="entity-setting-group-title">Select settings</div>
                 <div className="settings-toggle-grid">
@@ -1274,7 +1692,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && (
             <div className="entity-setting-group">
               <div className="entity-setting-group-title">
                 Exclude attributes
@@ -1316,7 +1734,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && (
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && (
             <div className="entity-setting-group">
               <div className="entity-setting-group-title">Gestures</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -1371,7 +1789,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
           );
         })()}
 
-        {!selectedEntity && grouped.length > 0 && (
+        {!selectedEntity && selectedEntityId !== "__block__" && grouped.length > 0 && (
           <div className="entity-config-section" style={{ textAlign: "center", color: "var(--ink-4)" }}>
             <p style={{ fontSize: 13, margin: "20px 0" }}>Select an entity to configure its display settings.</p>
           </div>

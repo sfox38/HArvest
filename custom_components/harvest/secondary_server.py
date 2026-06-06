@@ -1,9 +1,9 @@
-"""secondary_server.py - Optional secondary aiohttp HTTP server.
+"""secondary_server.py - Optional alternate-port aiohttp HTTP server.
 
-When external_host and external_port are both set in config, HArvest starts
-a second aiohttp application on that address. It serves the widget JS, theme
-assets, and WebSocket endpoint with CORS Access-Control-Allow-Origin: * so
-that pages on any origin can load the widget without touching HA's main port.
+When external_port is set in config, HArvest starts a second aiohttp
+application on 0.0.0.0:<port>. It serves the widget JS, theme assets,
+and WebSocket endpoint with CORS Access-Control-Allow-Origin: * so that
+pages on any origin can load the widget without touching HA's main port.
 
 Settings changes take effect immediately on Save - no HA restart needed.
 """
@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from .ws_proxy import HarvestWsView
 
 _LOGGER = logging.getLogger(__name__)
+
+BIND_HOST = "0.0.0.0"
 
 _CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -46,11 +48,11 @@ async def _cors_middleware(
 
 
 class SecondaryServer:
-    """Manages the lifecycle of the optional secondary aiohttp server.
+    """Manages the lifecycle of the optional alternate-port aiohttp server.
 
     Instantiated in async_setup_entry, stored as "secondary_server" in
     hass.data[DOMAIN][entry_id]. Config PATCH handler calls reconfigure()
-    or stop() when external_host/port change.
+    or stop() when external_port changes.
     """
 
     def __init__(
@@ -63,16 +65,22 @@ class SecondaryServer:
         self._themes_dir = themes_dir
         self._ws_view = ws_view
         self._runner: web.AppRunner | None = None
-        self._host: str | None = None
         self._port: int | None = None
 
     @property
     def is_running(self) -> bool:
         return self._runner is not None
 
-    async def start(self, host: str, port: int) -> None:
-        """Start the secondary server on host:port."""
+    async def start(self, port: int) -> None:
+        """Start the server on 0.0.0.0:<port>."""
         await self.stop()
+
+        if port <= 1023:
+            _LOGGER.warning(
+                "external_port %s is a privileged port (<= 1023). "
+                "This may require root/admin privileges.",
+                port,
+            )
 
         app = web.Application(middlewares=[_cors_middleware])
         app.router.add_get("/harvest.min.js", self._serve_widget)
@@ -83,15 +91,14 @@ class SecondaryServer:
 
         self._runner = web.AppRunner(app, access_log=None)
         await self._runner.setup()
-        site = web.TCPSite(self._runner, host, port)
+        site = web.TCPSite(self._runner, BIND_HOST, port)
         await site.start()
 
-        self._host = host
         self._port = port
-        _LOGGER.info("HArvest secondary server started on %s:%s", host, port)
+        _LOGGER.info("HArvest alternate-port server started on %s:%s", BIND_HOST, port)
 
     async def stop(self) -> None:
-        """Stop the secondary server if running."""
+        """Stop the server if running."""
         if self._runner is not None:
             try:
                 await self._runner.cleanup()
@@ -99,17 +106,15 @@ class SecondaryServer:
                 pass
             self._runner = None
             _LOGGER.info(
-                "HArvest secondary server stopped (was %s:%s).",
-                self._host,
+                "HArvest alternate-port server stopped (was port %s).",
                 self._port,
             )
-            self._host = None
             self._port = None
 
-    async def reconfigure(self, host: str, port: int) -> None:
-        """Stop (if running) then start on the new address."""
+    async def reconfigure(self, port: int) -> None:
+        """Stop (if running) then start on the new port."""
         await self.stop()
-        await self.start(host, port)
+        await self.start(port)
 
     # --- Route handlers ---
 
@@ -117,8 +122,9 @@ class SecondaryServer:
         widget_file = self._widget_dir / "harvest.min.js"
         if not widget_file.is_file():
             raise web.HTTPNotFound()
+        body = await asyncio.to_thread(widget_file.read_bytes)
         return web.Response(
-            body=widget_file.read_bytes(),
+            body=body,
             content_type="application/javascript",
             headers={"Cache-Control": "public, max-age=3600"},
         )
@@ -142,8 +148,9 @@ class SecondaryServer:
             ".png":   "image/png",
         }
         ctype = ctype_map.get(suffix, "application/octet-stream")
+        body = await asyncio.to_thread(target.read_bytes)
         return web.Response(
-            body=target.read_bytes(),
+            body=body,
             content_type=ctype,
             headers={"Cache-Control": "public, max-age=3600"},
         )
@@ -152,36 +159,31 @@ class SecondaryServer:
         return await self._ws_view.get(request)
 
 
-def validate_external_config(host: str, port: int, ha_http_port: int) -> str | None:
-    """Validate external_host and external_port.
+def validate_external_port(port: int, ha_http_port: int) -> str | None:
+    """Validate external_port for the alternate-port server.
 
     Returns an error reason string or None if valid.
     Does NOT start the server - only validates inputs.
     """
-    if not host:
-        return None  # both empty means disabled - always valid
-
     if not (1 <= port <= 65535):
-        return "external_port must be between 1 and 65535."
-
-    if port <= 1023:
-        _LOGGER.warning(
-            "external_port %s is a privileged port (<= 1023). "
-            "This may require root/admin privileges.",
-            port,
-        )
+        return "Port must be between 1 and 65535."
 
     if port == ha_http_port:
-        return f"external_port {port} conflicts with HA's main HTTP server port."
+        return f"Port {port} is already used by Home Assistant's main HTTP server."
 
     # Trial bind to check port availability.
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((host, port))
+            sock.bind((BIND_HOST, port))
     except OSError as exc:
-        return f"Port {port} is not available on {host}: {exc.strerror}."
+        strerror = exc.strerror or str(exc)
+        if "Address" in strerror and "in use" in strerror.lower():
+            return f"Port {port} is already in use. Choose a different port."
+        if "Permission" in strerror or "denied" in strerror.lower():
+            return f"Permission denied binding to port {port}. Ports below 1024 require elevated privileges."
+        return f"Cannot bind to port {port} - {strerror}."
     except Exception as exc:  # noqa: BLE001
-        return f"Could not validate {host}:{port}: {exc}"
+        return f"Cannot bind to port {port} - {exc}"
 
     return None

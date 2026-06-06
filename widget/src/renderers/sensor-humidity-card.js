@@ -33,7 +33,8 @@ const HUMIDITY_STYLES = /* css */`
 export class HumiditySensorCard extends BaseCard {
   static staleOnMount = true;
 
-  /** @type {HTMLElement|null} */ #valueEl = null;
+  /** @type {HTMLElement|null} */ #valueEl  = null;
+  /** @type {HTMLElement|null} */ #rowValue = null;
 
   render() {
     this.root.innerHTML = /* html */`
@@ -42,6 +43,7 @@ export class HumiditySensorCard extends BaseCard {
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-value"></span></span>
         </div>
         <div part="card-body">
           <span part="sensor-value" aria-live="polite">-</span>
@@ -54,7 +56,8 @@ export class HumiditySensorCard extends BaseCard {
       </div>
     `;
 
-    this.#valueEl = this.root.querySelector("[part=sensor-value]");
+    this.#valueEl  = this.root.querySelector("[part=sensor-value]");
+    this.#rowValue = this.root.querySelector("[part=row-value]");
     this.renderIcon(this.def.icon ?? "mdi:water-percent", "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -63,6 +66,7 @@ export class HumiditySensorCard extends BaseCard {
   applyState(state, _attributes) {
     if (this.#valueEl) this.#valueEl.textContent = state;
     const unit = this.def.unit_of_measurement ?? "%";
+    if (this.#rowValue) this.#rowValue.textContent = `${state} ${unit}`;
     this.announceState(`${this.def.friendly_name}, ${state} ${unit}`);
   }
 }

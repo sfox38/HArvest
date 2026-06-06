@@ -133,9 +133,10 @@
               </tr>
               <tr>
                 <td>Widget JS source</td>
-                <td>Two options:
+                <td>Three options:
                   <ul>
                     <li><strong>HA-served (recommended, default)</strong> - the widget JS is fetched from your Home Assistant instance at <code>{your-HA-URL}/harvest_assets/harvest.min.js</code>. Updating HArvest via HACS automatically updates the widget on every WordPress page. Requires the Home Assistant URL field above to be set (the radio is disabled otherwise).</li>
+                    <li><strong>Alternate port</strong> - use a lightweight secondary server on a separate port with its own CORS headers. Useful when the main HA port is behind a reverse proxy that blocks cross-origin requests from the embed site.</li>
                     <li><strong>Custom URL</strong> - point at a self-hosted copy of <code>harvest.min.js</code>. For staging environments or your own CDN. Accepts full URLs (<code>https://example.com/harvest.min.js</code>), absolute paths (<code>/harvest.min.js</code>), and relative paths or bare filenames (<code>harvest.min.js</code>) for HTML files served alongside the script.</li>
                   </ul>
                 </td>

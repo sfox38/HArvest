@@ -84,6 +84,12 @@ export interface Token {
   active_sessions: number;
   paused: boolean;
   embed_mode: "single" | "group" | "page";
+  entities_block: boolean;
+  block_label: string | null;
+  block_icon: string | null;
+  block_show_label: boolean;
+  block_highlight_rows: boolean;
+  block_show_icons: boolean;
   theme_url: string;
   renderer_pack: string;
   lang: string;
@@ -299,7 +305,6 @@ export interface IntegrationConfig {
   max_auth_attempts_per_ip_per_minute: number;
   override_host: string;
   widget_script_url: string;
-  external_host: string;
   external_port: number;
   trusted_proxies: string[];
   kill_switch: boolean;

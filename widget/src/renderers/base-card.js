@@ -226,7 +226,7 @@ const CARD_BASE_CSS = /* css */`
     height: var(--hrv-icon-size);
     flex-shrink: 0;
     color: var(--hrv-color-icon);
-    display: flex;
+    display: var(--hrv-icon-display, flex);
     align-items: center;
     justify-content: center;
   }
@@ -329,6 +329,52 @@ const CARD_BASE_CSS = /* css */`
 
   :host([layout=row]) [part=row-control] {
     display: flex;
+  }
+
+  [part=row-toggle] {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    border: none;
+    border-radius: 10px;
+    padding: 0;
+    font-size: 0;
+    color: transparent;
+    overflow: hidden;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  [part=row-toggle]::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s;
+    pointer-events: none;
+  }
+  [part=row-toggle][aria-pressed=true] {
+    background: var(--hrv-color-state-on, #22c55e);
+  }
+  [part=row-toggle][aria-pressed=false] {
+    background: var(--hrv-color-state-off, #d1d5db);
+  }
+  [part=row-toggle][aria-pressed=true]::after {
+    transform: translateX(16px);
+  }
+  [part=row-toggle]:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  [part=row-state],
+  [part=row-value] {
+    font-size: var(--hrv-font-size-xs, 12px);
+    color: var(--hrv-color-text-secondary);
   }
 
   /* Unavailable / unknown state overlay */

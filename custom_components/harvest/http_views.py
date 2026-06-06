@@ -582,6 +582,7 @@ class HarvestTokensView(_HarvestView):
                 active_schedule=schedule,
                 allowed_ips=list(body.get("allowed_ips", [])),
                 embed_mode=str(body.get("embed_mode", "single")),
+                entities_block=bool(body.get("entities_block", False)),
                 theme_url=str(body.get("theme_url", "")),
             )
         except ValueError as exc:
@@ -939,6 +940,25 @@ class HarvestTokenDetailView(_HarvestView):
             if body["embed_mode"] not in ("single", "group", "page"):
                 raise web.HTTPBadRequest(reason="embed_mode must be single, group, or page.")
             updates["embed_mode"] = body["embed_mode"]
+        if "entities_block" in body:
+            if not isinstance(body["entities_block"], bool):
+                raise web.HTTPBadRequest(reason="entities_block must be a boolean.")
+            updates["entities_block"] = body["entities_block"]
+        if "block_label" in body:
+            val = body["block_label"]
+            if val is not None and not isinstance(val, str):
+                raise web.HTTPBadRequest(reason="block_label must be a string or null.")
+            updates["block_label"] = str(val).strip()[:100] if val else None
+        if "block_icon" in body:
+            val = body["block_icon"]
+            if val is not None and not isinstance(val, str):
+                raise web.HTTPBadRequest(reason="block_icon must be a string or null.")
+            updates["block_icon"] = str(val).strip() if val else None
+        for bf in ("block_show_label", "block_highlight_rows", "block_show_icons"):
+            if bf in body:
+                if not isinstance(body[bf], bool):
+                    raise web.HTTPBadRequest(reason=f"{bf} must be a boolean.")
+                updates[bf] = body[bf]
         if "theme_url" in body:
             new_theme_url = str(body["theme_url"] or "")
             updates["theme_url"] = new_theme_url
@@ -1449,9 +1469,9 @@ class HarvestThemesView(_HarvestView):
             d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme.theme_id), font_url=_font_url)
             d["usage_count"] = counts.get(theme.theme_id, 0)
             if theme.has_renderer and self._renderer_manager is not None:
-                d["has_renderer"] = self._renderer_manager.get_renderer_path(theme.theme_id) is not None
+                d["has_renderer_file"] = self._renderer_manager.get_renderer_path(theme.theme_id) is not None
             else:
-                d["has_renderer"] = False
+                d["has_renderer_file"] = False
             result.append(d)
         return self.json(result)
 
@@ -2234,19 +2254,29 @@ class HarvestConfigView(_HarvestView):
                 if parsed.query or parsed.fragment:
                     raise web.HTTPBadRequest(reason="override_host: must be a bare origin with no query or fragment.")
                 filtered["override_host"] = f"{parsed.scheme}://{parsed.netloc}"
-        # Validate widget_script_url: empty, a path, or a full http(s) URL.
+        # Validate widget_script_url: empty, a relative path, an absolute
+        # path, or a full http(s) URL. Relative paths (harvest.min.js,
+        # ./harvest.min.js) are valid <script src> values for pages served
+        # alongside the JS file.
         if "widget_script_url" in filtered:
             val = str(filtered.get("widget_script_url", "") or "")
-            if val and not val.startswith("/"):
-                from urllib.parse import urlparse as _urlparse2
-                try:
-                    p2 = _urlparse2(val)
-                    if p2.scheme not in ("http", "https") or not p2.netloc:
-                        raise web.HTTPBadRequest(reason="widget_script_url: must be a path (e.g. /harvest.min.js) or full http(s) URL.")
-                except web.HTTPBadRequest:
-                    raise
-                except Exception:
-                    raise web.HTTPBadRequest(reason="widget_script_url: invalid value.")
+            if val:
+                lowered = val.lower()
+                if lowered.startswith(("javascript:", "data:", "vbscript:")):
+                    raise web.HTTPBadRequest(reason="widget_script_url: unsafe scheme.")
+                scheme_match = re.match(r"^([a-zA-Z][a-zA-Z0-9+.\-]*):", val)
+                if scheme_match:
+                    if scheme_match.group(1).lower() not in ("http", "https"):
+                        raise web.HTTPBadRequest(reason="widget_script_url: must use http:// or https://.")
+                    from urllib.parse import urlparse as _urlparse2
+                    try:
+                        p2 = _urlparse2(val)
+                        if not p2.netloc:
+                            raise web.HTTPBadRequest(reason="widget_script_url: invalid URL.")
+                    except web.HTTPBadRequest:
+                        raise
+                    except Exception:
+                        raise web.HTTPBadRequest(reason="widget_script_url: invalid value.")
         # Validate global display defaults when present.
         if "default_lang" in filtered:
             lang_val = str(filtered["default_lang"] or "auto").strip().lower()
@@ -2301,22 +2331,20 @@ class HarvestConfigView(_HarvestView):
                 validated.append({"domain": cd_domain, "allowed_services": services})
             filtered["custom_domains"] = validated
 
-        # Validate external_host / external_port when either is present.
-        if "external_host" in filtered or "external_port" in filtered:
-            current_for_ext = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
-            ext_host = str(filtered.get("external_host", current_for_ext.get("external_host", "")) or "")
-            raw_port = filtered.get("external_port", current_for_ext.get("external_port", 0))
+        # Validate external_port when present.
+        if "external_port" in filtered:
+            raw_port = filtered["external_port"]
             try:
                 ext_port = int(raw_port or 0)
             except (TypeError, ValueError):
-                raise web.HTTPBadRequest(reason="external_port must be an integer.")
-            if ext_host and ext_port:
-                from .secondary_server import validate_external_config
+                raise web.HTTPBadRequest(reason="Port must be a number.")
+
+            if ext_port:
+                from .secondary_server import validate_external_port
                 ha_http_port = self._hass.config.api.port if self._hass.config.api else 8123
-                err = validate_external_config(ext_host, ext_port, ha_http_port)
+                err = validate_external_port(ext_port, ha_http_port)
                 if err:
                     raise web.HTTPBadRequest(reason=err)
-            filtered["external_host"] = ext_host
             filtered["external_port"] = ext_port
 
         # Deep-merge the incoming partial update over the current full config.
@@ -2324,15 +2352,14 @@ class HarvestConfigView(_HarvestView):
         updated = _deep_merge(current, filtered)
         self._hass.config_entries.async_update_entry(entry, options=updated)
 
-        # Apply secondary server changes immediately if host/port changed.
-        if "external_host" in filtered or "external_port" in filtered:
-            from .const import CONF_EXTERNAL_HOST, CONF_EXTERNAL_PORT
+        # Apply alternate-port server changes immediately if port changed.
+        if "external_port" in filtered:
+            from .const import CONF_EXTERNAL_PORT
             data = get_entry_data(self._hass, self._entry_id)
             if secondary_server := data.get("secondary_server"):
-                new_host = str(updated.get(CONF_EXTERNAL_HOST, "") or "")
                 new_port = int(updated.get(CONF_EXTERNAL_PORT, 0) or 0)
-                if new_host and new_port:
-                    self._hass.async_create_task(secondary_server.reconfigure(new_host, new_port))
+                if new_port:
+                    self._hass.async_create_task(secondary_server.reconfigure(new_port))
                 else:
                     self._hass.async_create_task(secondary_server.stop())
 
@@ -2671,6 +2698,7 @@ class HarvestEntityDefinitionView(_HarvestView):
             raise web.HTTPNotFound(text=f"Entity {entity_id} not found")
 
         filtered_attrs = filter_attributes(dict(state.attributes))
+        definition["capabilities"] = entity_access.capabilities
 
         return self.json({
             "definition": definition,

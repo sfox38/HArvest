@@ -25,8 +25,9 @@ class Harvest_Shortcode {
     private static string $group_token_secret = '';
 
     public static function init(): void {
-        add_shortcode( 'harvest',       [ self::class, 'render'       ] );
-        add_shortcode( 'harvest_group', [ self::class, 'render_group' ] );
+        add_shortcode( 'harvest',                [ self::class, 'render'                ] );
+        add_shortcode( 'harvest_group',          [ self::class, 'render_group'          ] );
+        add_shortcode( 'harvest_entities_block', [ self::class, 'render_entities_block' ] );
     }
 
     // ---------------------------------------------------------------------------
@@ -175,6 +176,20 @@ class Harvest_Shortcode {
             $attr_string,
             $inner
         );
+    }
+
+    // ---------------------------------------------------------------------------
+    // [harvest_entities_block] shortcode
+    // ---------------------------------------------------------------------------
+
+    /**
+     * @param array|string $atts    Shortcode attributes (none required).
+     * @param string       $content Enclosed [harvest] shortcodes.
+     */
+    public static function render_entities_block( $atts = [], $content = '' ): string {
+        Harvest_Assets::enqueue();
+        $inner = do_shortcode( $content );
+        return sprintf( '<hrv-entities-block>%s</hrv-entities-block>', $inner );
     }
 
     // ---------------------------------------------------------------------------

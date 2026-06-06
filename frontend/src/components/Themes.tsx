@@ -606,9 +606,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
             title="Theme Info"
             action={
               <div className="row" style={{ gap: 6 }}>
-                <button className="btn btn-sm btn-ghost" onClick={() => setShowCodeEditors(v => !v)}>
-                  <Icon name={showCodeEditors ? "eye-off" : "code"} size={13} /> {showCodeEditors ? "Hide editor" : "Show editor"}
-                </button>
+                {!selectedTheme.is_bundled && (
+                  <button className="btn btn-sm btn-ghost" onClick={() => setShowCodeEditors(v => !v)}>
+                    <Icon name={showCodeEditors ? "eye-off" : "code"} size={13} /> {showCodeEditors ? "Hide editor" : "Show editor"}
+                  </button>
+                )}
                 <button className="btn btn-sm" onClick={handleDuplicate}>
                   <Icon name="copy" size={13} /> Duplicate
                 </button>
