@@ -74,6 +74,7 @@ class EntityAccess:
     icon_override: str | None = None        # custom MDI icon key; None means use auto-detected icon
     color_scheme: str = "auto"              # per-entity: "auto" | "light" | "dark"
     display_hints: dict = field(default_factory=dict)  # domain-specific display overrides
+    service_data: dict = field(default_factory=dict)   # pre-configured service call data for script entities
 
 
 @dataclass

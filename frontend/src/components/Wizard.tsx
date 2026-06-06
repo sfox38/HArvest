@@ -45,6 +45,7 @@ interface SelectedEntity {
   entity_id: string;
   alias: string | null;
   companions: { entity_id: string; alias: string | null; read_only?: boolean }[];
+  service_data?: Record<string, string>;
 }
 
 interface WizardState {
@@ -422,6 +423,65 @@ function themeUrlToId(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// ScriptVarsForm - variable configuration for script entities
+// ---------------------------------------------------------------------------
+
+interface ScriptField {
+  description?: string;
+  example?: unknown;
+  selector?: Record<string, unknown>;
+}
+
+function ScriptVarsForm({ entityId, serviceData, onChange }: {
+  entityId: string;
+  serviceData: Record<string, string>;
+  onChange: (data: Record<string, string>) => void;
+}) {
+  const [fields, setFields] = useState<Record<string, ScriptField> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    api.entities.getScriptFields(entityId)
+      .then(r => { setFields(r.fields); })
+      .catch(() => setError("Could not load script variables."))
+      .finally(() => setLoading(false));
+  }, [entityId]);
+
+  if (loading) return <div className="muted" style={{ fontSize: 12, padding: "4px 0" }}><Spinner size={12} /> Loading script variables...</div>;
+  if (error) return <div className="muted" style={{ fontSize: 12, color: "var(--warning)" }}>{error}</div>;
+  if (!fields || Object.keys(fields).length === 0) return null;
+
+  return (
+    <div className="col" style={{ gap: 6, paddingTop: 6 }}>
+      <span className="label-strong" style={{ fontSize: 11 }}>Script variables (optional)</span>
+      {Object.entries(fields).map(([key, field]) => {
+        const isNumber = field.selector && ("number" in field.selector || "text" in (field.selector as Record<string, unknown>) === false && "number" in (field.selector as Record<string, unknown>));
+        const inputType = isNumber ? "number" : "text";
+        return (
+          <div key={key} className="col" style={{ gap: 2 }}>
+            <label className="muted" style={{ fontSize: 11 }}>
+              {key}
+              {field.description && <span style={{ marginLeft: 4 }}>- {field.description}</span>}
+            </label>
+            <input
+              type={inputType}
+              className="text-input"
+              value={serviceData[key] ?? ""}
+              placeholder={field.example !== undefined ? String(field.example) : ""}
+              onChange={ev => onChange({ ...serviceData, [key]: ev.target.value })}
+              style={{ fontSize: 12, padding: "4px 6px" }}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Step 1: Design (entities + permissions + theme + preview)
 // ---------------------------------------------------------------------------
 
@@ -523,6 +583,10 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
 
   const updateCompanions = (entityId: string, companions: { entity_id: string; alias: string | null; read_only?: boolean }[]) => {
     onChange({ entities: state.entities.map(e => e.entity_id === entityId ? { ...e, companions } : e) });
+  };
+
+  const updateServiceData = (entityId: string, data: Record<string, string>) => {
+    onChange({ entities: state.entities.map(e => e.entity_id === entityId ? { ...e, service_data: data } : e) });
   };
 
   const toggleExpand = (entityId: string) => {
@@ -650,6 +714,15 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                     parentCapability={state.capability}
                     onChange={cs => updateCompanions(e.entity_id, cs)}
                   />
+                )}
+                {domain === "script" && state.capability === "read-write" && (
+                  <div style={{ padding: "0 8px 8px 8px" }}>
+                    <ScriptVarsForm
+                      entityId={e.entity_id}
+                      serviceData={e.service_data ?? {}}
+                      onChange={data => updateServiceData(e.entity_id, data)}
+                    />
+                  </div>
                 )}
               </div>
             );
@@ -1247,6 +1320,7 @@ export function Wizard({ onClose }: WizardProps) {
           capabilities: wState.capability,
           exclude_attributes: [] as string[],
           companion_of: null as string | null,
+          ...(e.service_data && Object.keys(e.service_data).length > 0 ? { service_data: e.service_data } : {}),
         }]));
         const companionMap = new Map<string, { entity_id: string; alias: string | null; capabilities: "badge" | "read" | "read-write"; exclude_attributes: string[]; companion_of: string | null }>();
         for (const e of wState.entities) {

@@ -277,7 +277,7 @@ class MyCard extends BaseCard {
 |--------|---------|
 | `renderIcon(iconName, partName)` | Inject an MDI SVG icon into `[part=<partName>]`. Caches by part name, skips if unchanged. |
 | `resolveIcon(name, fallback)` | Returns `name` if it exists in the bundled MDI icon set, otherwise returns `fallback`. Use this to avoid the generic help-circle. |
-| _(no helper)_ | The shared base CSS (custom property defaults, card layout, companion zone, history graph, gesture, error/stale state styles) is adopted into every shadow root automatically by the `BaseCard` constructor via `adoptedStyleSheets`. Renderers only emit their renderer-specific CSS in their `<style>` tag. The historical `getSharedStyles()` helper was removed; do not call it. |
+| _(no helper)_ | The shared base CSS (custom property defaults, card layout, companion zone, history graph, gesture, error/stale state styles) is adopted into every shadow root automatically by the `BaseCard` constructor via `adoptedStyleSheets`. Renderers only emit their renderer-specific CSS in their `<style>` tag. |
 | `renderCompanionZoneHTML()` | Returns HTML placeholder for companion pills. Include in your template. Returns empty string if no companions. |
 | `renderCompanions()` | Populates the companion zone with pills. Call at the end of `render()`. |
 | `renderHistoryZoneHTML()` | Returns HTML placeholder for the history graph. Returns empty string if graph is not configured. Include between card body and companion zone. |
@@ -1112,7 +1112,7 @@ For each domain, create a class extending BaseCard. Follow these principles:
 
 ### Step 5: CSS considerations
 
-- Each renderer's shadow root receives base CSS (card layout, companion styles, history graph, gesture, error/stale states) automatically via `adoptedStyleSheets` - the BaseCard constructor adopts a single shared `CSSStyleSheet` instance into every renderer. Your renderer's `<style>` tag only needs your renderer-specific overrides. The historical `getSharedStyles()` helper was removed; do not call it.
+- Each renderer's shadow root receives base CSS (card layout, companion styles, history graph, gesture, error/stale states) automatically via `adoptedStyleSheets` - the BaseCard constructor adopts a single shared `CSSStyleSheet` instance into every renderer. Your renderer's `<style>` tag only needs your renderer-specific overrides.
 - Packs typically override the base card styles heavily. Use `!important` sparingly.
 - By default, respect `prefers-reduced-motion` by wrapping animations in a media query and providing a static fallback. However, if the source card's design identity depends on its animations (spinning fans, bouncing buttons, expanding controls), the pack author may choose to ignore the media query. This is a deliberate design decision, not a bug. Document the choice in a comment near the animation CSS.
 - Respect `this.config.animate` for icon spin animations (e.g. fan blades). Only animate when the entity is on AND `config.animate` is `true`. The standard pattern is to set `data-animate` on the icon element and target it in CSS: `[part=card-icon][data-animate=true] svg { animation: spin 1.5s linear infinite; }`.

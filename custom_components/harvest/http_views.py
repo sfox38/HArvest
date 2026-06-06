@@ -63,9 +63,13 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestActionsView,
         HarvestActionDetailView,
         HarvestThemesView,
+        HarvestThemeImportView,
+        HarvestThemeExportView,
         HarvestThemeReloadView,
         HarvestThemeDetailView,
+        HarvestThemeReloadByIdView,
         HarvestThemeThumbnailView,
+        HarvestThemeFontView,
         HarvestPacksView,
         HarvestPackAgreeView,
         HarvestPackFileView,
@@ -79,6 +83,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestAggregatesView,
         HarvestEntitiesView,
         HarvestEntityDefinitionView,
+        HarvestScriptFieldsView,
         HarvestPanelJsView,
         HarvestWarningsView,
         HarvestWarningsDismissView,
@@ -1439,7 +1444,9 @@ class HarvestThemesView(_HarvestView):
         counts = self._usage_counts()
         result = []
         for theme in self._theme_manager.get_all():
-            d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme.theme_id))
+            _fp = self._theme_manager.get_font_path(theme.theme_id)
+            _font_url = f"/api/harvest/themes/{theme.theme_id}/font" if _fp else None
+            d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme.theme_id), font_url=_font_url)
             d["usage_count"] = counts.get(theme.theme_id, 0)
             if theme.has_renderer_pack and self._pack_manager is not None:
                 d["has_pack"] = self._pack_manager.get_pack_path(theme.theme_id) is not None
@@ -1484,10 +1491,207 @@ class HarvestThemesView(_HarvestView):
             has_renderer_pack=bool(body.get("renderer_pack", False)),
             capabilities=capabilities,
             pack_settings=pack_settings,
+            description=str(body.get("description", "")),
         )
         d = theme_to_api_dict(theme)
         d["has_pack"] = False
         return self.json(d, status_code=201)
+
+
+class HarvestThemeImportView(_HarvestView):
+    """POST /api/harvest/themes/import - import a theme from a .zip file.
+
+    Zip format:
+        theme.json   (required) - theme definition JSON
+        renderer.js  (optional) - custom renderer JS
+
+    Returns the created ThemeDefinition.
+    If the zip includes renderer.js and the admin has not yet agreed to
+    run renderer pack JS, returns 409 with {"error": "renderer_consent_required"}.
+    """
+
+    url = "/api/harvest/themes/import"
+    name = "api:harvest:themes:import"
+
+    _MAX_ZIP_BYTES = 10 * 1024 * 1024  # 10 MB hard cap
+
+    async def post(self, request: web.Request) -> web.Response:
+        import io
+        import json as _json
+        import zipfile
+
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+
+        # Read the zip body (multipart or raw bytes).
+        ct = request.headers.get("Content-Type", "")
+        if ct.startswith("multipart/"):
+            reader = await request.multipart()
+            field = await reader.next()
+            if field is None or field.name != "file":
+                raise web.HTTPBadRequest(reason="Expected a 'file' field.")
+            chunks: list[bytes] = []
+            size = 0
+            while True:
+                chunk = await field.read_chunk(8192)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > self._MAX_ZIP_BYTES:
+                    raise web.HTTPRequestEntityTooLarge(
+                        max_size=self._MAX_ZIP_BYTES, actual_size=size
+                    )
+                chunks.append(chunk)
+            zip_bytes = b"".join(chunks)
+        else:
+            zip_bytes = await request.read()
+            if len(zip_bytes) > self._MAX_ZIP_BYTES:
+                raise web.HTTPRequestEntityTooLarge(
+                    max_size=self._MAX_ZIP_BYTES, actual_size=len(zip_bytes)
+                )
+
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
+        except zipfile.BadZipFile:
+            raise web.HTTPBadRequest(reason="File is not a valid zip archive.")
+
+        # Extract theme.json.
+        if "theme.json" not in zf.namelist():
+            raise web.HTTPBadRequest(reason="Zip archive must contain theme.json.")
+        try:
+            raw = _json.loads(zf.read("theme.json").decode("utf-8"))
+        except Exception:
+            raise web.HTTPBadRequest(reason="theme.json is not valid JSON.")
+
+        name = str(raw.get("name", "")).strip()
+        name_err = _validate_theme_name(name)
+        if name_err:
+            raise web.HTTPBadRequest(reason=name_err)
+        if self._theme_manager.name_exists(name):
+            raise web.HTTPConflict(reason=f"A theme named \"{name}\" already exists.")
+
+        variables = raw.get("variables")
+        if not isinstance(variables, dict):
+            raise web.HTTPBadRequest(reason="theme.json must contain a 'variables' object.")
+
+        has_renderer_js = "renderer.js" in zf.namelist()
+        has_renderer_flag = bool(raw.get("has_renderer", raw.get("renderer_pack", False)))
+
+        if has_renderer_js and self._pack_manager is not None and not self._pack_manager.agreed:
+            return self.json({"error": "renderer_consent_required"}, status_code=409)
+
+        raw_cap = raw.get("capabilities")
+        capabilities = raw_cap if isinstance(raw_cap, dict) else None
+        raw_ps = raw.get("pack_settings")
+        pack_settings = list(raw_ps) if isinstance(raw_ps, list) else None
+
+        raw_font = raw.get("icon_font") or {}
+        icon_font_family = str(raw_font.get("family", "")).strip() if isinstance(raw_font, dict) else ""
+        font_filename = str(raw_font.get("file", "font.woff2")).strip() if isinstance(raw_font, dict) else "font.woff2"
+        has_font = bool(icon_font_family) and (font_filename in zf.namelist())
+
+        theme = await self._theme_manager.create(
+            name=name,
+            variables=variables,
+            dark_variables=raw.get("dark_variables"),
+            created_by=user.id,
+            author=str(raw.get("author", "")),
+            version=str(raw.get("version", "1.0")),
+            has_renderer_pack=has_renderer_js or has_renderer_flag,
+            capabilities=capabilities,
+            pack_settings=pack_settings,
+            description=str(raw.get("description", "")),
+            icon_font_family=icon_font_family if has_font else "",
+        )
+
+        if has_renderer_js and self._pack_manager is not None:
+            js_code = zf.read("renderer.js").decode("utf-8")
+            await self._pack_manager.update_code(theme.theme_id, js_code)
+
+        if has_font:
+            font_bytes = zf.read(font_filename)
+            await self._hass.async_add_executor_job(
+                self._theme_manager.save_font, theme.theme_id, font_bytes
+            )
+
+        font_url = f"/api/harvest/themes/{theme.theme_id}/font" if has_font else None
+        d = theme_to_api_dict(theme, font_url=font_url)
+        d["has_pack"] = has_renderer_js and self._pack_manager is not None
+        return self.json(d, status_code=201)
+
+
+class HarvestThemeExportView(_HarvestView):
+    """GET /api/harvest/themes/{theme_id}/export - export theme as a .zip file.
+
+    Zip format:
+        theme.json   - full theme definition
+        renderer.js  - renderer JS (only if theme has one and it exists on disk)
+    """
+
+    url = "/api/harvest/themes/{theme_id}/export"
+    name = "api:harvest:theme_export"
+
+    async def get(self, request: web.Request, theme_id: str) -> web.Response:
+        import io
+        import json as _json
+        import zipfile
+
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+
+        theme = self._theme_manager.get(theme_id)
+        if theme is None:
+            raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            # Build theme.json - use the same serialisation the API returns
+            # but strip runtime-only fields not relevant in an exported zip.
+            obj: dict = {
+                "name": theme.name,
+                "author": theme.author,
+                "version": theme.version,
+                "harvest_version": 1,
+            }
+            if theme.description:
+                obj["description"] = theme.description
+            if theme.has_renderer_pack:
+                obj["has_renderer"] = True
+            if theme.capabilities:
+                obj["capabilities"] = theme.capabilities
+            if theme.pack_settings:
+                obj["pack_settings"] = theme.pack_settings
+            font_path = self._theme_manager.get_font_path(theme_id)
+            if theme.icon_font_family and font_path is not None:
+                obj["icon_font"] = {"family": theme.icon_font_family, "file": "font.woff2"}
+            obj["variables"] = theme.variables
+            if theme.dark_variables:
+                obj["dark_variables"] = theme.dark_variables
+            zf.writestr("theme.json", _json.dumps(obj, indent=2))
+
+            # Include renderer.js if the pack file exists.
+            if theme.has_renderer_pack and self._pack_manager is not None:
+                js_path = self._pack_manager.get_pack_path(theme_id)
+                if js_path is not None:
+                    js_bytes = await self._hass.async_add_executor_job(
+                        js_path.read_bytes
+                    )
+                    zf.writestr("renderer.js", js_bytes)
+
+            # Include font.woff2 if present.
+            if font_path is not None:
+                font_bytes = await self._hass.async_add_executor_job(font_path.read_bytes)
+                zf.writestr("font.woff2", font_bytes)
+
+        slug = theme.name.lower().replace(" ", "-")
+        filename = f"{slug}.zip"
+        return web.Response(
+            body=buf.getvalue(),
+            content_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
 
 class HarvestThemeReloadView(_HarvestView):
@@ -1567,7 +1771,9 @@ class HarvestThemeDetailView(_HarvestView):
         theme = self._theme_manager.get(theme_id)
         if theme is None:
             raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
-        d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme_id))
+        _fp = self._theme_manager.get_font_path(theme_id)
+        _font_url = f"/api/harvest/themes/{theme_id}/font" if _fp else None
+        d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme_id), font_url=_font_url)
         count = sum(
             1 for t in self._token_manager.get_all()
             if theme_url_to_id(t.theme_url) == theme_id
@@ -1618,6 +1824,8 @@ class HarvestThemeDetailView(_HarvestView):
         if "pack_settings" in body:
             raw_ps = body["pack_settings"]
             updates["pack_settings"] = list(raw_ps) if isinstance(raw_ps, list) else []
+        if "description" in body:
+            updates["description"] = str(body["description"])
 
         try:
             theme = await self._theme_manager.update(theme_id, updates)
@@ -1629,7 +1837,9 @@ class HarvestThemeDetailView(_HarvestView):
         if "variables" in updates or "dark_variables" in updates:
             await self._push_theme_to_tokens(theme_id, theme)
 
-        d = theme_to_api_dict(theme)
+        _fp = self._theme_manager.get_font_path(theme_id)
+        _font_url = f"/api/harvest/themes/{theme_id}/font" if _fp else None
+        d = theme_to_api_dict(theme, font_url=_font_url)
         if theme.has_renderer_pack and self._pack_manager is not None:
             d["has_pack"] = self._pack_manager.get_pack_path(theme_id) is not None
         else:
@@ -1735,6 +1945,87 @@ class HarvestThemeThumbnailView(_HarvestView):
             raise web.HTTPForbidden()
         self._theme_manager.delete_thumbnail(theme_id)
         return web.Response(status=204)
+
+
+class HarvestThemeFontView(_HarvestView):
+    """GET /api/harvest/themes/{theme_id}/font - serve custom icon font.
+
+    No authentication required - the widget fetches this unauthenticated,
+    the same as theme thumbnails. Only user themes can have a font file.
+    """
+
+    url = "/api/harvest/themes/{theme_id}/font"
+    name = "api:harvest:theme_font"
+
+    async def get(self, request: web.Request, theme_id: str) -> web.Response:
+        path = self._theme_manager.get_font_path(theme_id)
+        if path is None:
+            raise web.HTTPNotFound()
+        data = await self._hass.async_add_executor_job(path.read_bytes)
+        return web.Response(
+            body=data,
+            content_type="font/woff2",
+            headers={"Cache-Control": "public, max-age=604800"},
+        )
+
+
+class HarvestThemeReloadByIdView(_HarvestView):
+    """POST /api/harvest/themes/{theme_id}/reload - reload one theme.
+
+    For bundled themes, re-reads the JSON from disk. For user themes, pushes
+    the current stored variables to active sessions (useful after a manual
+    file edit). In both cases, pushes updated theme variables and renderer
+    pack URL to all active sessions that reference the theme.
+    """
+
+    url = "/api/harvest/themes/{theme_id}/reload"
+    name = "api:harvest:theme_reload_by_id"
+
+    async def post(self, request: web.Request, theme_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+        theme = self._theme_manager.get(theme_id)
+        if theme is None:
+            raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
+
+        if theme.is_bundled:
+            results = await self._theme_manager.load()
+            err = results.get(theme_id)
+            if err:
+                raise web.HTTPInternalServerError(reason=err)
+            theme = self._theme_manager.get(theme_id)
+
+        ts = int(datetime.now(timezone.utc).timestamp())
+        theme_msg = {
+            "type": "theme",
+            "variables": theme.variables,
+            "dark_variables": theme.dark_variables,
+        }
+        for token in self._token_manager.get_all():
+            if theme_url_to_id(token.theme_url) != theme_id:
+                continue
+            pack_url = ""
+            if token.renderer_pack and self._pack_manager:
+                if self._pack_manager.get_pack_path(token.renderer_pack):
+                    pack_url = f"/api/harvest/packs/{token.renderer_pack}.js?v={ts}"
+            for session in self._session_manager.get_all_for_token(token.token_id):
+                if not session.ws.closed:
+                    try:
+                        await session.ws.send_json(theme_msg)
+                        if token.renderer_pack:
+                            await session.ws.send_json({"type": "renderer_pack", "url": pack_url})
+                    except Exception:
+                        pass
+
+        _fp = self._theme_manager.get_font_path(theme_id)
+        _font_url = f"/api/harvest/themes/{theme_id}/font" if _fp else None
+        d = theme_to_api_dict(theme, font_url=_font_url)
+        if theme.has_renderer_pack and self._pack_manager is not None:
+            d["has_pack"] = self._pack_manager.get_pack_path(theme_id) is not None
+        else:
+            d["has_pack"] = False
+        return self.json({"status": "ok", "theme": d})
 
 
 # ---------------------------------------------------------------------------
@@ -2010,10 +2301,40 @@ class HarvestConfigView(_HarvestView):
                 validated.append({"domain": cd_domain, "allowed_services": services})
             filtered["custom_domains"] = validated
 
+        # Validate external_host / external_port when either is present.
+        if "external_host" in filtered or "external_port" in filtered:
+            current_for_ext = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
+            ext_host = str(filtered.get("external_host", current_for_ext.get("external_host", "")) or "")
+            raw_port = filtered.get("external_port", current_for_ext.get("external_port", 0))
+            try:
+                ext_port = int(raw_port or 0)
+            except (TypeError, ValueError):
+                raise web.HTTPBadRequest(reason="external_port must be an integer.")
+            if ext_host and ext_port:
+                from .secondary_server import validate_external_config
+                ha_http_port = self._hass.config.api.port if self._hass.config.api else 8123
+                err = validate_external_config(ext_host, ext_port, ha_http_port)
+                if err:
+                    raise web.HTTPBadRequest(reason=err)
+            filtered["external_host"] = ext_host
+            filtered["external_port"] = ext_port
+
         # Deep-merge the incoming partial update over the current full config.
         current = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
         updated = _deep_merge(current, filtered)
         self._hass.config_entries.async_update_entry(entry, options=updated)
+
+        # Apply secondary server changes immediately if host/port changed.
+        if "external_host" in filtered or "external_port" in filtered:
+            from .const import CONF_EXTERNAL_HOST, CONF_EXTERNAL_PORT
+            data = get_entry_data(self._hass, self._entry_id)
+            if secondary_server := data.get("secondary_server"):
+                new_host = str(updated.get(CONF_EXTERNAL_HOST, "") or "")
+                new_port = int(updated.get(CONF_EXTERNAL_PORT, 0) or 0)
+                if new_host and new_port:
+                    self._hass.async_create_task(secondary_server.reconfigure(new_host, new_port))
+                else:
+                    self._hass.async_create_task(secondary_server.stop())
 
         if filtered.get("kill_switch"):
             for session in self._session_manager.get_all():
@@ -2356,6 +2677,37 @@ class HarvestEntityDefinitionView(_HarvestView):
             "state": state.state,
             "attributes": filtered_attrs,
         })
+
+
+# ---------------------------------------------------------------------------
+# Script fields view
+# ---------------------------------------------------------------------------
+
+class HarvestScriptFieldsView(_HarvestView):
+    """GET /api/harvest/entities/{entity_id}/script_fields
+
+    Returns the HA-defined variable fields for a script entity. The wizard
+    uses this to render a configuration form so token authors can bake in
+    service_data without exposing the field names to the public widget.
+
+    Response: {"fields": {<field_name>: <field_schema>, ...}}
+    Returns an empty fields dict for non-script entities.
+    """
+
+    url = "/api/harvest/entities/{entity_id}/script_fields"
+    name = "api:harvest:script:fields"
+
+    async def get(self, request: web.Request, entity_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+
+        state = self._hass.states.get(entity_id)
+        if state is None:
+            raise web.HTTPNotFound(text=f"Entity {entity_id} not found")
+
+        fields = state.attributes.get("fields", {})
+        return self.json({"entity_id": entity_id, "fields": fields})
 
 
 # ---------------------------------------------------------------------------

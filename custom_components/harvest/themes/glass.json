@@ -2,6 +2,7 @@
   "name": "Glass",
   "author": "sfox38",
   "version": "1.0",
+  "description": "Frosted-glass cards with blur and translucency. Works best over a colourful background image.",
   "harvest_version": 1,
   "variables": {
     "--hrv-card-min-width":        "260px",

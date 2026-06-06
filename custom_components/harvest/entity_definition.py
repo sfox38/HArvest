@@ -373,6 +373,7 @@ def build_entity_definition(
         "color_scheme": entity_access.color_scheme,
         "display_hints": entity_access.display_hints or {},
         "companions": companions or [],
+        "service_data": entity_access.service_data or {},
     }
 
 

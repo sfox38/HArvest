@@ -176,6 +176,14 @@ export class ThemeLoader {
 
     applyVars();
 
+    // Inject custom icon font if the theme declares one.
+    // @font-face rules in document.head are global - they apply inside shadow
+    // DOM via the font-family property even though class selectors do not cross
+    // shadow boundaries. Idempotent: keyed by sanitised family name.
+    if (theme.icon_font?.family && theme.icon_font?.url) {
+      _injectFontFace(theme.icon_font.family, theme.icon_font.url);
+    }
+
     // Only register OS-change listener when not forced to a specific scheme.
     if (colorScheme === "auto") {
       _darkCallbacks.add(applyVars);
@@ -209,3 +217,20 @@ export class ThemeLoader {
 // Private symbol used to store the MediaQueryList cleanup function on the
 // host element without polluting its public interface.
 const _CLEANUP_KEY = Symbol("harvThemeCleanup");
+
+/**
+ * Inject a @font-face rule into document.head for a custom icon font.
+ * Idempotent: the data-hrv-font attribute is keyed by the sanitised family
+ * name so a second call with the same font is a no-op.
+ *
+ * @param {string} family - Font family name, e.g. "Material Design Icons"
+ * @param {string} url    - URL to the woff2 file
+ */
+function _injectFontFace(family, url) {
+  const key = family.toLowerCase().replace(/\s+/g, "-");
+  if (document.head.querySelector(`[data-hrv-font="${CSS.escape(key)}"]`)) return;
+  const style = document.createElement("style");
+  style.setAttribute("data-hrv-font", key);
+  style.textContent = `@font-face{font-family:${JSON.stringify(family)};src:url(${JSON.stringify(url)}) format("woff2");font-weight:normal;font-style:normal}`;
+  document.head.appendChild(style);
+}

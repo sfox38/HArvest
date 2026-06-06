@@ -14,13 +14,14 @@ from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import async_track_time_interval
 
 from .activity_store import ActivityStore
-from .const import DEFAULTS, DOMAIN
+from .const import DEFAULTS, DOMAIN, CONF_EXTERNAL_HOST, CONF_EXTERNAL_PORT
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
 from .harvest_action import HarvestActionManager
 from .http_views import register_views
 from .pack_manager import PackManager
+from .secondary_server import SecondaryServer
 from .theme_manager import ThemeManager
 from .panel import register_panel
 from .rate_limiter import RateLimiter
@@ -139,22 +140,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     unsub_preview = async_track_time_interval(hass, _cleanup_expired_previews, timedelta(seconds=60))
 
+    # --- Start optional secondary server ---
+    from pathlib import Path
+    widget_dir = Path(hass.config.path("custom_components", DOMAIN, "panel"))
+    themes_dir = Path(hass.config.path("custom_components", DOMAIN, "themes"))
+    secondary_server = SecondaryServer(widget_dir, themes_dir, ws_view)
+    ext_host = config.get(CONF_EXTERNAL_HOST, "")
+    ext_port = int(config.get(CONF_EXTERNAL_PORT, 0) or 0)
+    if ext_host and ext_port:
+        try:
+            await secondary_server.start(ext_host, ext_port)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception(
+                "HArvest secondary server failed to start on %s:%s. "
+                "Continuing without it.",
+                ext_host,
+                ext_port,
+            )
+
     # --- Store all managers - must happen before platform forwarding ---
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         **hass.data.get(DOMAIN, {}).get(entry.entry_id, {}),
-        "token_manager":   token_manager,
-        "session_manager": session_manager,
-        "rate_limiter":    rate_limiter,
-        "activity_store":  activity_store,
-        "event_bus":       event_bus,
-        "action_manager":  action_manager,
-        "theme_manager":   theme_manager,
-        "pack_manager":    pack_manager,
-        "warnings_store":  warnings_store,
-        "sensors":         sensors,
-        "controls":        controls,
-        "unsub_purge":     unsub_purge,
-        "unsub_preview":   unsub_preview,
+        "token_manager":    token_manager,
+        "session_manager":  session_manager,
+        "rate_limiter":     rate_limiter,
+        "activity_store":   activity_store,
+        "event_bus":        event_bus,
+        "action_manager":   action_manager,
+        "theme_manager":    theme_manager,
+        "pack_manager":     pack_manager,
+        "warnings_store":   warnings_store,
+        "sensors":          sensors,
+        "controls":         controls,
+        "unsub_purge":      unsub_purge,
+        "unsub_preview":    unsub_preview,
+        "secondary_server": secondary_server,
     }
 
     # --- Register switch and button platforms ---
@@ -200,6 +220,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     await entity.async_remove()
                 except Exception:  # noqa: BLE001 - best-effort teardown
                     _LOGGER.exception("Failed to remove diagnostic entity %s", entity.entity_id)
+
+    # Stop the secondary server if it was running.
+    if secondary_server := data.get("secondary_server"):
+        await secondary_server.stop()
 
     # Flush and close the activity store.
     if activity_store := data.get("activity_store"):

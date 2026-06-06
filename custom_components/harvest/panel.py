@@ -49,7 +49,7 @@ async def register_panel(hass: HomeAssistant) -> None:
             f"/{PANEL_ASSETS_PATH}",
             panel_dir,
             cache_headers=False,
-        )
+        ),
     ])
 
     # Remove any existing panel registration before re-registering.

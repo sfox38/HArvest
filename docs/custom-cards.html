@@ -68,7 +68,7 @@
             <li><a href="#prerequisites">Prerequisites</a></li>
             <li><a href="#basecard-api">The BaseCard API</a></li>
             <li><a href="#write-renderer">Writing a renderer</a></li>
-            <li><a href="#packs">Creating a renderer pack</a></li>
+            <li><a href="#packs">Creating a renderer override</a></li>
             <li><a href="#admin-setup">Admin setup: enabling commands</a></li>
             <li><a href="#embed">Embedding on a page</a></li>
             <li><a href="#commands">Sending commands</a></li>
@@ -91,21 +91,21 @@
         <ul>
           <li><strong>Tier 1</strong> - domains with built-in card renderers (light, switch, climate, fan, cover, etc.). Commands are pre-approved in a server-side whitelist.</li>
           <li><strong>Tier 2</strong> - all other domains (vacuum, humidifier, valve, siren, etc.). These display with the generic card by default. A custom renderer can replace the generic card for any Tier 2 domain.</li>
-          <li><strong>Tier 3</strong> - blocked domains (lock, alarm_control_panel, camera, etc.). Cannot be used with HArvest at all.</li>
+          <li><strong>Tier 3</strong> - blocked domains (alarm_control_panel, camera, script, automation, etc.). Cannot be used with HArvest at all.</li>
         </ul>
 
         <p>Building a custom card has two sides:</p>
         <ol>
-          <li><strong>Display</strong> - write a renderer class that extends <code>BaseCard</code> and package it as a renderer pack. The pack is uploaded through the HArvest panel and automatically loaded by the widget for any token that uses the associated theme. No script tags are needed on the embedding page.</li>
+          <li><strong>Display</strong> - write a renderer class that extends <code>BaseCard</code> and package it as a <code>renderer.js</code> file inside a theme zip. The zip is imported through the HArvest panel. The renderer is automatically loaded by the widget for any token that uses that theme. No script tags are needed on the embedding page.</li>
           <li><strong>Commands</strong> - the HA admin registers allowed services for the domain in the HArvest panel under Settings. This opens the server-side whitelist so the card's commands are accepted.</li>
         </ol>
 
-        <p>Neither side requires changes to the HArvest integration source code. The renderer pack is managed through the panel, and the service allowlist is configured in Settings.</p>
+        <p>Neither side requires changes to the HArvest integration source code. The renderer is managed through the panel as part of the theme zip, and the service allowlist is configured in Settings.</p>
 
         <div class="callout callout-warn">
-          <span class="callout-label">Renderer packs vs. standalone scripts</span>
-          <p>Custom cards are delivered as <strong>renderer packs</strong>. A pack is a JavaScript file uploaded through the HArvest panel and tied to a theme. When a token uses that theme, the widget automatically fetches and loads the pack. The person embedding the widget does not need to add any extra <code>&lt;script&gt;</code> tags.</p>
-          <p>During development, you can use <code>HArvest.registerRenderer()</code> with a local <code>&lt;script&gt;</code> tag for faster iteration. But for production, always package your renderer as a pack. This guide covers both approaches, with pack delivery as the primary path.</p>
+          <span class="callout-label">Renderer overrides vs. standalone scripts</span>
+          <p>Custom cards intended for production are delivered as <code>renderer.js</code> files bundled inside a theme <code>.zip</code>. Import the zip through the HArvest panel - the renderer is activated automatically for any token using that theme. The person embedding the widget does not need to add any extra <code>&lt;script&gt;</code> tags.</p>
+          <p>During development, you can use <code>HArvest.registerRenderer()</code> with a local <code>&lt;script&gt;</code> tag for faster iteration. This guide covers both approaches.</p>
         </div>
         </section>
 
@@ -117,11 +117,11 @@
           <li>A running Home Assistant instance with the HArvest integration installed.</li>
           <li>An entity in the domain you want to build a card for (e.g. <code>vacuum.roomba</code>).</li>
           <li>A HArvest token that includes the entity (Tier 2 entities are already available in the entity picker).</li>
-          <li>Access to the HArvest panel to upload the renderer pack and configure custom domain services.</li>
+          <li>Access to the HArvest panel to import the theme zip and configure custom domain services.</li>
           <li>Basic familiarity with JavaScript classes and the DOM API.</li>
         </ul>
 
-        <p>No build tools are required. Custom renderers are vanilla JavaScript. They are uploaded as renderer packs through the HArvest panel and loaded automatically by the widget.</p>
+        <p>No build tools are required. Custom renderers are vanilla JavaScript. They are bundled in a theme zip and imported through the HArvest panel.</p>
         </section>
 
         <!-- ============================================================ -->
@@ -210,7 +210,7 @@
           <table>
             <thead><tr><th>Method</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><em>(no helper)</em></td><td>The shared base CSS (card layout, companion zone, history graph, gesture, error/stale states) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>. Your renderer's <code>&lt;style&gt;</code> tag only emits renderer-specific CSS. The historical <code>getSharedStyles()</code> helper was removed; do not call it.</td></tr>
+              <tr><td><em>(no helper)</em></td><td>The shared base CSS (card layout, companion zone, history graph, gesture, error/stale states) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>. Your renderer's <code>&lt;style&gt;</code> tag only emits renderer-specific CSS.</td></tr>
               <tr><td><code>renderIcon(iconName, partName)</code></td><td>Inject an MDI SVG icon into the element with <code>part="&lt;partName&gt;"</code>. Caches internally and skips re-render if unchanged.</td></tr>
               <tr><td><code>resolveIcon(name, fallback)</code></td><td>Returns <code>name</code> if the icon is in the bundled set, otherwise returns <code>fallback</code>.</td></tr>
               <tr><td><code>isFocused(element)</code></td><td>Returns true if <code>element</code> has focus in the shadow root. Use in <code>applyState()</code> to avoid overwriting user input (e.g. while typing in a number input).</td></tr>
@@ -347,7 +347,7 @@
 
         <ul>
           <li><strong>Check <code>capabilities</code></strong> - if the entity is <code>"read"</code>, do not render buttons, sliders, or any interactive controls. Only show state. Badge entities (<code>"badge"</code>) are routed to the badge renderer, not your card, so you do not need to handle that case.</li>
-          <li><strong>Shared styles are automatic</strong> - the card layout, companion zone, history graph, gesture, and error/stale state styles are adopted into your shadow root automatically by <code>BaseCard</code>. Your <code>&lt;style&gt;</code> block only needs renderer-specific CSS; do not call <code>getSharedStyles()</code> (it no longer exists).</li>
+          <li><strong>Shared styles are automatic</strong> - the card layout, companion zone, history graph, gesture, and error/stale state styles are adopted into your shadow root automatically by <code>BaseCard</code>. Your <code>&lt;style&gt;</code> block only needs renderer-specific CSS.</li>
           <li><strong>Use <code>part</code> attributes</strong> - every meaningful element should have a <code>part="..."</code> attribute so theme authors can target it with <code>::part()</code> selectors.</li>
           <li><strong>Include the standard zones</strong> - your template should include <code>renderAriaLiveHTML()</code>, <code>renderCompanionZoneHTML()</code>, and a <code>&lt;div part="stale-indicator"&gt;</code>. These enable accessibility, companion pills, and the stale-data indicator.</li>
           <li><strong>Call <code>renderCompanions()</code></strong> - at the end of <code>render()</code>, this populates the companion zone.</li>
@@ -358,13 +358,13 @@
 
         <!-- ============================================================ -->
         <section>
-        <h2 id="packs">Creating a renderer pack</h2>
+        <h2 id="packs">Creating a renderer override</h2>
 
-        <p>A renderer pack is a JavaScript file that bundles one or more renderer classes and registers them with HArvest. Packs are the standard way to deliver custom cards. They are uploaded through the HArvest panel and tied to a theme. When a token uses that theme, the widget automatically fetches and loads the pack - the person embedding the widget does not need to add any extra script tags.</p>
+        <p>A renderer override is a <code>renderer.js</code> file bundled inside a theme <code>.zip</code>. It registers one or more custom renderer classes with HArvest. When a token uses the associated theme, the widget automatically activates the renderer - the person embedding the widget does not need to add any extra script tags.</p>
 
-        <h3>Pack structure</h3>
+        <h3>renderer.js structure</h3>
 
-        <p>A pack is wrapped in an IIFE (immediately invoked function expression) that accesses <code>BaseCard</code> from the global <code>HArvest</code> object and registers the renderers under a pack key:</p>
+        <p>The file is an IIFE (immediately invoked function expression) that reads <code>BaseCard</code> from the global <code>HArvest</code> object and registers the renderers under the theme's pack key:</p>
 
 <pre><code class="language-javascript">(function () {
   "use strict";
@@ -398,32 +398,32 @@
         <h3>Key points</h3>
 
         <ul>
-          <li>The pack key (<code>_packKey</code>) is resolved automatically by the widget. Use the boilerplate above as-is.</li>
-          <li>Each entry in the pack object maps a domain key (e.g. <code>"vacuum"</code>) to a renderer class. You can register multiple domains in one pack.</li>
+          <li>The pack key (<code>_packKey</code>) is resolved automatically by the widget from the theme ID. Use the boilerplate above as-is.</li>
+          <li>Each entry maps a domain key (e.g. <code>"vacuum"</code>) to a renderer class. Register multiple domains in one file.</li>
           <li>You can also register for a specific device class: <code>"sensor.temperature": MyTempCard</code>.</li>
-          <li>The <code>_capabilities</code> object declares what features the pack's renderers support. The server uses this to populate <code>supported_features</code> in the entity definition.</li>
-          <li>Registration is last-write-wins. If the key matches a built-in renderer, the pack renderer takes priority for tokens using this pack's theme.</li>
+          <li>The <code>_capabilities</code> object declares what features the renderers support. The server uses this to populate <code>supported_features</code> in the entity definition.</li>
+          <li>Registration is last-write-wins. If the key matches a built-in renderer, the override takes priority for tokens using this theme.</li>
         </ul>
 
-        <h3>Uploading the pack</h3>
+        <h3>Importing the renderer</h3>
 
         <ol>
-          <li>In the HArvest panel, go to <strong>Themes</strong>.</li>
-          <li>Create or edit a theme and enable <strong>Renderer pack</strong>.</li>
-          <li>Upload or paste your pack JavaScript in the pack code editor.</li>
-          <li>Assign the theme to a token. Any widget using that token will automatically load the pack.</li>
+          <li>Bundle <code>theme.json</code> and <code>renderer.js</code> together in a <code>.zip</code> file.</li>
+          <li>In the HArvest panel, go to <strong>Themes</strong> and click <strong>Import .zip</strong>.</li>
+          <li>The panel shows a renderer consent dialog before completing the import.</li>
+          <li>Assign the theme to a token. Any widget using that token will automatically load the renderer override.</li>
         </ol>
 
         <h3>Lookup order</h3>
 
         <p>When the widget needs a renderer for a domain, it checks in this order:</p>
         <ol>
-          <li>The active pack's registry (if the token's theme has a renderer pack).</li>
+          <li>The active theme's renderer override (if the theme includes a <code>renderer.js</code>).</li>
           <li>The global renderer registry (built-in renderers and any <code>registerRenderer()</code> calls).</li>
           <li>The generic card fallback.</li>
         </ol>
 
-        <p>This means pack renderers only affect tokens using that pack's theme. Other tokens continue to use the built-in renderers, keeping everything isolated.</p>
+        <p>Renderer overrides only affect tokens using that theme. Other tokens continue to use the built-in renderers.</p>
         </section>
 
         <!-- ============================================================ -->

@@ -225,6 +225,7 @@ export interface ThemeDefinition {
   name: string;
   author: string;
   version: string;
+  description: string;
   harvest_version: number;
   variables: Record<string, string>;
   dark_variables: Record<string, string>;
@@ -298,6 +299,8 @@ export interface IntegrationConfig {
   max_auth_attempts_per_ip_per_minute: number;
   override_host: string;
   widget_script_url: string;
+  external_host: string;
+  external_port: number;
   trusted_proxies: string[];
   kill_switch: boolean;
   default_lang: string;

@@ -33,6 +33,12 @@ TIER1_DOMAINS: dict[str, str] = {
     "harvest_action":  "HarvestActionCard",
     "timer":           "TimerCard",
     "weather":         "WeatherCard",
+    "lock":            "LockCard",
+    "person":          "PersonCard",
+    "button":          "ButtonCard",
+    "number":          "InputNumberCard",
+    "script":          "ScriptCard",
+    "automation":      "AutomationCard",
 }
 
 SENSOR_DEVICE_CLASS_RENDERERS: dict[str, str] = {
@@ -43,15 +49,10 @@ SENSOR_DEVICE_CLASS_RENDERERS: dict[str, str] = {
 
 TIER3_DOMAINS: dict[str, str] = {
     "alarm_control_panel": "Security-critical. Publicly embeddable alarm control is too high risk.",
-    "lock":                "Physical security risk.",
-    "person":              "Exposes real-time location data of named individuals.",
-    "device_tracker":      "Same privacy concern as person.",
+    "device_tracker":      "Privacy concern - exposes real-time location. Use person domain instead.",
     "camera":              "Video streaming is out of scope.",
-    "script":              "Use harvest_action instead.",
-    "automation":          "Same concern as script.",
     "scene":               "Could trigger wide device effects. Deferred to v2.",
     "update":              "Triggering firmware updates from a public page is too risky.",
-    "button":              "Use harvest_action instead.",
 }
 
 ALLOWED_SERVICES: dict[str, set[str]] = {
@@ -73,13 +74,17 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
                        "select_source", "turn_on", "turn_off"},
     "remote":         {"turn_on", "turn_off", "send_command"},
     "harvest_action": {"trigger"},
-    # sensor and binary_sensor are intentionally absent: read-only domains with no HA
-    # services. They never send commands so they never reach this check. Not an omission.
+    "lock":           {"lock", "unlock", "open"},
+    "button":         {"press"},
+    "number":         {"set_value"},
+    "script":         {"turn_on"},
+    "automation":     {"trigger", "turn_on", "turn_off"},
+    # sensor, binary_sensor, person are intentionally absent: read-only, no HA services.
 }
 
 COMPANION_ALLOWED_DOMAINS: frozenset[str] = frozenset({
     "light", "switch", "binary_sensor",
-    "input_boolean", "cover", "remote", "fan", "sensor",
+    "input_boolean", "cover", "remote", "fan", "sensor", "lock",
 })
 
 

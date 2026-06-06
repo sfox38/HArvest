@@ -281,6 +281,56 @@ const CARD_BASE_CSS = /* css */`
     display: none;
   }
 
+  /* ------------------------------------------------------------------
+   * Row layout mode - layout="row" on hrv-card strips the card chrome
+   * and renders as a single compact horizontal line. The parent
+   * .hrv-entities-block container provides shared card appearance.
+   * ------------------------------------------------------------------ */
+  :host([layout=row]) {
+    min-width: unset;
+  }
+
+  :host([layout=row]) [part=card] {
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  :host([layout=row]) [part=card-header] {
+    display: flex;
+    align-items: center;
+    gap: var(--hrv-spacing-s);
+    margin-bottom: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  :host([layout=row]) [part=card-name] {
+    flex: 1;
+    font-size: var(--hrv-font-size-s);
+  }
+
+  :host([layout=row]) [part=card-body],
+  :host([layout=row]) [part=companion-zone],
+  :host([layout=row]) [part=stale-indicator] {
+    display: none !important;
+  }
+
+  [part=row-control] {
+    display: none;
+    align-items: center;
+    flex-shrink: 0;
+    gap: var(--hrv-spacing-xs);
+  }
+
+  :host([layout=row]) [part=row-control] {
+    display: flex;
+  }
+
   /* Unavailable / unknown state overlay */
   :host([data-harvest-avail=unavailable]) [part=card],
   :host([data-harvest-avail=unknown]) [part=card] {
@@ -389,6 +439,11 @@ export class BaseCard {
   /** @type {object} */ config;
   /** @type {object} */ i18n;
   /** @type {Map<string,string>} */ #iconCache = new Map();
+
+  /** True when layout="row" is set on the containing hrv-card. */
+  get isRow() {
+    return this.config.layout === "row";
+  }
 
   /**
    * @param {object}     def    - EntityDefinition from server

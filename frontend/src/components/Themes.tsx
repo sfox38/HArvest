@@ -75,6 +75,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const [parsedVars, setParsedVars] = useState<Record<string, string> | null>(null);
   const [parsedDarkVars, setParsedDarkVars] = useState<Record<string, string> | null>(null);
 
+  // Code editor visibility (hidden by default, auto-shown for new themes)
+  const [showCodeEditors, setShowCodeEditors] = useState(false);
+
   // Renderer pack state
   const [packsData, setPacksData] = useState<PacksResponse | null>(null);
   const [packCode, setPackCode] = useState<string | null>(null);
@@ -167,8 +170,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     }
   };
 
-  // When selection changes, sync the code editor
+  // When selection changes, sync the code editor and hide editors by default
   useEffect(() => {
+    setShowCodeEditors(false);
     if (!selectedTheme) { setEditedJson(""); setDirty(false); setJsonError(null); setParsedVars(null); setParsedDarkVars(null); return; }
     const obj: Record<string, unknown> = {
       name: selectedTheme.name,
@@ -250,7 +254,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
         dark_variables: themes.find(t => t.theme_id === "default")?.dark_variables ?? {},
       });
       const updated = await reload();
-      if (updated) setSelected(theme.theme_id);
+      if (updated) {
+        setSelected(theme.theme_id);
+        setShowCodeEditors(true);
+      }
     } catch (e) { setError(String(e)); }
   };
 
@@ -312,47 +319,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
   const handleExport = async () => {
     if (!selectedTheme) return;
-    const obj: Record<string, unknown> = {
-      name: selectedTheme.name,
-      author: selectedTheme.author,
-      version: selectedTheme.version,
-      harvest_version: selectedTheme.harvest_version,
-    };
-    if (selectedTheme.renderer_pack) {
-      obj.renderer_pack = true;
-    }
-    if (selectedTheme.capabilities) {
-      obj.capabilities = selectedTheme.capabilities;
-    }
-    if (selectedTheme.pack_settings?.length) {
-      obj.pack_settings = selectedTheme.pack_settings;
-    }
-    obj.variables = selectedTheme.variables;
-    if (Object.keys(selectedTheme.dark_variables).length > 0) {
-      obj.dark_variables = selectedTheme.dark_variables;
-    }
-    const slug = selectedTheme.name.toLowerCase().replace(/\s+/g, "-");
-    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${slug}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    if (packId) {
-      try {
-        const result = await api.packs.getCode(packId);
-        if (result.code) {
-          const jsBlob = new Blob([result.code], { type: "application/javascript" });
-          const jsUrl = URL.createObjectURL(jsBlob);
-          const jsA = document.createElement("a");
-          jsA.href = jsUrl;
-          jsA.download = `${slug}.js`;
-          jsA.click();
-          URL.revokeObjectURL(jsUrl);
-        }
-      } catch { /* pack code unavailable - skip JS export */ }
+    try {
+      await api.themes.exportZip(selectedTheme.theme_id);
+    } catch (e) {
+      setError(String(e));
     }
   };
 
@@ -362,10 +332,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
     setReloading(true);
     const t0 = Date.now();
     try {
-      const result = await api.themes.reload();
-      if (result?.errors && Object.keys(result.errors).length > 0) {
-        const msgs = Object.entries(result.errors).map(([id, err]) => `${id}: ${err}`).join("; ");
-        setError(`Theme reload failed for: ${msgs}`);
+      if (selected) {
+        await api.themes.reloadById(selected);
+      } else {
+        const result = await api.themes.reload();
+        if (result?.errors && Object.keys(result.errors).length > 0) {
+          const msgs = Object.entries(result.errors).map(([id, err]) => `${id}: ${err}`).join("; ");
+          setError(`Theme reload failed for: ${msgs}`);
+        }
       }
       if (packId) clearPackCache(packId);
       await reload();
@@ -379,41 +353,20 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!parsed.name || !parsed.variables || typeof parsed.variables !== "object") {
-        setError("Invalid theme file: must contain 'name' and 'variables'.");
-        return;
-      }
-      const importNameError = validateThemeName(String(parsed.name));
-      if (importNameError) { setError(importNameError); if (fileRef.current) fileRef.current.value = ""; return; }
-      if (themes.some(t => t.name.toLowerCase() === String(parsed.name).toLowerCase())) {
-        setError(`A theme named "${parsed.name}" already exists. Rename the existing theme first, or edit the JSON before importing.`);
-        if (fileRef.current) fileRef.current.value = "";
-        return;
-      }
-      const doImport = async () => {
-        const theme = await api.themes.create({
-          name: parsed.name,
-          variables: parsed.variables,
-          dark_variables: parsed.dark_variables,
-          author: parsed.author ?? "",
-          version: parsed.version ?? "1.0",
-          renderer_pack: !!parsed.renderer_pack,
-          capabilities: parsed.capabilities ?? undefined,
-        });
-        const updated = await reload();
-        if (updated) setSelected(theme.theme_id);
-        if (parsed.renderer_pack) {
-          setShowPackReminder(true);
+    const doImport = async () => {
+      try {
+        const result = await api.themes.importZip(file);
+        if ((result as any).error === "renderer_consent_required") {
+          requireConsent(doImport);
+          return;
         }
-      };
-      if (parsed.renderer_pack) { requireConsent(doImport); }
-      else { await doImport(); }
-    } catch (err) {
-      setError(String(err));
-    }
+        const updated = await reload();
+        if (updated) setSelected(result.theme_id);
+      } catch (err) {
+        setError(String(err));
+      }
+    };
+    await doImport();
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -514,6 +467,16 @@ export function Themes({ onSelectToken }: ThemesProps) {
     } catch (e) { setError(String(e)); }
   };
 
+  const handleDescriptionBlur = async (newDescription: string) => {
+    if (!selectedTheme || selectedTheme.is_bundled) return;
+    const trimmed = newDescription.trim();
+    if (trimmed === selectedTheme.description) return;
+    try {
+      await api.themes.update(selectedTheme.theme_id, { description: trimmed });
+      await reload();
+    } catch (e) { setError(String(e)); }
+  };
+
   const handlePackJsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedTheme?.renderer_pack) return;
@@ -588,7 +551,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
               <Icon name="plus" size={14} /> New Theme
             </button>
             <button className="theme-tray-action" onClick={() => fileRef.current?.click()}>
-              <Icon name="upload" size={14} /> Import
+              <Icon name="upload" size={14} /> Import .zip
             </button>
             <button className="theme-tray-action" onClick={handleReload} disabled={reloading}>
               {reloading ? <Spinner size={14} /> : <Icon name="refresh" size={14} />}
@@ -631,7 +594,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
             ))}
           </div>
         </div>
-        <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
+        <input ref={fileRef} type="file" accept=".zip" style={{ display: "none" }} onChange={handleImport} />
         <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />
         <input ref={packJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handlePackJsUpload} />
       </Card>
@@ -643,11 +606,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
             title="Theme Info"
             action={
               <div className="row" style={{ gap: 6 }}>
+                <button className="btn btn-sm btn-ghost" onClick={() => setShowCodeEditors(v => !v)}>
+                  <Icon name={showCodeEditors ? "eye-off" : "code"} size={13} /> {showCodeEditors ? "Hide editor" : "Show editor"}
+                </button>
                 <button className="btn btn-sm" onClick={handleDuplicate}>
                   <Icon name="copy" size={13} /> Duplicate
                 </button>
                 <button className="btn btn-sm" onClick={handleExport}>
-                  <Icon name="download" size={13} /> Export
+                  <Icon name="download" size={13} /> Export .zip
                 </button>
                 {!selectedTheme.is_bundled && (
                   <button className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(true)}>
@@ -680,28 +646,42 @@ export function Themes({ onSelectToken }: ThemesProps) {
                   {selectedTheme.version && (
                     <div className="muted fs-12">Version: {selectedTheme.version}</div>
                   )}
+                  {selectedTheme.description && (
+                    <div className="muted fs-12" style={{ fontStyle: "italic" }}>{selectedTheme.description}</div>
+                  )}
                 </>
               ) : (
-                <div className="row gap-8">
+                <>
+                  <div className="row gap-8">
+                    <input
+                      className="input"
+                      defaultValue={selectedTheme.author}
+                      key={`author-${selectedTheme.theme_id}`}
+                      placeholder="Author"
+                      style={{ flex: 1, fontSize: 12 }}
+                      onBlur={e => handleAuthorBlur(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    />
+                    <input
+                      className="input"
+                      defaultValue={selectedTheme.version}
+                      key={`version-${selectedTheme.theme_id}`}
+                      placeholder="Version"
+                      style={{ width: 80, fontSize: 12 }}
+                      onBlur={e => handleVersionBlur(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    />
+                  </div>
                   <input
                     className="input"
-                    defaultValue={selectedTheme.author}
-                    key={`author-${selectedTheme.theme_id}`}
-                    placeholder="Author"
-                    style={{ flex: 1, fontSize: 12 }}
-                    onBlur={e => handleAuthorBlur(e.target.value)}
+                    defaultValue={selectedTheme.description}
+                    key={`desc-${selectedTheme.theme_id}`}
+                    placeholder="Description (optional)"
+                    style={{ fontSize: 12 }}
+                    onBlur={e => handleDescriptionBlur(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                   />
-                  <input
-                    className="input"
-                    defaultValue={selectedTheme.version}
-                    key={`version-${selectedTheme.theme_id}`}
-                    placeholder="Version"
-                    style={{ width: 80, fontSize: 12 }}
-                    onBlur={e => handleVersionBlur(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                  />
-                </div>
+                </>
               )}
 
               {!selectedTheme.is_bundled && (
@@ -737,122 +717,126 @@ export function Themes({ onSelectToken }: ThemesProps) {
             <WidgetPreview key={`preview-${selected}-${previewKey}`} variables={previewVars} darkVariables={previewDarkVars} packId={packId || undefined} />
           </Card>
 
-          {/* Code card */}
-          <Card
-            title="Theme JSON"
-            action={
-              <button className={`btn btn-ghost btn-sm${jsonCopy.copied ? " btn-success" : ""}`} onClick={jsonCopy.copy}>
-                <Icon name="copy" size={13} /> {jsonCopy.copied ? "Copied" : "Copy"}
-              </button>
-            }
-          >
-            <div className="col gap-8">
-              <textarea
-                className={`theme-code-textarea${jsonError ? " error" : ""}`}
-                value={editedJson}
-                onChange={e => handleJsonChange(e.target.value)}
-                readOnly={selectedTheme.is_bundled}
-                spellCheck={false}
-              />
-              {jsonError && <div className="theme-code-error">{jsonError}</div>}
-              {!selectedTheme.is_bundled && (
-                <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
-                  <button className="btn btn-sm" onClick={handleCancel} disabled={!dirty}>Cancel</button>
-                  <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={!dirty || !!jsonError || saving}>
-                    {saving ? "Saving..." : "Save"}
+          {showCodeEditors && (
+            <>
+              {/* Theme JSON editor */}
+              <Card
+                title="Theme JSON"
+                action={
+                  <button className={`btn btn-ghost btn-sm${jsonCopy.copied ? " btn-success" : ""}`} onClick={jsonCopy.copy}>
+                    <Icon name="copy" size={13} /> {jsonCopy.copied ? "Copied" : "Copy"}
                   </button>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* Renderer Pack card - bundled pack */}
-          {packId && selectedPack && (
-            <Card title="Renderer Pack">
-              <div className="col" style={{ gap: 10 }}>
-                <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                  <strong>{selectedPack.name}</strong>
-                  {selectedPack.is_bundled && <span className="badge badge-muted">Bundled</span>}
-                </div>
-                {selectedPack.description && (
-                  <div className="muted fs-12">{selectedPack.description}</div>
-                )}
-                {packCode !== null && (
-                  <div className="col" style={{ gap: 8, marginTop: 4 }}>
-                    <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                      <div className="label-strong">Pack Source</div>
-                      <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
-                        <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
-                      </button>
-                    </div>
-                    <textarea
-                      className="theme-code-textarea"
-                      value={packCode}
-                      readOnly
-                      spellCheck={false}
-                      style={{ minHeight: 200 }}
-                    />
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Renderer Pack card - user pack with code loaded */}
-          {packId && !selectedPack && packCode !== null && (
-            <Card title="Renderer Pack">
-              <div className="col" style={{ gap: 10 }}>
+                }
+              >
                 <div className="col gap-8">
-                  <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                    <div className="label-strong">Pack Source</div>
-                    <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
-                      <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
-                    </button>
-                  </div>
                   <textarea
-                    className="theme-code-textarea"
-                    value={packCode}
-                    onChange={e => { setPackCode(e.target.value); setPackCodeDirty(true); }}
+                    className={`theme-code-textarea${jsonError ? " error" : ""}`}
+                    value={editedJson}
+                    onChange={e => handleJsonChange(e.target.value)}
                     readOnly={selectedTheme.is_bundled}
                     spellCheck={false}
-                    style={{ minHeight: 200 }}
                   />
+                  {jsonError && <div className="theme-code-error">{jsonError}</div>}
                   {!selectedTheme.is_bundled && (
                     <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
-                      <button className="btn btn-sm" onClick={() => {
-                        if (packId) api.packs.getCode(packId).then(r => { setPackCode(r.code); setPackCodeDirty(false); }).catch(() => {});
-                      }} disabled={!packCodeDirty}>Cancel</button>
-                      <button className="btn btn-sm btn-primary" disabled={!packCodeDirty || packCodeSaving} onClick={async () => {
-                        if (!packId) return;
-                        setPackCodeSaving(true);
-                        try {
-                          await api.packs.updateCode(packId, packCode);
-                          setPackCodeDirty(false);
-                        } catch (e) { setError(String(e)); }
-                        setPackCodeSaving(false);
-                      }}>
-                        {packCodeSaving ? "Saving..." : "Save"}
+                      <button className="btn btn-sm" onClick={handleCancel} disabled={!dirty}>Cancel</button>
+                      <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={!dirty || !!jsonError || saving}>
+                        {saving ? "Saving..." : "Save"}
                       </button>
                     </div>
                   )}
                 </div>
-              </div>
-            </Card>
-          )}
+              </Card>
 
-          {/* Renderer Pack card - pack JS not yet uploaded */}
-          {packId && !selectedPack && packCode === null && (
-            <Card title="Renderer Pack">
-              <div className="col" style={{ gap: 10 }}>
-                <div className="muted fs-13">
-                  This theme expects a renderer pack but the JS file is not installed yet.
-                </div>
-                <div className="fs-12">Upload <code>{selectedTheme.name.toLowerCase()}.js</code> to enable the renderer pack.</div>
-                <button className="btn btn-sm btn-primary" style={{ alignSelf: "flex-start" }} onClick={() => packJsRef.current?.click()}>
-                  <Icon name="upload" size={13} /> Upload Pack JS
-                </button>
-              </div>
-            </Card>
+              {/* Renderer Pack card - bundled pack */}
+              {packId && selectedPack && (
+                <Card title="Renderer">
+                  <div className="col" style={{ gap: 10 }}>
+                    <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                      <strong>{selectedPack.name}</strong>
+                      {selectedPack.is_bundled && <span className="badge badge-muted">Bundled</span>}
+                    </div>
+                    {selectedPack.description && (
+                      <div className="muted fs-12">{selectedPack.description}</div>
+                    )}
+                    {packCode !== null && (
+                      <div className="col" style={{ gap: 8, marginTop: 4 }}>
+                        <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
+                          <div className="label-strong">Renderer Source</div>
+                          <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
+                            <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                        <textarea
+                          className="theme-code-textarea"
+                          value={packCode}
+                          readOnly
+                          spellCheck={false}
+                          style={{ minHeight: 200 }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {/* Renderer Pack card - user pack with code loaded */}
+              {packId && !selectedPack && packCode !== null && (
+                <Card title="Renderer">
+                  <div className="col" style={{ gap: 10 }}>
+                    <div className="col gap-8">
+                      <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
+                        <div className="label-strong">Renderer Source</div>
+                        <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
+                          <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <textarea
+                        className="theme-code-textarea"
+                        value={packCode}
+                        onChange={e => { setPackCode(e.target.value); setPackCodeDirty(true); }}
+                        readOnly={selectedTheme.is_bundled}
+                        spellCheck={false}
+                        style={{ minHeight: 200 }}
+                      />
+                      {!selectedTheme.is_bundled && (
+                        <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+                          <button className="btn btn-sm" onClick={() => {
+                            if (packId) api.packs.getCode(packId).then(r => { setPackCode(r.code); setPackCodeDirty(false); }).catch(() => {});
+                          }} disabled={!packCodeDirty}>Cancel</button>
+                          <button className="btn btn-sm btn-primary" disabled={!packCodeDirty || packCodeSaving} onClick={async () => {
+                            if (!packId) return;
+                            setPackCodeSaving(true);
+                            try {
+                              await api.packs.updateCode(packId, packCode);
+                              setPackCodeDirty(false);
+                            } catch (e) { setError(String(e)); }
+                            setPackCodeSaving(false);
+                          }}>
+                            {packCodeSaving ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Renderer Pack card - pack JS not yet uploaded */}
+              {packId && !selectedPack && packCode === null && (
+                <Card title="Renderer">
+                  <div className="col" style={{ gap: 10 }}>
+                    <div className="muted fs-13">
+                      This theme includes a custom renderer but the JS file is not installed yet.
+                    </div>
+                    <div className="fs-12">Upload <code>{selectedTheme.name.toLowerCase()}.js</code> to enable it.</div>
+                    <button className="btn btn-sm btn-primary" style={{ alignSelf: "flex-start" }} onClick={() => packJsRef.current?.click()}>
+                      <Icon name="upload" size={13} /> Upload Renderer JS
+                    </button>
+                  </div>
+                </Card>
+              )}
+            </>
           )}
         </>
       )}

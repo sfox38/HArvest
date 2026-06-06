@@ -130,6 +130,27 @@ const LIGHT_CARD_STYLES = /* css */`
   }
 `;
 
+const LIGHT_ROW_STYLES = /* css */`
+  [part=row-toggle] {
+    padding: 2px var(--hrv-spacing-s);
+    border: none;
+    border-radius: var(--hrv-radius-s);
+    font-size: var(--hrv-font-size-xs);
+    font-weight: var(--hrv-font-weight-medium);
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 44px;
+    transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
+  }
+  [part=row-toggle][aria-pressed=true]  { background: var(--hrv-color-state-on); color: var(--hrv-color-text-inverse); }
+  [part=row-toggle][aria-pressed=false] { background: var(--hrv-color-state-off); color: var(--hrv-color-text); }
+  [part=row-toggle]:disabled { opacity: 0.4; cursor: not-allowed; }
+  [part=row-state] {
+    font-size: var(--hrv-font-size-xs);
+    color: var(--hrv-color-text-secondary);
+  }
+`;
+
 // ---------------------------------------------------------------------------
 // Colour conversion helpers
 // ---------------------------------------------------------------------------
@@ -148,6 +169,7 @@ function _rgbToHue(r, g, b) {
 
 export class LightCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */   #toggleBtn         = null;
+  /** @type {HTMLButtonElement|null} */   #rowToggle         = null;
   /** @type {HTMLInputElement|null}  */   #brightnessSlider  = null;
   /** @type {HTMLInputElement|null}  */   #colorTempSlider   = null;
   /** @type {HTMLInputElement|null}  */   #colorSlider       = null;
@@ -177,11 +199,12 @@ export class LightCard extends BaseCard {
     const maxCt         = this.def.feature_config?.max_color_temp_kelvin ?? 6500;
 
     this.root.innerHTML = /* html */`
-      <style>${LIGHT_CARD_STYLES}</style>
+      <style>${LIGHT_CARD_STYLES}${LIGHT_ROW_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          ${isWritable ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>` : `<span part="row-control"><span part="row-state"></span></span>`}
         </div>
         <div part="card-body">
           ${isWritable ? /* html */`
@@ -232,6 +255,7 @@ export class LightCard extends BaseCard {
 
     // Cache element references.
     this.#toggleBtn        = this.root.querySelector("[part=toggle-button]");
+    this.#rowToggle        = this.root.querySelector("[part=row-toggle]");
     this.#brightnessSlider = this.root.querySelector("[part=brightness-slider]");
     this.#colorTempSlider  = this.root.querySelector("[part=color-temp-slider]");
     this.#colorSlider      = this.root.querySelector("[part=color-slider]");
@@ -243,14 +267,14 @@ export class LightCard extends BaseCard {
     this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lightbulb"), "card-icon");
 
     // Wire up events.
-    this._attachGestureHandlers(this.#toggleBtn, {
-      onTap: () => {
-        const tap = this.config.gestureConfig?.tap;
-        if (tap) { this._runAction(tap); return; }
-        const isOn = this.#toggleBtn?.getAttribute("aria-pressed") === "true";
-        this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
-      },
-    });
+    const onTap = () => {
+      const tap = this.config.gestureConfig?.tap;
+      if (tap) { this._runAction(tap); return; }
+      const isOn = (this.#toggleBtn ?? this.#rowToggle)?.getAttribute("aria-pressed") === "true";
+      this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
+    };
+    this._attachGestureHandlers(this.#toggleBtn, { onTap });
+    this._attachGestureHandlers(this.#rowToggle, { onTap });
 
     if (this.#brightnessSlider) {
       this.#brightnessSlider.addEventListener("input", (e) => {
@@ -291,17 +315,26 @@ export class LightCard extends BaseCard {
     const isUnavailable = state === "unavailable" || state === "unknown";
 
     // Toggle button.
+    const toggleLabel = this.i18n.t(isOn ? "state.on" : "state.off");
     if (this.#toggleBtn) {
-      const label = this.i18n.t(isOn ? "state.on" : "state.off");
-      this.#toggleBtn.textContent = label;
+      this.#toggleBtn.textContent = toggleLabel;
       this.#toggleBtn.setAttribute("aria-pressed", String(isOn));
       this.#toggleBtn.setAttribute(
         "aria-label",
         `${this.def.friendly_name} - ${this.i18n.t("action.toggle")}, ` +
-        `${this.i18n.t("action.currently")} ${label}`,
+        `${this.i18n.t("action.currently")} ${toggleLabel}`,
       );
       this.#toggleBtn.disabled = isUnavailable;
     }
+
+    if (this.#rowToggle) {
+      this.#rowToggle.textContent = toggleLabel;
+      this.#rowToggle.setAttribute("aria-pressed", String(isOn));
+      this.#rowToggle.disabled = isUnavailable;
+    }
+
+    const rowStateEl = this.root.querySelector("[part=row-state]");
+    if (rowStateEl) rowStateEl.textContent = toggleLabel;
 
     // State label (shown for read-only capability).
     if (this.#stateLabel) {

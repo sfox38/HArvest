@@ -29,6 +29,7 @@ export class BinarySensorCard extends BaseCard {
   static staleOnMount = true;
 
   /** @type {HTMLElement|null} */ #stateLabel = null;
+  /** @type {HTMLElement|null} */ #rowValue   = null;
 
   render() {
     this.root.innerHTML = /* html */`
@@ -37,6 +38,7 @@ export class BinarySensorCard extends BaseCard {
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-value"></span></span>
         </div>
         <div part="card-body">
           <span part="state-label" aria-live="polite">-</span>
@@ -49,6 +51,7 @@ export class BinarySensorCard extends BaseCard {
     `;
 
     this.#stateLabel = this.root.querySelector("[part=state-label]");
+    this.#rowValue   = this.root.querySelector("[part=row-value]");
 
     this.renderIcon(
       this.def.icon ?? "mdi:checkbox-blank-circle-outline",
@@ -63,6 +66,7 @@ export class BinarySensorCard extends BaseCard {
     const label = this.formatStateLabel(state);
 
     if (this.#stateLabel) this.#stateLabel.textContent = label;
+    if (this.#rowValue) this.#rowValue.textContent = label;
 
     const iconName = this.def.icon_state_map?.[state]
       ?? this.def.icon

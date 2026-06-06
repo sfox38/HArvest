@@ -780,6 +780,9 @@ export class HrvCard extends HTMLElement {
     this.#entityId = entityAttr || "";
     this.#alias    = entityAttr ? null : aliasAttr;
 
+    const layoutAttr = (this.getAttribute("layout") ?? "").toLowerCase();
+    if (layoutAttr) this.setAttribute("layout", layoutAttr);
+
     this.#config = {
       tokenId:      this.getAttribute("token")        ?? "",
       haUrl:        this.getAttribute("ha-url")       ?? "",
@@ -787,6 +790,7 @@ export class HrvCard extends HTMLElement {
       entity:       entityAttr,
       alias:        this.#alias,
       entityRef:    entityAttr || aliasAttr || "",
+      layout:       layoutAttr,
       lang:         "auto",
       themeUrl:     null,
       theme:        null,

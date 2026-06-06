@@ -235,18 +235,24 @@ function validateWidgetScriptUrl(v: string): string | null {
 interface WidgetScriptSourceFieldProps {
   value: string;                                    // current widget_script_url
   overrideHost: string;                             // current override_host (for preview)
+  externalHost?: string;
+  externalPort?: number;
   onChange: (v: string) => Promise<void>;
 }
 
-function WidgetScriptSourceField({ value, overrideHost, onChange }: WidgetScriptSourceFieldProps) {
+function WidgetScriptSourceField({ value, overrideHost, externalHost, externalPort, onChange }: WidgetScriptSourceFieldProps) {
   // Mode is derived from value: empty = HA-served, non-empty = Custom.
   const mode: "ha" | "custom" = value.trim() === "" ? "ha" : "custom";
 
-  // Live preview URL for the HA-served option. Identical resolution to
-  // CodeSection.tsx so admins see exactly what will land in copied
-  // snippets.
-  const haUrl = (overrideHost || window.location.origin).replace(/\/+$/, "");
-  const preview = `${haUrl}/harvest_assets/harvest.min.js`;
+  // Live preview URL. When external host/port are both set, use that address.
+  // Otherwise fall back to override_host or the browser origin.
+  const haUrl = (() => {
+    if (externalHost && externalPort) {
+      return `http://${externalHost}:${externalPort}`;
+    }
+    return (overrideHost || window.location.origin).replace(/\/+$/, "");
+  })();
+  const preview = `${haUrl}/harvest.min.js`;
 
   const switchToHa = async () => {
     if (mode === "ha") return;
@@ -903,7 +909,24 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
           <WidgetScriptSourceField
             value={config.widget_script_url}
             overrideHost={config.override_host}
+            externalHost={config.external_host}
+            externalPort={config.external_port}
             onChange={v => patch({ widget_script_url: v })}
+          />
+          <TextField
+            label="External host"
+            value={config.external_host ?? ""}
+            placeholder="0.0.0.0"
+            hint="Serve the widget JS and WebSocket on a secondary address. Leave blank to disable. Requires External port."
+            onChange={v => patch({ external_host: v })}
+          />
+          <NumberField
+            label="External port"
+            value={config.external_port ?? 0}
+            min={0}
+            max={65535}
+            hint="Port for the secondary server (e.g. 9050). Set to 0 to disable. Requires External host."
+            onChange={patchNum("external_port")}
           />
         </dl>
       </Card>

@@ -383,10 +383,10 @@ export const api = {
     get: (themeId: string): Promise<ThemeDefinition> =>
       _get<ThemeDefinition>(`/themes/${themeId}`),
 
-    create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; renderer_pack?: boolean; capabilities?: unknown; pack_settings?: string[] }): Promise<ThemeDefinition> =>
+    create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; description?: string; renderer_pack?: boolean; capabilities?: unknown; pack_settings?: string[] }): Promise<ThemeDefinition> =>
       _post<ThemeDefinition>("/themes", data),
 
-    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; variables: Record<string, string>; dark_variables: Record<string, string>; renderer_pack: boolean; capabilities: unknown; pack_settings: string[] }>): Promise<ThemeDefinition> =>
+    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; description: string; variables: Record<string, string>; dark_variables: Record<string, string>; renderer_pack: boolean; capabilities: unknown; pack_settings: string[] }>): Promise<ThemeDefinition> =>
       _patch<ThemeDefinition>(`/themes/${themeId}`, data),
 
     delete: (themeId: string): Promise<void> =>
@@ -394,6 +394,46 @@ export const api = {
 
     reload: (): Promise<{ status: string; errors?: Record<string, string> }> =>
       _post<{ status: string; errors?: Record<string, string> }>("/themes/reload", {}),
+
+    reloadById: (themeId: string): Promise<{ status: string; theme: ThemeDefinition }> =>
+      _post<{ status: string; theme: ThemeDefinition }>(`/themes/${themeId}/reload`, {}),
+
+    importZip: async (file: File): Promise<ThemeDefinition & { has_pack: boolean; error?: string }> => {
+      const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${BASE}/themes/import`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 409 && json.error === "renderer_consent_required") {
+          return json as any;
+        }
+        throw new Error(`Import failed: ${res.status}${json.message ? ` - ${json.message}` : ""}`);
+      }
+      return json;
+    },
+
+    exportZip: async (themeId: string): Promise<void> => {
+      const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
+      const res = await fetch(`${BASE}/themes/${encodeURIComponent(themeId)}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? "theme.zip";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
 
     thumbnailUrl: (themeId: string): string =>
       `${BASE}/themes/${encodeURIComponent(themeId)}/thumbnail`,
@@ -518,6 +558,9 @@ export const api = {
       if (params?.companion_ids?.length) p.companion_ids = params.companion_ids.join(",");
       return _get(`/preview/definition/${encodeURIComponent(entityId)}`, Object.keys(p).length ? p : undefined);
     },
+
+    getScriptFields: (entityId: string): Promise<{ entity_id: string; fields: Record<string, { description?: string; example?: unknown; selector?: Record<string, unknown> }> }> =>
+      _get(`/entities/${encodeURIComponent(entityId)}/script_fields`),
   },
 
   // ---------------------------------------------------------------------------

@@ -34,6 +34,11 @@ import { InputSelectCard }        from "./input-select-card.js";
 import { HarvestActionCard }      from "./harvest-action-card.js";
 import { TimerCard }              from "./timer-card.js";
 import { WeatherCard }            from "./weather-card.js";
+import { LockCard }               from "./lock-card.js";
+import { PersonCard }             from "./person-card.js";
+import { ButtonCard }             from "./button-card.js";
+import { ScriptCard }             from "./script-card.js";
+import { AutomationCard }         from "./automation-card.js";
 import { GenericCard }            from "./generic-card.js";
 import { BadgeCard }              from "./badge-card.js";
 
@@ -75,6 +80,24 @@ const _registry = new Map([
 
   // Virtual domain
   ["harvest_action",          HarvestActionCard],
+
+  // Lock
+  ["lock",                    LockCard],
+
+  // Person (read-only)
+  ["person",                  PersonCard],
+
+  // Button (momentary press)
+  ["button",                  ButtonCard],
+
+  // number domain - same UX as input_number
+  ["number",                  InputNumberCard],
+
+  // Script (run once, staleOnMount=false)
+  ["script",                  ScriptCard],
+
+  // Automation (trigger + enable/disable)
+  ["automation",              AutomationCard],
 
   // Badge - capability-routed, not domain-routed
   ["badge",                   BadgeCard],
@@ -145,6 +168,11 @@ export {
   HarvestActionCard,
   TimerCard,
   WeatherCard,
+  LockCard,
+  PersonCard,
+  ButtonCard,
+  ScriptCard,
+  AutomationCard,
   GenericCard,
   BadgeCard,
 };

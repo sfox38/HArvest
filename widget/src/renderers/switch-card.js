@@ -59,19 +59,42 @@ const SWITCH_CARD_STYLES = /* css */`
 `;
 
 
+const SWITCH_ROW_STYLES = /* css */`
+  [part=row-toggle] {
+    padding: 2px var(--hrv-spacing-s);
+    border: none;
+    border-radius: var(--hrv-radius-s);
+    font-size: var(--hrv-font-size-xs);
+    font-weight: var(--hrv-font-weight-medium);
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 44px;
+    transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
+  }
+  [part=row-toggle][aria-pressed=true]  { background: var(--hrv-color-state-on); color: var(--hrv-color-text-inverse); }
+  [part=row-toggle][aria-pressed=false] { background: var(--hrv-color-state-off); color: var(--hrv-color-text); }
+  [part=row-toggle]:disabled { opacity: 0.4; cursor: not-allowed; }
+  [part=row-state] {
+    font-size: var(--hrv-font-size-xs);
+    color: var(--hrv-color-text-secondary);
+  }
+`;
+
 export class SwitchCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #toggleBtn  = null;
+  /** @type {HTMLButtonElement|null} */ #rowToggle  = null;
   /** @type {HTMLElement|null}       */ #stateLabel = null;
 
   render() {
     const isWritable = this.def.capabilities === "read-write";
 
     this.root.innerHTML = /* html */`
-      <style>${SWITCH_CARD_STYLES}</style>
+      <style>${SWITCH_CARD_STYLES}${SWITCH_ROW_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          ${isWritable ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>` : `<span part="row-control"><span part="row-state"></span></span>`}
         </div>
         <div part="card-body">
           ${!isWritable ? `<span part="state-label"></span>` : ""}
@@ -84,6 +107,7 @@ export class SwitchCard extends BaseCard {
     `;
 
     this.#toggleBtn  = this.root.querySelector("[part=toggle-button]");
+    this.#rowToggle  = this.root.querySelector("[part=row-toggle]");
     this.#stateLabel = this.root.querySelector("[part=state-label]");
 
     if (!isWritable) {
@@ -95,14 +119,14 @@ export class SwitchCard extends BaseCard {
       "card-icon",
     );
 
-    this._attachGestureHandlers(this.#toggleBtn, {
-      onTap: () => {
-        const tap = this.config.gestureConfig?.tap;
-        if (tap) { this._runAction(tap); return; }
-        const isOn = this.#toggleBtn?.getAttribute("aria-pressed") === "true";
-        this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
-      },
-    });
+    const onTap = () => {
+      const tap = this.config.gestureConfig?.tap;
+      if (tap) { this._runAction(tap); return; }
+      const isOn = (this.#toggleBtn ?? this.#rowToggle)?.getAttribute("aria-pressed") === "true";
+      this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
+    };
+    this._attachGestureHandlers(this.#toggleBtn, { onTap });
+    this._attachGestureHandlers(this.#rowToggle, { onTap });
 
     this.renderCompanions();
   }
@@ -126,6 +150,15 @@ export class SwitchCard extends BaseCard {
       );
       this.#toggleBtn.disabled = isUnavailable;
     }
+
+    if (this.#rowToggle) {
+      this.#rowToggle.textContent = this.i18n.t(isOn ? "state.on" : "state.off");
+      this.#rowToggle.setAttribute("aria-pressed", String(isOn));
+      this.#rowToggle.disabled = isUnavailable;
+    }
+
+    const rowStateEl = this.root.querySelector("[part=row-state]");
+    if (rowStateEl) rowStateEl.textContent = label;
 
     const iconName = this.def.icon_state_map?.[state]
       ?? this.def.icon

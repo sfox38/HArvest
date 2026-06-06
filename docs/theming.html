@@ -57,8 +57,8 @@
 
         <div class="page-header">
           <div class="page-label">Customization</div>
-          <h1>Theming and renderer packs</h1>
-          <p class="lead">CSS variables, the theme JSON format, custom themes, named parts for surgical CSS overrides, and how to build and distribute renderer packs that replace card layouts entirely.</p>
+          <h1>Theming and custom renderers</h1>
+          <p class="lead">CSS variables, the theme JSON format, custom themes, named parts for surgical CSS overrides, and how to build and distribute renderer overrides that replace card layouts entirely.</p>
         </div>
 
         <div class="toc">
@@ -72,9 +72,9 @@
             <li><a href="#bundled-themes">Bundled themes</a></li>
             <li><a href="#custom-themes">Creating custom themes</a></li>
             <li><a href="#custom-renderers">Custom renderers</a></li>
-            <li><a href="#renderer-packs">Renderer packs</a></li>
-            <li><a href="#pack-wiring">Wiring a pack to a theme</a></li>
-            <li><a href="#pack-distribution">Distributing a pack</a></li>
+            <li><a href="#renderer-packs">Renderer overrides</a></li>
+            <li><a href="#pack-wiring">Pairing a renderer with a theme</a></li>
+            <li><a href="#pack-distribution">Distributing a theme with a renderer</a></li>
           </ol>
         </div>
 
@@ -123,7 +123,7 @@ hrv-card::part(brightness-slider) {
     "--hrv-color-text": "#e0e0ff",
     "--hrv-color-border": "#2a2a4e"
   },
-  "renderer_pack": "my-pack-id"
+  "has_renderer": true
 }</code></pre>
 
         <div class="table-wrap">
@@ -135,13 +135,21 @@ hrv-card::part(brightness-slider) {
               <tr><td><code>variables</code></td><td>object</td><td>Yes</td><td>CSS custom property key-value pairs for light mode</td></tr>
               <tr><td><code>author</code></td><td>string</td><td>No</td><td>Theme author name</td></tr>
               <tr><td><code>version</code></td><td>string</td><td>No</td><td>Theme version string</td></tr>
+              <tr><td><code>description</code></td><td>string</td><td>No</td><td>Short description shown in the panel theme list.</td></tr>
               <tr><td><code>dark_variables</code></td><td>object</td><td>No</td><td>Variable overrides for dark mode. Only changed keys needed.</td></tr>
-              <tr><td><code>renderer_pack</code></td><td>string | boolean</td><td>No</td><td>Pack ID to couple with this theme, or <code>true</code> for bundled packs where the pack script is included alongside the theme. See <a href="#pack-wiring">Wiring a pack to a theme</a>.</td></tr>
-              <tr><td><code>pack_settings</code></td><td>string[]</td><td>No</td><td>Pack-level card settings this theme supports. The panel uses this list to show or hide controls in Entity Settings. Supported values: <code>"layout"</code> (shows the Layout toggle). Only relevant when <code>renderer_pack</code> is set.</td></tr>
-              <tr><td><code>capabilities</code></td><td>object</td><td>No</td><td>Domain-specific feature declarations. Controls which per-domain options appear in Entity Settings. See <a href="#pack-wiring">renderer pack documentation</a>.</td></tr>
+              <tr><td><code>has_renderer</code></td><td>boolean</td><td>No</td><td>Set automatically when the theme zip includes a <code>renderer.js</code> file. Read-only on import.</td></tr>
+              <tr><td><code>capabilities</code></td><td>object</td><td>No</td><td>Domain-specific feature declarations. Controls which per-domain options appear in Entity Settings.</td></tr>
             </tbody>
           </table>
         </div>
+
+        <h3>Theme zip format</h3>
+        <p>Import and export use a <code>.zip</code> file. The zip may contain:</p>
+        <ul>
+          <li><code>theme.json</code> (required)</li>
+          <li><code>renderer.js</code> (optional - replaces built-in card renderers when this theme is active)</li>
+        </ul>
+        <p>Maximum upload size is 10 MB. When <code>renderer.js</code> is present, the panel shows a renderer consent dialog before completing the import.</p>
 
         <p>Unknown fields and unknown variable names are silently ignored, which makes themes forward-compatible. Only use variable names from the published list below.</p>
 
@@ -379,11 +387,11 @@ hrv-card::part(brightness-slider) {
               </tr>
               <tr>
                 <td><strong>Minimus</strong></td>
-                <td>Reference implementation of theme-pack coupling. Includes <code>"renderer_pack": "minimus"</code> which activates alternative card layouts for supported entity types. The pack's custom CSS variables (<code>--hrv-ex-*</code>) are only defined in this theme, so the pack and theme are always used together.</td>
+                <td>Reference implementation of theme-renderer coupling. Includes a bundled <code>renderer.js</code> that activates alternative card layouts for supported entity types. The renderer's custom CSS variables (<code>--hrv-ex-*</code>) are only defined in this theme, so the renderer and theme are always used together.</td>
               </tr>
               <tr>
                 <td><strong>Shrooms</strong></td>
-                <td>Mushroom-inspired renderer pack theme. Clean horizontal layout with circular colored icon shapes, pill-shaped sliders, and collapsible controls. Covers all 15 card domains. Per-domain accent colors, full dark mode support. Includes <code>"renderer_pack": "shrooms"</code>. Inspired by the Mushroom Cards Lovelace card set by Paul Bottein.</td>
+                <td>Mushroom-inspired renderer theme. Clean horizontal layout with circular colored icon shapes, pill-shaped sliders, and collapsible controls. Covers all 15 card domains. Per-domain accent colors, full dark mode support. Includes a bundled <code>renderer.js</code>. Inspired by the Mushroom Cards Lovelace card set by Paul Bottein.</td>
               </tr>
             </tbody>
           </table>
@@ -406,7 +414,7 @@ hrv-card::part(brightness-slider) {
         </ul>
 
         <h3>Sharing themes</h3>
-        <p>Click <strong>Export JSON</strong> on any theme to download it as a <code>.json</code> file. Anyone can import it on their own HArvest instance via the Themes tab <strong>Import</strong> button. This is how third-party themes are distributed.</p>
+        <p>Click <strong>Export .zip</strong> on any theme to download it as a <code>.zip</code> file containing <code>theme.json</code> and, if applicable, <code>renderer.js</code>. Anyone can import it on their own HArvest instance via the Themes tab <strong>Import .zip</strong> button. This is how third-party themes are distributed.</p>
 
         <h2 id="custom-renderers">Custom renderers</h2>
 
@@ -529,7 +537,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
               <tr><td><code>this.renderIcon(mdiIconPath, partName)</code></td><td>Render an MDI SVG icon path into a <code>[part=partName]</code> element.</td></tr>
               <tr><td><code>this.renderCompanionZoneHTML()</code></td><td>Returns HTML string for the companion entity zone container.</td></tr>
               <tr><td><code>this.renderCompanions()</code></td><td>Populates the companion zone after <code>render()</code> has run.</td></tr>
-              <tr><td><em>(no helper)</em></td><td>Shared base CSS (resets, variable declarations, companion zone, stale overlay) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>. The historical <code>getSharedStyles()</code> helper was removed.</td></tr>
+              <tr><td><em>(no helper)</em></td><td>Shared base CSS (resets, variable declarations, companion zone, stale overlay) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>.</td></tr>
               <tr><td><code>this.debounce(fn, ms)</code></td><td>Returns a debounced version of <code>fn</code>. Use for slider inputs.</td></tr>
               <tr><td><code>this.root</code></td><td>The card's shadow root. Use to build and query the shadow DOM in <code>render()</code>.</td></tr>
               <tr><td><code>this.def</code></td><td>The entity definition object, available once <code>render()</code> is called.</td></tr>
@@ -545,25 +553,24 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
           <p>Custom renderers are display-only. They cannot bypass server-side entity permission enforcement. A custom renderer for <code>alarm_control_panel</code> won't receive data for that entity - the integration blocks Tier 3 domains at the protocol level regardless of what the renderer requests.</p>
         </div>
 
-        <h2 id="renderer-packs">Renderer packs</h2>
+        <h2 id="renderer-packs">Renderer overrides</h2>
 
-        <p>A renderer pack is a JavaScript file that registers multiple custom renderers at once. Packs are designed to be distributed independently of the widget library and loaded on demand by the server.</p>
+        <p>A renderer override is a <code>renderer.js</code> file bundled inside a theme zip. It registers multiple custom renderers at once. Renderer overrides apply only to the theme they ship with - activating a different theme deactivates the override.</p>
 
         <p>The key difference from calling <code>HArvest.registerRenderer()</code> directly in a page:</p>
         <ul>
-          <li>Pack renderers apply only to tokens that have the pack enabled, not to all cards on the page.</li>
-          <li>Packs are enabled server-side by associating them with a theme - no page-level HTML change needed.</li>
-          <li>The server tells the widget which pack to load during authentication. The widget fetches and executes the pack script automatically.</li>
+          <li>Renderer overrides apply only to tokens assigned the theme that includes the override, not to all cards on the page.</li>
+          <li>The server activates the override automatically when the widget authenticates with a token using that theme.</li>
+          <li>No page-level HTML change is needed by the site owner.</li>
         </ul>
 
-        <h3>Pack registry namespace</h3>
-        <p>Pack renderers are registered into <code>window.HArvest._packs[packId]</code> - a separate namespace from the global renderer registry. This keeps pack renderers scoped to the tokens using that pack:</p>
+        <h3>Renderer registration in renderer.js</h3>
+        <p>Renderers are registered into <code>window.HArvest._packs[packId]</code> - a separate namespace from the global renderer registry. This keeps renderer overrides scoped to tokens using that theme:</p>
 
-        <pre><code class="language-javascript">// The IIFE pattern is recommended to avoid polluting the global scope
+        <pre><code class="language-javascript">// The IIFE pattern avoids polluting the global scope
 (function () {
   "use strict";
 
-  // Define your renderer classes
   class DialLightCard extends HArvest.renderers.BaseCard {
     render() {
       // ... custom dial-based light UI
@@ -582,93 +589,58 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
     }
   }
 
-  // Register all renderers under your pack ID
+  // Register using your theme's ID as the pack key
   window.HArvest = window.HArvest || {};
   window.HArvest._packs = window.HArvest._packs || {};
-  window.HArvest._packs["my-pack"] = {
+  window.HArvest._packs["my-theme-id"] = {
     "light": DialLightCard,
     "fan":   MinimalFanCard,
-    // Add more domain keys as needed
-    "sensor.temperature": MyTempCard,  // device-class specific key
+    "sensor.temperature": MyTempCard,
   };
 })();</code></pre>
 
         <h3>Renderer lookup order</h3>
         <p>When a card needs to render, it checks in this order:</p>
         <ol>
-          <li>The active pack's renderer for this domain + device class (e.g. <code>"sensor.temperature"</code>)</li>
-          <li>The active pack's renderer for this domain only (e.g. <code>"sensor"</code>)</li>
+          <li>The active theme's renderer for this domain + device class (e.g. <code>"sensor.temperature"</code>)</li>
+          <li>The active theme's renderer for this domain only (e.g. <code>"sensor"</code>)</li>
           <li>The global registry (renderers registered via <code>HArvest.registerRenderer()</code>)</li>
           <li>Built-in renderer for the domain</li>
           <li>Generic Tier 2 fallback</li>
         </ol>
 
-        <h3>Pack keys</h3>
-        <p>Keys in the pack object are domain strings or domain.device_class strings:</p>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Key format</th><th>Example</th><th>Matches</th></tr></thead>
-            <tbody>
-              <tr><td><code>"domain"</code></td><td><code>"light"</code></td><td>All entities in that domain</td></tr>
-              <tr><td><code>"domain.device_class"</code></td><td><code>"sensor.temperature"</code></td><td>Only entities with that exact domain and device class</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <h3>Re-render on activation</h3>
+        <p>When a renderer override is activated, the widget automatically re-renders all active cards. Cached state and history data are replayed so cards populate immediately without waiting for the next state update.</p>
 
-        <p>Device-class-specific keys take priority over plain domain keys within a pack.</p>
+        <h2 id="pack-wiring">Pairing a renderer with a theme</h2>
 
-        <h3>Re-render on pack load</h3>
-        <p>When a pack is loaded, the widget automatically re-renders all active cards using the new renderers. Cached state and history data are replayed so cards populate immediately without waiting for the next state update.</p>
-
-        <h2 id="pack-wiring">Wiring a pack to a theme</h2>
-
-        <p>Themes and packs are coupled via the <code>renderer_pack</code> field in the theme JSON. When a widget connects and the server sends the theme, it also sends the associated pack URL. When the theme changes, the pack changes with it.</p>
+        <p>Bundle <code>theme.json</code> and <code>renderer.js</code> together in a <code>.zip</code> file and import it via the Themes tab. The server activates the renderer automatically for any token assigned that theme.</p>
 
         <pre><code class="language-json">{
   "name": "Dial Theme",
   "harvest_version": 1,
+  "description": "Dial-based light cards and compact fan controls",
   "variables": {
     "--hrv-color-primary": "#00bcd4",
     "--hrv-color-surface": "#1a1a2e",
     "--hrv-color-text": "#e0e0ff"
-  },
-  "renderer_pack": "my-pack"
+  }
 }</code></pre>
 
-        <p>The value of <code>renderer_pack</code> is a pack ID - a short string you define. The pack ID maps to the URL where the pack script is hosted. This mapping is stored in the HArvest integration's pack registry (configured in the panel Settings).</p>
+        <p>The <code>has_renderer</code> flag is set automatically on import when <code>renderer.js</code> is present in the zip. You do not need to set it manually.</p>
 
-        <p>The flow when a widget connects to a token with a pack-coupled theme:</p>
-        <ol>
-          <li>Server sends the theme's CSS variables to the widget</li>
-          <li>Server sends a <code>renderer_pack</code> message with the pack URL</li>
-          <li>Widget fetches and executes the pack script via dynamic <code>&lt;script&gt;</code> tag injection</li>
-          <li>Pack script registers its renderers under <code>HArvest._packs["my-pack"]</code></li>
-          <li>Widget re-renders all active cards using the pack renderers</li>
-        </ol>
+        <h2 id="pack-distribution">Distributing a theme with a renderer</h2>
 
-        <p>When the admin changes the token's theme to one without a pack, the pack is deactivated and cards re-render with the default renderers.</p>
-
-        <h2 id="pack-distribution">Distributing a pack</h2>
-
-        <p>A renderer pack is just a JavaScript file. Host it anywhere accessible over HTTPS:</p>
+        <p>A theme with a renderer override is distributed as a single <code>.zip</code> file containing both <code>theme.json</code> and <code>renderer.js</code>.</p>
         <ul>
-          <li><strong>GitHub + jsDelivr</strong> - put the file in your repo and use a jsDelivr URL like <code>https://cdn.jsdelivr.net/gh/username/repo@version/my-pack.js</code></li>
-          <li><strong>GitHub Pages</strong> - serve it from your own GitHub Pages site</li>
-          <li><strong>Any CDN or web host</strong> - S3, Netlify, Cloudflare Pages, etc.</li>
+          <li>Share the <code>.zip</code> directly (GitHub release, repo attachment, etc.)</li>
+          <li>Users import it via the HArvest panel Themes tab - Import .zip</li>
+          <li>The panel shows a renderer consent dialog before completing the import</li>
         </ul>
 
-        <p>To register your pack in a HArvest instance:</p>
-        <ol>
-          <li>Go to <strong>Settings &gt; Themes</strong> in the HArvest panel</li>
-          <li>Open the <strong>Pack Registry</strong> section</li>
-          <li>Add your pack ID and URL</li>
-        </ol>
-
-        <p>To pair the pack with a theme, add <code>"renderer_pack": "your-pack-id"</code> to the theme JSON. Any token assigned that theme will load your pack automatically.</p>
-
         <div class="callout callout-tip">
-          <span class="callout-label">Distributing a theme + pack together</span>
-          <p>Package both the theme JSON and the pack JS file in a GitHub repo. Users import the theme JSON via the Themes tab, register the pack URL in the Pack Registry with the pack ID referenced in the theme's <code>renderer_pack</code> field, and they're done. The theme and pack link up automatically because they share the same pack ID.</p>
+          <span class="callout-label">Distributing theme + renderer together</span>
+          <p>Put both files in a GitHub repo, provide a download link to the zip, and document what the renderer changes. Users import the zip in one step. No separate pack registry or URL registration needed.</p>
         </div>
 
       </div>

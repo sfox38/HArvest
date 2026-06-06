@@ -2,6 +2,7 @@
   "name": "Access",
   "author": "sfox38",
   "version": "1.0",
+  "description": "High-contrast WCAG AA compliant theme with no animations. Designed for maximum readability and accessibility.",
   "harvest_version": 1,
   "variables": {
     "--hrv-card-min-width":        "260px",
