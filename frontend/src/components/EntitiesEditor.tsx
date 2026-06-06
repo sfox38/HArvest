@@ -242,6 +242,7 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
 export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, setError, setSavedMsg, bare }: EntitiesEditorProps & { bare?: boolean }) {
   const [addInput, setAddInput] = useState("");
   const [adding, setAdding] = useState(false);
+  const [blockExpanded, setBlockExpanded] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [themeFilter, setThemeFilter] = useState("");
@@ -704,11 +705,13 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               onClick={() => {
                 const next = selectedEntityId === "__block__" ? null : "__block__";
                 setSelectedEntityId(next);
+                setBlockExpanded(v => !v);
                 if (next && window.innerWidth <= 720) {
                   requestAnimationFrame(() => configPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
                 }
               }}
               aria-selected={selectedEntityId === "__block__"}
+              aria-expanded={blockExpanded}
               role="option"
               data-entity-id="__block__"
               type="button"
@@ -720,9 +723,10 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 <span className="entity-list-name">Entities Block</span>
                 <span className="entity-list-eid mono">{grouped.length} entities</span>
               </div>
+              <Icon name={blockExpanded ? "chevron-up" : "chevron-down"} size={12} />
             </button>
           )}
-          {grouped.map(g => {
+          {(!token.entities_block || blockExpanded) && grouped.map(g => {
             const e = g.primary;
             const domain = e.entity_id.split(".")[0];
             const isSelected = selectedEntityId === e.entity_id;
@@ -730,7 +734,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             return (
               <button
                 key={e.entity_id}
-                className={`entity-list-row${isSelected ? " selected" : ""}`}
+                className={`entity-list-row${isSelected ? " selected" : ""}${token.entities_block ? " entity-list-row--child" : ""}`}
                 onClick={() => {
                   const next = isSelected ? null : e.entity_id;
                   setSelectedEntityId(next);
@@ -766,7 +770,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </button>
             );
           })}
-          {grouped.length === 0 && (
+          {grouped.length === 0 && (!token.entities_block || blockExpanded) && (
             <div className="muted" style={{ padding: "20px 10px", textAlign: "center", fontSize: 12 }}>
               No entities added yet.
             </div>
