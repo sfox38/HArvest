@@ -197,7 +197,6 @@ window.HArvest = {
     InputBooleanCard:     Renderers.InputBooleanCard,
     InputNumberCard:      Renderers.InputNumberCard,
     InputSelectCard:      Renderers.InputSelectCard,
-    HarvestActionCard:    Renderers.HarvestActionCard,
     TimerCard:            Renderers.TimerCard,
     WeatherCard:          Renderers.WeatherCard,
     GenericCard:          Renderers.GenericCard,

@@ -31,7 +31,6 @@ import { BinarySensorCard }       from "./binary-sensor-card.js";
 import { InputBooleanCard }       from "./input-boolean-card.js";
 import { InputNumberCard }        from "./input-number-card.js";
 import { InputSelectCard }        from "./input-select-card.js";
-import { HarvestActionCard }      from "./harvest-action-card.js";
 import { TimerCard }              from "./timer-card.js";
 import { WeatherCard }            from "./weather-card.js";
 import { LockCard }               from "./lock-card.js";
@@ -77,9 +76,6 @@ const _registry = new Map([
 
   // Weather
   ["weather",                 WeatherCard],
-
-  // Virtual domain
-  ["harvest_action",          HarvestActionCard],
 
   // Lock
   ["lock",                    LockCard],
@@ -165,7 +161,6 @@ export {
   InputBooleanCard,
   InputNumberCard,
   InputSelectCard,
-  HarvestActionCard,
   TimerCard,
   WeatherCard,
   LockCard,

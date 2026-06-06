@@ -205,10 +205,6 @@ _DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
         "on":  "mdi:radiobox-marked",
         "*":   "mdi:radiobox-blank",
     },
-    "harvest_action": {
-        "triggered": "mdi:play-circle",
-        "*":         "mdi:play-circle-outline",
-    },
     "timer": {
         "active": "mdi:timer",
         "paused": "mdi:timer-pause",

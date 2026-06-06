@@ -455,40 +455,6 @@ class TokenManager:
         del self._tokens[token_id]
         await self.save()
 
-    async def cleanup_action_references(self, action_entity_id: str) -> list[tuple[str, str, str]]:
-        """Remove gesture_config entries that reference a deleted harvest_action.
-
-        Called by the DELETE /api/harvest/actions/{id} handler after the action
-        has been removed from HarvestActionManager. Without this, tokens that
-        wired the action to a tap/hold/double-tap gesture would keep stale
-        entity_id references; the gesture would still pass authorization (it
-        is permitted by appearing in any gesture_config) but trigger() would
-        raise KeyError at runtime, producing silent gesture failures the
-        admin has no way to discover.
-
-        Persists the token store if any references were found.
-
-        Args:
-            action_entity_id: full entity ID of the deleted action, e.g.
-                              "harvest_action.welcome_home".
-
-        Returns a list of (token_id, primary_entity_id, gesture_name) tuples
-        describing what was cleared. Empty list if no references existed.
-        """
-        cleared: list[tuple[str, str, str]] = []
-        for token in self._tokens.values():
-            for ea in token.entities:
-                # gesture_config maps gesture_name -> action descriptor dict.
-                # Iterate over a snapshot so we can mutate the underlying dict.
-                for gesture_name, descriptor in list(ea.gesture_config.items()):
-                    if (isinstance(descriptor, dict)
-                            and descriptor.get("entity_id") == action_entity_id):
-                        del ea.gesture_config[gesture_name]
-                        cleared.append((token.token_id, ea.entity_id, gesture_name))
-        if cleared:
-            await self.save()
-        return cleared
-
     async def update(self, token_id: str, updates: dict) -> Token:
         """Apply field updates to an existing token and persist.
 

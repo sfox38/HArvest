@@ -20,7 +20,7 @@ A theme JSON file accompanies each renderer override, defining CSS custom proper
 
 ### Renderer overrides CAN
 
-- Replace the visual appearance of any supported domain card (light, switch, fan, climate, cover, media_player, sensor, binary_sensor, input_number, input_select, timer, remote, harvest_action).
+- Replace the visual appearance of any supported domain card (light, switch, fan, climate, cover, media_player, sensor, binary_sensor, input_number, input_select, timer, remote, lock, person, button, number, select, script, automation).
 - Use any entity attribute that Home Assistant exposes. HArvest forwards all attributes except a small blocklist (`supported_features`, `supported_color_modes`, `friendly_name`, `attribution`, `editable`, `id`, `forecast`). Any individual attribute value exceeding 8KB is also dropped.
 - Send commands to entities via `this.config.card?.sendCommand(action, data)`.
 - Send companion commands via `this.config.card?._sendCompanionCommand(entityId, action, data)`.
@@ -111,7 +111,6 @@ Every renderer override follows this structure:
     "input_select":   InputSelectCard,
     "timer":          TimerCard,
     "remote":         RemoteCard,
-    "harvest_action": HarvestActionCard,
     "generic":        GenericCard,      // fallback for unknown domains
     "badge":          BadgeCard,       // compact pill indicator for badge capability
   };
@@ -289,7 +288,7 @@ class MyCard extends BaseCard {
 | `formatStateLabel(state, domain, deviceClass)` | Returns the i18n-localised label for a state string, falling back to the raw state if the i18n key is missing. Handles common domain conventions (sensor numeric values, binary_sensor on/off, etc.). |
 | `debounce(fn, ms)` | Returns a debounced version of `fn`. |
 | `_attachGestureHandlers(element, callbacks, actionConfig)` | Attach gesture-aware pointer event handlers. Supports tap, hold, and double-tap detection. See "Gesture support" section. |
-| `_runAction(actionConfig)` | Execute a gesture action (toggle, none, trigger-action, call-service). Called internally by gesture handlers. |
+| `_runAction(actionConfig)` | Execute a gesture action (toggle, none, call-service). Called internally by gesture handlers. |
 
 ---
 
@@ -665,7 +664,7 @@ Companions with `capabilities: "read"` must never have interactive controls or t
 
 ## Gesture support
 
-HArvest allows admins to configure per-entity gestures (tap, hold, double-tap) in the panel. These gestures override the card's default behavior. For example, an admin can set "tap" to "Do nothing" so the card ignores taps, or set "hold" to trigger a harvest_action entity.
+HArvest allows admins to configure per-entity gestures (tap, hold, double-tap) in the panel. These gestures override the card's default behavior. For example, an admin can set "tap" to "Do nothing" so the card ignores taps, or set "hold" to call a specific service.
 
 Gesture configuration arrives in the entity definition as `gesture_config` and is stored on the card's config object as `this.config.gestureConfig`. Packs do not need to parse or manage this data directly. Instead, packs must use the inherited `_attachGestureHandlers()` method for all primary interactions. This method handles hold timing, double-tap detection, and dispatching the configured action.
 
@@ -693,7 +692,7 @@ this._attachGestureHandlers(this.#toggleBtn, {
 });
 ```
 
-This applies to: LightCard, SwitchCard, FanCard, GenericCard (toggle), HarvestActionCard (trigger), RemoteCard (send_command).
+This applies to: LightCard, SwitchCard, FanCard, GenericCard (toggle), RemoteCard (send_command).
 
 The key detail: check `this.config.gestureConfig?.tap` first. If it has a value, call `this._runAction(tap)` and return immediately. Only fall through to the default command if no gesture is configured.
 
@@ -731,7 +730,6 @@ The `_runAction` method handles these gesture action types:
 |-------------|----------|
 | `"toggle"` | Sends `sendCommand("toggle", {})` |
 | `"none"` | Does nothing (suppresses default behavior) |
-| `"trigger-action"` | Sends a trigger command to the specified companion entity |
 | `"call-service"` / `"call_service"` | Sends the specified service call with data |
 
 ### Common mistake: mixing click listeners and gesture handlers
@@ -1093,7 +1091,7 @@ Some HA dashboard card features cannot be replicated:
 | Camera streams | Not possible | Not a supported domain |
 | Map/location display | Not possible | No map rendering infrastructure |
 | Markdown/template rendering | Not possible | No Jinja or HA template engine |
-| Trigger automations | Limited | `harvest_action` domain only |
+| Trigger automations | Supported | `automation.trigger` via the automation renderer |
 | Browser-local storage | Possible but discouraged | Shadow DOM isolation limits usefulness |
 | Fetching external URLs | Possible but limited | CORS restrictions, no proxy |
 | `entity_picture` (album art) | Works | URL is relative to HA instance; works if HA is accessible |

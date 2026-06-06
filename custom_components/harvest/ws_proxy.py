@@ -48,7 +48,6 @@ from .const import (
 from .entity_compatibility import get_custom_domains, validate_action
 from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes, get_blocked_data_keys
 from .event_bus import EventBus
-from .harvest_action import HarvestActionManager
 from .rate_limiter import RateLimiter
 from .session_manager import Session, SessionManager
 from .renderer_manager import RendererManager
@@ -146,7 +145,6 @@ _ALLOWED_DATA_KEYS: dict[str, set[str]] = {
         "source", "sound_mode",
     },
     "remote": {"command", "device", "num_repeats", "delay_secs", "hold_secs", "activity"},
-    "harvest_action": set(),
 }
 
 
@@ -205,10 +203,6 @@ class HarvestWsView(HomeAssistantView):
     @property
     def _event_bus(self) -> EventBus:
         return self._data["event_bus"]
-
-    @property
-    def _action_manager(self) -> HarvestActionManager:
-        return self._data["action_manager"]
 
     @property
     def _sensors(self) -> object:
@@ -824,7 +818,7 @@ class HarvestWsView(HomeAssistantView):
         Validates entity_id scope, capability (read-write required),
         action against ALLOWED_SERVICES, and command rate limit.
         Strips unknown keys from data payload before forwarding.
-        Calls hass.services.async_call() or action_manager.trigger().
+        Calls hass.services.async_call().
         Sends ack. Records command in activity_store.
         """
         msg_id = msg.get("msg_id")
@@ -844,15 +838,6 @@ class HarvestWsView(HomeAssistantView):
 
         # Resolve entity_ref (alias or real ID) to EntityAccess.
         ea = self._resolve_entity_ref(entity_ref, token)
-
-        # harvest_action entities are not added to tokens. Allow trigger commands if
-        # the entity is explicitly listed in a gesture_config on this token.
-        if ea is None and entity_ref.startswith("harvest_action.") and action == "trigger":
-            if _is_permitted_gesture_harvest_action(entity_ref, token):
-                ea = EntityAccess(entity_id=entity_ref, capabilities="read-write")
-            else:
-                await ack_error(ERR_ENTITY_NOT_IN_TOKEN, f"harvest_action not permitted on this token: {entity_ref}")
-                return
 
         if ea is None:
             await ack_error(ERR_ENTITY_NOT_IN_TOKEN, f"Entity not in token: {entity_ref}")
@@ -909,14 +894,10 @@ class HarvestWsView(HomeAssistantView):
         # Execute.
         success = True
         try:
-            if domain == "harvest_action":
-                action_id = real_id.split(".", 1)[1]
-                await self._action_manager.trigger(action_id, session)
-            else:
-                await self._hass.services.async_call(
-                    domain, action, clean_data,
-                    target={"entity_id": real_id},
-                    blocking=True,
+            await self._hass.services.async_call(
+                domain, action, clean_data,
+                target={"entity_id": real_id},
+                blocking=True,
                 )
         except Exception:
             _LOGGER.exception(
@@ -1809,23 +1790,6 @@ def _expand_with_companions(
                 seen.add(ea.entity_id)
                 outgoing_ids[ea.entity_id] = ea.alias or ea.entity_id
     return expanded
-
-
-def _is_permitted_gesture_harvest_action(entity_ref: str, token: Token) -> bool:
-    """Return True if entity_ref is explicitly listed as a trigger-action gesture target on this token.
-
-    harvest_action entities are not added to tokens as regular entities. Instead they
-    are permitted on a per-entity basis by appearing in a gesture_config entry with
-    action="trigger-action" on any entity in the token. This keeps scope narrow: only
-    harvest_actions that the admin explicitly wired to a gesture can be triggered.
-    """
-    for ea in token.entities:
-        for gesture_action in ea.gesture_config.values():
-            if (isinstance(gesture_action, dict)
-                    and gesture_action.get("action") == "trigger-action"
-                    and gesture_action.get("entity_id") == entity_ref):
-                return True
-    return False
 
 
 def _track_flood(count: int, window_start: float) -> tuple[int, float]:

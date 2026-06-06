@@ -191,18 +191,6 @@
         <p>Trigger button that fires the automation regardless of its on/off state. An enable/disable toggle lets visitors turn the automation on or off.</p>
         <p><strong>States:</strong> on (enabled), off (disabled).</p>
 
-        <h3>harvest_action</h3>
-        <p>A virtual entity domain for safe, panel-configured button actions. Each action is a pre-defined service call or automation trigger set up in the HArvest panel's Actions tab. The card renders as a full-width trigger button. Actions run with HA's full permissions but only execute the specific service calls you configured - visitors can't invoke arbitrary HA services.</p>
-
-        <div class="callout callout-warn">
-          <span class="callout-label">harvest_action bypasses the service whitelist</span>
-          <p>Normal entities can only call services listed in <a href="#allowed-services">ALLOWED_SERVICES</a>. Harvest actions are different: they can call <em>any</em> HA service, including services in Tier 3 domains (alarm, etc.). This is by design - they are admin-defined server-side mappings that give you full flexibility. The tradeoff is that a misconfigured action could expose a high-risk service to public visitors. Review your action definitions carefully, especially if they target security-sensitive domains.</p>
-        </div>
-
-        <div class="callout callout-tip">
-          <span class="callout-label">When to use harvest_action vs. button or script</span>
-          <p>Use <code>button</code> or <code>script</code> entities directly when the action is straightforward and the entity is something you are comfortable exposing. Use <code>harvest_action</code> when you need to wrap multiple service calls into a single trigger, or when you want to execute services in domains that HArvest does not directly support (e.g. calling a service on a Tier 3 entity).</p>
-        </div>
         </section>
 
         <section>
@@ -241,7 +229,7 @@
 
         <div class="callout callout-tip">
           <span class="callout-label">Need to trigger something in a blocked domain?</span>
-          <p>Use the <code>harvest_action</code> virtual domain. Create an action in the HArvest panel's Actions tab that maps to any HA service call, including services in blocked domains. The visitor gets a button; you control what it does server-side.</p>
+          <p>Use an HA <code>script</code> entity. Create a script in Home Assistant that wraps the service calls you need, then add that script entity to a HArvest token. The visitor gets a trigger button; the script controls what happens server-side.</p>
         </div>
         </section>
 
@@ -301,7 +289,6 @@
               <tr><td><code>select</code></td><td><code>select_option</code></td></tr>
               <tr><td><code>script</code></td><td><code>turn_on</code></td></tr>
               <tr><td><code>automation</code></td><td><code>trigger</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
-              <tr><td><code>harvest_action</code></td><td><code>trigger</code> (executes the pre-configured service call defined in the panel)</td></tr>
             </tbody>
           </table>
         </div>

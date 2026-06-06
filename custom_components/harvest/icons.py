@@ -4,7 +4,7 @@ Provides a lightweight check that an icon string follows the MDI naming
 convention (mdi:<name>) without requiring the full MDI icon set to be
 bundled server-side. The widget bundles the actual SVG paths; this module
 only validates that a user-supplied icon string is plausibly an MDI icon
-before storing it (e.g. in a HarvestActionDefinition).
+before storing it.
 """
 from __future__ import annotations
 

@@ -94,7 +94,6 @@
     timer:          "var(--hrv-ex-shroom-timer, #673ab7)",
     remote:         "var(--hrv-ex-shroom-remote, #607d8b)",
     weather:        "var(--hrv-ex-shroom-weather, #ff9800)",
-    harvest_action: "var(--hrv-ex-shroom-action, #9c27b0)",
   };
 
   function _accentFor(domain) {
@@ -1707,86 +1706,6 @@
     predictState(action, _data) {
       if (action !== "toggle") return null;
       return { state: this.#isOn ? "off" : "on", attributes: {} };
-    }
-  }
-
-  // ===========================================================================
-  // HarvestActionCard
-  // ===========================================================================
-
-  const HARVEST_ACTION_STYLES = /* css */`
-    ${SHROOM_STATE_ITEM}
-    ${SHROOM_COMPANIONS}
-  `;
-
-  class HarvestActionCard extends BaseCard {
-    #iconEl = null;
-    #secondaryEl = null;
-
-    render() {
-      _applyLayout(this);
-      const isWritable = this.def.capabilities === "read-write";
-
-      this.root.innerHTML = /* html */`
-        <style>${HARVEST_ACTION_STYLES}</style>
-        <div part="card">
-          <div class="shroom-state-item" data-tappable="${isWritable}">
-            <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
-            <div class="shroom-info">
-              <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
-              <span class="shroom-secondary">-</span>
-            </div>
-          </div>
-          ${this.renderAriaLiveHTML()}
-          ${this.renderCompanionZoneHTML()}
-          <div part="stale-indicator" aria-hidden="true"></div>
-        </div>
-      `;
-
-      this.#iconEl = this.root.querySelector(".shroom-icon-shape");
-      this.#secondaryEl = this.root.querySelector(".shroom-secondary");
-
-      this.renderIcon(
-        this.def.icon_state_map?.["idle"] ?? this.resolveIcon(this.def.icon, "mdi:play"),
-        "card-icon",
-      );
-
-      _applyIconColor(this.#iconEl, "harvest_action", false);
-
-      const stateItem = this.root.querySelector(".shroom-state-item");
-      if (isWritable) {
-        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Trigger`);
-        this._attachGestureHandlers(stateItem, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("trigger", {});
-          },
-        });
-      }
-
-      this.renderCompanions();
-      _applyCompanionTooltips(this.root);
-    }
-
-    applyState(state, _attributes) {
-      const isTriggered = state === "triggered";
-
-      if (this.#secondaryEl) {
-        this.#secondaryEl.textContent = _capitalize(state);
-      }
-
-      _applyIconColor(this.#iconEl, "harvest_action", isTriggered);
-
-      const iconName = this.def.icon_state_map?.[state] ?? this.resolveIcon(this.def.icon, "mdi:play");
-      this.renderIcon(iconName, "card-icon");
-
-      this.announceState(`${this.def.friendly_name}, ${_capitalize(state)}`);
-    }
-
-    predictState(action, _data) {
-      if (action !== "trigger") return null;
-      return { state: "triggered", attributes: {} };
     }
   }
 
@@ -4156,7 +4075,6 @@
     "fan":                  FanCard,
     "binary_sensor":        BinarySensorCard,
     "generic":              GenericCard,
-    "harvest_action":       HarvestActionCard,
     "input_number":         InputNumberCard,
     "input_select":         InputSelectCard,
     "select":               InputSelectCard,

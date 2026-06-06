@@ -55,7 +55,6 @@ const _DOMAIN_FALLBACK_ICON = {
   input_number: "mdi:numeric",
   input_select: "mdi:format-list-bulleted",
   select: "mdi:format-list-bulleted",
-  harvest_action: "mdi:play-circle-outline",
 };
 
 const BADGE_STYLES = /* css */`

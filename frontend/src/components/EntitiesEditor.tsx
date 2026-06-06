@@ -45,7 +45,6 @@ const DOMAIN_ICON: Record<string, string> = {
   fan: "fan",
   climate: "thermostat",
   cover: "chevDown",
-  harvest_action: "play",
 };
 
 function themeIdToUrl(id: string): string {
@@ -260,7 +259,6 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const [showCompanions, setShowCompanions] = useState(false);
   const [attrCache, setAttrCache] = useState<Record<string, string[]>>({});
   const [attrLoading, setAttrLoading] = useState<Set<string>>(new Set());
-  const [haActionEntities, setHaActionEntities] = useState<import("../types").HAEntity[]>([]);
   const [entityDetail, setEntityDetail] = useState<Record<string, HAEntityDetail>>({});
   const configPanelRef = useRef<HTMLDivElement>(null);
   const [localEntities, setLocalEntities] = useState<Token["entities"] | null>(null);
@@ -275,11 +273,6 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const themeStripRef = useDragScroll<HTMLDivElement>();
 
   useEffect(() => { if (entityCacheList.length === 0) loadEntityCache(); }, []);
-  useEffect(() => {
-    api.entities.list()
-      .then(list => setHaActionEntities(list.filter(e => e.domain === "harvest_action")))
-      .catch(() => {});
-  }, []);
   useEffect(() => { api.themes.list().then(setThemes).catch(() => {}); }, []);
   useEffect(() => { api.renderers.list().then(d => setRenderersAgreed(d.agreed)).catch(() => {}); }, []);
 
@@ -1746,19 +1739,13 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   const label = gesture === "double_tap" ? "Double-tap" : gesture.charAt(0).toUpperCase() + gesture.slice(1);
                   const gc = selectedEntity.gesture_config ?? {};
                   const currentAction = gc[gesture]?.action ?? "";
-                  const currentTarget = gc[gesture]?.entity_id ?? "";
                   return (
                     <div key={gesture} style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 12, color: "var(--ink-3)", minWidth: 68 }}>{label}</span>
                       <select
                         value={currentAction}
                         onChange={ev => {
-                          const action = ev.target.value;
-                          if (action === "trigger-action" && haActionEntities.length) {
-                            updateGestureSetting(selectedEntity.entity_id, gesture, action, haActionEntities[0].entity_id);
-                          } else {
-                            updateGestureSetting(selectedEntity.entity_id, gesture, action);
-                          }
+                          updateGestureSetting(selectedEntity.entity_id, gesture, ev.target.value);
                         }}
                         disabled={!canEdit}
                         className="input entity-graph-select"
@@ -1766,23 +1753,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                         <option value="">Default</option>
                         <option value="toggle">Toggle</option>
                         <option value="none">None (disable)</option>
-                        {haActionEntities.length > 0 && <option value="trigger-action">Trigger action...</option>}
                       </select>
-                      {currentAction === "trigger-action" && haActionEntities.length > 0 && (
-                        <select
-                          value={currentTarget}
-                          onChange={ev => updateGestureSetting(selectedEntity.entity_id, gesture, "trigger-action", ev.target.value)}
-                          disabled={!canEdit}
-                          className="input entity-graph-select"
-                          style={{ minWidth: 120 }}
-                        >
-                          {haActionEntities.map(ha => (
-                            <option key={ha.entity_id} value={ha.entity_id}>
-                              {ha.friendly_name || ha.entity_id.replace("harvest_action.", "")}
-                            </option>
-                          ))}
-                        </select>
-                      )}
                     </div>
                   );
                 })}

@@ -62,7 +62,6 @@ const DOMAIN_ICON_DEFAULTS = {
   input_select:   { "*": "mdi:format-list-bulleted" },
   sensor:         { "*": "mdi:gauge" },
   binary_sensor:  { on: "mdi:radiobox-marked",       "*": "mdi:radiobox-blank" },
-  harvest_action: { triggered: "mdi:play-circle",    "*": "mdi:play-circle-outline" },
   timer:          { active: "mdi:timer", paused: "mdi:timer-pause", "*": "mdi:timer-outline" },
   weather: {
     sunny:           "mdi:weather-sunny",
@@ -126,7 +125,6 @@ const TIER1_DOMAINS = {
   input_boolean:  "InputBooleanCard",
   input_number:   "InputNumberCard",
   input_select:   "InputSelectCard",
-  harvest_action: "HarvestActionCard",
   timer:          "TimerCard",
   weather:        "WeatherCard",
 };

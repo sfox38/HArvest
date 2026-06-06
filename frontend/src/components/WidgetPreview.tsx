@@ -137,7 +137,6 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   input_select:   { domain: "input_select",   label: "Input Select",   friendly_name: "Scene Mode",       state: "Option B", attributes: { options: ["Option A", "Option B", "Option C"] } },
   media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Demo Track", media_artist: "Demo Artist", volume_level: 0.7 } },
   remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: {} },
-  harvest_action: { domain: "harvest_action", label: "Action",         friendly_name: "Good Night",       state: "idle",     attributes: {} },
   timer:          { domain: "timer",          label: "Timer",          friendly_name: "Oven Timer",       state: "idle",     attributes: { duration: "0:25:00", remaining: "0:25:00" } },
   weather:        { domain: "weather",        label: "Weather",        friendly_name: "Weather",          state: "sunny",    attributes: { temperature: 24, temperature_unit: "°C", humidity: 45, wind_speed: 12, wind_speed_unit: "km/h", pressure: 1013, pressure_unit: "hPa", forecast_daily: [
     { datetime: "2026-05-02", condition: "partlycloudy", temperature: 22, templow: 14 },

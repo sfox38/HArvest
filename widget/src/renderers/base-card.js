@@ -47,7 +47,6 @@ const _DOMAIN_FALLBACK = {
   select:         "mdi:format-list-bulleted",
   remote:         "mdi:remote",
   timer:          "mdi:timer-outline",
-  harvest_action: "mdi:play-circle-outline",
 };
 const DOUBLE_TAP_MS = 250;
 
@@ -1012,11 +1011,6 @@ export class BaseCard {
       case "turn_off":
         this.config.card?.sendCommand("turn_off", data ?? {});
         break;
-      case "trigger-action": {
-        const targetId = actionConfig.entity_id;
-        if (targetId) this.config.card?._sendCompanionCommand(targetId, "trigger", {});
-        break;
-      }
       case "call-service":
       case "call_service": {
         const svc     = data?.service ?? data?.action;

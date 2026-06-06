@@ -193,25 +193,6 @@ export interface ActivityPage {
 }
 
 // ---------------------------------------------------------------------------
-// Harvest action
-// ---------------------------------------------------------------------------
-
-export interface ServiceCallDef {
-  domain: string;
-  service: string;
-  data: Record<string, unknown>;
-}
-
-export interface HarvestAction {
-  action_id: string;
-  label: string;
-  icon: string;
-  service_calls: ServiceCallDef[];
-  created_by: string;
-  created_at: string;
-}
-
-// ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
 
@@ -407,4 +388,4 @@ export interface TokenUpdateResponse extends Token {
 // Panel navigation
 // ---------------------------------------------------------------------------
 
-export type Screen = "dashboard" | "widgets" | "themes" | "actions" | "activity" | "sessions" | "settings";
+export type Screen = "dashboard" | "widgets" | "themes" | "activity" | "sessions" | "settings";

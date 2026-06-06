@@ -18,7 +18,6 @@ from .const import DEFAULTS, DOMAIN, CONF_EXTERNAL_PORT
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
-from .harvest_action import HarvestActionManager
 from .http_views import register_views
 from .renderer_manager import RendererManager
 from .secondary_server import SecondaryServer
@@ -60,9 +59,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session_manager = SessionManager(config)
     rate_limiter = RateLimiter(config)
     event_bus = EventBus(hass, config)
-
-    action_manager = HarvestActionManager(hass)
-    await action_manager.load()
 
     theme_manager = ThemeManager(hass)
     await theme_manager.load()
@@ -164,7 +160,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "rate_limiter":     rate_limiter,
         "activity_store":   activity_store,
         "event_bus":        event_bus,
-        "action_manager":   action_manager,
         "theme_manager":    theme_manager,
         "renderer_manager": renderer_manager,
         "warnings_store":   warnings_store,

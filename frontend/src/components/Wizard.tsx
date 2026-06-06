@@ -81,7 +81,7 @@ const DOMAIN_ICON: Record<string, string> = {
   light: "lightbulb", switch: "power", input_boolean: "power",
   binary_sensor: "bolt", sensor: "chart-line", media_player: "play",
   lock: "lock", timer: "clock", input_select: "list", input_number: "tune",
-  fan: "fan", climate: "thermostat", cover: "chevDown", harvest_action: "play",
+  fan: "fan", climate: "thermostat", cover: "chevDown",
 };
 
 // ---------------------------------------------------------------------------

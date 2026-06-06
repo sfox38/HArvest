@@ -26,7 +26,6 @@ from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes
 from .event_bus import EventBus
-from .harvest_action import HarvestActionManager, ServiceCall
 from .session_manager import SessionManager
 from .renderer_manager import RendererManager, renderer_to_api_dict
 from .theme_manager import ThemeManager, theme_to_api_dict, theme_url_to_id
@@ -60,8 +59,6 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestSessionsView,
         HarvestSessionTerminateView,
         HarvestActivityView,
-        HarvestActionsView,
-        HarvestActionDetailView,
         HarvestThemesView,
         HarvestThemeImportView,
         HarvestThemeExportView,
@@ -487,10 +484,6 @@ class _HarvestView(HomeAssistantView):
     @property
     def _event_bus(self) -> EventBus | None:
         return self._data.get("event_bus")
-
-    @property
-    def _action_manager(self) -> HarvestActionManager:
-        return self._data["action_manager"]
 
     @property
     def _theme_manager(self) -> ThemeManager | None:
@@ -1296,131 +1289,6 @@ class HarvestAggregatesView(_HarvestView):
             "sessions": b.get("peak_sessions", 0),
             "auth_failures": b.get("auth_fail_count", 0),
         } for b in buckets])
-
-
-# ---------------------------------------------------------------------------
-# Actions views
-# ---------------------------------------------------------------------------
-
-class HarvestActionsView(_HarvestView):
-    """GET /api/harvest/actions     - list all harvest_actions.
-    POST /api/harvest/actions    - create a new harvest_action.
-    DELETE /api/harvest/actions/{action_id} - delete a harvest_action.
-    """
-
-    url = "/api/harvest/actions"
-    name = "api:harvest:actions"
-
-    async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
-        actions = self._action_manager.get_all()
-        return self.json([dataclasses.asdict(a) for a in actions])
-
-    async def post(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None:
-            raise web.HTTPUnauthorized()
-        if not user.is_admin:
-            raise web.HTTPForbidden()
-
-        try:
-            body = await request.json()
-        except Exception:
-            raise web.HTTPBadRequest(reason="Invalid JSON body.")
-
-        _svc_re = re.compile(r"^[a-z0-9_]+$")
-        try:
-            service_calls = []
-            for sc in body.get("service_calls", []):
-                domain = str(sc["domain"])
-                service = str(sc["service"])
-                if not _svc_re.match(domain) or not _svc_re.match(service):
-                    raise ValueError(f"Invalid domain/service format: {domain!r}/{service!r}")
-                service_calls.append(ServiceCall(domain=domain, service=service, data=sc.get("data", {})))
-        except (KeyError, TypeError, ValueError) as exc:
-            raise web.HTTPBadRequest(reason=f"Invalid service_calls: {exc}")
-
-        try:
-            action = await self._action_manager.create(
-                label=str(body.get("label", "Unnamed Action")),
-                icon=str(body.get("icon", "mdi:play-circle")),
-                service_calls=service_calls,
-                created_by=user.id,
-            )
-        except Exception as exc:
-            raise web.HTTPBadRequest(reason=str(exc))
-
-        return self.json(dataclasses.asdict(action), status_code=201)
-
-
-class HarvestActionDetailView(_HarvestView):
-    """PATCH /api/harvest/actions/{action_id} - update a harvest_action.
-    DELETE /api/harvest/actions/{action_id} - delete a harvest_action.
-    """
-
-    url = "/api/harvest/actions/{action_id}"
-    name = "api:harvest:action_detail"
-
-    async def patch(self, request: web.Request, action_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None:
-            raise web.HTTPUnauthorized()
-        if not user.is_admin:
-            raise web.HTTPForbidden()
-
-        try:
-            body = await request.json()
-        except Exception:
-            raise web.HTTPBadRequest(reason="Invalid JSON body.")
-
-        kwargs: dict = {}
-        if "label" in body:
-            kwargs["label"] = str(body["label"])
-        if "icon" in body:
-            kwargs["icon"] = str(body["icon"])
-        if "service_calls" in body:
-            _svc_re = re.compile(r"^[a-z0-9_]+$")
-            try:
-                scs = []
-                for sc in body["service_calls"]:
-                    domain = str(sc["domain"])
-                    service = str(sc["service"])
-                    if not _svc_re.match(domain) or not _svc_re.match(service):
-                        raise ValueError(f"Invalid domain/service: {domain!r}/{service!r}")
-                    scs.append(ServiceCall(domain=domain, service=service, data=sc.get("data", {})))
-                kwargs["service_calls"] = scs
-            except (KeyError, TypeError, ValueError) as exc:
-                raise web.HTTPBadRequest(reason=f"Invalid service_calls: {exc}")
-
-        try:
-            action = await self._action_manager.update(action_id, **kwargs)
-        except KeyError:
-            raise web.HTTPNotFound(reason=f"Action not found: {action_id}")
-
-        return self.json(dataclasses.asdict(action))
-
-    async def delete(self, request: web.Request, action_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
-        try:
-            await self._action_manager.delete(action_id)
-        except KeyError:
-            raise web.HTTPNotFound(reason=f"Action not found: {action_id}")
-        # Clear dangling gesture_config references in any token that wired this
-        # action to a tap/hold/double_tap gesture. Without this the gesture
-        # would still pass authorization but raise KeyError at runtime.
-        action_entity_id = f"harvest_action.{action_id}"
-        cleared = await self._token_manager.cleanup_action_references(action_entity_id)
-        if cleared:
-            _LOGGER.info(
-                "Cleared %d dangling gesture reference(s) to deleted action %s: %s",
-                len(cleared), action_entity_id,
-                ", ".join(f"{tid}/{eid}/{gname}" for tid, eid, gname in cleared),
-            )
-        return self.json({"cleared_gesture_refs": len(cleared)}, status=200)
 
 
 # ---------------------------------------------------------------------------

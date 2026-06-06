@@ -13,7 +13,6 @@ import { Dashboard }   from "./components/Dashboard";
 import { TokenList }   from "./components/TokenList";
 import { ActivityLog } from "./components/ActivityLog";
 import { Sessions }    from "./components/Sessions";
-import { Actions }     from "./components/Actions";
 import { Themes }      from "./components/Themes";
 import { Settings }    from "./components/Settings";
 import { Wizard }      from "./components/Wizard";
@@ -33,7 +32,6 @@ const NAV_MAIN: { id: Screen; label: string; icon: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "home"     },
   { id: "widgets",   label: "Widgets",   icon: "grid"     },
   { id: "themes",    label: "Themes",    icon: "palette"  },
-  { id: "actions",   label: "Actions",   icon: "play"     },
   { id: "sessions",  label: "Sessions",  icon: "plug"     },
   { id: "activity",  label: "Activity",  icon: "activity" },
 ];
@@ -204,9 +202,6 @@ export function App() {
           )}
           {screen === "themes" && (
             <Themes onSelectToken={goToToken} />
-          )}
-          {screen === "actions" && (
-            <Actions />
           )}
           {screen === "sessions" && (
             <Sessions onSelectToken={goToToken} />

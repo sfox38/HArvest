@@ -83,8 +83,7 @@ def slugify(label: str, fallback: str = "unnamed") -> str:
     if the resulting slug is empty.
 
     Used by diagnostic_sensors.py and control_entities.py for token-derived
-    sensor/switch entity IDs (default fallback "unnamed") and by
-    harvest_action.py for action-derived virtual entity IDs (fallback "action").
+    sensor/switch entity IDs (default fallback "unnamed").
     """
     slug = label.lower().strip()
     slug = re.sub(r"[\s\-]+", "_", slug)

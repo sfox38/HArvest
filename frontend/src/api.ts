@@ -14,8 +14,6 @@ import type {
   TokenUpdateResponse,
   Session,
   ActivityPage,
-  HarvestAction,
-  ServiceCallDef,
   IntegrationConfig,
   PanelStats,
   HourlyBucket,
@@ -355,24 +353,6 @@ export const api = {
 
     aggregates: (hours = 24): Promise<HourlyBucket[]> =>
       _get<HourlyBucket[]>("/activity/aggregates", { hours: String(hours) }),
-  },
-
-  // ---------------------------------------------------------------------------
-  // Harvest actions
-  // ---------------------------------------------------------------------------
-
-  actions: {
-    list: (): Promise<HarvestAction[]> =>
-      _get<HarvestAction[]>("/actions"),
-
-    create: (data: { label: string; icon: string; service_calls: ServiceCallDef[] }): Promise<HarvestAction> =>
-      _post<HarvestAction>("/actions", data),
-
-    update: (actionId: string, data: Partial<{ label: string; icon: string; service_calls: ServiceCallDef[] }>): Promise<HarvestAction> =>
-      _patch<HarvestAction>(`/actions/${actionId}`, data),
-
-    delete: (actionId: string): Promise<void> =>
-      _delete(`/actions/${actionId}`),
   },
 
   // ---------------------------------------------------------------------------
