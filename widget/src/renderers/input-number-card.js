@@ -19,6 +19,7 @@ const INPUT_NUMBER_STYLES = /* css */`
   .hrv-number-row {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: var(--hrv-spacing-s);
   }
 

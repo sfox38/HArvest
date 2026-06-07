@@ -1716,6 +1716,10 @@
     .shroom-num-slider-bg {
       background: var(--hrv-ex-shroom-input, #00bcd4);
     }
+
+    .shroom-controls-shell {
+      margin-left: calc(var(--hrv-ex-shroom-icon-size, 42px) + var(--hrv-ex-shroom-spacing, 12px));
+    }
   `;
 
   class InputNumberCard extends BaseCard {
@@ -4264,12 +4268,31 @@
   const BUTTON_STYLES = /* css */`
     ${SHROOM_STATE_ITEM}
     ${SHROOM_COMPANIONS}
+
+    .shroom-press-btn {
+      align-self: flex-start;
+      padding: 1px 8px;
+      border: none;
+      border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
+      background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+      color: var(--hrv-color-text-secondary, #757575);
+      font-size: 11px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 150ms ease, opacity 150ms ease;
+      line-height: 1.4;
+    }
+    .shroom-press-btn:hover { background: var(--hrv-ex-shroom-btn-bg-active, rgba(0,0,0,0.10)); }
+    .shroom-press-btn:active { opacity: 0.7; }
+    .shroom-press-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   `;
 
   class ButtonCard extends BaseCard {
     static staleOnMount = false;
     #iconEl = null;
     #secondaryEl = null;
+    #pressBtn = null;
 
     render() {
       _applyLayout(this);
@@ -4279,11 +4302,13 @@
       this.root.innerHTML = /* html */`
         <style>${BUTTON_STYLES}</style>
         <div part="card">
-          <div class="shroom-state-item" data-tappable="${isWritable}">
+          <div class="shroom-state-item">
             <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
             <div class="shroom-info">
               <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
-              <span class="shroom-secondary">-</span>
+              ${isWritable
+                ? /* html */`<button class="shroom-press-btn" part="press-button" type="button" aria-label="${_esc(this.def.friendly_name)}">${_esc(pressLabel)}</button>`
+                : /* html */`<span class="shroom-secondary">-</span>`}
             </div>
           </div>
           ${this.renderAriaLiveHTML()}
@@ -4294,13 +4319,12 @@
 
       this.#iconEl = this.root.querySelector(".shroom-icon-shape");
       this.#secondaryEl = this.root.querySelector(".shroom-secondary");
+      this.#pressBtn = this.root.querySelector(".shroom-press-btn");
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:gesture-tap-button"), "card-icon");
       _applyIconColor(this.#iconEl, "button", false);
 
-      const stateItem = this.root.querySelector(".shroom-state-item");
-      if (isWritable) {
-        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - ${pressLabel}`);
-        this._attachGestureHandlers(stateItem, {
+      if (this.#pressBtn) {
+        this._attachGestureHandlers(this.#pressBtn, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
             if (tap) { this._runAction(tap); return; }
@@ -4316,8 +4340,12 @@
     applyState(state, _attributes) {
       _applyIconColor(this.#iconEl, "button", false);
 
+      const isUnavailable = state === "unavailable" || state === "unknown";
+      if (this.#pressBtn) {
+        this.#pressBtn.disabled = isUnavailable;
+      }
       if (this.#secondaryEl) {
-        this.#secondaryEl.textContent = _capitalize(state);
+        this.#secondaryEl.textContent = isUnavailable ? _capitalize(state) : this.formatStateLabel(state);
       }
 
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:gesture-tap-button";
@@ -4470,6 +4498,7 @@
     "script":               ScriptCard,
     "automation":           AutomationCard,
     "button":               ButtonCard,
+    "input_button":         ButtonCard,
     "person":               PersonCard,
     "event":                EventCard,
     _capabilities: {

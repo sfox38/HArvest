@@ -5519,6 +5519,7 @@
     "script":         ScriptCard,
     "automation":     AutomationCard,
     "button":         ButtonCard,
+    "input_button":   ButtonCard,
     "climate":        ClimateCard,
     "binary_sensor":  BinarySensorCard,
     "cover":          CoverCard,

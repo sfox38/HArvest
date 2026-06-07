@@ -35,6 +35,7 @@ TIER1_DOMAINS: dict[str, str] = {
     "lock":            "LockCard",
     "person":          "PersonCard",
     "button":          "ButtonCard",
+    "input_button":    "ButtonCard",
     "number":          "InputNumberCard",
     "script":          "ScriptCard",
     "automation":      "AutomationCard",
@@ -74,6 +75,7 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
     "remote":         {"turn_on", "turn_off", "send_command"},
     "lock":           {"lock", "unlock", "open"},
     "button":         {"press"},
+    "input_button":   {"press"},
     "number":         {"set_value"},
     "script":         {"turn_on"},
     "automation":     {"trigger", "turn_on", "turn_off"},
@@ -88,7 +90,7 @@ COMPANION_ALLOWED_DOMAINS: frozenset[str] = frozenset({
 # Tier 1 domains that are disabled by default. Admins must explicitly enable
 # each one in Settings before tokens can include entities from that domain.
 SENSITIVE_DOMAINS: frozenset[str] = frozenset({
-    "lock", "script", "automation", "button", "cover",
+    "lock", "script", "automation", "button", "input_button", "cover",
 })
 
 

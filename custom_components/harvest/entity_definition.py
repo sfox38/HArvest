@@ -192,6 +192,9 @@ _DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
     "input_number": {
         "*": "mdi:numeric",
     },
+    "number": {
+        "*": "mdi:numeric",
+    },
     "input_select": {
         "*": "mdi:format-list-bulleted",
     },
@@ -215,6 +218,14 @@ _DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
     },
     "button": {
         "*": "mdi:gesture-tap-button",
+    },
+    "input_button": {
+        "*": "mdi:gesture-tap-button",
+    },
+    "person": {
+        "home":     "mdi:account",
+        "not_home": "mdi:account-off",
+        "*":        "mdi:account",
     },
     "lock": {
         "locked":   "mdi:lock",

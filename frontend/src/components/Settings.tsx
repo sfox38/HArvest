@@ -994,7 +994,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
           { key: "cover",      label: "Cover",      hint: "cover.* entities - garage doors, gates, blinds" },
           { key: "script",     label: "Script",     hint: "script.* entities - arbitrary HA script execution" },
           { key: "automation", label: "Automation", hint: "automation.* entities - trigger, enable, or disable automations" },
-          { key: "button",     label: "Button",     hint: "button.* entities - one-shot press actions" },
+          { key: "button",     label: "Button",     hint: "button.* and input_button.* entities - one-shot press actions" },
         ] as const).map(({ key, label, hint }) => (
           <ToggleField
             key={key}
@@ -1002,7 +1002,8 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             hint={hint}
             value={!!(config.sensitive_domains ?? {})[key]}
             onChange={async (v) => {
-              await patch({ sensitive_domains: { ...(config.sensitive_domains ?? {}), [key]: v } });
+              const extra = key === "button" ? { input_button: v } : {};
+              await patch({ sensitive_domains: { ...(config.sensitive_domains ?? {}), [key]: v, ...extra } });
               refreshEntityCache();
             }}
           />

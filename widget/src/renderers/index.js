@@ -83,8 +83,9 @@ const _registry = new Map([
   // Person (read-only)
   ["person",                  PersonCard],
 
-  // Button (momentary press)
+  // Button (momentary press) - input_button shares the same renderer
   ["button",                  ButtonCard],
+  ["input_button",            ButtonCard],
 
   // number domain - same UX as input_number
   ["number",                  InputNumberCard],
