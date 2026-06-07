@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import re
 from pathlib import Path
 
 from homeassistant.core import HomeAssistant
@@ -24,6 +25,8 @@ RENDERERS_CONSENT_VERSION = 1
 
 _RENDERERS_DIR = Path(__file__).parent / "renderers"
 _USER_RENDERERS_DIR = _RENDERERS_DIR / "user"
+_RENDERER_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_MAX_RENDERER_CODE_BYTES = 10 * 1024 * 1024
 
 
 @dataclasses.dataclass
@@ -115,13 +118,25 @@ class RendererManager:
         """Write JS source code for a user renderer. Raises ValueError for bundled."""
         if renderer_id in self._bundled:
             raise ValueError("Cannot modify bundled renderer code.")
+        self._validate_user_renderer(renderer_id)
+        if len(js_code.encode("utf-8")) > _MAX_RENDERER_CODE_BYTES:
+            raise ValueError(
+                f"Renderer code exceeds {_MAX_RENDERER_CODE_BYTES} bytes."
+            )
         await self._hass.async_add_executor_job(self._write_code, renderer_id, js_code)
 
     async def delete_user_renderer(self, renderer_id: str) -> None:
         """Delete a user renderer's JS file."""
         if renderer_id in self._bundled:
             raise ValueError("Cannot delete a bundled renderer.")
+        self._validate_user_renderer(renderer_id)
         await self._hass.async_add_executor_job(self._delete_renderer_file, renderer_id)
+
+    @staticmethod
+    def _validate_user_renderer(renderer_id: str) -> None:
+        """Reject renderer IDs that could escape the user renderer directory."""
+        if not _RENDERER_ID_RE.fullmatch(renderer_id):
+            raise ValueError("Invalid renderer ID.")
 
     @staticmethod
     def _write_code(renderer_id: str, js_code: str) -> None:

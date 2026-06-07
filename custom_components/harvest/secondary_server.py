@@ -143,7 +143,7 @@ class SecondaryServer:
             resolved_base = self._themes_dir.resolve()
             target = (self._themes_dir / rel).resolve()
             target.relative_to(resolved_base)  # raises ValueError on traversal
-        except (ValueError, Exception):
+        except (ValueError, OSError):
             raise web.HTTPForbidden()
         if not target.is_file():
             raise web.HTTPNotFound()

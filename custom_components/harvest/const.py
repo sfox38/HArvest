@@ -5,7 +5,7 @@ All other modules import from here. No classes, no functions.
 from __future__ import annotations
 
 DOMAIN = "harvest"
-PLATFORM_VERSION = "0.9.4"              # must match SPEC.md version header
+PLATFORM_VERSION = "0.9.4"              # must match manifest.json application version
 
 # WebSocket protocol versioning. See SPEC.md Section 12 (Client/Server
 # Compatibility). PROTOCOL_VERSION bumps only on breaking message-format

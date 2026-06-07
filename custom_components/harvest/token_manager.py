@@ -858,6 +858,7 @@ class TokenManager:
                 icon_override=e.get("icon_override"),
                 color_scheme=e.get("color_scheme", "auto"),
                 display_hints=_migrate_display_hints(e),
+                service_data=e.get("service_data", {}),
             )
             for e in d.get("entities", [])
         ]

@@ -987,7 +987,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
         <div className="divider" style={{ margin: "8px 0 12px" }} />
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Sensitive domains</div>
         <div className="settings-field-hint" style={{ marginBottom: 12 }}>
-          These Tier 1 domains are disabled by default. Enable each one to allow tokens to include entities from that domain. Disabling a domain silently drops those entities from active sessions.
+          These Tier 1 domains are disabled by default. Enable each one to allow tokens to include entities from that domain. Changing this list closes active sessions so they reconnect under the new policy.
         </div>
         {([
           { key: "lock",       label: "Lock",       hint: "lock.* entities - physical lock/unlock control" },
@@ -1002,7 +1002,9 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             hint={hint}
             value={!!(config.sensitive_domains ?? {})[key]}
             onChange={async (v) => {
-              const extra = key === "button" ? { input_button: v } : {};
+              const extra: Record<string, boolean> = key === "button"
+                ? { input_button: v }
+                : {};
               await patch({ sensitive_domains: { ...(config.sensitive_domains ?? {}), [key]: v, ...extra } });
               refreshEntityCache();
             }}

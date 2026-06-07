@@ -3192,7 +3192,7 @@ button.entity-setting-group-title:focus-visible {
 .badge-color-swatch:focus-visible {
   box-shadow: 0 0 0 2px var(--accent);
 }
-.badge-color-swatch[aria-pressed=true] {
+.badge-color-swatch[aria-checked=true] {
   border-color: var(--text-primary);
   box-shadow: 0 0 0 2px var(--bg-elevated), 0 0 0 3px var(--text-primary);
 }
@@ -3212,7 +3212,7 @@ button.entity-setting-group-title:focus-visible {
 .badge-color-swatch-auto:hover {
   border-color: var(--text-secondary);
 }
-.badge-color-swatch-auto[aria-pressed=true] {
+.badge-color-swatch-auto[aria-checked=true] {
   border-color: var(--text-primary);
   color: var(--text-primary);
   font-weight: 500;

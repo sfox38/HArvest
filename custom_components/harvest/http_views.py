@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 
 from ._utils import close_ws_with_auth_failed as _close_ws_with_auth_failed, get_entry_data
 from .activity_store import ActivityStore, TokenLifecycleEvent
+from .const import ALIAS_LENGTH, BASE62_ALPHABET
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes
@@ -140,23 +141,36 @@ def _session_to_dict(session) -> dict:
 
 
 def _parse_dt(value: Any) -> datetime | None:
-    """Parse an ISO 8601 datetime string to a timezone-aware datetime, or None if empty/invalid."""
-    if not value:
+    """Parse an ISO 8601 datetime string, accepting only explicit empty values."""
+    if value is None or value == "":
         return None
+    if not isinstance(value, str):
+        raise ValueError("datetime must be an ISO 8601 string or null.")
     try:
-        dt = datetime.fromisoformat(str(value))
-    except (ValueError, TypeError):
-        return None
+        dt = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"Invalid ISO 8601 datetime: {value!r}") from exc
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
 
 
 def _parse_origins(raw: dict) -> OriginConfig:
+    if not isinstance(raw, dict):
+        raise ValueError("origins must be an object.")
+    allowed = raw.get("allowed", [])
+    allow_paths = raw.get("allow_paths", [])
+    if not isinstance(allowed, list) or not all(isinstance(v, str) for v in allowed):
+        raise ValueError("origins.allowed must be a list of strings.")
+    if not isinstance(allow_paths, list) or not all(isinstance(v, str) for v in allow_paths):
+        raise ValueError("origins.allow_paths must be a list of strings.")
+    allow_any = raw.get("allow_any", False)
+    if not isinstance(allow_any, bool):
+        raise ValueError("origins.allow_any must be a boolean.")
     return OriginConfig(
-        allow_any=bool(raw.get("allow_any", False)),
-        allowed=list(raw.get("allowed", [])),
-        allow_paths=list(raw.get("allow_paths", [])),
+        allow_any=allow_any,
+        allowed=allowed,
+        allow_paths=allow_paths,
     )
 
 
@@ -167,10 +181,9 @@ def _coerce_positive_int(raw: object, field_name: str, *, max_value: int) -> int
     negative would either divide by zero in the rate limiter (capacity 0 ->
     refill 0 -> ZeroDivisionError) or produce nonsensical session math.
     """
-    try:
-        n = int(raw)
-    except (TypeError, ValueError):
+    if not isinstance(raw, int) or isinstance(raw, bool):
         raise ValueError(f"{field_name} must be an integer.")
+    n = raw
     if n < 1:
         raise ValueError(f"{field_name} must be >= 1.")
     if n > max_value:
@@ -191,7 +204,12 @@ def _coerce_optional_positive_int(raw: object, field_name: str, *, max_value: in
 
 def _parse_rate_limits(raw: dict) -> RateLimitConfig:
     from .const import CONF_DEFAULT_RATE_LIMITS, DEFAULTS
+    if not isinstance(raw, dict):
+        raise ValueError("rate_limits must be an object.")
     rl_defaults = DEFAULTS[CONF_DEFAULT_RATE_LIMITS]
+    override_defaults = raw.get("override_defaults", False)
+    if not isinstance(override_defaults, bool):
+        raise ValueError("override_defaults must be a boolean.")
     return RateLimitConfig(
         max_push_per_second=_coerce_positive_int(
             raw.get("max_push_per_second", rl_defaults["max_push_per_second"]),
@@ -203,7 +221,7 @@ def _parse_rate_limits(raw: dict) -> RateLimitConfig:
             "max_commands_per_minute",
             max_value=10000,
         ),
-        override_defaults=bool(raw.get("override_defaults", False)),
+        override_defaults=override_defaults,
     )
 
 
@@ -211,6 +229,8 @@ def _parse_session_config(raw: dict) -> SessionConfig:
     # Caps chosen to match the panel UI: lifetime_minutes up to 24h,
     # max_lifetime_minutes up to 30 days, max_renewals up to 1000,
     # absolute_lifetime_hours up to 1 year.
+    if not isinstance(raw, dict):
+        raise ValueError("session must be an object.")
     return SessionConfig(
         lifetime_minutes=_coerce_positive_int(
             raw.get("lifetime_minutes", 60), "lifetime_minutes", max_value=1440,
@@ -238,6 +258,8 @@ def _parse_gesture_config(raw: dict) -> dict:
     where Action = { "action": str, "data"?: dict } | null.
     Unknown keys are ignored. Raises ValueError on invalid input.
     """
+    if not isinstance(raw, dict):
+        raise ValueError("gesture_config must be an object.")
     result: dict = {}
     for key in ("tap", "hold", "double_tap"):
         val = raw.get(key)
@@ -269,8 +291,14 @@ def _parse_entities(
     existing_ids: set | None = None,
 ) -> list[EntityAccess]:
     from .entity_compatibility import get_support_tier, is_sensitive_domain_blocked
+    if not isinstance(raw_list, list):
+        raise ValueError("entities must be a list.")
     entities = []
+    seen_ids: set[str] = set()
+    seen_aliases: set[str] = set()
     for e in raw_list:
+        if not isinstance(e, dict):
+            raise ValueError("Each entity must be an object.")
         entity_id = str(e["entity_id"])
         if not _ENTITY_ID_RE.match(entity_id):
             raise ValueError(f"Invalid entity_id {entity_id!r}; must match domain.slug.")
@@ -280,6 +308,9 @@ def _parse_entities(
         if sensitive_domains is not None and is_sensitive_domain_blocked(domain, sensitive_domains):
             if existing_ids is None or entity_id not in existing_ids:
                 raise ValueError(f"Domain '{domain}' is disabled in global Settings.")
+        if entity_id in seen_ids:
+            raise ValueError(f"Duplicate entity_id: {entity_id}")
+        seen_ids.add(entity_id)
         cap = str(e.get("capabilities", "read"))
         if cap not in _VALID_CAPABILITIES:
             raise ValueError(f"Invalid capabilities {cap!r}; must be one of {_VALID_CAPABILITIES}")
@@ -309,18 +340,53 @@ def _parse_entities(
         else:
             display_hints = {}
 
+        alias = e.get("alias") or None
+        if alias is not None:
+            if (
+                not isinstance(alias, str)
+                or len(alias) != ALIAS_LENGTH
+                or any(ch not in BASE62_ALPHABET for ch in alias)
+            ):
+                raise ValueError(
+                    f"alias for {entity_id} must be {ALIAS_LENGTH} base62 characters."
+                )
+            if alias in seen_aliases:
+                raise ValueError(f"Duplicate alias: {alias}")
+            seen_aliases.add(alias)
+
+        excluded = e.get("exclude_attributes", [])
+        if not isinstance(excluded, list) or not all(isinstance(v, str) for v in excluded):
+            raise ValueError(f"exclude_attributes for {entity_id} must be a list of strings.")
+
+        companion_of = e.get("companion_of") or None
+        if companion_of is not None and not isinstance(companion_of, str):
+            raise ValueError(f"companion_of for {entity_id} must be an entity_id or null.")
+        if cap == "badge" and companion_of is not None:
+            raise ValueError(f"Badge entity {entity_id} cannot be a companion.")
+
+        service_data = e.get("service_data", {})
+        if not isinstance(service_data, dict):
+            raise ValueError(f"service_data for {entity_id} must be an object.")
+
         entities.append(EntityAccess(
             entity_id=entity_id,
             capabilities=cap,
-            alias=e.get("alias") or None,
-            exclude_attributes=list(e.get("exclude_attributes", [])),
-            companion_of=e.get("companion_of") or None,
+            alias=alias,
+            exclude_attributes=excluded,
+            companion_of=companion_of,
             gesture_config=_parse_gesture_config(e.get("gesture_config", {})),
             name_override=name_override,
             icon_override=icon_override,
             color_scheme=color_scheme,
             display_hints=display_hints,
+            service_data=dict(service_data),
         ))
+    primary_ids = {e.entity_id for e in entities if e.companion_of is None}
+    for entity in entities:
+        if entity.companion_of is not None and entity.companion_of not in primary_ids:
+            raise ValueError(
+                f"companion_of for {entity.entity_id} does not reference a primary entity."
+            )
     return entities
 
 
@@ -385,6 +451,20 @@ def _validate_max_sessions(raw: Any) -> int | None:
     return raw
 
 
+def _parse_allowed_ips(raw: Any) -> list[str]:
+    """Validate an IP/CIDR allowlist without coercing arbitrary values."""
+    from ipaddress import ip_network
+
+    if not isinstance(raw, list) or not all(isinstance(entry, str) for entry in raw):
+        raise ValueError("allowed_ips must be a list of IP address or CIDR strings.")
+    for entry in raw:
+        try:
+            ip_network(entry, strict=False)
+        except ValueError as exc:
+            raise ValueError(f"Invalid IP address or CIDR: {entry}") from exc
+    return list(raw)
+
+
 _DISPLAY_TEXT_MAX_LEN = 200
 # Reject control characters that would corrupt logs, screen readers, or
 # copy-paste. Whitespace (tab/LF/CR) is allowed. All printable Unicode is
@@ -427,9 +507,16 @@ def _parse_schedule(raw: dict | None) -> ActiveSchedule | None:
         ZoneInfo(tz_str)
     except (ZoneInfoNotFoundError, KeyError):
         raise ValueError(f"Invalid timezone: {tz_str!r}")
+    windows_raw = raw.get("windows", [])
+    if not isinstance(windows_raw, list):
+        raise ValueError("active_schedule.windows must be a list.")
     windows = []
-    for w in raw.get("windows", []):
-        days = list(w["days"])
+    for w in windows_raw:
+        if not isinstance(w, dict):
+            raise ValueError("Each schedule window must be an object.")
+        days = w["days"]
+        if not isinstance(days, list) or not all(isinstance(day, str) for day in days):
+            raise ValueError("Schedule window days must be a list of strings.")
         for d in days:
             if d not in _VALID_DAYS:
                 raise ValueError(f"Invalid day {d!r}; must be one of {sorted(_VALID_DAYS)}.")
@@ -562,6 +649,12 @@ class HarvestTokensView(_HarvestView):
             session_cfg = _parse_session_config(body.get("session", {}))
             expires = _parse_dt(body.get("expires"))
             schedule = _parse_schedule(body.get("active_schedule"))
+            embed_mode = body.get("embed_mode", "single")
+            if embed_mode not in ("single", "group", "page"):
+                raise ValueError("embed_mode must be single, group, or page.")
+            entities_block = body.get("entities_block", False)
+            if not isinstance(entities_block, bool):
+                raise ValueError("entities_block must be a boolean.")
         except (KeyError, TypeError, ValueError) as exc:
             raise web.HTTPBadRequest(reason=f"Invalid request body: {exc}")
 
@@ -582,9 +675,9 @@ class HarvestTokensView(_HarvestView):
                 session=session_cfg,
                 max_sessions=_validate_max_sessions(body.get("max_sessions")),
                 active_schedule=schedule,
-                allowed_ips=list(body.get("allowed_ips", [])),
-                embed_mode=str(body.get("embed_mode", "single")),
-                entities_block=bool(body.get("entities_block", False)),
+                allowed_ips=_parse_allowed_ips(body.get("allowed_ips", [])),
+                embed_mode=embed_mode,
+                entities_block=entities_block,
                 theme_url=str(body.get("theme_url", "")),
             )
         except ValueError as exc:
@@ -928,17 +1021,10 @@ class HarvestTokenDetailView(_HarvestView):
             except ValueError as exc:
                 raise web.HTTPBadRequest(reason=str(exc))
         if "allowed_ips" in body:
-            if not isinstance(body["allowed_ips"], list):
-                raise web.HTTPBadRequest(reason="allowed_ips must be a list.")
-            from ipaddress import ip_network
-            for entry in body["allowed_ips"]:
-                try:
-                    ip_network(str(entry), strict=False)
-                except ValueError:
-                    raise web.HTTPBadRequest(
-                        reason=f"Invalid IP address or CIDR: {entry}"
-                    )
-            updates["allowed_ips"] = list(body["allowed_ips"])
+            try:
+                updates["allowed_ips"] = _parse_allowed_ips(body["allowed_ips"])
+            except ValueError as exc:
+                raise web.HTTPBadRequest(reason=str(exc))
         if "active_schedule" in body:
             updates["active_schedule"] = _parse_schedule(body["active_schedule"])
         if "paused" in body:
@@ -1037,12 +1123,15 @@ class HarvestTokenDetailView(_HarvestView):
         except (ValueError, KeyError) as exc:
             raise web.HTTPBadRequest(reason=str(exc))
 
-        security_fields = {"paused", "active_schedule", "allowed_ips", "token_secret", "origins"}
+        security_fields = {
+            "paused", "active_schedule", "allowed_ips", "token_secret", "origins",
+            "entities", "expires", "rate_limits",
+        }
         if security_fields & updates.keys():
             ws_list = self._session_manager.terminate_all_for_token(token_id)
             for ws in ws_list:
                 if not ws.closed:
-                    asyncio.create_task(_close_ws_with_auth_failed(ws))
+                    self._hass.async_create_task(_close_ws_with_auth_failed(ws))
 
         if "entities" in updates:
             changed: set[str] = set()
@@ -1097,7 +1186,7 @@ class HarvestTokenDetailView(_HarvestView):
                 ws_list = self._session_manager.terminate_all_for_token(token_id)
                 for ws in ws_list:
                     if not ws.closed:
-                        asyncio.create_task(ws.close())
+                        self._hass.async_create_task(ws.close())
                 self._activity_store.record_token_lifecycle(TokenLifecycleEvent(
                     token_id=token_id,
                     display_type="TOKEN_REVOKED",
@@ -1250,7 +1339,7 @@ class HarvestSessionsView(_HarvestView):
                 ws_list.append(s.ws)
         for ws in ws_list:
             if not ws.closed:
-                asyncio.create_task(ws.close())
+                self._hass.async_create_task(ws.close())
         return web.Response(status=204)
 
 
@@ -1270,7 +1359,7 @@ class HarvestSessionTerminateView(_HarvestView):
         ws = session.ws
         self._session_manager.terminate(session_id)
         if not ws.closed:
-            asyncio.create_task(ws.close())
+            self._hass.async_create_task(ws.close())
         return web.Response(status=204)
 
 
@@ -1496,6 +1585,9 @@ class HarvestThemeImportView(_HarvestView):
     name = "api:harvest:themes:import"
 
     _MAX_ZIP_BYTES = 10 * 1024 * 1024  # 10 MB hard cap
+    _MAX_EXPANDED_BYTES = 20 * 1024 * 1024
+    _MAX_MEMBER_BYTES = 10 * 1024 * 1024
+    _MAX_MEMBERS = 4
 
     async def post(self, request: web.Request) -> web.Response:
         import io
@@ -1537,6 +1629,22 @@ class HarvestThemeImportView(_HarvestView):
             zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
         except zipfile.BadZipFile:
             raise web.HTTPBadRequest(reason="File is not a valid zip archive.")
+        members = zf.infolist()
+        allowed_members = {"theme.json", "renderer.js", "font.woff2", "font.woff"}
+        if len(members) > self._MAX_MEMBERS:
+            raise web.HTTPBadRequest(reason="Zip archive contains too many files.")
+        if any(info.filename not in allowed_members for info in members):
+            raise web.HTTPBadRequest(reason="Zip archive contains an unsupported file.")
+        if any(info.file_size > self._MAX_MEMBER_BYTES for info in members):
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=self._MAX_MEMBER_BYTES,
+                actual_size=max(info.file_size for info in members),
+            )
+        expanded_size = sum(info.file_size for info in members)
+        if expanded_size > self._MAX_EXPANDED_BYTES:
+            raise web.HTTPRequestEntityTooLarge(
+                max_size=self._MAX_EXPANDED_BYTES, actual_size=expanded_size
+            )
 
         # Extract theme.json.
         if "theme.json" not in zf.namelist():
@@ -2352,10 +2460,10 @@ class HarvestConfigView(_HarvestView):
                 else:
                     self._hass.async_create_task(secondary_server.stop())
 
-        if filtered.get("kill_switch"):
+        if filtered.get("kill_switch") or "sensitive_domains" in filtered:
             for session in self._session_manager.get_all():
                 if not session.ws.closed:
-                    asyncio.create_task(_close_ws_with_auth_failed(session.ws))
+                    self._hass.async_create_task(_close_ws_with_auth_failed(session.ws))
 
         from .const import PLATFORM_VERSION
         updated["platform_version"] = PLATFORM_VERSION

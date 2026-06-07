@@ -24,6 +24,45 @@ function themeUrlToId(themeUrl: string): string {
   return themeUrl;
 }
 
+function useDialogFocus(open: boolean, onClose: () => void) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!open || !dialogRef.current) return;
+    const dialog = dialogRef.current;
+    const selector = 'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    previousFocus.current = document.activeElement as HTMLElement | null;
+    dialog.querySelector<HTMLElement>(selector)?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(selector));
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        last.focus();
+        event.preventDefault();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        first.focus();
+        event.preventDefault();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      previousFocus.current?.focus();
+    };
+  }, [open]);
+  return dialogRef;
+}
+
 // ---------------------------------------------------------------------------
 // Clipboard hook
 // ---------------------------------------------------------------------------
@@ -109,6 +148,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const thumbRef = useRef<HTMLInputElement>(null);
   const rendererJsRef = useRef<HTMLInputElement>(null);
+  const closeRendererReminder = () => setShowRendererReminder(false);
+  const closeAgree = () => {
+    setShowAgree(false);
+    setAgreeText("");
+    setPendingAction(null);
+  };
+  const rendererReminderDialogRef = useDialogFocus(showRendererReminder, closeRendererReminder);
+  const agreeDialogRef = useDialogFocus(showAgree, closeAgree);
 
   const reload = useCallback(async () => {
     // allSettled: themes is the primary content; tokens is only used for
@@ -360,13 +407,13 @@ export function Themes({ onSelectToken }: ThemesProps) {
     const doImport = async () => {
       try {
         const result = await api.themes.importZip(file);
-        if ((result as any).error === "renderer_consent_required") {
+        if ("error" in result && result.error === "renderer_consent_required") {
           requireConsent(doImport);
           return;
         }
-        if ((result as any).error === "theme_already_exists") {
+        if ("error" in result && result.error === "theme_already_exists") {
           setPendingOverwriteFile(file);
-          setOverwriteConflict({ name: (result as any).name, theme_id: (result as any).theme_id });
+          setOverwriteConflict({ name: result.name, theme_id: result.theme_id });
           return;
         }
         const updated = await reload();
@@ -388,10 +435,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
     const doOverwrite = async () => {
       try {
         const result = await api.themes.importZip(file, true);
-        if ((result as any).error === "renderer_consent_required") {
+        if ("error" in result && result.error === "renderer_consent_required") {
           requireConsent(doOverwrite);
           return;
         }
+        if ("error" in result) return;
         await reload();
         setSelected(result.theme_id ?? conflict.theme_id);
         setPreviewKey(k => k + 1);
@@ -908,8 +956,8 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
 
       {showRendererReminder && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="renderer-remind-title" onClick={() => setShowRendererReminder(false)}>
-          <div className="dialog" onClick={e => e.stopPropagation()}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="renderer-remind-title" onClick={closeRendererReminder}>
+          <div ref={rendererReminderDialogRef} className="dialog" onClick={e => e.stopPropagation()}>
             <h3 id="renderer-remind-title" className="dialog-title">Upload Renderer</h3>
             <div className="dialog-body">
               <p>
@@ -929,13 +977,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
       )}
 
       {showAgree && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="renderer-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
-          <div className="dialog" onClick={e => e.stopPropagation()}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="renderer-agree-title" onClick={closeAgree}>
+          <div ref={agreeDialogRef} className="dialog" onClick={e => e.stopPropagation()}>
             <h3 id="renderer-agree-title" className="dialog-title">Renderer Warning</h3>
             <div className="dialog-body">
               <p>
-                This theme includes custom renderers that execute JavaScript from your HA instance
-                inside the widget on the embedding page. Only enable themes with renderers you trust.
+                This theme includes custom renderer JavaScript that executes with the embedding
+                page's privileges. It can access the page DOM, browser storage, non-HttpOnly
+                cookies, and widget credentials. Only enable renderers you fully trust.
               </p>
               <p style={{ marginTop: 12 }}>
                 Type <strong>AGREE</strong> below to confirm.
@@ -951,7 +1000,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
               />
             </div>
             <div className="dialog-actions">
-              <button className="btn btn-ghost" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
+              <button className="btn btn-ghost" onClick={closeAgree}>
                 Cancel
               </button>
               <button className="btn btn-primary" disabled={agreeText !== "AGREE"} onClick={confirmAgree}>

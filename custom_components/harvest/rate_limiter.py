@@ -228,3 +228,18 @@ class RateLimiter:
         stale = [key for key in self._push_buckets if key[0] == session_id]
         for key in stale:
             del self._push_buckets[key]
+
+    def rekey_session(self, old_session_id: str, new_session_id: str) -> None:
+        """Move rate-limit state when renewal replaces a session ID."""
+        command_bucket = self._command_buckets.pop(old_session_id, None)
+        if command_bucket is not None:
+            self._command_buckets[new_session_id] = command_bucket
+
+        push_buckets = [
+            (key, bucket)
+            for key, bucket in self._push_buckets.items()
+            if key[0] == old_session_id
+        ]
+        for key, bucket in push_buckets:
+            del self._push_buckets[key]
+            self._push_buckets[(new_session_id, key[1])] = bucket

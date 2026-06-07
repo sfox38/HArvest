@@ -41,7 +41,6 @@ class Harvest_Assets {
         // where a shortcode is rendered outside the standard the_content() flow.
         // By this point, all shortcodes have been processed, so self::$enqueued
         // reflects whether any shortcode called enqueue() during rendering.
-        add_action( 'wp_footer', [ self::class, 'maybe_enqueue_from_footer' ], 5 );
 
         // Inject <link rel="preconnect"> to the HA host as early as possible
         // in <head> when the current post contains a Harvest shortcode. The
@@ -200,14 +199,10 @@ class Harvest_Assets {
     }
 
     /**
-     * Footer safety-net hook. If a shortcode enqueued the script during
-     * content rendering, self::$enqueued is already true and this is a no-op.
-     * If no shortcode was rendered (no widgets on this page), we also do
-     * nothing - there is no reason to load the script.
+     * Retained for compatibility with callers from earlier plugin versions.
+     * Asset loading is performed directly by the shortcode renderer.
      */
     public static function maybe_enqueue_from_footer(): void {
-        // No action required here. Any shortcode that rendered this request
-        // will have already called self::enqueue() directly. This hook exists
-        // only as a documented safety net for future extension points.
     }
+
 }

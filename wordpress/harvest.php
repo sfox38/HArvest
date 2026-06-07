@@ -51,7 +51,7 @@ function harvest_activate(): void {
         add_option( 'harvest_ha_url', '' );
     }
     if ( ! get_option( 'harvest_widget_source' ) ) {
-        add_option( 'harvest_widget_source', 'bundled' );
+        add_option( 'harvest_widget_source', 'ha' );
     }
 }
 

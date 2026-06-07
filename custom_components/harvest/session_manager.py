@@ -96,6 +96,8 @@ class SessionManager:
 
         now = datetime.now(tz=timezone.utc)
         expires_at = now + timedelta(minutes=token.session.lifetime_minutes)
+        if token.expires is not None:
+            expires_at = min(expires_at, token.expires)
 
         # absolute_expires_at is fixed at creation and does not change on renewal.
         # It uses the token-level override when set; otherwise defers to the global config.
@@ -106,6 +108,8 @@ class SessionManager:
                 DEFAULTS[CONF_ABSOLUTE_SESSION_LIFETIME],
             )
         absolute_expires_at = now + timedelta(hours=absolute_hours)
+        if token.expires is not None:
+            absolute_expires_at = min(absolute_expires_at, token.expires)
 
         session = Session(
             session_id=session_id,

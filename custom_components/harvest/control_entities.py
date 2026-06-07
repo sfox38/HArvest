@@ -9,7 +9,6 @@ automations and scripts can control the integration:
 """
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from homeassistant.components.button import ButtonEntity
@@ -61,7 +60,7 @@ class ControlEntities:
 
         Called once from button.py async_setup_entry.
         """
-        close_btn = HarvestCloseAllSessionsButton(self._session_manager)
+        close_btn = HarvestCloseAllSessionsButton(self._hass, self._session_manager)
         self._entities.append(close_btn)
         return [close_btn]
 
@@ -160,7 +159,7 @@ class HarvestKillSwitch(SwitchEntity):
             # panel-API path in HarvestConfigView.patch.
             for session in self._session_manager.get_all():
                 if not session.ws.closed:
-                    asyncio.create_task(_close_ws_with_auth_failed(session.ws))
+                    self._hass.async_create_task(_close_ws_with_auth_failed(session.ws))
         self.async_write_ha_state()
 
 
@@ -183,14 +182,15 @@ class HarvestCloseAllSessionsButton(ButtonEntity):
     _attr_should_poll = False
     _attr_entity_category = EntityCategory.CONFIG
 
-    def __init__(self, session_manager: SessionManager) -> None:
+    def __init__(self, hass: HomeAssistant, session_manager: SessionManager) -> None:
         self.entity_id = "button.harvest_close_all_sessions"
+        self._hass = hass
         self._session_manager = session_manager
 
     async def async_press(self) -> None:
         for session in self._session_manager.get_all():
             if not session.ws.closed:
-                asyncio.create_task(_close_ws(session.ws))
+                self._hass.async_create_task(_close_ws(session.ws))
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +222,7 @@ class HarvestTokenPausedSwitch(SwitchEntity):
         self._attr_unique_id = f"harvest_token_{token_id}_paused"
         self._attr_name = f"HArvest {label_slug} Paused"
         self._attr_icon = "mdi:pause-circle"
-        self.entity_id = f"switch.harvest_{label_slug}_paused"
+        self._attr_suggested_object_id = f"harvest_{label_slug}_paused"
 
     @property
     def is_on(self) -> bool:

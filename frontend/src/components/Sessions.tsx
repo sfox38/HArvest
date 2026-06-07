@@ -35,10 +35,6 @@ function SessionRow({ session: s, tokenLabel, onTerminate, onSelectToken }: Sess
   return (
     <div
       className={`session-row${open ? " open" : ""}`}
-      role="button"
-      aria-expanded={open}
-      tabIndex={0}
-      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
     >
       <div className="session-row-top" onClick={toggle}>
         {/* Icon */}
@@ -82,9 +78,16 @@ function SessionRow({ session: s, tokenLabel, onTerminate, onSelectToken }: Sess
         </div>
 
         {/* Caret */}
-        <div className="event-caret" style={{ margin: 0 }}>
+        <button
+          type="button"
+          className="event-caret"
+          style={{ margin: 0 }}
+          aria-label={open ? "Collapse session details" : "Expand session details"}
+          aria-expanded={open}
+          onClick={e => { e.stopPropagation(); toggle(); }}
+        >
           <Icon name={open ? "chevUp" : "chevDown"} size={14} />
-        </div>
+        </button>
 
         {/* End button */}
         <button

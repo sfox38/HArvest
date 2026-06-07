@@ -24,6 +24,8 @@ DB_SCHEMA_VERSION = 1
 
 # Flush interval in seconds. Up to this many seconds of writes may be lost on crash.
 _FLUSH_INTERVAL = 5.0
+_FLUSH_BATCH_SIZE = 1000
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@")
 
 
 class AuthEvent(NamedTuple):
@@ -250,7 +252,7 @@ class ActivityStore:
             union_parts.append(
                 "SELECT 'auth' AS raw_type, token_id, origin, source_ip, "
                 "NULL AS entity_id, NULL AS action, result, error_code, "
-                "NULL AS session_id, timestamp, referer, NULL AS label "
+                "NULL AS session_id, timestamp, referer, NULL AS label, id AS raw_id "
                 f"FROM auth_events{clause}"
             )
             params.extend(p)
@@ -260,7 +262,7 @@ class ActivityStore:
             union_parts.append(
                 "SELECT 'command' AS raw_type, token_id, NULL AS origin, NULL AS source_ip, "
                 "entity_id, action, NULL AS result, NULL AS error_code, "
-                "session_id, timestamp, NULL AS referer, NULL AS label "
+                "session_id, timestamp, NULL AS referer, NULL AS label, id AS raw_id "
                 f"FROM commands{clause}"
             )
             params.extend(p)
@@ -270,7 +272,7 @@ class ActivityStore:
             union_parts.append(
                 "SELECT 'session' AS raw_type, token_id, origin, source_ip, "
                 "NULL AS entity_id, NULL AS action, event_type AS result, "
-                "NULL AS error_code, session_id, timestamp, referer, NULL AS label "
+                "NULL AS error_code, session_id, timestamp, referer, NULL AS label, id AS raw_id "
                 f"FROM session_events{clause}"
             )
             params.extend(p)
@@ -280,7 +282,7 @@ class ActivityStore:
             union_parts.append(
                 "SELECT 'error' AS raw_type, NULL AS token_id, NULL AS origin, NULL AS source_ip, "
                 "NULL AS entity_id, code AS action, message AS result, "
-                "NULL AS error_code, session_id, timestamp, NULL AS referer, NULL AS label "
+                "NULL AS error_code, session_id, timestamp, NULL AS referer, NULL AS label, id AS raw_id "
                 f"FROM errors{clause}"
             )
             params.extend(p)
@@ -294,7 +296,7 @@ class ActivityStore:
             union_parts.append(
                 "SELECT 'lifecycle' AS raw_type, token_id, NULL AS origin, NULL AS source_ip, "
                 "NULL AS entity_id, NULL AS action, display_type AS result, "
-                "reason AS error_code, NULL AS session_id, timestamp, NULL AS referer, label "
+                "reason AS error_code, NULL AS session_id, timestamp, NULL AS referer, label, id AS raw_id "
                 f"FROM token_lifecycle{clause}"
             )
             params.extend(p)
@@ -339,7 +341,7 @@ class ActivityStore:
 
         events = [
             {
-                "id": i,
+                "id": f"{r[0]}:{r[12]}",
                 "type": _map_display_type(r[0], r[6] or "", r[5] or ""),
                 "timestamp": r[9],
                 "token_id":  r[1] or None,
@@ -352,7 +354,7 @@ class ActivityStore:
                 "code":      r[7] or None,
                 "message":   r[6] if r[0] == "error" else None,
             }
-            for i, r in enumerate(rows)
+            for r in rows
         ]
         return events, total
 
@@ -465,6 +467,29 @@ class ActivityStore:
             "auth_fail": auth_fail,
         }
 
+    async def get_last_successful_auth(self, token_id: str) -> tuple[str | None, str | None]:
+        """Return the timestamp and origin from a token's latest successful auth."""
+        if self._db is None:
+            return None, None
+        cursor = await self._db.execute(
+            "SELECT timestamp, origin FROM auth_events "
+            "WHERE token_id = ? AND result = 'ok' ORDER BY timestamp DESC LIMIT 1",
+            [token_id],
+        )
+        row = await cursor.fetchone()
+        return (row[0], row[1]) if row else (None, None)
+
+    async def count_commands_since(self, token_id: str, since: datetime) -> int:
+        """Count commands for one token since the supplied timestamp."""
+        if self._db is None:
+            return 0
+        cursor = await self._db.execute(
+            "SELECT COUNT(*) FROM commands WHERE token_id = ? AND timestamp >= ?",
+            [token_id, _ts(since)],
+        )
+        row = await cursor.fetchone()
+        return int(row[0]) if row else 0
+
     async def purge_old_records(self) -> int:
         """Delete records older than retention_days. Returns count deleted.
 
@@ -511,8 +536,7 @@ class ActivityStore:
         """Export activity log entries as a CSV string.
 
         Accepts the same filter parameters as query_activity() but returns
-        all matching rows (no pagination limit) formatted as CSV with a
-        header row.
+        up to 100,000 matching rows formatted as CSV with a header row.
         """
         events, _ = await self.query_activity(
             token_id=token_id,
@@ -532,16 +556,16 @@ class ActivityStore:
         ])
         for e in events:
             writer.writerow([
-                e["timestamp"],
-                e["type"],
-                e["token_id"] or "",
-                e["session_id"] or "",
-                e["origin"] or "",
-                e["referer"] or "",
-                e["entity_id"] or "",
-                e["action"] or "",
-                e["code"] or "",
-                e["message"] or "",
+                _csv_safe(e["timestamp"]),
+                _csv_safe(e["type"]),
+                _csv_safe(e["token_id"] or ""),
+                _csv_safe(e["session_id"] or ""),
+                _csv_safe(e["origin"] or ""),
+                _csv_safe(e["referer"] or ""),
+                _csv_safe(e["entity_id"] or ""),
+                _csv_safe(e["action"] or ""),
+                _csv_safe(e["code"] or ""),
+                _csv_safe(e["message"] or ""),
             ])
         return output.getvalue()
 
@@ -559,12 +583,12 @@ class ActivityStore:
                 _LOGGER.exception("HArvest activity flush error.")
 
     async def _flush(self) -> None:
-        """Drain the write queue and commit all pending writes in one transaction."""
+        """Write one bounded queue batch and commit it in one transaction."""
         if self._db is None or self._write_queue.empty():
             return
 
         items: list[tuple[str, NamedTuple]] = []
-        while not self._write_queue.empty():
+        while len(items) < _FLUSH_BATCH_SIZE and not self._write_queue.empty():
             try:
                 items.append(self._write_queue.get_nowait())
             except asyncio.QueueEmpty:
@@ -663,6 +687,8 @@ class ActivityStore:
             CREATE INDEX IF NOT EXISTS idx_commands_token ON commands(token_id);
             CREATE INDEX IF NOT EXISTS idx_commands_timestamp ON commands(timestamp);
             CREATE INDEX IF NOT EXISTS idx_session_token ON session_events(token_id);
+            CREATE INDEX IF NOT EXISTS idx_session_timestamp ON session_events(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON errors(timestamp);
             CREATE TABLE IF NOT EXISTS token_lifecycle (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 token_id TEXT NOT NULL,
@@ -685,8 +711,9 @@ class ActivityStore:
         ):
             try:
                 await self._db.execute(stmt)
-            except Exception:
-                pass  # Column already exists on fresh installs or re-runs.
+            except aiosqlite.OperationalError as exc:
+                if "duplicate column name" not in str(exc).lower():
+                    raise
 
 
 # ------------------------------------------------------------------
@@ -698,6 +725,14 @@ def _ts(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat()
+
+
+def _csv_safe(value: object) -> str:
+    """Neutralize spreadsheet formulas in exported untrusted text."""
+    text = str(value)
+    if text.startswith(_CSV_FORMULA_PREFIXES):
+        return "'" + text
+    return text
 
 
 def _hours_ago_iso(hours: int) -> str:

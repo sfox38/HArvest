@@ -201,10 +201,16 @@ export class HrvCard extends HTMLElement {
   }
 
   attributeChangedCallback(_name, oldVal, newVal) {
-    // Re-resolve config when attributes change after mounting.
+    // Connection identity changes must detach the old registration before
+    // resolving and registering the new one.
     // Skip if shadow root does not exist yet (called before connectedCallback).
     if (!this.shadowRoot || oldVal === newVal) return;
-    this.#resolveConfig();
+    if (this.hasAttribute("preview")) {
+      this.#resolveConfig();
+      return;
+    }
+    this.disconnectedCallback();
+    this.connectedCallback();
   }
 
   // -------------------------------------------------------------------------

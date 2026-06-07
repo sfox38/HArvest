@@ -173,7 +173,7 @@ export type ActivityEventType =
   | "SERVER_STOPPED";
 
 export interface ActivityEvent {
-  id: number;
+  id: string;
   type: ActivityEventType;
   timestamp: string;
   token_id: string | null;

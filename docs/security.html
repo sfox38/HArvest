@@ -145,13 +145,13 @@
 
         <p>Each origin entry is a full URL without path, e.g. <code>https://mysite.com</code>. Optionally add path restrictions to allow only specific pages: <code>https://mysite.com</code> + path <code>/smart-home</code> means only pages at <code>https://mysite.com/smart-home*</code> can connect.</p>
 
-        <p>The origin check uses the HTTP <code>Origin</code> header from the WebSocket upgrade request. Browsers send this reliably. Non-browser tools can omit or forge it - if the <code>Origin</code> header is absent, the check is skipped by default (the page_path check in the widget auth message provides a soft verification).</p>
+        <p>The origin check uses the HTTP <code>Origin</code> header from the WebSocket upgrade request. Browsers send this reliably. When origin restrictions are configured, a missing Origin header is denied. Non-browser tools can still forge an allowed Origin value, so token scope remains the primary security boundary.</p>
 
         <p><strong>Allow any origin</strong> disables origin checking entirely for that token. Use only for read-only public data tokens where security through obscurity is acceptable.</p>
 
         <h2 id="schedules">Access schedules</h2>
 
-        <p>Restrict when a token can be used to specific days of the week and hours of the day. Outside the schedule, the token behaves as if it's paused - existing sessions are dropped and new connections are rejected.</p>
+        <p>Restrict when a token can be used to specific days of the week and hours of the day. Outside the schedule, existing sessions are closed during their next keepalive check and new connections are rejected.</p>
 
         <p>Configure schedules in the widget detail screen under <strong>Schedule</strong>. Set the timezone using an IANA timezone name (e.g. <code>America/New_York</code>, <code>Europe/London</code>). The server evaluates all schedule checks in the token's configured timezone.</p>
 

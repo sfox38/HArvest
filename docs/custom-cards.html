@@ -146,7 +146,7 @@
               <tr>
                 <td><code>this.root</code></td>
                 <td>ShadowRoot</td>
-                <td>The shadow DOM root. Write all HTML and CSS here. Fully isolated from the host page.</td>
+                <td>The shadow DOM root. Write all HTML and CSS here. Host selectors cannot directly reach internal elements, but inherited properties, approved CSS custom properties, and <code>::part()</code> styling can intentionally cross the boundary.</td>
               </tr>
               <tr>
                 <td><code>this.config</code></td>

@@ -185,6 +185,10 @@ proxy_send_timeout 3600s;</code></pre>
         <h3>Alternate port (optional)</h3>
         <p>If HA's main port is blocked by a firewall or shared with other services, you can start a lightweight server on a separate port. In the HArvest panel under <strong>Settings > Connection > Widget script source</strong>, select <strong>Alternate port</strong> and enter a port number (e.g. <code>9050</code>). The server binds to all interfaces (0.0.0.0) and includes permissive CORS headers so any origin can load the widget. Changes take effect immediately without restarting HA.</p>
         <p>When alternate port is enabled, the widget URL points at the alternate address (e.g. <code>http://192.168.1.5:9050/harvest.min.js</code>). Widgets on the main HA port continue to work as well.</p>
+        <div class="callout callout-warn">
+          <span class="callout-label">Security warning</span>
+          <p>The alternate-port server uses plain HTTP, binds to all interfaces, and permits any browser origin. Use it only on a trusted private network or place it behind a TLS reverse proxy before exposing it externally.</p>
+        </div>
         </section>
 
       </div>

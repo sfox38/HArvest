@@ -138,6 +138,18 @@ class Harvest_Csp {
         }
 
         if ( preg_match( '/' . $start . $escaped_dir . $boundary . '/', $policy ) ) {
+            // A source list containing 'none' ignores every other source.
+            // Remove it before adding the requested HArvest source.
+            $policy = preg_replace_callback(
+                '/' . $start . $escaped_dir . $boundary . '([^;]*)/',
+                static function ( array $matches ) use ( $directive ): string {
+                    $value = preg_replace( "/(?:^|\\s)'none'(?=\\s|$)/", '', $matches[2] );
+                    $value = trim( (string) $value );
+                    return $matches[1] . $directive . ( $value === '' ? '' : ' ' . $value );
+                },
+                $policy,
+                1
+            );
             // Directive exists - append the URL to its value.
             // Capture group 1 = leading separator (start-of-string or `;\s*`),
             // capture group 2 = the directive's existing value (up to next `;`).

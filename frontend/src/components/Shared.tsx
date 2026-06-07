@@ -368,6 +368,37 @@ interface ErrorBannerProps {
 }
 
 export function ErrorBanner({ message, onDismiss, onRetry }: ErrorBannerProps) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!onDismiss || !dialogRef.current) return;
+    const el = dialogRef.current;
+    previousFocus.current = document.activeElement as HTMLElement | null;
+    const selector = "button:not([disabled])";
+    const trap = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onDismiss();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(el.querySelectorAll<HTMLElement>(selector));
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        last.focus();
+        event.preventDefault();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        first.focus();
+        event.preventDefault();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      previousFocus.current?.focus();
+    };
+  }, [onDismiss]);
   if (_isNetworkError(message)) return null;
   if (!onDismiss) {
     return (
@@ -379,7 +410,7 @@ export function ErrorBanner({ message, onDismiss, onRetry }: ErrorBannerProps) {
   }
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Error" onClick={onDismiss}>
-      <div className="dialog" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+      <div ref={dialogRef} className="dialog" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
         <div className="dialog-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div role="alert" style={{ fontSize: 14, lineHeight: 1.5 }}>{message}</div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>

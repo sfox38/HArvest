@@ -27,12 +27,26 @@ import type {
 
 const BASE = "/api/harvest";
 
+interface HassAuth {
+  data?: { access_token?: string; expires?: number };
+  refreshAccessToken: () => Promise<void>;
+}
+
+interface HassLike {
+  auth?: HassAuth;
+  themes?: { darkMode?: boolean };
+}
+
+export type ThemeImportResult =
+  | ThemeDefinition
+  | { error: "renderer_consent_required" }
+  | { error: "theme_already_exists"; theme_id: string; name: string };
+
 // ---------------------------------------------------------------------------
 // Hass instance - set by main.tsx, used for auth token + refresh
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _hass: any = null;
+let _hass: HassLike | null = null;
 
 // Readiness gate: _doReq awaits this Promise before any request runs, so any
 // caller firing before HA's first hass push (now or in some future code path)
@@ -53,8 +67,7 @@ export function onHaDarkModeChange(cb: (dark: boolean) => void): () => void {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function setHass(hass: any): void {
+export function setHass(hass: HassLike): void {
   _hass = hass;
   // Idempotent: subsequent resolve() calls are no-ops on a resolved Promise.
   _hassReadyResolve();
@@ -144,9 +157,10 @@ function _coordinatedRefresh(): Promise<void> {
   if (!_hass?.auth) {
     return Promise.reject(new Error("hass.auth not available"));
   }
+  const auth = _hass.auth;
   _refreshInflight = (async () => {
     try {
-      await _hass.auth.refreshAccessToken();
+      await auth.refreshAccessToken();
       _refreshFailedUntil = 0;
     } catch (err) {
       _refreshFailedUntil = Date.now() + _REFRESH_COOLDOWN_MS;
@@ -384,8 +398,8 @@ export const api = {
     reloadById: (themeId: string): Promise<{ status: string; theme: ThemeDefinition }> =>
       _post<{ status: string; theme: ThemeDefinition }>(`/themes/${themeId}/reload`, {}),
 
-    importZip: async (file: File, overwrite = false): Promise<ThemeDefinition & { has_renderer_file: boolean; error?: string }> => {
-      const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
+    importZip: async (file: File, overwrite = false): Promise<ThemeImportResult> => {
+      const token = _hass?.auth?.data?.access_token;
       const form = new FormData();
       form.append("file", file);
       const url = overwrite ? `${BASE}/themes/import?overwrite=true` : `${BASE}/themes/import`;
@@ -397,15 +411,15 @@ export const api = {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 409 && (json.error === "renderer_consent_required" || json.error === "theme_already_exists")) {
-          return json as any;
+          return json as ThemeImportResult;
         }
         throw new Error(`Import failed: ${res.status}${json.message ? ` - ${json.message}` : ""}`);
       }
-      return json;
+      return json as ThemeDefinition;
     },
 
     exportZip: async (themeId: string): Promise<void> => {
-      const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
+      const token = _hass?.auth?.data?.access_token;
       const res = await fetch(`${BASE}/themes/${encodeURIComponent(themeId)}/export`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -426,7 +440,7 @@ export const api = {
       `${BASE}/themes/${encodeURIComponent(themeId)}/thumbnail`,
 
     fetchThumbnail: async (themeId: string): Promise<Blob> => {
-      const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
+      const token = _hass?.auth?.data?.access_token;
       const res = await fetch(`${BASE}/themes/${encodeURIComponent(themeId)}/thumbnail`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -435,7 +449,7 @@ export const api = {
     },
 
     uploadThumbnail: async (themeId: string, file: File): Promise<void> => {
-      const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
+      const token = _hass?.auth?.data?.access_token;
       const form = new FormData();
       form.append("file", file);
       const res = await fetch(`${BASE}/themes/${encodeURIComponent(themeId)}/thumbnail`, {

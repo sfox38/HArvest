@@ -317,19 +317,8 @@ class HarvestTokenLastSeenSensor(_TokenSensorBase):
         self._attr_name = f"HArvest {label_slug} Last Seen"
 
     async def async_update(self) -> None:
-        events, _ = await self._activity_store.query_activity(
-            token_id=self._token_id,
-            display_type_filter="AUTH_OK",
-            limit=1,
-            offset=0,
-        )
-        if events:
-            ts = events[0].get("timestamp")
-            if isinstance(ts, str):
-                ts = datetime.fromisoformat(ts)
-            self._attr_native_value = ts
-        else:
-            self._attr_native_value = None
+        ts, _origin = await self._activity_store.get_last_successful_auth(self._token_id)
+        self._attr_native_value = datetime.fromisoformat(ts) if ts else None
 
 
 class HarvestTokenLastOriginSensor(_TokenSensorBase):
@@ -342,16 +331,8 @@ class HarvestTokenLastOriginSensor(_TokenSensorBase):
         self._attr_name = f"HArvest {label_slug} Last Origin"
 
     async def async_update(self) -> None:
-        events, _ = await self._activity_store.query_activity(
-            token_id=self._token_id,
-            display_type_filter="AUTH_OK",
-            limit=1,
-            offset=0,
-        )
-        if events:
-            self._attr_native_value = events[0].get("origin") or None
-        else:
-            self._attr_native_value = None
+        _ts_value, origin = await self._activity_store.get_last_successful_auth(self._token_id)
+        self._attr_native_value = origin
 
 
 class HarvestTokenCommandsTodaySensor(_TokenSensorBase):
@@ -378,10 +359,6 @@ class HarvestTokenCommandsTodaySensor(_TokenSensorBase):
         midnight_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
         midnight_utc = midnight_local.astimezone(timezone.utc)
 
-        _events, total = await self._activity_store.query_activity(
-            token_id=self._token_id,
-            display_type_filter="COMMAND",
-            since=midnight_utc,
-            limit=1,
+        self._attr_native_value = await self._activity_store.count_commands_since(
+            self._token_id, midnight_utc
         )
-        self._attr_native_value = total

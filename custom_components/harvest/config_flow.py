@@ -28,7 +28,7 @@ class HarvestConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(
-        self, _user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Handle the initial step.
 
@@ -37,6 +37,8 @@ class HarvestConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
+        if user_input is None:
+            return self.async_show_form(step_id="user", data_schema=vol.Schema({}))
         return self.async_create_entry(title="HArvest", data={})
 
     @staticmethod

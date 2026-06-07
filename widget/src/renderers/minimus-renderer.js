@@ -647,8 +647,10 @@
             ${isWritable ? /* html */`
               <div class="hrv-dial-controls">
                 ${showSwitch ? /* html */`
-                  <div class="hrv-mode-switch" data-pos="0" data-count="${modeCount}"
-                    role="radiogroup" aria-label="Dial mode" tabindex="0">
+                  <div class="hrv-mode-switch" part="dial-mode" data-pos="0" data-count="${modeCount}"
+                    role="slider" aria-label="Dial mode" tabindex="0"
+                    aria-valuemin="1" aria-valuemax="${modeCount}" aria-valuenow="1"
+                    aria-valuetext="${DIAL_MODES[this.#modeMap[0]]}">
                     <div class="hrv-mode-switch-thumb"></div>
                     ${"<span class=\"hrv-mode-dot\"></span>".repeat(modeCount)}
                   </div>
@@ -769,6 +771,8 @@
       pos = Math.min(pos, this.#modeMap.length - 1);
       this.#mode = this.#modeMap[pos];
       this.#modeSwitch.setAttribute("data-pos", String(pos));
+      this.#modeSwitch.setAttribute("aria-valuenow", String(pos + 1));
+      this.#modeSwitch.setAttribute("aria-valuetext", DIAL_MODES[this.#mode]);
       this.#applyModeVisuals();
       this.#switchDialImmediate();
     }
@@ -790,6 +794,8 @@
       e.preventDefault();
       this.#mode = this.#modeMap[next];
       this.#modeSwitch.setAttribute("data-pos", String(next));
+      this.#modeSwitch.setAttribute("aria-valuenow", String(next + 1));
+      this.#modeSwitch.setAttribute("aria-valuetext", DIAL_MODES[this.#mode]);
       this.#applyModeVisuals();
       this.#switchDialImmediate();
     }

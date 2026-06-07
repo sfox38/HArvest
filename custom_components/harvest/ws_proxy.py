@@ -31,6 +31,7 @@ from .const import (
     CONF_AUTH_TIMEOUT,
     CONF_KILL_SWITCH,
     CONF_KEEPALIVE_INTERVAL,
+    CONF_MAX_ENTITIES_HARD_CAP,
     CONF_MAX_INBOUND_BYTES,
     DEFAULTS,
     DOMAIN,
@@ -43,6 +44,8 @@ from .const import (
     ERR_SESSION_EXPIRED,
     ERR_SESSION_LIMIT_REACHED,
     ERR_TOKEN_INACTIVE,
+    ERR_TOKEN_EXPIRED,
+    ERR_TOKEN_REVOKED,
     WS_PATH,
 )
 from .entity_compatibility import get_custom_domains, validate_action
@@ -107,13 +110,21 @@ def _safe_json_value(val: object) -> object:
 _SESSION_EXPIRING_WARN_BEFORE = 600  # 10 minutes
 
 _background_tasks: set[asyncio.Task] = set()  # prevent GC of fire-and-forget tasks
+_MAX_BACKGROUND_SEND_TASKS = 1000
 
 def _fire(coro: object) -> None:
     """Schedule a coroutine as a fire-and-forget task, logging any exception.
 
-    No backpressure: a slow/dead client accumulates tasks until the WS
-    closes. Bounded in practice by push rate limiting and keepalive timeout.
+    The global task cap bounds memory use when clients are slow or dead.
+    New state updates are dropped after the cap is reached.
     """
+    if len(_background_tasks) >= _MAX_BACKGROUND_SEND_TASKS:
+        close = getattr(coro, "close", None)
+        if callable(close):
+            close()
+        _LOGGER.warning("Dropping HArvest outbound update because the send queue is full.")
+        return
+
     async def _wrap(c: object) -> None:
         try:
             await c  # type: ignore[misc]
@@ -259,7 +270,8 @@ class HarvestWsView(HomeAssistantView):
         # Do NOT set receive_timeout here; it would close the connection when
         # no application-level message arrives within the timeout, even though
         # the client is still alive (pong frames do not count as messages).
-        ws = WebSocketResponse(heartbeat=keepalive)
+        max_bytes = self._config.get(CONF_MAX_INBOUND_BYTES, DEFAULTS[CONF_MAX_INBOUND_BYTES])
+        ws = WebSocketResponse(heartbeat=keepalive, max_msg_size=max_bytes)
         await ws.prepare(request)
         await self._handle_connection(ws, request)
         return ws
@@ -292,7 +304,7 @@ class HarvestWsView(HomeAssistantView):
             return
 
         # --- Step 1: Wait for auth message ---
-        # Auth message size is bounded by aiohttp's default max_msg_size (4 MB).
+        # Auth message size is bounded by WebSocketResponse.max_msg_size.
         try:
             raw = await asyncio.wait_for(ws.receive(), timeout=auth_timeout)
         except asyncio.TimeoutError:
@@ -315,6 +327,9 @@ class HarvestWsView(HomeAssistantView):
             return
 
         token_id = msg.get("token_id", "")
+        if not isinstance(token_id, str):
+            await ws.close()
+            return
         raw_entity_refs = msg.get("entity_ids", [])
         if not isinstance(raw_entity_refs, list):
             await ws.close()
@@ -322,10 +337,31 @@ class HarvestWsView(HomeAssistantView):
         if not all(isinstance(r, str) for r in raw_entity_refs):
             await ws.close()
             return
+        max_refs = self._config.get(
+            CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
+        )
+        if len(raw_entity_refs) > max_refs:
+            await ws.close()
+            return
         entity_refs: list[str] = raw_entity_refs
         # Origin is spoofable by non-browser clients; see security.md scenario 3.
         origin: str = request.headers.get("Origin", "")
-        page_path: str | None = msg.get("page_path")
+        page_path = msg.get("page_path")
+        if page_path is not None and not isinstance(page_path, str):
+            await ws.close()
+            return
+        for key, expected_type in (
+            ("timestamp", int),
+            ("nonce", str),
+            ("signature", str),
+        ):
+            value = msg.get(key)
+            if value is not None and (
+                not isinstance(value, expected_type)
+                or (expected_type is int and isinstance(value, bool))
+            ):
+                await ws.close()
+                return
         msg_id = msg.get("msg_id")
 
         # --- Step 2a: Protocol-compatibility hard check ---
@@ -826,8 +862,8 @@ class HarvestWsView(HomeAssistantView):
         Sends ack. Records command in activity_store.
         """
         msg_id = msg.get("msg_id")
-        entity_ref: str = msg.get("entity_id", "")
-        action: str = msg.get("action", "")
+        entity_ref = msg.get("entity_id", "")
+        action = msg.get("action", "")
         raw_data = msg.get("data")
         data: dict = raw_data if isinstance(raw_data, dict) else {}
 
@@ -839,6 +875,10 @@ class HarvestWsView(HomeAssistantView):
                 "error_message": message,
                 "msg_id": msg_id,
             })
+
+        if not isinstance(entity_ref, str) or not isinstance(action, str):
+            await ack_error("ERR_BAD_REQUEST", "entity_id and action must be strings.")
+            return
 
         # Resolve entity_ref (alias or real ID) to EntityAccess.
         ea = self._resolve_entity_ref(entity_ref, token)
@@ -948,7 +988,14 @@ class HarvestWsView(HomeAssistantView):
         """
         msg_id = msg.get("msg_id")
         raw_refs = msg.get("entity_ids", [])
-        if not isinstance(raw_refs, list):
+        max_refs = self._config.get(
+            CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
+        )
+        if (
+            not isinstance(raw_refs, list)
+            or len(raw_refs) > max_refs
+            or not all(isinstance(ref, str) for ref in raw_refs)
+        ):
             await ws.send_json({"type": "error", "code": "ERR_BAD_REQUEST", "msg_id": msg_id})
             return
         refs: list[str] = raw_refs
@@ -999,7 +1046,17 @@ class HarvestWsView(HomeAssistantView):
         Unregisters state_changed listeners if no other session needs them.
         No response is sent.
         """
-        refs: list[str] = msg.get("entity_ids", [])
+        raw_refs = msg.get("entity_ids", [])
+        max_refs = self._config.get(
+            CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
+        )
+        if (
+            not isinstance(raw_refs, list)
+            or len(raw_refs) > max_refs
+            or not all(isinstance(ref, str) for ref in raw_refs)
+        ):
+            return
+        refs: list[str] = raw_refs
         real_ids: list[str] = []
 
         for ref in refs:
@@ -1052,6 +1109,18 @@ class HarvestWsView(HomeAssistantView):
         """
         msg_id = msg.get("msg_id")
 
+        live_token = self._token_manager.get(session.token_id)
+        inactive_code = self._live_token_error(live_token)
+        if inactive_code is not None:
+            await ws.send_json({
+                "type": "auth_failed",
+                "code": inactive_code,
+                "msg_id": msg_id,
+            })
+            await ws.close()
+            return
+        token = live_token
+
         # Check max_renewals before calling renew() (session_manager doesn't have token context).
         if (
             token.session.max_renewals is not None
@@ -1078,6 +1147,7 @@ class HarvestWsView(HomeAssistantView):
             })
             await ws.close()
             return
+        self._rate_limiter.rekey_session(old_session_id, session.session_id)
 
         # Send new auth_ok with new session_id.
         # entity_ids echoes the outgoing_ids values (what the client originally sent).
@@ -1133,6 +1203,14 @@ class HarvestWsView(HomeAssistantView):
         """
         msg_id = msg.get("msg_id")
         entity_ref = msg.get("entity_id", "")
+        if not isinstance(entity_ref, str):
+            await ws.send_json({
+                "type": "error",
+                "code": "ERR_BAD_REQUEST",
+                "message": "entity_id must be a string.",
+                "msg_id": msg_id,
+            })
+            return
 
         real_id = self._ref_to_real_id(entity_ref, session)
         if real_id is None:
@@ -1585,8 +1663,9 @@ class HarvestWsView(HomeAssistantView):
                     break
                 if session is not None:
                     live_token = self._token_manager.get(session.token_id)
-                    if live_token is not None and live_token.paused:
-                        await ws.send_json({"type": "auth_failed", "code": ERR_TOKEN_INACTIVE, "msg_id": None})
+                    inactive_code = self._live_token_error(live_token)
+                    if inactive_code is not None:
+                        await ws.send_json({"type": "auth_failed", "code": inactive_code, "msg_id": None})
                         await ws.close()
                         break
                 await ws.send_json({"type": "keepalive", "msg_id": None})
@@ -1623,6 +1702,19 @@ class HarvestWsView(HomeAssistantView):
         for ea in token.entities:
             if ea.entity_id == ref:
                 return ea
+        return None
+
+    def _live_token_error(self, token: Token | None) -> str | None:
+        """Return the auth error for a token that can no longer keep a session."""
+        if token is None or token.status == "revoked":
+            return ERR_TOKEN_REVOKED
+        if token.status == "expired":
+            return ERR_TOKEN_EXPIRED
+        now = datetime.now(tz=timezone.utc)
+        if token.expires is not None and token.expires <= now:
+            return ERR_TOKEN_EXPIRED
+        if token.paused or not self._token_manager.is_schedule_active(token):
+            return ERR_TOKEN_INACTIVE
         return None
 
     def _ref_to_real_id(self, ref: str, session: Session) -> str | None:

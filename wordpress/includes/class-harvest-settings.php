@@ -255,15 +255,8 @@ class Harvest_Settings {
             ] );
         }
 
-        // Probe with HEAD. Short timeout so a hung remote does not lock
-        // up the admin page. We use wp_remote_head (NOT wp_safe_remote_head)
-        // because the "safe" variant blocks private IP ranges (192.168.x,
-        // 10.x, etc.) as SSRF protection - which is overkill for an
-        // admin-only diagnostic tool, and would always return red X for
-        // anyone testing against a LAN-hosted Home Assistant. The auth
-        // gate above (manage_options + nonce) already restricts access
-        // to admins, so the SSRF risk is no greater than the admin
-        // entering the URL into a browser tab themselves.
+        // Probe with WordPress's SSRF-protected HTTP API. Short timeout so a
+        // hung remote does not lock up the admin page.
         $args = [
             'timeout'     => 4,
             'redirection' => 3,
@@ -272,7 +265,7 @@ class Harvest_Settings {
                 'User-Agent' => 'HArvest/' . HARVEST_VERSION . ' (URL reachability probe)',
             ],
         ];
-        $response = wp_remote_head( $raw, $args );
+        $response = wp_safe_remote_head( $raw, $args );
 
         // HEAD-fallback: if HEAD failed or returned a non-2xx, retry with
         // a small ranged GET. Some static-file servers (notably some
@@ -283,7 +276,7 @@ class Harvest_Settings {
         if ( $status === 0 || $status >= 400 ) {
             $args_get                       = $args;
             $args_get['headers']['Range']   = 'bytes=0-0';
-            $response_get                   = wp_remote_get( $raw, $args_get );
+            $response_get                   = wp_safe_remote_get( $raw, $args_get );
             $status_get                     = is_wp_error( $response_get ) ? 0 : (int) wp_remote_retrieve_response_code( $response_get );
             // Only swap in the GET result if it is actually better; do
             // not let a broken GET overwrite a useful HEAD status code.
@@ -617,7 +610,7 @@ class Harvest_Settings {
                             </script>
                             <p class="description">
                                 <?php esc_html_e(
-                                    'HA-served loads the widget bundle directly from your Home Assistant instance, so it always matches the running integration version. Custom URL is for self-hosted or staging widget builds. The HA-served option requires the Home Assistant URL above to be set; if it is empty, no widget script is enqueued at all.',
+                                    'HA-served loads the widget bundle directly from your Home Assistant instance, so it always matches the running integration version. Custom URL is for fully trusted self-hosted or staging builds: that JavaScript executes with the page privileges of every visitor. The HA-served option requires the Home Assistant URL above to be set; if it is empty, no widget script is enqueued at all.',
                                     'harvest'
                                 ); ?>
                             </p>
@@ -632,7 +625,7 @@ class Harvest_Settings {
             <hr>
             <h2><?php esc_html_e( 'Shortcode usage', 'harvest' ); ?></h2>
             <p><?php esc_html_e(
-                'Paste the shortcode below into any post or page using the Classic editor:',
+                'Paste the shortcode below into any post, page, or editor that processes WordPress shortcodes:',
                 'harvest'
             ); ?></p>
             <pre style="background:#f0f0f0;padding:12px;border-radius:4px;"

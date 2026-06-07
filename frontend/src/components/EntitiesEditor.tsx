@@ -261,6 +261,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const [attrLoading, setAttrLoading] = useState<Set<string>>(new Set());
   const [entityDetail, setEntityDetail] = useState<Record<string, HAEntityDetail>>({});
   const configPanelRef = useRef<HTMLDivElement>(null);
+  const agreeDialogRef = useRef<HTMLDivElement>(null);
+  const previousDialogFocus = useRef<HTMLElement | null>(null);
   const [localEntities, setLocalEntities] = useState<Token["entities"] | null>(null);
   // Serialize patchEntities so two rapid edits do not produce two concurrent
   // PATCH requests with conflicting full-array payloads. inflightRef gates
@@ -643,6 +645,42 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
     finally { setSaving(false); }
   };
 
+  const closeAgree = () => {
+    setShowAgree(false);
+    setAgreeText("");
+    setPendingThemeId(null);
+  };
+
+  useEffect(() => {
+    if (!showAgree || !agreeDialogRef.current) return;
+    const dialog = agreeDialogRef.current;
+    const selector = 'button:not([disabled]), input:not([disabled])';
+    previousDialogFocus.current = document.activeElement as HTMLElement | null;
+    const trap = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeAgree();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(selector));
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        last.focus();
+        event.preventDefault();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        first.focus();
+        event.preventDefault();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      previousDialogFocus.current?.focus();
+    };
+  }, [showAgree]);
+
   const changeTheme = (themeId: string) => {
     const target = themes.find(t => t.theme_id === themeId);
     if (target?.has_renderer && !renderersAgreed) {
@@ -733,7 +771,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             const isSelected = selectedEntityId === e.entity_id;
             const friendly = getEntityCache().find(c => c.entity_id === e.entity_id)?.friendly_name;
             return (
-              <button
+              <div
                 key={e.entity_id}
                 className={`entity-list-row${isSelected ? " selected" : ""}${token.entities_block ? " entity-list-row--child" : ""}`}
                 onClick={() => {
@@ -745,8 +783,14 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 }}
                 aria-selected={isSelected}
                 role="option"
+                tabIndex={0}
+                onKeyDown={ev => {
+                  if (ev.key === "Enter" || ev.key === " ") {
+                    ev.preventDefault();
+                    setSelectedEntityId(isSelected ? null : e.entity_id);
+                  }
+                }}
                 data-entity-id={e.entity_id}
-                type="button"
               >
                 <div className="widget-thumb" style={{ width: 24, height: 24 }}>
                   <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={12} />
@@ -757,18 +801,16 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 </div>
                 {e.alias && <span className="entity-list-alias mono">{e.alias}</span>}
                 {canEdit && (
-                  <span
-                    role="button"
-                    tabIndex={0}
+                  <button
+                    type="button"
                     onClick={(ev) => { ev.stopPropagation(); setConfirmRemove(e.entity_id); }}
-                    onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.stopPropagation(); setConfirmRemove(e.entity_id); } }}
                     className="entity-list-delete"
                     aria-label={`Remove ${e.entity_id}`}
                   >
                     <Icon name="close" size={10} />
-                  </span>
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
           {grouped.length === 0 && (!token.entities_block || blockExpanded) && (
@@ -1293,7 +1335,9 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                         type="button"
                         className="badge-color-swatch"
                         style={{ background: hex }}
-                        aria-pressed={selectedEntity.display_hints?.badge_icon_color === name}
+                        role="radio"
+                        aria-checked={selectedEntity.display_hints?.badge_icon_color === name}
+                        aria-label={name.charAt(0).toUpperCase() + name.slice(1)}
                         onClick={() => updateDisplayHint(selectedEntity.entity_id, "badge_icon_color", name)}
                         disabled={!canEdit}
                         title={name.charAt(0).toUpperCase() + name.slice(1)}
@@ -1302,7 +1346,9 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                     <button
                       type="button"
                       className="badge-color-swatch-auto"
-                      aria-pressed={!selectedEntity.display_hints?.badge_icon_color || selectedEntity.display_hints?.badge_icon_color === "auto"}
+                      role="radio"
+                      aria-checked={!selectedEntity.display_hints?.badge_icon_color || selectedEntity.display_hints?.badge_icon_color === "auto"}
+                      aria-label="Auto"
                       onClick={() => updateDisplayHint(selectedEntity.entity_id, "badge_icon_color", null)}
                       disabled={!canEdit}
                       title="Auto"
@@ -1792,13 +1838,14 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
       )}
 
       {showAgree && (
-        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="td-renderer-agree-title" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }}>
-          <div className="dialog" onClick={e => e.stopPropagation()}>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="td-renderer-agree-title" onClick={closeAgree}>
+          <div ref={agreeDialogRef} className="dialog" onClick={e => e.stopPropagation()}>
             <h3 id="td-renderer-agree-title" className="dialog-title">Renderer Warning</h3>
             <div className="dialog-body">
               <p>
-                This theme includes custom renderers that execute JavaScript from your HA instance
-                inside the widget on the embedding page. Only enable themes with renderers you trust.
+                This theme includes custom renderer JavaScript that executes with the embedding
+                page's privileges. It can access the page DOM, browser storage, non-HttpOnly
+                cookies, and widget credentials. Only enable renderers you fully trust.
               </p>
               <p style={{ marginTop: 12 }}>
                 Type <strong>AGREE</strong> below to confirm.
@@ -1814,7 +1861,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               />
             </div>
             <div className="dialog-actions">
-              <button className="btn btn-ghost" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingThemeId(null); }} type="button">
+              <button className="btn btn-ghost" onClick={closeAgree} type="button">
                 Cancel
               </button>
               <button className="btn btn-primary" disabled={agreeText !== "AGREE"} onClick={confirmAgree} type="button">

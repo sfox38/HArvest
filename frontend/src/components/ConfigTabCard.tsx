@@ -6,7 +6,7 @@
  * Read-only tokens see a reduced tab set (Entities + Security + Widget Info).
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Token } from "../types";
 import { Card } from "./Shared";
 import { CodeSection } from "./CodeSection";
@@ -36,6 +36,7 @@ interface ConfigTabCardProps {
 export function ConfigTabCard({ token, tokenId, readonly, saving, setSaving, setToken, setError, hmacSecret, setHmacSecret, hmacSecretAcked, setHmacSecretAcked, setSavedMsg }: ConfigTabCardProps) {
   const primaryCount = token.entities.filter(e => !e.companion_of).length;
   const [activeTab, setActiveTab] = useState<ConfigTab>(() => primaryCount === 0 ? "entities" : "entities");
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const visibleTabs: { id: ConfigTab; label: string }[] = readonly
     ? [
@@ -53,16 +54,45 @@ export function ConfigTabCard({ token, tokenId, readonly, saving, setSaving, set
 
   const effectiveTab = visibleTabs.some(t => t.id === activeTab) ? activeTab : "entities";
   const wrap = (t: Token) => setToken({ ...t, created_by_name: token.created_by_name });
+  const selectTab = (tab: ConfigTab) => {
+    setActiveTab(tab);
+    tabRefs.current[tab]?.focus();
+  };
+  const handleTabKeyDown = (event: React.KeyboardEvent, index: number) => {
+    let next = index;
+    if (event.key === "ArrowRight") next = (index + 1) % visibleTabs.length;
+    else if (event.key === "ArrowLeft") next = (index - 1 + visibleTabs.length) % visibleTabs.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = visibleTabs.length - 1;
+    else return;
+    event.preventDefault();
+    selectTab(visibleTabs[next].id);
+  };
 
   return (
     <div className="card">
-      <div className="config-tabs-nav">
-        {visibleTabs.map(t => (
-          <button key={t.id} aria-selected={effectiveTab === t.id} onClick={() => setActiveTab(t.id)}>
+      <div className="config-tabs-nav" role="tablist" aria-label="Widget configuration">
+        {visibleTabs.map((t, index) => (
+          <button
+            key={t.id}
+            ref={node => { tabRefs.current[t.id] = node; }}
+            id={`config-tab-${t.id}`}
+            role="tab"
+            aria-selected={effectiveTab === t.id}
+            aria-controls={`config-panel-${t.id}`}
+            tabIndex={effectiveTab === t.id ? 0 : -1}
+            onClick={() => setActiveTab(t.id)}
+            onKeyDown={event => handleTabKeyDown(event, index)}
+          >
             {t.label}
           </button>
         ))}
       </div>
+      <div
+        id={`config-panel-${effectiveTab}`}
+        role="tabpanel"
+        aria-labelledby={`config-tab-${effectiveTab}`}
+      >
       {effectiveTab === "entities" && (
         <EntitiesEditor bare token={token} readonly={readonly} saving={saving} setSaving={setSaving} setToken={wrap} setError={setError} setSavedMsg={setSavedMsg} />
       )}
@@ -93,6 +123,7 @@ export function ConfigTabCard({ token, tokenId, readonly, saving, setSaving, set
           <ActivityPanel tokenId={tokenId} />
         </div>
       )}
+      </div>
     </div>
   );
 }

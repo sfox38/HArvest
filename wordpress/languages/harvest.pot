@@ -2,7 +2,7 @@
 # This file is distributed under the same license as the HArvest plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: HArvest 1.0.0\n"
+"Project-Id-Version: HArvest 0.9.4\n"
 "Report-Msgid-Bugs-To: https://github.com/sfox38/harvest/issues\n"
 "POT-Creation-Date: 2026-05-02 00:00+0000\n"
 "MIME-Version: 1.0\n"
@@ -52,7 +52,7 @@ msgid "Shortcode usage"
 msgstr ""
 
 #: includes/class-harvest-settings.php
-msgid "Paste the shortcode below into any post or page using the Classic editor:"
+msgid "Paste the shortcode below into any post, page, or editor that processes WordPress shortcodes:"
 msgstr ""
 
 #: includes/class-harvest-settings.php
