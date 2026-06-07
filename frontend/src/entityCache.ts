@@ -39,6 +39,14 @@ export function useEntityCache(): HAEntity[] {
   return _cache;
 }
 
+export function refreshEntityCache(): Promise<void> {
+  // Force a full re-fetch regardless of current cache state.
+  // Call this when server-side filtering changes (e.g. sensitive domain toggle).
+  _cache = [];
+  _inflight = null;
+  return loadEntityCache();
+}
+
 export function loadEntityCache(): Promise<void> {
   // Share the in-flight Promise: concurrent callers all resolve when the
   // single fetch completes, avoiding the "second caller sees empty cache"

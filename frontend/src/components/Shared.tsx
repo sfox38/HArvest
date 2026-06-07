@@ -10,7 +10,7 @@ import { useState, useCallback, useEffect, useRef, useMemo, useId } from "react"
 import type { TokenStatus, ActivityEvent, HAEntity, ThemeDefinition } from "../types";
 import { Icon } from "./Icon";
 import { api, isOffline } from "../api";
-import { getEntityCache, loadEntityCache } from "../entityCache";
+import { useEntityCache, loadEntityCache } from "../entityCache";
 
 // ---------------------------------------------------------------------------
 // StatusBadge
@@ -808,13 +808,12 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
   const [highlighted, setHighlighted] = useState(0);
   const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [cacheLen, setCacheLen] = useState(() => getEntityCache().length);
+  const entityList = useEntityCache();
   const listboxId = useId();
   const prevDisabled = useRef(false);
 
   useEffect(() => {
-    if (getEntityCache().length > 0) { setCacheLen(getEntityCache().length); return; }
-    loadEntityCache().then(() => setCacheLen(getEntityCache().length));
+    if (entityList.length === 0) loadEntityCache();
   }, []);
 
   useEffect(() => {
@@ -824,7 +823,7 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
   const excluded = useMemo(() => new Set(excludeIds ?? []), [excludeIds]);
 
   const matches = useMemo<HAEntity[]>(() => {
-    if (!value.trim() || cacheLen === 0) return [];
+    if (!value.trim() || entityList.length === 0) return [];
     const query = value.toLowerCase().trim();
     const words = query.split(/\s+/).filter(Boolean);
 
@@ -852,7 +851,7 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
       return s;
     };
 
-    return getEntityCache()
+    return entityList
       .filter(e => {
         if (excluded.has(e.entity_id)) return false;
         if (filterDomains && !filterDomains.has(e.domain)) return false;
@@ -864,7 +863,7 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
       .sort((a, b) => b.s - a.s)
       .slice(0, 8)
       .map(({ e }) => e);
-  }, [value, filterDomains, excludeDomains, excluded, cacheLen]);
+  }, [value, filterDomains, excludeDomains, excluded, entityList]);
 
   useEffect(() => { setHighlighted(0); }, [matches.length]);
 

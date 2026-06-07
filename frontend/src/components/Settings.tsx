@@ -15,6 +15,7 @@ import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { UrlReachabilityIndicator } from "./UrlReachabilityIndicator";
 import buildVersion from "../buildVersion.json";
+import { refreshEntityCache } from "../entityCache";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1002,6 +1003,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             value={!!(config.sensitive_domains ?? {})[key]}
             onChange={async (v) => {
               await patch({ sensitive_domains: { ...(config.sensitive_domains ?? {}), [key]: v } });
+              refreshEntityCache();
             }}
           />
         ))}
