@@ -84,6 +84,8 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestEntityDefinitionView,
         HarvestScriptFieldsView,
         HarvestPanelJsView,
+        HarvestLovelaceDashboardsView,
+        HarvestLovelaceConfigView,
         HarvestWarningsView,
         HarvestWarningsDismissView,
         HarvestCheckUrlView,
@@ -2646,8 +2648,9 @@ class HarvestCheckUrlView(_HarvestView):
                 "status": 0,
                 "reason": "relative",
                 "message": (
-                    "Relative path. Will be resolved against the embed page at "
-                    "runtime; cannot verify from here."
+                    "Relative path - not a full URL. It will work "
+                    "relative to wherever your page is hosted, but we can't "
+                    "check it from here."
                 ),
             })
 
@@ -2666,15 +2669,26 @@ class HarvestCheckUrlView(_HarvestView):
                     headers={"User-Agent": f"HArvest/{PLATFORM_VERSION} (URL reachability probe)"},
                 ) as response:
                     status = response.status
-        except (asyncio.TimeoutError, _aiohttp.ClientError) as exc:
+        except asyncio.TimeoutError:
             return self.json({
                 "ok": False,
                 "status": 0,
                 "reason": "unreachable",
                 "message": (
-                    f"Could not reach the URL from Home Assistant ({exc.__class__.__name__}). "
-                    "Visitors may still be able to load it; save anyway if you know the "
-                    "URL is correct."
+                    "The URL took too long to respond when checked from Home "
+                    "Assistant. Visitors may still be able to load it; save "
+                    "anyway if you know the URL is correct."
+                ),
+            })
+        except _aiohttp.ClientError:
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "unreachable",
+                "message": (
+                    "Could not reach this URL from Home Assistant. Visitors "
+                    "may still be able to load it; save anyway if you know "
+                    "the URL is correct."
                 ),
             })
 
@@ -2687,8 +2701,8 @@ class HarvestCheckUrlView(_HarvestView):
                 f"URL is reachable (HTTP {status})."
                 if ok
                 else (
-                    f"Home Assistant got HTTP {status} when fetching this URL. "
-                    "Visitors may still see different behaviour."
+                    f"This URL returned an error (HTTP {status}) when checked "
+                    "from Home Assistant. Visitors may still be able to load it."
                 )
             ),
         })
@@ -2897,6 +2911,60 @@ class HarvestPreviewTokenView(_HarvestView):
             "expires": token.expires.isoformat() if token.expires else None,
             "status": "preview",
         }, status_code=201)
+
+
+class HarvestLovelaceDashboardsView(_HarvestView):
+    """GET /api/harvest/lovelace/dashboards - list HA Lovelace dashboards."""
+
+    url = "/api/harvest/lovelace/dashboards"
+    name = "api:harvest:lovelace:dashboards"
+
+    async def get(self, request: web.Request) -> web.Response:
+        from homeassistant.components.lovelace import LOVELACE_DATA
+
+        lovelace_data = self._hass.data.get(LOVELACE_DATA)
+        if lovelace_data is None:
+            return self.json([])
+
+        result = []
+        for url_path, dashboard in lovelace_data.dashboards.items():
+            try:
+                info = await dashboard.async_get_info()
+            except Exception:
+                info = {}
+            result.append({
+                "url_path": url_path,
+                "title": info.get("title") or url_path or "Default dashboard",
+                "mode": info.get("mode", "unknown"),
+            })
+        return self.json(result)
+
+
+class HarvestLovelaceConfigView(_HarvestView):
+    """GET /api/harvest/lovelace/config - fetch raw Lovelace dashboard config."""
+
+    url = "/api/harvest/lovelace/config"
+    name = "api:harvest:lovelace:config"
+
+    async def get(self, request: web.Request) -> web.Response:
+        from homeassistant.components.lovelace import LOVELACE_DATA
+
+        lovelace_data = self._hass.data.get(LOVELACE_DATA)
+        if lovelace_data is None:
+            raise web.HTTPNotFound(text="Lovelace data not available")
+
+        url_path = request.query.get("url_path")
+        dashboard = lovelace_data.dashboards.get(url_path)
+        if dashboard is None:
+            raise web.HTTPNotFound(text=f"Dashboard not found: {url_path}")
+
+        try:
+            config = await dashboard.async_load(force=False)
+        except Exception as exc:
+            _LOGGER.warning("Failed to load Lovelace config for %s: %s", url_path, exc)
+            raise web.HTTPInternalServerError(text="Failed to load dashboard config")
+
+        return self.json(config)
 
 
 class HarvestPanelJsView(_HarvestView):

@@ -678,7 +678,7 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
           {step === 3 && <Step3Generate progress={state.generateProgress} />}
           {isDone && (
             <Step4Done
-              html={state.generatedHtml!}
+              html={state.generatedHtml}
               tokenCount={state.createdTokenIds.length}
               entityCount={entityCount}
               viewCount={selectedViews.length}

@@ -9,10 +9,8 @@ from __future__ import annotations
 import argparse
 import base64
 import getpass
-import hashlib
 import json
 import os
-import re
 import socket
 import ssl
 import struct
@@ -29,11 +27,10 @@ from collections import Counter
 # ---------------------------------------------------------------------------
 
 TIER3_DOMAINS = {
-    "alarm_control_panel", "lock", "person", "device_tracker",
-    "camera", "script", "automation", "scene", "update", "button",
+    "alarm_control_panel", "device_tracker", "camera", "scene", "update",
 }
 
-READ_ONLY_DOMAINS = {"sensor", "binary_sensor", "weather"}
+READ_ONLY_DOMAINS = {"sensor", "binary_sensor", "weather", "person"}
 
 MAX_ENTITIES_PER_TOKEN = 50
 
@@ -368,18 +365,6 @@ def fetch_themes(url: str, llat: str) -> list[dict]:
     return []
 
 
-def fetch_renderers(url: str, llat: str) -> list[dict]:
-    try:
-        status, body = _request("GET", f"{url}/api/harvest/renderers", llat)
-        if status == 200:
-            data = json.loads(body)
-            if data.get("agreed"):
-                return data.get("renderers", [])
-    except Exception:
-        pass
-    return []
-
-
 TOKEN_LABEL_PREFIX = "Converted: "
 
 
@@ -499,13 +484,12 @@ def _extract_all_entity_ids(card: dict) -> list[str]:
                     eid = _extract_entity_id(item)
                     if eid:
                         found.append(eid)
-            elif isinstance(val, (dict, list)):
-                if isinstance(val, dict):
-                    found.extend(_extract_all_entity_ids(val))
-                elif isinstance(val, list):
-                    for item in val:
-                        if isinstance(item, dict):
-                            found.extend(_extract_all_entity_ids(item))
+            elif isinstance(val, dict):
+                found.extend(_extract_all_entity_ids(val))
+            elif isinstance(val, list):
+                for item in val:
+                    if isinstance(item, dict):
+                        found.extend(_extract_all_entity_ids(item))
     return found
 
 
@@ -1337,7 +1321,6 @@ def main() -> None:
     # Step 6: Theme/Renderer
     print("\nStep 6: Theme / Renderer Override")
     themes = fetch_themes(ha_url, llat)
-    renderers = fetch_renderers(ha_url, llat)
 
     theme_url = ""
     if themes:
@@ -1452,7 +1435,6 @@ def main() -> None:
     # Step 11: Summary
     print("\n=== Summary ===")
     print(f"  Tabs converted: {len(selected_views)}")
-    total_embedded = sum(len(e) for e in token_map.values() for _ in [None])
     entity_count = sum(len(s.entities) for s in token_specs)
     print(f"  Entities embedded: {entity_count}")
     print(f"  Tokens created: {len(token_specs)}")

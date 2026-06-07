@@ -16,6 +16,7 @@ import { Sessions }    from "./components/Sessions";
 import { Themes }      from "./components/Themes";
 import { Settings }    from "./components/Settings";
 import { Wizard }      from "./components/Wizard";
+import { ConverterWizard } from "./components/ConverterWizard";
 import { Icon }        from "./components/Icon";
 
 // ---------------------------------------------------------------------------
@@ -57,6 +58,7 @@ function readStoredTheme(): AppTheme {
 export function App() {
   const [screen, setScreen]         = useState<Screen>("dashboard");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [converterOpen, setConverterOpen] = useState(false);
   const [initialTokenId, setInitialTokenId] = useState<string | null>(null);
   // Increment to reset (remount) the TokenList when Widgets nav is clicked
   // while already viewing a token detail.
@@ -94,6 +96,16 @@ export function App() {
     setWizardOpen(false);
     if (newTokenId) {
       setInitialTokenId(newTokenId);
+      setTokenListKey(k => k + 1);
+      setScreen("widgets");
+    }
+  }, []);
+
+  const openConverter = useCallback(() => setConverterOpen(true), []);
+
+  const closeConverter = useCallback((createdIds?: string[]) => {
+    setConverterOpen(false);
+    if (createdIds && createdIds.length > 0) {
       setTokenListKey(k => k + 1);
       setScreen("widgets");
     }
@@ -205,6 +217,7 @@ export function App() {
             <TokenList
               key={tokenListKey}
               onOpenWizard={openWizard}
+              onOpenConverter={openConverter}
               initialTokenId={initialTokenId}
               onInitialTokenConsumed={() => setInitialTokenId(null)}
             />
@@ -230,6 +243,11 @@ export function App() {
       {/* Wizard side-sheet overlay */}
       {wizardOpen && (
         <Wizard onClose={closeWizard} />
+      )}
+
+      {/* Converter wizard overlay */}
+      {converterOpen && (
+        <ConverterWizard onClose={closeConverter} />
       )}
     </div>
   );

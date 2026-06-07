@@ -6,6 +6,8 @@ Standalone utilities for HArvest users and developers.
 
 Converts an existing Home Assistant Lovelace dashboard into an HTML page with embedded HArvest widgets. Connects to your HA instance via WebSocket, pulls the dashboard config, creates the necessary tokens, and outputs a ready-to-serve HTML file.
 
+**Note:** The HArvest panel now includes a built-in Converter Wizard (Widgets screen, "Convert" button) that does the same thing with a graphical interface - no terminal, Python, or access token needed. This CLI tool remains useful for scripting, automation, or environments where the panel is not available.
+
 ### Requirements
 
 - Python 3.10+

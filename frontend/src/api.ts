@@ -230,12 +230,12 @@ async function _doReq<T>(
   // refresh path itself throws.
   if (res.status === 401) {
     if (retried || !_hass?.auth) {
-      throw new Error("Panel session expired. Reload the page to re-authenticate.");
+      throw new Error("Your session has expired. Reload the page to log in again.");
     }
     try {
       await _coordinatedRefresh();
     } catch {
-      throw new Error("Panel session expired. Reload the page to re-authenticate.");
+      throw new Error("Your session has expired. Reload the page to log in again.");
     }
     return _doReq<T>(method, path, body, true, responseType);
   }
@@ -592,5 +592,15 @@ export const api = {
 
     availableDomains: (): Promise<import("./types").AvailableDomain[]> =>
       api.config.get().then(c => c.available_domains ?? []),
+  },
+
+  lovelace: {
+    dashboards: (): Promise<{ url_path: string | null; title: string; mode: string }[]> =>
+      _get("/lovelace/dashboards"),
+    config: (urlPath?: string | null): Promise<Record<string, unknown>> => {
+      const params: Record<string, string> = {};
+      if (urlPath != null) params.url_path = urlPath;
+      return _get("/lovelace/config", params);
+    },
   },
 };

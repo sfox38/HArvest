@@ -68,6 +68,7 @@
             <li><a href="#token-list">Widget list</a></li>
             <li><a href="#token-detail">Widget detail</a></li>
             <li><a href="#wizard">Widget wizard</a></li>
+            <li><a href="#converter">Dashboard converter</a></li>
             <li><a href="#themes">Themes</a></li>
             <li><a href="#settings">Settings</a></li>
             <li><a href="#activity">Activity log</a></li>
@@ -258,6 +259,31 @@
           <li><strong>Custom element</strong> - uses <code>&lt;hrv-card&gt;</code> and <code>&lt;hrv-group&gt;</code> custom HTML elements</li>
           <li><strong>Data attribute</strong> - uses plain <code>&lt;div class="hrv-mount"&gt;</code> elements with <code>data-</code> attributes, for environments where custom elements are blocked or inconvenient</li>
         </ul>
+
+        <h2 id="converter">Dashboard converter</h2>
+
+        <p>The dashboard converter lets you turn an existing HA Lovelace dashboard into a standalone HTML page with HArvest widgets. Open it from the <strong>Convert</strong> button in the Widget list toolbar.</p>
+
+        <h3>How it works</h3>
+        <ol>
+          <li><strong>Select a dashboard</strong> - pick from your installed Lovelace dashboards (default or custom).</li>
+          <li><strong>Configure</strong> - choose which views to include, set entity capabilities (Smart, Read, Read-write, or Badge), pick a theme, and optionally restrict the origin.</li>
+          <li><strong>Generate</strong> - the wizard creates HArvest widgets (one per view, automatically split if a view exceeds 50 entities) and renders the HTML.</li>
+          <li><strong>Download</strong> - save the generated HTML file. Upload it to your web server, open it locally, or paste the code into your site.</li>
+        </ol>
+
+        <h3>What gets converted</h3>
+        <p>The converter handles most standard Lovelace card types: single-entity cards (light, thermostat, sensor, tile, etc.), multi-entity cards (entities, glance), stacks and grids, heading cards with inline badges, and view-level badges. Custom cards (Mushroom, Bubble, etc.) have their entities extracted and rendered as standard HArvest cards. Text-only cards appear as styled text blocks. Unsupported cards show a placeholder with contextual information.</p>
+
+        <h3>Limitations</h3>
+        <ul>
+          <li>Tier 3 entities (cameras, alarm panels, device trackers, scenes, updates) are excluded for security.</li>
+          <li>Visual styling is not copied from Lovelace; cards use the selected HArvest theme instead.</li>
+          <li>Companions, gestures, and tap actions are not auto-detected.</li>
+          <li>Conditional card logic is dropped (the inner card is included unconditionally).</li>
+        </ul>
+
+        <p>Created widgets are labeled with a "Converted:" prefix so they are easy to identify in the widget list. You can edit any converted widget's settings, entities, theme, or security options after conversion.</p>
 
         <h2 id="themes">Themes</h2>
 

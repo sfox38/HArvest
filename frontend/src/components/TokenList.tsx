@@ -18,6 +18,7 @@ import { TokenDetail } from "./TokenDetail";
 
 interface TokenListProps {
   onOpenWizard: () => void;
+  onOpenConverter: () => void;
   initialTokenId: string | null;
   onInitialTokenConsumed: () => void;
 }
@@ -135,7 +136,7 @@ function WidgetRow({ token: t, onSelect, highlighted }: {
 // TokenList
 // ---------------------------------------------------------------------------
 
-export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed }: TokenListProps) {
+export function TokenList({ onOpenWizard, onOpenConverter, initialTokenId, onInitialTokenConsumed }: TokenListProps) {
   const [tokens,       setTokens]       = useState<Token[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState<string | null>(null);
@@ -223,6 +224,10 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           title={viewMode === "grid" ? "List view" : "Grid view"}
         >
           <Icon name={viewMode === "grid" ? "list" : "grid"} size={15} />
+        </button>
+        <button className="btn btn-ghost" onClick={onOpenConverter} title="Convert a Lovelace dashboard to HArvest HTML">
+          <Icon name="download" size={14} />
+          <span className="btn-label-sm">Convert</span>
         </button>
         <button className="btn btn-primary" onClick={onOpenWizard}>
           <Icon name="plus" size={14} />

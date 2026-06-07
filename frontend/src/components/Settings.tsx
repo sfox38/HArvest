@@ -878,7 +878,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
               { value: "standard", label: "Standard" },
               { value: "enhanced", label: "Enhanced" },
             ]}
-            hint="Enhanced adds aria-live announcements for state changes."
+            hint="Enhanced adds accessibility announcements for state changes."
             onChange={v => patch({ default_a11y: v } as Partial<IntegrationConfig>)}
           />
           <SelectField
@@ -932,14 +932,14 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
               { value: "dim", label: "Dim card" },
               { value: "hide", label: "Hide card" },
             ]}
-            hint="Default behavior on auth failure or missing entity."
+            hint="Default behavior when a widget fails to connect or an entity is unavailable."
             onChange={v => patch({ default_on_error: v } as Partial<IntegrationConfig>)}
           />
           <TextField
             label="Default error message"
             value={config.default_error_text}
             placeholder="Auto (i18n)"
-            hint="Shown on auth failure or missing entity. Leave blank for the localized default."
+            hint="Shown when a widget fails to connect or an entity is unavailable. Leave blank for the localized default."
             validate={v => {
               if (v.length > 200) return "200 characters max.";
               if (v && /[<>"';\\]|--|\/\*|\*\/|\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|UNION|EXEC)\b/i.test(v)) return "Contains disallowed characters.";
@@ -959,10 +959,10 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             hint="Maximum number of HA entities a single widget token can expose."
             onChange={patchNum("max_entities_per_token")} />
           <NumberField label="Max auth attempts per widget / min" value={config.max_auth_attempts_per_token_per_minute} suffix="/ min" min={1}
-            hint="Rate limit on failed auth attempts per widget. Protects against brute-force token guessing."
+            hint="How many failed login attempts a single widget allows per minute before blocking further tries."
             onChange={patchNum("max_auth_attempts_per_token_per_minute")} />
           <NumberField label="Max auth attempts per IP / min" value={config.max_auth_attempts_per_ip_per_minute} suffix="/ min" min={1}
-            hint="Rate limit on failed auth attempts from a single IP address."
+            hint="How many failed login attempts a single visitor IP is allowed per minute."
             onChange={patchNum("max_auth_attempts_per_ip_per_minute")} />
           <TrustedProxiesField
             value={config.trusted_proxies ?? []}
@@ -987,7 +987,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
         <div className="divider" style={{ margin: "8px 0 12px" }} />
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Sensitive domains</div>
         <div className="settings-field-hint" style={{ marginBottom: 12 }}>
-          These Tier 1 domains are disabled by default. Enable each one to allow tokens to include entities from that domain. Changing this list closes active sessions so they reconnect under the new policy.
+          These domains are disabled by default because they control physical devices or run automations. Enable each one to allow widgets to include entities from that domain. Changing this disconnects active sessions so they pick up the new setting.
         </div>
         {([
           { key: "lock",       label: "Lock",       hint: "lock.* entities - physical lock/unlock control" },
@@ -1017,7 +1017,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
         title={<span className="row gap-8"><Icon name="puzzle" size={14} /> Custom domains</span>}
       >
         <div className="settings-field-hint" style={{ marginBottom: 12 }}>
-          Allow command execution for custom entity domains with third-party card renderers.
+          Allow widgets to control entities from custom domains (e.g. third-party integrations).
           Built-in and blocked domains cannot be added.
         </div>
         <CustomDomainsField

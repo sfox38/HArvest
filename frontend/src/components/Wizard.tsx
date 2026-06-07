@@ -521,7 +521,7 @@ function ScriptVarsForm({ entityId, serviceData, onChange }: {
 // Step 1: Design (entities + permissions + theme + preview)
 // ---------------------------------------------------------------------------
 
-function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[]; themeUrl: string; onChange: (url: string) => void }) {
+export function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[]; themeUrl: string; onChange: (url: string) => void }) {
   const thumbUrls = useThemeThumbs(themes);
   const selectedId = themeUrlToId(themeUrl);
   const stripRef = useDragScroll<HTMLDivElement>();

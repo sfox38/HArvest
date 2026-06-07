@@ -69,17 +69,17 @@ function aggregateDrift(sessions: Session[]): DriftGroup[] {
 function describeGroup(g: DriftGroup, currentVersion: string): string {
   const sessions = g.sessionCount === 1 ? "1 session" : `${g.sessionCount} sessions`;
 
+  const clientVer = g.widget_version ?? "unknown version";
   if (g.source === "wp" && g.compatibility === "client_outdated") {
-    return `${g.origin} is running HArvest WordPress plugin ${g.source_version ?? "(unknown)"} (current: ${currentVersion}). Update via Plugins, HArvest, Update.`;
+    return `Your WordPress site at ${g.origin} has HArvest plugin v${g.source_version ?? "?"}, but your HA integration is v${currentVersion}. Update the WordPress plugin to match.`;
   }
   if (g.source === "wp" && g.compatibility === "server_outdated") {
-    return `${g.origin} is running HArvest WordPress plugin ${g.source_version ?? "(unknown)"}, but this Home Assistant instance has ${currentVersion}. Update HArvest via HACS.`;
+    return `Your WordPress site at ${g.origin} has HArvest plugin v${g.source_version ?? "?"}, which is newer than your HA integration (v${currentVersion}). Update HArvest in HACS to match.`;
   }
   if (g.compatibility === "client_outdated") {
-    return `${sessions} on ${g.origin} are running widget ${g.widget_version ?? "(unknown)"} (current: ${currentVersion}). Browsers may be caching an old snippet; clear cache or republish the embed snippet.`;
+    return `${sessions} on ${g.origin} still loading widget v${clientVer} instead of v${currentVersion}. Visitors need to clear their browser cache, or you may need to update the script URL on that page.`;
   }
-  // server_outdated, non-WP source
-  return `${sessions} on ${g.origin} are running widget ${g.widget_version ?? "(unknown)"}, but this Home Assistant instance has ${currentVersion}. Update HArvest via HACS.`;
+  return `${sessions} on ${g.origin} are using widget v${clientVer}, which is newer than your HA integration (v${currentVersion}). Update HArvest in HACS to match.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ export function DriftBanner() {
       <div className="drift-banner-header">
         <div className="drift-banner-title">
           <Icon name="alert" size={16} />
-          <span>HArvest version drift detected</span>
+          <span>Version mismatch</span>
         </div>
         <button
           type="button"
