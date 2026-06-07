@@ -162,16 +162,24 @@ export class ThemeLoader {
         ? { ...theme.variables, ...theme.dark_variables }
         : theme.variables;
 
-      // Wipe all inline styles so no var from the previous theme lingers
-      // when the incoming theme does not define that property.
-      host.style.cssText = "";
+      // Remove only variables previously applied by ThemeLoader. The host page
+      // owns every other inline style on the custom element.
+      ThemeLoader.clear(shadowRoot);
 
       const _dangerousValueRe = /url\s*\(|expression\s*\(|@import/i;
+      const appliedKeys = new Map();
       for (const [key, value] of Object.entries(vars ?? {})) {
         if (!key.startsWith("--")) continue;
-        if (_dangerousValueRe.test(value)) continue;
-        host.style.setProperty(key, value);
+        const cssValue = String(value);
+        if (_dangerousValueRe.test(cssValue)) continue;
+        appliedKeys.set(key, {
+          existed: [...host.style].includes(key),
+          value: host.style.getPropertyValue(key),
+          priority: host.style.getPropertyPriority(key),
+        });
+        host.style.setProperty(key, cssValue);
       }
+      host[_APPLIED_KEYS] = appliedKeys;
     };
 
     applyVars();
@@ -206,17 +214,38 @@ export class ThemeLoader {
   }
 
   /**
+   * Remove variables previously applied by ThemeLoader without disturbing
+   * inline styles owned by the embedding page.
+   *
+   * @param {ShadowRoot} shadowRoot
+   */
+  static clear(shadowRoot) {
+    const host = /** @type {any} */ (shadowRoot.host);
+    for (const [key, original] of host[_APPLIED_KEYS] ?? []) {
+      if (original.existed) {
+        host.style.setProperty(key, original.value, original.priority);
+      } else {
+        host.style.removeProperty(key);
+      }
+    }
+    delete host[_APPLIED_KEYS];
+  }
+
+  /**
    * Clear the in-memory URL cache. Intended for testing only.
    */
   static _clearCache() {
     _cache.clear();
     _inflight.clear();
+    _darkCallbacks.clear();
+    _darkMq = null;
   }
 }
 
 // Private symbol used to store the MediaQueryList cleanup function on the
 // host element without polluting its public interface.
 const _CLEANUP_KEY = Symbol("harvThemeCleanup");
+const _APPLIED_KEYS = Symbol("harvThemeAppliedKeys");
 
 /**
  * Inject a @font-face rule into document.head for a custom icon font.

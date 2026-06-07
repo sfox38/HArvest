@@ -151,7 +151,7 @@ const SHARED_CSS_VARS = /* css */`
     display: block;
     width: 100%;
     position: relative;
-    min-width: var(--hrv-card-min-width, 180px);
+    min-width: min(var(--hrv-card-min-width, 180px), 100%);
     overflow: hidden;
     box-sizing: border-box;
     contain: inline-size;
@@ -196,6 +196,11 @@ const SHARED_CSS_VARS = /* css */`
       animation-duration: 0.01ms !important;
       transition-duration: 0.01ms !important;
     }
+  }
+
+  :where(button, input, select, textarea, [role=button], [role=slider]):focus-visible {
+    outline: 2px solid var(--hrv-color-primary) !important;
+    outline-offset: 3px !important;
   }
 `;
 
@@ -520,6 +525,21 @@ export class BaseCard {
    */
   render() {
     throw new Error(`${this.constructor.name} must implement render()`);
+  }
+
+  /**
+   * Enforce universal renderer contracts after render().
+   */
+  finalizeRender() {
+    const selector = "button, input, select, textarea, a[href], [role=button], [role=slider]";
+    const friendlyName = String(this.def.friendly_name ?? "").trim();
+    for (const element of this.root.querySelectorAll(selector)) {
+      if (!element.hasAttribute("part")) element.setAttribute("part", "control");
+      const label = element.getAttribute("aria-label");
+      if (friendlyName && label && !label.toLowerCase().includes(friendlyName.toLowerCase())) {
+        element.setAttribute("aria-label", `${friendlyName}: ${label}`);
+      }
+    }
   }
 
   /**
@@ -931,6 +951,20 @@ export class BaseCard {
     let tapTimer  = null;
     let lastTapAt = 0;
     let didHold   = false;
+    const interactiveSelector = "button, input, select, textarea, a[href]";
+    const isNestedInteractive = (target) => {
+      const interactive = target?.closest?.(interactiveSelector);
+      return interactive && interactive !== element;
+    };
+
+    const hasGesture = Object.keys(callbacks).length > 0 ||
+      !!cfg.gestureConfig?.tap ||
+      !!cfg.gestureConfig?.hold ||
+      !!cfg.gestureConfig?.double_tap;
+    if (hasGesture && !element.matches(interactiveSelector)) {
+      if (!element.hasAttribute("tabindex")) element.tabIndex = 0;
+      if (!element.hasAttribute("role")) element.setAttribute("role", "button");
+    }
 
     const cancel = () => {
       clearTimeout(holdTimer);
@@ -943,7 +977,7 @@ export class BaseCard {
 
     element.addEventListener("pointerdown", (e) => {
       if (e.button !== undefined && e.button !== 0) return;
-      if (e.target !== element && e.target.matches?.("button, input, select, textarea, a[href]")) return;
+      if (isNestedInteractive(e.target)) return;
       didHold = false;
       element.setAttribute("data-pressing", "true");
       element.setAttribute("data-gesture-hold", "pending");
@@ -960,6 +994,7 @@ export class BaseCard {
     });
 
     element.addEventListener("pointerup", (e) => {
+      if (isNestedInteractive(e.target)) return;
       if (didHold) { cancel(); return; }
       if (!holdTimer) return;
       clearTimeout(holdTimer);
@@ -986,6 +1021,13 @@ export class BaseCard {
     element.addEventListener("pointercancel", cancel);
     element.addEventListener("contextmenu", (e) => {
       if (cfg.gestureConfig?.hold) e.preventDefault();
+    });
+    element.addEventListener("keydown", (e) => {
+      if (isNestedInteractive(e.target)) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.repeat) return;
+      e.preventDefault();
+      onTap();
     });
   }
 

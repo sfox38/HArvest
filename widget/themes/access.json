@@ -32,6 +32,7 @@
   },
   "dark_variables": {
     "--hrv-color-primary":         "#6699ff",
+    "--hrv-color-on-primary":      "#000000",
     "--hrv-color-primary-dim":     "#1a2a4a",
     "--hrv-color-surface":         "#000000",
     "--hrv-color-surface-alt":     "#1a1a1a",

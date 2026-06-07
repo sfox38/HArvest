@@ -610,7 +610,7 @@
           <div part="card-body" class="${showDial ? "" : "hrv-no-dial"}">
             ${showDial ? /* html */`
               <div class="hrv-dial-column">
-                <div class="hrv-dial-wrap" role="slider" aria-valuemin="0"
+                <div class="hrv-dial-wrap" role="slider" tabindex="0" aria-valuemin="0"
                   aria-valuemax="100" aria-valuenow="0"
                   aria-label="${_esc(this.def.friendly_name)} brightness"
                   title="Drag to adjust">
@@ -702,6 +702,7 @@
         this.#dialSvg.addEventListener("pointermove", this.#onPointerMove.bind(this));
         this.#dialSvg.addEventListener("pointerup", this.#onPointerUp.bind(this));
         this.#dialSvg.addEventListener("pointercancel", this.#onPointerUp.bind(this));
+        this.#dialSvg.addEventListener("keydown", this.#onDialKey.bind(this));
       }
 
       if (showDial) this.#buildModeMap();
@@ -826,6 +827,10 @@
       const titleLabels = { brightness: "Drag to adjust brightness", temp: "Drag to adjust color temperature", color: "Drag to adjust color" };
       this.#dialSvg?.setAttribute("aria-label", `${_esc(this.def.friendly_name)} ${labels[mode]}`);
       if (this.#dialSvg) this.#dialSvg.title = titleLabels[mode];
+      if (this.#dialSvg) {
+        this.#dialSvg.setAttribute("aria-valuemin", mode === "temp" ? String(this.#minCt) : "0");
+        this.#dialSvg.setAttribute("aria-valuemax", mode === "temp" ? String(this.#maxCt) : mode === "color" ? "360" : "100");
+      }
     }
 
     #syncDialToCurrentMode() {
@@ -856,13 +861,17 @@
         this.#dialFill?.setAttribute("stroke-dashoffset", String(offset));
         if (this.#dialPct) this.#dialPct.textContent = pct + "%";
         this.#dialSvg?.setAttribute("aria-valuenow", String(pct));
+        this.#dialSvg?.setAttribute("aria-valuetext", `${pct}%`);
       } else if (mode === "temp") {
         const k = Math.round(this.#minCt + (pct / 100) * (this.#maxCt - this.#minCt));
         if (this.#dialPct) this.#dialPct.textContent = k + "K";
         this.#dialSvg?.setAttribute("aria-valuenow", String(k));
+        this.#dialSvg?.setAttribute("aria-valuetext", `${k} kelvin`);
       } else {
-        if (this.#dialPct) this.#dialPct.textContent = Math.round((pct / 100) * 360) + "°";
-        this.#dialSvg?.setAttribute("aria-valuenow", String(Math.round((pct / 100) * 360)));
+        const degrees = Math.round((pct / 100) * 360);
+        if (this.#dialPct) this.#dialPct.textContent = degrees + "°";
+        this.#dialSvg?.setAttribute("aria-valuenow", String(degrees));
+        this.#dialSvg?.setAttribute("aria-valuetext", `${degrees} degrees`);
       }
     }
 
@@ -963,6 +972,29 @@
       if (!this.#dragging) return;
       this.#dragging = false;
       try { this.#dialSvg?.releasePointerCapture(e.pointerId); } catch (_) {}
+      this.#sendValue();
+    }
+
+    #onDialKey(e) {
+      const mode = DIAL_MODES[this.#mode];
+      let pct = mode === "brightness"
+        ? Math.round((this.#brightness / 255) * 100)
+        : mode === "temp"
+          ? Math.round(((this.#colorTempK - this.#minCt) / (this.#maxCt - this.#minCt)) * 100)
+          : Math.round((this.#hue / 360) * 100);
+      if (e.key === "ArrowDown" || e.key === "ArrowLeft") pct -= 1;
+      else if (e.key === "ArrowUp" || e.key === "ArrowRight") pct += 1;
+      else if (e.key === "PageDown") pct -= 10;
+      else if (e.key === "PageUp") pct += 10;
+      else if (e.key === "Home") pct = 0;
+      else if (e.key === "End") pct = 100;
+      else return;
+      e.preventDefault();
+      pct = Math.max(0, Math.min(100, pct));
+      if (mode === "brightness") this.#brightness = Math.round((pct / 100) * 255);
+      else if (mode === "temp") this.#colorTempK = Math.round(this.#minCt + (pct / 100) * (this.#maxCt - this.#minCt));
+      else this.#hue = Math.round((pct / 100) * 360);
+      this.#updateDial(pct);
       this.#sendValue();
     }
 
@@ -1283,7 +1315,7 @@
                       aria-label="Click to increase fan speed"><svg class="hrv-fan-speed-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13,19C13,17.59 13.5,16.3 14.3,15.28C14.17,14.97 14.03,14.65 13.86,14.34C14.26,14 14.57,13.59 14.77,13.11C15.26,13.21 15.78,13.39 16.25,13.67C17.07,13.25 18,13 19,13C20.05,13 21.03,13.27 21.89,13.74C21.95,13.37 22,12.96 22,12.5C22,8.92 18.03,8.13 14.33,10.13C14,9.73 13.59,9.42 13.11,9.22C13.3,8.29 13.74,7.24 14.73,6.75C17.09,5.57 17,2 12.5,2C8.93,2 8.14,5.96 10.13,9.65C9.72,9.97 9.4,10.39 9.21,10.87C8.28,10.68 7.23,10.25 6.73,9.26C5.56,6.89 2,7 2,11.5C2,15.07 5.95,15.85 9.64,13.87C9.96,14.27 10.39,14.59 10.88,14.79C10.68,15.71 10.24,16.75 9.26,17.24C6.9,18.42 7,22 11.5,22C12.31,22 13,21.78 13.5,21.41C13.19,20.67 13,19.86 13,19M20,15V18H23V20H20V23H18V20H15V18H18V15H20Z"/></svg></button>
                   </div>
                 ` : /* html */`
-                  <div class="hrv-dial-wrap" role="slider"
+                  <div class="hrv-dial-wrap" role="slider" tabindex="0"
                     aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
                     aria-label="${_esc(this.def.friendly_name)} speed"
                     title="Drag to adjust fan speed">
@@ -1362,6 +1394,7 @@
         this.#dialSvg.addEventListener("pointermove",   this.#onPointerMove.bind(this));
         this.#dialSvg.addEventListener("pointerup",     this.#onPointerUp.bind(this));
         this.#dialSvg.addEventListener("pointercancel", this.#onPointerUp.bind(this));
+        this.#dialSvg.addEventListener("keydown", this.#onDialKey.bind(this));
       }
       const speedCircle = this.root.querySelector(".hrv-fan-speed-circle");
       speedCircle?.addEventListener("click", () => {
@@ -1570,6 +1603,21 @@
       this.#sendValue();
     }
 
+    #onDialKey(e) {
+      let percentage = this.#percentage;
+      if (e.key === "ArrowDown" || e.key === "ArrowLeft") percentage -= 1;
+      else if (e.key === "ArrowUp" || e.key === "ArrowRight") percentage += 1;
+      else if (e.key === "PageDown") percentage -= 10;
+      else if (e.key === "PageUp") percentage += 10;
+      else if (e.key === "Home") percentage = 0;
+      else if (e.key === "End") percentage = 100;
+      else return;
+      e.preventDefault();
+      this.#percentage = Math.max(0, Math.min(100, percentage));
+      this.#updateDial(this.#percentage);
+      this.#sendValue();
+    }
+
     #updateFromPointer(e) {
       if (!this.#dialSvg) return;
       const rect = this.#dialSvg.getBoundingClientRect();
@@ -1610,6 +1658,7 @@
       this.#dialThumbHit?.setAttribute("cy", String(thumbPos.y));
       if (this.#dialPct) this.#dialPct.textContent = `${pct}%`;
       this.#dialSvg?.setAttribute("aria-valuenow", String(pct));
+      this.#dialSvg?.setAttribute("aria-valuetext", `${pct}%`);
     }
 
     #syncDialImmediate() {
@@ -5462,7 +5511,7 @@
   // ---------------------------------------------------------------------------
 
   HArvest._renderers = HArvest._renderers || {};
-  const _rendererKey = window.__HARVEST_RENDERER_ID__ || (document.currentScript && document.currentScript.dataset.rendererId) || "minimus";
+  const _rendererKey = (document.currentScript && document.currentScript.dataset.rendererId) || "minimus";
   HArvest._renderers[_rendererKey] = {
     "light":          DialLightCard,
     "fan":            FanCard,

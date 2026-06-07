@@ -216,6 +216,9 @@ export class HrvEntitiesBlock extends HTMLElement {
     this.#theme = theme;
     if (this.shadowRoot && theme) {
       ThemeLoader.apply(theme, this.shadowRoot, this.getAttribute("data-color-scheme") || "auto");
+    } else if (this.shadowRoot) {
+      ThemeLoader.detach(this.shadowRoot);
+      ThemeLoader.clear(this.shadowRoot);
     }
   }
 }

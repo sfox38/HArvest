@@ -4444,7 +4444,7 @@
   // Registration
   // ===========================================================================
 
-  const _rendererKey = window.__HARVEST_RENDERER_ID__ || "shrooms";
+  const _rendererKey = (document.currentScript && document.currentScript.dataset.rendererId) || "shrooms";
   HArvest._renderers = HArvest._renderers || {};
   HArvest._renderers[_rendererKey] = {
     "light":                LightCard,

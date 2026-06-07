@@ -220,15 +220,13 @@ export function loadRendererScript(rendererId: string): Promise<void> {
   const p = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
     script.src = `/api/harvest/renderers/${encodeURIComponent(rendererId)}.js?v=${bust}`;
-    (window as { __HARVEST_RENDERER_ID__?: string | null }).__HARVEST_RENDERER_ID__ = rendererId;
+    script.dataset.rendererId = rendererId;
     script.onload = () => {
-      (window as { __HARVEST_RENDERER_ID__?: string | null }).__HARVEST_RENDERER_ID__ = null;
       _loadedRenderers.add(rendererId);
       _loadingRenderers.delete(rendererId);
       resolve();
     };
     script.onerror = () => {
-      (window as { __HARVEST_RENDERER_ID__?: string | null }).__HARVEST_RENDERER_ID__ = null;
       _loadingRenderers.delete(rendererId);
       reject(new Error(`Failed to load renderer ${rendererId}`));
     };

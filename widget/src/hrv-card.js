@@ -50,7 +50,7 @@ function _resolveColorScheme(cs) {
   const computed = getComputedStyle(document.documentElement).colorScheme || "";
   if (computed === "light") return "light";
   if (computed === "dark") return "dark";
-  return "light";
+  return "auto";
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +96,8 @@ export class HrvCard extends HTMLElement {
 
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
 
-    // Stamp data-color-scheme so the base-card CSS fallback can force light/dark.
+    // Stamp data-color-scheme only when the page explicitly forces light/dark.
+    // True auto mode stays unforced so base CSS follows prefers-color-scheme.
     // Read directly from _pageConfig too in case HArvest.config() was called
     // before this element connected (common script loading order).
     const cs = _resolveColorScheme(this.#config.colorScheme || _pageConfig.colorScheme || "");
@@ -260,7 +261,11 @@ export class HrvCard extends HTMLElement {
       this.removeAttribute("data-color-scheme");
     }
     if (this.#lastTheme && this.shadowRoot) {
-      ThemeLoader.apply(this.#lastTheme, this.shadowRoot, csNow);
+      ThemeLoader.apply(
+        this.#lastTheme,
+        this.shadowRoot,
+        this.#config.colorScheme || _pageConfig.colorScheme || "auto",
+      );
     }
 
     // Reconcile companion proxies from server-delivered list.
@@ -304,6 +309,7 @@ export class HrvCard extends HTMLElement {
 
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
+    this.#renderer.finalizeRender?.();
 
     // Replay last known state so the card is not blank after a re-definition.
     if (this.#lastState !== null) {
@@ -315,6 +321,7 @@ export class HrvCard extends HTMLElement {
       );
       this.#optimisticState = null;
     }
+    this.#renderer.finalizeRender?.();
 
     // Replay companion definitions then states so friendly names appear in tooltips.
     for (const [entityId, compDef] of this.#lastCompanionDefs) {
@@ -373,6 +380,7 @@ export class HrvCard extends HTMLElement {
     if (this.#renderer) {
       requestAnimationFrame(() => {
         this.#renderer?.applyState(state, attributes);
+        this.#renderer?.finalizeRender?.();
       });
       if (this.#config.graph && state !== "unavailable" && state !== "unknown") {
         this.#renderer.appendHistoryPoint?.(state);
@@ -403,11 +411,14 @@ export class HrvCard extends HTMLElement {
     this.#lastTheme = theme || null;
     if (!this.shadowRoot) return;
     if (theme) {
-      const cs = _resolveColorScheme(this.#config.colorScheme || _pageConfig.colorScheme || "");
-      ThemeLoader.apply(theme, this.shadowRoot, cs);
+      ThemeLoader.apply(
+        theme,
+        this.shadowRoot,
+        this.#config.colorScheme || _pageConfig.colorScheme || "auto",
+      );
     } else {
       ThemeLoader.detach(this.shadowRoot);
-      /** @type {HTMLElement} */ (this.shadowRoot.host).style.cssText = "";
+      ThemeLoader.clear(this.shadowRoot);
     }
   }
 
@@ -438,7 +449,11 @@ export class HrvCard extends HTMLElement {
         this.removeAttribute("data-color-scheme");
       }
       if (this.#lastTheme && this.shadowRoot) {
-        ThemeLoader.apply(this.#lastTheme, this.shadowRoot, cs);
+        ThemeLoader.apply(
+          this.#lastTheme,
+          this.shadowRoot,
+          this.#config.colorScheme || _pageConfig.colorScheme || "auto",
+        );
       }
     }
     if (this.#i18n) {
@@ -456,8 +471,10 @@ export class HrvCard extends HTMLElement {
         || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null));
     this.#renderer = new Cls(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
+    this.#renderer.finalizeRender?.();
     if (this.#lastState !== null) {
       this.#renderer.applyState(this.#lastState, this.#lastAttributes);
+      this.#renderer.finalizeRender?.();
     }
     for (const [entityId, def] of this.#lastCompanionDefs) {
       this.#renderer.updateCompanionDefinition?.(entityId, def);
@@ -484,8 +501,10 @@ export class HrvCard extends HTMLElement {
     this.#renderer.destroy?.();
     this.#renderer = new NewRenderer(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
+    this.#renderer.finalizeRender?.();
     if (this.#lastState !== null) {
       this.#renderer.applyState(this.#lastState, this.#lastAttributes);
+      this.#renderer.finalizeRender?.();
     }
     for (const [entityId, def] of this.#lastCompanionDefs) {
       this.#renderer.updateCompanionDefinition?.(entityId, def);
@@ -611,9 +630,11 @@ export class HrvCard extends HTMLElement {
     }
     this.#renderer = new RendererClass(entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
+    this.#renderer.finalizeRender?.();
 
     // Apply state.
     this.#renderer.applyState(state, attributes);
+    this.#renderer.finalizeRender?.();
 
     // Default controls to expanded so the user sees the full card layout.
     // Unlike the live path, this is just an initial default - the user can
@@ -643,7 +664,7 @@ export class HrvCard extends HTMLElement {
   applyPreviewTheme(themeVars) {
     if (!this.shadowRoot) return;
     ThemeLoader.detach(this.shadowRoot);
-    const cs = _resolveColorScheme(this.#config.colorScheme || "auto");
+    const cs = this.#config.colorScheme || "auto";
     if (themeVars.variables) {
       ThemeLoader.apply(themeVars, this.shadowRoot, cs);
     } else {
@@ -660,6 +681,7 @@ export class HrvCard extends HTMLElement {
   updatePreviewState(state, attributes) {
     if (this.#renderer) {
       this.#renderer.applyState(state, attributes);
+      this.#renderer.finalizeRender?.();
     }
   }
 

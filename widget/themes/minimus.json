@@ -22,7 +22,7 @@
     "--hrv-color-surface-alt":     "#E5E4D4",
     "--hrv-color-border":          "#BCA88D",
     "--hrv-color-text":            "#3E3F29",
-    "--hrv-color-text-secondary":  "#7D8D86",
+    "--hrv-color-text-secondary":  "#63706A",
     "--hrv-color-icon":            "#3E3F29",
     "--hrv-color-state-on":        "#7D8D86",
     "--hrv-color-state-off":       "#BCA88D",
