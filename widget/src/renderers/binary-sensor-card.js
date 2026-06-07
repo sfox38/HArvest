@@ -54,7 +54,7 @@ export class BinarySensorCard extends BaseCard {
     this.#rowValue   = this.root.querySelector("[part=row-value]");
 
     this.renderIcon(
-      this.def.icon ?? "mdi:checkbox-blank-circle-outline",
+      this.resolveIcon(this.def.icon, "mdi:checkbox-blank-circle-outline"),
       "card-icon",
     );
     this.renderCompanions();
@@ -68,10 +68,9 @@ export class BinarySensorCard extends BaseCard {
     if (this.#stateLabel) this.#stateLabel.textContent = label;
     if (this.#rowValue) this.#rowValue.textContent = label;
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (isOn ? "mdi:checkbox-blank-circle" : "mdi:checkbox-blank-circle-outline");
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = isOn ? "mdi:checkbox-blank-circle" : "mdi:checkbox-blank-circle-outline";
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }

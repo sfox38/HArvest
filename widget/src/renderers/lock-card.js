@@ -14,13 +14,14 @@ import { esc as _esc } from "../_utils/esc.js";
 const LOCK_CARD_STYLES = /* css */`
   [part=card-body] {
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    align-items: stretch;
     gap: var(--hrv-spacing-s);
   }
 
   [part=lock-button] {
-    padding: var(--hrv-spacing-xs) var(--hrv-spacing-m);
+    width: 100%;
+    padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
     border: none;
     border-radius: var(--hrv-radius-m);
     font-size: var(--hrv-font-size-s);
@@ -28,12 +29,11 @@ const LOCK_CARD_STYLES = /* css */`
     font-family: inherit;
     cursor: pointer;
     transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
-    min-width: 72px;
   }
 
   [part=lock-button][data-action=lock] {
-    background: var(--hrv-color-state-on);
-    color: var(--hrv-color-text-inverse);
+    background: var(--hrv-color-primary);
+    color: var(--hrv-color-on-primary);
   }
 
   [part=lock-button][data-action=unlock] {
@@ -66,6 +66,7 @@ const LOCK_CARD_STYLES = /* css */`
     font-size: var(--hrv-font-size-l);
     font-weight: var(--hrv-font-weight-medium);
     color: var(--hrv-color-text);
+    text-align: center;
   }
 `;
 
@@ -79,6 +80,7 @@ export class LockCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #lockBtn      = null;
   /** @type {HTMLButtonElement|null} */ #rowToggle    = null;
   /** @type {HTMLElement|null}       */ #stateLabel   = null;
+  /** @type {string}                 */ #currentState = "unknown";
 
   render() {
     const isWritable = this.def.capabilities === "read-write";
@@ -92,8 +94,7 @@ export class LockCard extends BaseCard {
           ${isWritable ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>` : `<span part="row-control"><span part="row-state"></span></span>`}
         </div>
         <div part="card-body">
-          <span part="state-label"></span>
-          ${isWritable ? `<button part="lock-button" type="button"></button>` : ""}
+          ${isWritable ? `<button part="lock-button" type="button"></button>` : `<span part="state-label"></span>`}
         </div>
         ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
@@ -109,12 +110,12 @@ export class LockCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:lock", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lock"), "card-icon");
 
     const onLockTap = () => {
       const tap = this.config.gestureConfig?.tap;
       if (tap) { this._runAction(tap); return; }
-      const isLocked = this.#stateLabel?.dataset.state === "locked";
+      const isLocked = this.#currentState === "locked";
       this.config.card?.sendCommand(isLocked ? "unlock" : "lock", {});
     };
     if (this.#lockBtn) this._attachGestureHandlers(this.#lockBtn, { onTap: onLockTap });
@@ -124,6 +125,7 @@ export class LockCard extends BaseCard {
   }
 
   applyState(state, _attributes) {
+    this.#currentState   = state;
     const isLocked       = state === "locked";
     const isTransitioning = _TRANSITIONING.has(state);
     const isJammed       = state === "jammed";
@@ -165,10 +167,9 @@ export class LockCard extends BaseCard {
     const rowStateEl = this.root.querySelector("[part=row-state]");
     if (rowStateEl) rowStateEl.textContent = label;
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (isJammed ? "mdi:lock-alert" : isLocked ? "mdi:lock" : "mdi:lock-open");
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = isJammed ? "mdi:lock-alert" : isLocked ? "mdi:lock" : "mdi:lock-open";
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }

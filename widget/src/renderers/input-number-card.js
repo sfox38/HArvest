@@ -119,7 +119,7 @@ export class InputNumberCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:ray-vertex", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:ray-vertex"), "card-icon");
 
     this.#slider?.addEventListener("input", (e) => {
       const v = parseFloat(e.target.value);

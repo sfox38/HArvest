@@ -235,7 +235,7 @@
     [part=card-body].hrv-no-dial {
       align-items: center;
       justify-content: center;
-      padding: var(--hrv-spacing-m, 16px) 0;
+      padding: 8px 0;
     }
 
     .hrv-dial-column {
@@ -420,8 +420,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 16px;
-      padding: var(--hrv-spacing-m, 16px) 0;
+      gap: 12px;
     }
     .hrv-light-ro-circle {
       width: 88px;
@@ -432,12 +431,6 @@
       align-items: center;
       justify-content: center;
       opacity: 0.35;
-      box-shadow: 0 0 0 0 transparent;
-      transition: box-shadow 200ms ease, opacity 200ms ease;
-    }
-    .hrv-light-ro-circle[data-on=true] {
-      opacity: 1;
-      box-shadow: 0 0 0 5px var(--hrv-ex-ring, #fff);
     }
     .hrv-light-ro-circle [part=ro-state-icon] {
       display: flex;
@@ -503,6 +496,40 @@
       border-color: var(--hrv-color-primary, #1976d2);
       box-shadow: none;
     }
+    .hrv-light-icon-btn {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--hrv-color-on-primary, #fff);
+      transition: box-shadow var(--hrv-transition-speed, 0.2s), opacity var(--hrv-transition-speed, 0.2s);
+    }
+    .hrv-light-icon-btn[aria-pressed=false] { opacity: 0.45; }
+    .hrv-light-icon-btn:hover { opacity: 0.88; }
+    .hrv-light-icon-btn:active { transition: none; opacity: 0.75; }
+    .hrv-light-icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .hrv-light-icon-btn svg {
+      width: 52px;
+      height: 52px;
+      display: block;
+      fill: currentColor;
+      pointer-events: none;
+    }
+
+    .hrv-light-icon-btn [part=card-icon] {
+      width: 52px;
+      height: 52px;
+      color: var(--hrv-color-on-primary, #fff);
+    }
+
     .hrv-dial-wrap {
       max-width: 200px;
       margin: 0 auto;
@@ -626,11 +653,19 @@
                     ${"<span class=\"hrv-mode-dot\"></span>".repeat(modeCount)}
                   </div>
                 ` : ""}
-                <button part="toggle-button" type="button"
-                  aria-label="${_esc(this.def.friendly_name)} - toggle"
-                  title="Turn ${_esc(this.def.friendly_name)} on / off">
-                  <div class="hrv-light-toggle-knob"></div>
-                </button>
+                ${showDial ? /* html */`
+                  <button part="toggle-button" type="button"
+                    aria-label="${_esc(this.def.friendly_name)} - toggle"
+                    title="Turn ${_esc(this.def.friendly_name)} on / off">
+                    <div class="hrv-light-toggle-knob"></div>
+                  </button>
+                ` : /* html */`
+                  <button class="hrv-light-icon-btn" part="toggle-button" type="button"
+                    aria-pressed="false"
+                    aria-label="${_esc(this.def.friendly_name)} - Toggle">
+                    <span part="card-icon" aria-hidden="true"></span>
+                  </button>
+                `}
               </div>
             ` : ""}
           </div>
@@ -650,6 +685,9 @@
       this.#modeSwitch = this.root.querySelector(".hrv-mode-switch");
 
       if (this.#toggleBtn) {
+        if (!showDial) {
+          this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lightbulb"), "card-icon");
+        }
         this._attachGestureHandlers(this.#toggleBtn, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
@@ -847,6 +885,12 @@
 
       if (this.#toggleBtn) {
         this.#toggleBtn.setAttribute("aria-pressed", String(this.#isOn));
+        const cardIconEl = this.root.querySelector("[part=card-icon]");
+        if (cardIconEl) {
+          const defaultIcon = this.#isOn ? "mdi:lightbulb" : "mdi:lightbulb-outline";
+          const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+          this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
+        }
       }
 
       const roCircle = this.root.querySelector(".hrv-light-ro-circle");
@@ -1100,12 +1144,6 @@
       align-items: center;
       justify-content: center;
       opacity: 0.35;
-      box-shadow: 0 0 0 0 transparent;
-      transition: box-shadow 200ms ease, opacity 200ms ease;
-    }
-    .hrv-fan-ro-circle[data-on=true] {
-      opacity: 1;
-      box-shadow: 0 0 0 5px var(--hrv-ex-ring, #fff);
     }
     .hrv-fan-ro-circle [part=ro-state-icon] {
       display: flex;
@@ -1309,7 +1347,7 @@
       this.#presetBtn   = this.root.querySelector('[data-feat="preset"]');
 
       if (this.#toggleBtn && !showDial) {
-        this.renderIcon(this.def.icon ?? "mdi:fan", "fan-onoff-icon");
+        this.renderIcon(this.resolveIcon(this.def.icon, "mdi:fan"), "fan-onoff-icon");
         this.#toggleBtn.setAttribute("data-animate", String(!!this.config.animate));
       }
       this._attachGestureHandlers(this.#toggleBtn, {
@@ -1397,7 +1435,7 @@
       });
 
       if (this.root.querySelector(".hrv-fan-ro-circle")) {
-        this.renderIcon(this.def.icon ?? "mdi:fan", "ro-state-icon");
+        this.renderIcon(this.resolveIcon(this.def.icon, "mdi:fan"), "ro-state-icon");
       }
 
       this.renderCompanions();
@@ -2307,7 +2345,7 @@
       this.#circle = this.root.querySelector(".hrv-bs-circle");
 
       this.renderIcon(
-        this.def.icon_state_map?.["off"] ?? this.def.icon ?? "mdi:radiobox-blank",
+        this.resolveIcon(this.def.icon_state_map?.["off"] ?? this.def.icon, "mdi:radiobox-blank"),
         "state-icon",
       );
 
@@ -2325,10 +2363,9 @@
         this.#circle.setAttribute("aria-label", `${this.def.friendly_name}: ${label}`);
       }
 
-      const iconName = this.def.icon_state_map?.[state]
-        ?? this.def.icon
-        ?? (isOn ? "mdi:radiobox-marked" : "mdi:radiobox-blank");
-      this.renderIcon(iconName, "state-icon");
+      const bsDefault = isOn ? "mdi:radiobox-marked" : "mdi:radiobox-blank";
+      const bsRawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? bsDefault;
+      this.renderIcon(this.resolveIcon(bsRawIcon, bsDefault), "state-icon");
 
       this.announceState(`${this.def.friendly_name}, ${label}`);
     }
@@ -2436,6 +2473,36 @@
       cursor: not-allowed;
     }
     .hrv-cover-btn:disabled:active { background: transparent; border-color: var(--hrv-ex-outline, rgba(255,255,255,0.35)); }
+
+    .hrv-cover-ro-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--hrv-spacing-m, 16px) 0;
+    }
+    .hrv-cover-ro-circle {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.35;
+    }
+    .hrv-cover-ro-circle [part=cover-ro-icon] {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--hrv-color-on-primary, #fff);
+      pointer-events: none;
+    }
+    .hrv-cover-ro-circle [part=cover-ro-icon] svg {
+      width: 40px;
+      height: 40px;
+      fill: currentColor;
+      display: block;
+    }
   `;
 
   class CoverCard extends BaseCard {
@@ -2469,6 +2536,14 @@
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
           </div>
           <div part="card-body">
+            ${!isWritable ? /* html */`
+              <div class="hrv-cover-ro-center">
+                <div class="hrv-cover-ro-circle" role="img"
+                  aria-label="${_esc(this.def.friendly_name)}" title="Read-only">
+                  <span part="cover-ro-icon" aria-hidden="true"></span>
+                </div>
+              </div>
+            ` : ""}
             ${hasPosition ? /* html */`
               <div class="hrv-cover-slider-wrap" title="${isWritable ? "Drag to set position" : "Read-only"}">
                 <div class="hrv-cover-slider-track" ${!isWritable ? 'style="cursor:not-allowed"' : ""}>
@@ -2500,6 +2575,9 @@
       this.#openBtn     = this.root.querySelector("[data-action=open]");
       this.#stopBtn     = this.root.querySelector("[data-action=stop]");
       this.#closeBtn    = this.root.querySelector("[data-action=close]");
+
+      const roIconEl = this.root.querySelector("[part=cover-ro-icon]");
+      if (roIconEl) roIconEl.innerHTML = COVER_ICON_CLOSE;
 
       if (this.#sliderTrack && this.#sliderThumb && isWritable) {
         const onDown = (e) => {
@@ -2576,6 +2654,13 @@
         this.#position = attributes.current_position;
         if (this.#sliderFill) this.#sliderFill.style.width = `${this.#position}%`;
         if (this.#sliderThumb) this.#sliderThumb.style.left = `${this.#position}%`;
+      }
+
+      const roIconEl = this.root.querySelector("[part=cover-ro-icon]");
+      if (roIconEl) {
+        const isOpen = state === "open" || state === "opening";
+        const isStopped = state === "opening" || state === "closing";
+        roIconEl.innerHTML = isStopped ? COVER_ICON_STOP : isOpen ? COVER_ICON_OPEN : COVER_ICON_CLOSE;
       }
 
       this.announceState(`${this.def.friendly_name}, ${state}`);
@@ -3931,7 +4016,7 @@
       font-weight: 300;
       color: var(--hrv-color-text, #fff);
       text-align: center;
-      padding: 28px 0 32px;
+      padding: 0;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -4891,6 +4976,481 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // LockCard
+  // ---------------------------------------------------------------------------
+
+  const LOCK_STYLES = /* css */`
+    [part=card-body] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px 0 24px;
+    }
+
+    .hrv-lock-icon-btn {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--hrv-color-on-primary, #fff);
+      box-shadow: none;
+      transition: box-shadow var(--hrv-transition-speed, 0.2s), opacity var(--hrv-transition-speed, 0.2s);
+    }
+    .hrv-lock-icon-btn[aria-pressed=true] {
+      box-shadow: 0 0 0 4px var(--hrv-ex-ring, #fff);
+    }
+    .hrv-lock-icon-btn[aria-pressed=false] { opacity: 0.45; }
+    .hrv-lock-icon-btn:hover { opacity: 0.88; }
+    .hrv-lock-icon-btn:active { transition: none; opacity: 0.75; }
+    .hrv-lock-icon-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .hrv-lock-icon-btn svg {
+      width: 52px;
+      height: 52px;
+      display: block;
+      fill: currentColor;
+      pointer-events: none;
+    }
+
+    .hrv-lock-ro-circle {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.35;
+    }
+    .hrv-lock-ro-circle [part=lock-icon] {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--hrv-color-on-primary, #fff);
+      pointer-events: none;
+    }
+    .hrv-lock-ro-circle [part=lock-icon] svg {
+      width: 40px;
+      height: 40px;
+      fill: currentColor;
+      display: block;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hrv-lock-icon-btn,
+      .hrv-lock-ro-circle { transition: none; }
+    }
+  `;
+
+  class LockCard extends BaseCard {
+    /** @type {HTMLButtonElement|null} */ #lockBtn  = null;
+    /** @type {HTMLElement|null}       */ #roCircle = null;
+    /** @type {boolean}                */ #isLocked = false;
+    /** @type {string}                 */ #currentState = "unknown";
+
+    render() {
+      const isWritable = this.def.capabilities === "read-write";
+
+      this.root.innerHTML = /* html */`
+        <style>${LOCK_STYLES}${COMPANION_DOT_STYLES}</style>
+        <div part="card">
+          <div part="card-header">
+            <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          </div>
+          <div part="card-body">
+            ${isWritable ? /* html */`
+              <button class="hrv-lock-icon-btn" type="button"
+                aria-pressed="false"
+                aria-label="${_esc(this.def.friendly_name)} - Lock/Unlock">
+                <span part="lock-icon" aria-hidden="true"></span>
+              </button>
+            ` : /* html */`
+              <div class="hrv-lock-ro-circle" data-locked="false"
+                role="img" aria-label="${_esc(this.def.friendly_name)}" title="Read-only">
+                <span part="lock-icon" aria-hidden="true"></span>
+              </div>
+            `}
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#lockBtn   = this.root.querySelector(".hrv-lock-icon-btn");
+      this.#roCircle  = this.root.querySelector(".hrv-lock-ro-circle");
+
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lock"), "lock-icon");
+
+      if (this.#lockBtn && isWritable) {
+        this._attachGestureHandlers(this.#lockBtn, {
+          onTap: () => {
+            const tap = this.config.gestureConfig?.tap;
+            if (tap) { this._runAction(tap); return; }
+            this.config.card?.sendCommand(this.#isLocked ? "unlock" : "lock", {});
+          },
+        });
+      }
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      this.#currentState = state;
+      this.#isLocked = state === "locked";
+      const isJammed = state === "jammed";
+      const isTransitioning = state === "locking" || state === "unlocking";
+      const isDisabled = isJammed || isTransitioning || state === "unavailable" || state === "unknown";
+
+      if (this.#lockBtn) {
+        this.#lockBtn.setAttribute("aria-pressed", String(this.#isLocked));
+        this.#lockBtn.disabled = isDisabled;
+      }
+      if (this.#roCircle) {
+        this.#roCircle.setAttribute("data-locked", String(this.#isLocked));
+      }
+
+      const defaultIcon = isJammed ? "mdi:lock-alert" : this.#isLocked ? "mdi:lock" : "mdi:lock-open";
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+      this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "lock-icon");
+
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+
+    predictState(action, _data) {
+      if (action === "lock")   return { state: "locking",   attributes: {} };
+      if (action === "unlock") return { state: "unlocking", attributes: {} };
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ScriptCard + AutomationCard - title + large circular icon button
+  // ---------------------------------------------------------------------------
+
+  const ACTION_ICON_BTN_STYLES = /* css */`
+    [part=card-body] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 20px 0 24px;
+    }
+
+    .hrv-action-icon-btn {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--hrv-color-on-primary, #fff);
+      transition: box-shadow var(--hrv-transition-speed, 0.2s), opacity var(--hrv-transition-speed, 0.2s);
+    }
+    .hrv-action-icon-btn:hover { opacity: 0.88; }
+    .hrv-action-icon-btn:active { transition: none; opacity: 0.75; }
+    .hrv-action-icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .hrv-action-icon-btn[data-running=true] { box-shadow: 0 0 0 4px var(--hrv-ex-ring, #fff); }
+    .hrv-action-icon-btn svg {
+      width: 52px;
+      height: 52px;
+      display: block;
+      fill: currentColor;
+      pointer-events: none;
+    }
+
+    /* Override base-card's [part=card-icon]{color:var(--hrv-color-icon)} so the icon
+       is always visible against the button background, not the card background. */
+    .hrv-action-icon-btn [part=card-icon] {
+      width: 52px;
+      height: 52px;
+      color: var(--hrv-color-on-primary, #fff);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .hrv-action-icon-btn { transition: none; }
+    }
+  `;
+
+  class ScriptCard extends BaseCard {
+    static staleOnMount = false;
+    /** @type {HTMLButtonElement|null} */ #iconBtn = null;
+    /** @type {string}                 */ #currentState = "unknown";
+
+    render() {
+      const isWritable = this.def.capabilities === "read-write";
+
+      this.root.innerHTML = /* html */`
+        <style>${ACTION_ICON_BTN_STYLES}${COMPANION_DOT_STYLES}</style>
+        <div part="card">
+          <div part="card-header">
+            <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          </div>
+          <div part="card-body">
+            <button class="hrv-action-icon-btn" type="button"
+              aria-label="${_esc(this.def.friendly_name)} - Run"
+              ${!isWritable ? "disabled" : ""}>
+              <span part="card-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconBtn = this.root.querySelector(".hrv-action-icon-btn");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:script-text-play"), "card-icon");
+
+      if (isWritable && this.#iconBtn) {
+        this._attachGestureHandlers(this.#iconBtn, {
+          onTap: () => {
+            const tap = this.config.gestureConfig?.tap;
+            if (tap) { this._runAction(tap); return; }
+            this.config.card?.sendCommand("turn_on", this.def.service_data ?? {});
+          },
+        });
+      }
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      this.#currentState = state;
+      const isWritable = this.def.capabilities === "read-write";
+      const isRunning = state === "on";
+      const isDisabled = !isWritable || isRunning || state === "unavailable" || state === "unknown";
+      if (this.#iconBtn) {
+        this.#iconBtn.disabled = isDisabled;
+        this.#iconBtn.dataset.running = String(isRunning);
+      }
+      const defaultIcon = isRunning ? "mdi:script-text" : "mdi:script-text-play";
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+      this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+
+    predictState(action, _data) {
+      if (action === "turn_on") return { state: "on", attributes: {} };
+      return null;
+    }
+  }
+
+  class AutomationCard extends BaseCard {
+    static staleOnMount = false;
+    /** @type {HTMLButtonElement|null} */ #iconBtn = null;
+    /** @type {string}                 */ #currentState = "unknown";
+
+    render() {
+      const isWritable = this.def.capabilities === "read-write";
+
+      this.root.innerHTML = /* html */`
+        <style>${ACTION_ICON_BTN_STYLES}${COMPANION_DOT_STYLES}</style>
+        <div part="card">
+          <div part="card-header">
+            <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          </div>
+          <div part="card-body">
+            <button class="hrv-action-icon-btn" type="button"
+              aria-label="${_esc(this.def.friendly_name)} - Trigger"
+              ${!isWritable ? "disabled" : ""}>
+              <span part="card-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconBtn = this.root.querySelector(".hrv-action-icon-btn");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:robot"), "card-icon");
+
+      if (isWritable && this.#iconBtn) {
+        this._attachGestureHandlers(this.#iconBtn, {
+          onTap: () => {
+            const tap = this.config.gestureConfig?.tap;
+            if (tap) { this._runAction(tap); return; }
+            this.config.card?.sendCommand("trigger", {});
+          },
+        });
+      }
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      this.#currentState = state;
+      const isWritable = this.def.capabilities === "read-write";
+      const isDisabled = !isWritable || state === "unavailable" || state === "unknown";
+      if (this.#iconBtn) this.#iconBtn.disabled = isDisabled;
+      const defaultIcon = state === "on" ? "mdi:robot" : "mdi:robot-off";
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+      this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
+      this.announceState(`${this.def.friendly_name}, ${state === "on" ? "enabled" : "disabled"}`);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ButtonCard - title + large circular icon button (press to trigger)
+  // ---------------------------------------------------------------------------
+
+  class ButtonCard extends BaseCard {
+    static staleOnMount = false;
+    /** @type {HTMLButtonElement|null} */ #iconBtn = null;
+
+    render() {
+      const isWritable = this.def.capabilities === "read-write";
+
+      this.root.innerHTML = /* html */`
+        <style>${ACTION_ICON_BTN_STYLES}${COMPANION_DOT_STYLES}</style>
+        <div part="card">
+          <div part="card-header">
+            <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          </div>
+          <div part="card-body">
+            <button class="hrv-action-icon-btn" type="button"
+              aria-label="${_esc(this.def.friendly_name)} - Press"
+              ${!isWritable ? "disabled" : ""}>
+              <span part="card-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconBtn = this.root.querySelector(".hrv-action-icon-btn");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:gesture-tap-button"), "card-icon");
+
+      if (isWritable && this.#iconBtn) {
+        this._attachGestureHandlers(this.#iconBtn, {
+          onTap: () => {
+            const tap = this.config.gestureConfig?.tap;
+            if (tap) { this._runAction(tap); return; }
+            this.config.card?.sendCommand("press", {});
+          },
+        });
+      }
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      const isWritable = this.def.capabilities === "read-write";
+      const isDisabled = !isWritable || state === "unavailable" || state === "unknown";
+      if (this.#iconBtn) this.#iconBtn.disabled = isDisabled;
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:gesture-tap-button";
+      this.renderIcon(this.resolveIcon(rawIcon, "mdi:gesture-tap-button"), "card-icon");
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // PersonCard - read-only circle with person icon
+  // ---------------------------------------------------------------------------
+
+  const PERSON_STYLES = /* css */`
+    [part=card-body] {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 0;
+    }
+
+    .hrv-person-circle {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.35;
+    }
+    .hrv-person-circle[data-home=true] { opacity: 1; }
+    .hrv-person-circle [part=person-icon] {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--hrv-color-on-primary, #fff);
+      pointer-events: none;
+    }
+    .hrv-person-circle [part=person-icon] svg {
+      width: 40px;
+      height: 40px;
+      fill: currentColor;
+      display: block;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hrv-person-circle { transition: none; }
+    }
+  `;
+
+  class PersonCard extends BaseCard {
+    static staleOnMount = true;
+    /** @type {HTMLElement|null} */ #circle = null;
+
+    render() {
+      this.root.innerHTML = /* html */`
+        <style>${PERSON_STYLES}${COMPANION_DOT_STYLES}</style>
+        <div part="card">
+          <div part="card-header">
+            <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          </div>
+          <div part="card-body">
+            <div class="hrv-person-circle" data-home="false"
+              role="img" aria-label="${_esc(this.def.friendly_name)}">
+              <span part="person-icon" aria-hidden="true"></span>
+            </div>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#circle = this.root.querySelector(".hrv-person-circle");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:account"), "person-icon");
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      const isHome = state === "home";
+      if (this.#circle) this.#circle.setAttribute("data-home", String(isHome));
+      const defaultIcon = state === "not_home" ? "mdi:account-off" : "mdi:home-account";
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+      this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "person-icon");
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+  }
+
   // Note: badge rendering is provided by the built-in widget BadgeCard (see
   // widget/src/renderers/badge-card.js). This pack does not register a "badge"
   // entry; the renderer-lookup chain in hrv-card.js falls through to the
@@ -4906,6 +5466,10 @@
   HArvest._renderers[_rendererKey] = {
     "light":          DialLightCard,
     "fan":            FanCard,
+    "lock":           LockCard,
+    "script":         ScriptCard,
+    "automation":     AutomationCard,
+    "button":         ButtonCard,
     "climate":        ClimateCard,
     "binary_sensor":  BinarySensorCard,
     "cover":          CoverCard,
@@ -4920,6 +5484,7 @@
     "sensor.humidity":     SensorCard,
     "sensor.battery":      SensorCard,
     "switch":         SwitchCard,
+    "person":         PersonCard,
     "timer":          TimerCard,
     "weather":        WeatherCard,
     "generic":        GenericCard,

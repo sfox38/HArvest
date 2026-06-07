@@ -205,6 +205,25 @@ _DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
         "on":  "mdi:radiobox-marked",
         "*":   "mdi:radiobox-blank",
     },
+    "script": {
+        "on": "mdi:script-text",
+        "*":  "mdi:script-text-play",
+    },
+    "automation": {
+        "on": "mdi:robot",
+        "*":  "mdi:robot-off",
+    },
+    "button": {
+        "*": "mdi:gesture-tap-button",
+    },
+    "lock": {
+        "locked":   "mdi:lock",
+        "unlocked": "mdi:lock-open",
+        "locking":  "mdi:lock",
+        "unlocking":"mdi:lock-open",
+        "jammed":   "mdi:lock-alert",
+        "*":        "mdi:lock",
+    },
     "timer": {
         "active": "mdi:timer",
         "paused": "mdi:timer-pause",

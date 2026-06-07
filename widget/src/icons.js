@@ -572,5 +572,6 @@ export function renderIconSVG(name, partName) {
  * @returns {string}
  */
 export function resolveIcon(name, fallback) {
-  return (name && MDI_ICONS[name]) ? name : fallback;
+  if (!name || name === "mdi:help-circle" || !MDI_ICONS[name]) return fallback;
+  return name;
 }

@@ -13,23 +13,15 @@ const GENERIC_STYLES = /* css */`
   [part=card-body] {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--hrv-spacing-s);
+    justify-content: center;
     margin-top: var(--hrv-spacing-xs);
   }
 
   [part=state-label] {
-    font-size: var(--hrv-font-size-m);
+    font-size: var(--hrv-font-size-l);
     font-weight: var(--hrv-font-weight-medium);
     color: var(--hrv-color-text);
-  }
-
-  .hrv-generic-domain {
-    font-size: var(--hrv-font-size-xs);
-    color: var(--hrv-color-text-secondary);
-    background: var(--hrv-color-surface-alt);
-    padding: 1px var(--hrv-spacing-xs);
-    border-radius: var(--hrv-radius-s);
+    text-align: center;
   }
 `;
 
@@ -46,7 +38,6 @@ export class GenericCard extends BaseCard {
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
           <span part="row-control"><span part="row-value"></span></span>
-          <span class="hrv-generic-domain">${_esc(this.def.domain)}</span>
         </div>
         <div part="card-body">
           <span part="state-label" aria-live="polite">-</span>
@@ -59,7 +50,7 @@ export class GenericCard extends BaseCard {
 
     this.#stateLabel = this.root.querySelector("[part=state-label]");
     this.#rowValue   = this.root.querySelector("[part=row-value]");
-    this.renderIcon(this.def.icon ?? "mdi:eye", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:eye"), "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }

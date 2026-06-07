@@ -124,7 +124,7 @@ export class TimerCard extends BaseCard {
     this.#cancelBtn    = this.root.querySelector("[part=cancel-button]");
     this.#finishBtn    = this.root.querySelector("[part=finish-button]");
 
-    this.renderIcon(this.def.icon ?? "mdi:timer-outline", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:timer-outline"), "card-icon");
 
     this.#playPauseBtn?.addEventListener("click", () => {
       const cmd = this.#lastState === "active" ? "pause" : "start";
@@ -160,10 +160,9 @@ export class TimerCard extends BaseCard {
       this.#stopTick();
     }
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? _timerIcon(state);
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = _timerIcon(state);
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     if (this.#displayEl) {
       this.#displayEl.setAttribute("data-paused", String(state === "paused"));

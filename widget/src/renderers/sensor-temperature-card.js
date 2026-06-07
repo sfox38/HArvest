@@ -62,7 +62,7 @@ export class TemperatureSensorCard extends BaseCard {
     this.#unitEl   = this.root.querySelector("[part=sensor-unit]");
     this.#rowValue = this.root.querySelector("[part=row-value]");
 
-    this.renderIcon(this.def.icon ?? "mdi:thermometer", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:thermometer"), "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }

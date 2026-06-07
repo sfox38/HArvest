@@ -48,8 +48,10 @@ const BUTTON_CARD_STYLES = /* css */`
   }
 
   [part=card][data-readonly=true] [part=state-label] {
-    font-size: var(--hrv-font-size-s);
-    color: var(--hrv-color-text-secondary);
+    font-size: var(--hrv-font-size-l);
+    font-weight: var(--hrv-font-weight-medium);
+    color: var(--hrv-color-text);
+    text-align: center;
   }
 
   [part=state-label] {
@@ -124,7 +126,7 @@ export class ButtonCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:gesture-tap-button", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:gesture-tap-button"), "card-icon");
 
     const onPress = () => {
       const tap = this.config.gestureConfig?.tap;
@@ -148,13 +150,16 @@ export class ButtonCard extends BaseCard {
     }
 
     if (this.#stateLabel) {
+      const isReadOnly = this.def.capabilities !== "read-write";
       this.#stateLabel.textContent = isUnavailable
         ? (this.i18n.t(`state.${state}`) !== `state.${state}` ? this.i18n.t(`state.${state}`) : state)
-        : "";
+        : isReadOnly
+          ? this.formatStateLabel(state)
+          : "";
     }
 
-    const iconName = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:gesture-tap-button";
-    this.renderIcon(iconName, "card-icon");
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:gesture-tap-button";
+    this.renderIcon(this.resolveIcon(rawIcon, "mdi:gesture-tap-button"), "card-icon");
   }
 
   disconnectedCallback() {

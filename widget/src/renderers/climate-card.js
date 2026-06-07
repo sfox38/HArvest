@@ -253,7 +253,7 @@ export class ClimateCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:thermostat", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:thermostat"), "card-icon");
 
     this.#modeSelect?.addEventListener("change", (e) => {
       this.#pending.mode = e.target.value;
@@ -385,11 +385,10 @@ export class ClimateCard extends BaseCard {
       if (this.#swingLabel) this.#swingLabel.textContent = sm;
     }
 
-    const action   = attributes.hvac_action ?? state;
-    const iconName = this.def.icon_state_map?.[action]
-      ?? this.def.icon
-      ?? _hvacIcon(action);
-    this.renderIcon(iconName, "card-icon");
+    const action      = attributes.hvac_action ?? state;
+    const defaultIcon = _hvacIcon(action);
+    const rawIcon     = this.def.icon_state_map?.[action] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     const temp = attributes.current_temperature;
     const announceAction = attributes.hvac_action ?? state;

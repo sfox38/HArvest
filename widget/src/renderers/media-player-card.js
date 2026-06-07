@@ -208,7 +208,7 @@ export class MediaPlayerCard extends BaseCard {
     this.#mediaTitleEl  = this.root.querySelector("[part=media-title]");
     this.#stateLabel    = this.root.querySelector("[part=state-label]");
 
-    this.renderIcon(this.def.icon ?? "mdi:cast", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:cast"), "card-icon");
 
     this.#playBtn?.addEventListener("click", () => {
       this.config.card?.sendCommand("media_play_pause", {});
@@ -299,10 +299,9 @@ export class MediaPlayerCard extends BaseCard {
       if (!this.isFocused(this.#sourceSelect)) this.#sourceSelect.value = current;
     }
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (isPlaying ? "mdi:cast-connected" : "mdi:cast");
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = isPlaying ? "mdi:cast-connected" : "mdi:cast";
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     const stateLabel = this.i18n.t(`state.${state}`) !== `state.${state}`
       ? this.i18n.t(`state.${state}`) : state;

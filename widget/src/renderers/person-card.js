@@ -19,10 +19,11 @@ const PERSON_CARD_STYLES = /* css */`
     padding: var(--hrv-spacing-xs) 0;
   }
 
-  [part=state-label] {
+  [part=card] [part=state-label] {
     font-size: var(--hrv-font-size-l);
     font-weight: var(--hrv-font-weight-medium);
     color: var(--hrv-color-text);
+    text-align: center;
     text-transform: capitalize;
   }
 
@@ -65,7 +66,7 @@ export class PersonCard extends BaseCard {
     this.#stateLabel = this.root.querySelector("[part=state-label]");
     this.#rowValue   = this.root.querySelector("[part=row-value]");
 
-    this.renderIcon(this.def.icon ?? "mdi:account", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:account"), "card-icon");
     this.renderCompanions();
   }
 
@@ -82,10 +83,9 @@ export class PersonCard extends BaseCard {
     }
     if (this.#rowValue) this.#rowValue.textContent = displayState;
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (state === "not_home" ? "mdi:account-off" : "mdi:account");
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = state === "not_home" ? "mdi:account-off" : "mdi:account";
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${displayState}`);
   }

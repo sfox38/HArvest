@@ -146,7 +146,7 @@ export class CoverCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:window-shutter", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:window-shutter"), "card-icon");
 
     this.#openBtn?.addEventListener("click",  () => this.config.card?.sendCommand("open_cover",  {}));
     this.#stopBtn?.addEventListener("click",  () => this.config.card?.sendCommand("stop_cover",  {}));
@@ -183,10 +183,9 @@ export class CoverCard extends BaseCard {
       if (this.#positionValue) this.#positionValue.textContent = `${attributes.current_position}%`;
     }
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? _coverIcon(state, attributes);
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = _coverIcon(state, attributes);
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }

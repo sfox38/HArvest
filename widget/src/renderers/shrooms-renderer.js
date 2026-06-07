@@ -83,6 +83,7 @@
     light:          "var(--hrv-ex-shroom-light, #ff9800)",
     switch:         "var(--hrv-ex-shroom-switch, #2196f3)",
     input_boolean:  "var(--hrv-ex-shroom-switch, #2196f3)",
+    lock:           "var(--hrv-ex-shroom-lock, #2196f3)",
     fan:            "var(--hrv-ex-shroom-fan, #4caf50)",
     climate:        "var(--hrv-ex-shroom-climate, #ff5722)",
     cover:          "var(--hrv-ex-shroom-cover, #9c27b0)",
@@ -747,8 +748,6 @@
                 ` : ""}
               </div>
             </div>
-          ` : !isWritable ? /* html */`
-            <div class="shroom-light-ro">-</div>
           ` : ""}
           ${this.renderHistoryZoneHTML()}
           ${this.renderAriaLiveHTML()}
@@ -842,12 +841,6 @@
         } else {
           this.#secondaryEl.textContent = _capitalize(state);
         }
-      }
-
-      const roLabel = this.root.querySelector(".shroom-light-ro");
-      if (roLabel) {
-        roLabel.textContent = this.#isOn && attributes.brightness != null
-          ? `${this.#brightness}%` : _capitalize(state);
       }
 
       const sliderWrap = this.root.querySelector(".shroom-slider-wrap");
@@ -1550,7 +1543,7 @@
       this.#secondaryEl = this.root.querySelector(".shroom-secondary");
 
       this.renderIcon(
-        this.def.icon_state_map?.["off"] ?? this.resolveIcon(this.def.icon, "mdi:radiobox-blank"),
+        this.resolveIcon(this.def.icon_state_map?.["off"] ?? this.def.icon, "mdi:radiobox-blank"),
         "card-icon",
       );
 
@@ -1570,9 +1563,9 @@
         this.#secondaryEl.textContent = label;
       }
 
-      const iconName = this.def.icon_state_map?.[state]
-        ?? this.resolveIcon(this.def.icon, isOn ? "mdi:radiobox-marked" : "mdi:radiobox-blank");
-      this.renderIcon(iconName, "card-icon");
+      const bsDefault = isOn ? "mdi:radiobox-marked" : "mdi:radiobox-blank";
+      const bsRawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? bsDefault;
+      this.renderIcon(this.resolveIcon(bsRawIcon, bsDefault), "card-icon");
 
       this.announceState(`${this.def.friendly_name}, ${label}`);
     }
@@ -2546,9 +2539,8 @@
         this.#secondaryEl.textContent = _capitalize(state);
       }
 
-      const iconName = this.def.icon_state_map?.[state]
-        ?? this.resolveIcon(this.def.icon, "mdi:remote");
-      this.renderIcon(iconName, "card-icon");
+      const remoteRaw = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:remote";
+      this.renderIcon(this.resolveIcon(remoteRaw, "mdi:remote"), "card-icon");
 
       this.announceState(`${this.def.friendly_name}, ${state}`);
     }
@@ -2581,18 +2573,6 @@
     ${SHROOM_BUTTONS}
     ${SHROOM_COMPANIONS}
 
-    .shroom-timer-display {
-      font-size: 28px;
-      font-weight: 300;
-      color: var(--hrv-color-text, #212121);
-      text-align: center;
-      display: block;
-      margin-top: var(--hrv-ex-shroom-spacing, 12px);
-      font-variant-numeric: tabular-nums;
-    }
-    .shroom-timer-display[data-paused=true] {
-      opacity: 0.6;
-    }
     .shroom-timer-controls {
       display: flex;
       justify-content: center;
@@ -2631,7 +2611,6 @@
   class TimerCard extends BaseCard {
     #iconEl = null;
     #secondaryEl = null;
-    #displayEl = null;
     #playPauseBtn = null;
     #cancelBtn = null;
     #finishBtn = null;
@@ -2655,7 +2634,6 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
-          <span class="shroom-timer-display" title="Time remaining">00:00</span>
           ${isWritable ? /* html */`
             <div class="shroom-timer-controls">
               <button class="shroom-timer-btn" data-action="playpause" type="button"
@@ -2680,7 +2658,6 @@
 
       this.#iconEl = this.root.querySelector(".shroom-icon-shape");
       this.#secondaryEl = this.root.querySelector(".shroom-secondary");
-      this.#displayEl = this.root.querySelector(".shroom-timer-display");
       this.#playPauseBtn = this.root.querySelector("[data-action=playpause]");
       this.#cancelBtn = this.root.querySelector("[data-action=cancel]");
       this.#finishBtn = this.root.querySelector("[data-action=finish]");
@@ -2718,21 +2695,13 @@
       const isActive = state === "active";
       _applyIconColor(this.#iconEl, "timer", isActive || state === "paused");
 
-      if (this.#secondaryEl) {
-        this.#secondaryEl.textContent = _capitalize(state);
-      }
-
       this.#updateButtons(state);
-      this.#updateDisplay(state);
+      this.#updateSecondary(state);
 
       if (isActive && this.#finishesAt) {
         this.#startTick();
       } else {
         this.#stopTick();
-      }
-
-      if (this.#displayEl) {
-        this.#displayEl.setAttribute("data-paused", String(state === "paused"));
       }
     }
 
@@ -2766,21 +2735,20 @@
       this.announceState(`${this.def.friendly_name}, ${state}`);
     }
 
-    #updateDisplay(state) {
-      if (!this.#displayEl) return;
+    #updateSecondary(state) {
+      if (!this.#secondaryEl) return;
+      const label = _capitalize(state);
+      let time = null;
       if (state === "idle") {
         const dur = this.#lastAttrs.duration;
-        this.#displayEl.textContent = dur ? _formatTimerTime(_parseDuration(dur)) : "00:00";
-        return;
-      }
-      if (state === "paused" && this.#remaining != null) {
-        this.#displayEl.textContent = _formatTimerTime(this.#remaining);
-        return;
-      }
-      if (state === "active" && this.#finishesAt) {
+        time = dur ? _formatTimerTime(_parseDuration(dur)) : "00:00";
+      } else if (state === "paused" && this.#remaining != null) {
+        time = _formatTimerTime(this.#remaining);
+      } else if (state === "active" && this.#finishesAt) {
         const secs = Math.max(0, (new Date(this.#finishesAt).getTime() - Date.now()) / 1000);
-        this.#displayEl.textContent = _formatTimerTime(secs);
+        time = _formatTimerTime(secs);
       }
+      this.#secondaryEl.textContent = time ? `${label} - ${time}` : label;
     }
 
     #startTick() {
@@ -2791,7 +2759,9 @@
           return;
         }
         const secs = Math.max(0, (new Date(this.#finishesAt).getTime() - Date.now()) / 1000);
-        if (this.#displayEl) this.#displayEl.textContent = _formatTimerTime(secs);
+        if (this.#secondaryEl) {
+          this.#secondaryEl.textContent = `Active - ${_formatTimerTime(secs)}`;
+        }
         if (secs <= 0) this.#stopTick();
       }, 1000);
     }
@@ -4052,11 +4022,423 @@
     }
   }
 
-  // Note: badge rendering is provided by the built-in widget BadgeCard (see
-  // widget/src/renderers/badge-card.js). This pack does not register a "badge"
-  // entry; the renderer-lookup chain in hrv-card.js falls through to the
-  // built-in. Remove this comment and add a `class BadgeCard` + a "badge"
-  // registration entry below if/when shrooms wants visually-distinct badges.
+  // ===========================================================================
+  // LockCard
+  // ===========================================================================
+
+  const LOCK_STYLES = /* css */`
+    ${SHROOM_STATE_ITEM}
+    ${SHROOM_COMPANIONS}
+  `;
+
+  class LockCard extends BaseCard {
+    #iconEl = null;
+    #secondaryEl = null;
+    #isLocked = false;
+    #currentState = "unknown";
+
+    render() {
+      _applyLayout(this);
+      const isWritable = this.def.capabilities === "read-write";
+
+      this.root.innerHTML = /* html */`
+        <style>${LOCK_STYLES}</style>
+        <div part="card">
+          <div class="shroom-state-item" data-tappable="${isWritable}">
+            <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
+            <div class="shroom-info">
+              <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
+              <span class="shroom-secondary">-</span>
+            </div>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconEl = this.root.querySelector(".shroom-icon-shape");
+      this.#secondaryEl = this.root.querySelector(".shroom-secondary");
+
+      this.renderIcon(
+        this.resolveIcon(this.def.icon, "mdi:lock"),
+        "card-icon",
+      );
+
+      const stateItem = this.root.querySelector(".shroom-state-item");
+      if (isWritable) {
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Lock/Unlock`);
+        this._attachGestureHandlers(stateItem, {
+          onTap: () => {
+            const tap = this.config.gestureConfig?.tap;
+            if (tap) { this._runAction(tap); return; }
+            this.config.card?.sendCommand(this.#isLocked ? "unlock" : "lock", {});
+          },
+        });
+      }
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      this.#currentState = state;
+      this.#isLocked = state === "locked";
+      const isJammed = state === "jammed";
+
+      _applyIconColor(this.#iconEl, "lock", this.#isLocked);
+
+      if (this.#secondaryEl) {
+        this.#secondaryEl.textContent = _capitalize(state);
+      }
+
+      const stateItem = this.root.querySelector(".shroom-state-item");
+      if (stateItem?.hasAttribute("role")) {
+        stateItem.setAttribute("aria-pressed", String(this.#isLocked));
+      }
+
+      const defaultIcon = isJammed ? "mdi:lock-alert" : this.#isLocked ? "mdi:lock" : "mdi:lock-open";
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+      this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
+
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+
+    predictState(action, _data) {
+      if (action === "lock")   return { state: "locking",   attributes: {} };
+      if (action === "unlock") return { state: "unlocking", attributes: {} };
+      return null;
+    }
+  }
+
+  // ===========================================================================
+  // ScriptCard
+  // ===========================================================================
+
+  const SCRIPT_STYLES = /* css */`
+    ${SHROOM_STATE_ITEM}
+    ${SHROOM_COMPANIONS}
+  `;
+
+  class ScriptCard extends BaseCard {
+    static staleOnMount = false;
+    #iconEl = null;
+    #secondaryEl = null;
+
+    render() {
+      _applyLayout(this);
+      const isWritable = this.def.capabilities === "read-write";
+      const runLabel = this.i18n.t("action.run") !== "action.run" ? this.i18n.t("action.run") : "Run";
+
+      this.root.innerHTML = /* html */`
+        <style>${SCRIPT_STYLES}</style>
+        <div part="card">
+          <div class="shroom-state-item" data-tappable="${isWritable}">
+            <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
+            <div class="shroom-info">
+              <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
+              <span class="shroom-secondary">-</span>
+            </div>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconEl = this.root.querySelector(".shroom-icon-shape");
+      this.#secondaryEl = this.root.querySelector(".shroom-secondary");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:script-text-play"), "card-icon");
+      _applyIconColor(this.#iconEl, "script", false);
+
+      const stateItem = this.root.querySelector(".shroom-state-item");
+      if (isWritable) {
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - ${runLabel}`);
+        this._attachGestureHandlers(stateItem, {
+          onTap: () => {
+            const tap = this.config.gestureConfig?.tap;
+            if (tap) { this._runAction(tap); return; }
+            this.config.card?.sendCommand("turn_on", this.def.service_data ?? {});
+          },
+        });
+      }
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      const isRunning = state === "on";
+      _applyIconColor(this.#iconEl, "script", isRunning);
+
+      if (this.#secondaryEl) {
+        this.#secondaryEl.textContent = isRunning
+          ? (this.i18n.t("state.running") !== "state.running" ? this.i18n.t("state.running") : "Running")
+          : _capitalize(state);
+      }
+
+      const defaultIcon = isRunning ? "mdi:script-text" : "mdi:script-text-play";
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+      this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+  }
+
+  // ===========================================================================
+  // AutomationCard
+  // ===========================================================================
+
+  const AUTOMATION_STYLES = /* css */`
+    ${SHROOM_STATE_ITEM}
+    ${SHROOM_COMPANIONS}
+  `;
+
+  class AutomationCard extends BaseCard {
+    static staleOnMount = false;
+    #iconEl = null;
+    #secondaryEl = null;
+
+    render() {
+      _applyLayout(this);
+      const isWritable = this.def.capabilities === "read-write";
+      const triggerLabel = this.i18n.t("action.trigger") !== "action.trigger" ? this.i18n.t("action.trigger") : "Trigger";
+
+      this.root.innerHTML = /* html */`
+        <style>${AUTOMATION_STYLES}</style>
+        <div part="card">
+          <div class="shroom-state-item" data-tappable="${isWritable}">
+            <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
+            <div class="shroom-info">
+              <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
+              <span class="shroom-secondary">-</span>
+            </div>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconEl = this.root.querySelector(".shroom-icon-shape");
+      this.#secondaryEl = this.root.querySelector(".shroom-secondary");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:robot"), "card-icon");
+      _applyIconColor(this.#iconEl, "automation", false);
+
+      const stateItem = this.root.querySelector(".shroom-state-item");
+      if (isWritable) {
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - ${triggerLabel}`);
+        this._attachGestureHandlers(stateItem, {
+          onTap: () => {
+            const tap = this.config.gestureConfig?.tap;
+            if (tap) { this._runAction(tap); return; }
+            this.config.card?.sendCommand("trigger", {});
+          },
+        });
+      }
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      const isOn = state === "on";
+      _applyIconColor(this.#iconEl, "automation", isOn);
+
+      if (this.#secondaryEl) {
+        this.#secondaryEl.textContent = isOn
+          ? (this.i18n.t("state.on") !== "state.on" ? this.i18n.t("state.on") : "Enabled")
+          : _capitalize(state);
+      }
+
+      const defaultIcon = isOn ? "mdi:robot" : "mdi:robot-off";
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+      this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
+      this.announceState(`${this.def.friendly_name}, ${state === "on" ? "enabled" : "disabled"}`);
+    }
+  }
+
+  // ===========================================================================
+  // ButtonCard
+  // ===========================================================================
+
+  const BUTTON_STYLES = /* css */`
+    ${SHROOM_STATE_ITEM}
+    ${SHROOM_COMPANIONS}
+  `;
+
+  class ButtonCard extends BaseCard {
+    static staleOnMount = false;
+    #iconEl = null;
+    #secondaryEl = null;
+
+    render() {
+      _applyLayout(this);
+      const isWritable = this.def.capabilities === "read-write";
+      const pressLabel = this.i18n.t("action.press") !== "action.press" ? this.i18n.t("action.press") : "Press";
+
+      this.root.innerHTML = /* html */`
+        <style>${BUTTON_STYLES}</style>
+        <div part="card">
+          <div class="shroom-state-item" data-tappable="${isWritable}">
+            <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
+            <div class="shroom-info">
+              <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
+              <span class="shroom-secondary">-</span>
+            </div>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconEl = this.root.querySelector(".shroom-icon-shape");
+      this.#secondaryEl = this.root.querySelector(".shroom-secondary");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:gesture-tap-button"), "card-icon");
+      _applyIconColor(this.#iconEl, "button", false);
+
+      const stateItem = this.root.querySelector(".shroom-state-item");
+      if (isWritable) {
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - ${pressLabel}`);
+        this._attachGestureHandlers(stateItem, {
+          onTap: () => {
+            const tap = this.config.gestureConfig?.tap;
+            if (tap) { this._runAction(tap); return; }
+            this.config.card?.sendCommand("press", {});
+          },
+        });
+      }
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      _applyIconColor(this.#iconEl, "button", false);
+
+      if (this.#secondaryEl) {
+        this.#secondaryEl.textContent = _capitalize(state);
+      }
+
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:gesture-tap-button";
+      this.renderIcon(this.resolveIcon(rawIcon, "mdi:gesture-tap-button"), "card-icon");
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+  }
+
+  // ===========================================================================
+  // PersonCard
+  // ===========================================================================
+
+  const PERSON_STYLES = /* css */`
+    ${SHROOM_STATE_ITEM}
+    ${SHROOM_COMPANIONS}
+  `;
+
+  class PersonCard extends BaseCard {
+    static staleOnMount = true;
+    #iconEl = null;
+    #secondaryEl = null;
+
+    render() {
+      _applyLayout(this);
+
+      this.root.innerHTML = /* html */`
+        <style>${PERSON_STYLES}</style>
+        <div part="card">
+          <div class="shroom-state-item">
+            <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
+            <div class="shroom-info">
+              <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
+              <span class="shroom-secondary">-</span>
+            </div>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconEl = this.root.querySelector(".shroom-icon-shape");
+      this.#secondaryEl = this.root.querySelector(".shroom-secondary");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:account"), "card-icon");
+      _applyIconColor(this.#iconEl, "person", false);
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      const isHome = state === "home";
+      _applyIconColor(this.#iconEl, "person", isHome);
+
+      if (this.#secondaryEl) {
+        const displayState = state === "not_home" ? "Away"
+          : state === "home" ? "Home"
+          : _capitalize(state);
+        this.#secondaryEl.textContent = displayState;
+      }
+
+      const defaultIcon = state === "not_home" ? "mdi:account-off" : "mdi:account";
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+      this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+  }
+
+  // ===========================================================================
+  // EventCard
+  // ===========================================================================
+
+  const EVENT_STYLES = /* css */`
+    ${SHROOM_STATE_ITEM}
+    ${SHROOM_COMPANIONS}
+  `;
+
+  class EventCard extends BaseCard {
+    #iconEl = null;
+    #secondaryEl = null;
+
+    render() {
+      _applyLayout(this);
+
+      this.root.innerHTML = /* html */`
+        <style>${EVENT_STYLES}</style>
+        <div part="card">
+          <div class="shroom-state-item">
+            <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
+            <div class="shroom-info">
+              <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
+              <span class="shroom-secondary">-</span>
+            </div>
+          </div>
+          ${this.renderAriaLiveHTML()}
+          ${this.renderCompanionZoneHTML()}
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      `;
+
+      this.#iconEl = this.root.querySelector(".shroom-icon-shape");
+      this.#secondaryEl = this.root.querySelector(".shroom-secondary");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:eye"), "card-icon");
+      _applyIconColor(this.#iconEl, "event", false);
+
+      this.renderCompanions();
+      _applyCompanionTooltips(this.root);
+    }
+
+    applyState(state, _attributes) {
+      _applyIconColor(this.#iconEl, "event", false);
+
+      if (this.#secondaryEl) {
+        this.#secondaryEl.textContent = _capitalize(state);
+      }
+
+      const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:eye";
+      this.renderIcon(this.resolveIcon(rawIcon, "mdi:eye"), "card-icon");
+      this.announceState(`${this.def.friendly_name}, ${state}`);
+    }
+  }
 
   // ===========================================================================
   // Registration
@@ -4068,6 +4450,7 @@
     "light":                LightCard,
     "switch":               SwitchCard,
     "input_boolean":        SwitchCard,
+    "lock":                 LockCard,
     "sensor":               SensorCard,
     "sensor.temperature":   SensorCard,
     "sensor.humidity":      SensorCard,
@@ -4084,6 +4467,11 @@
     "climate":              ClimateCard,
     "media_player":         MediaPlayerCard,
     "weather":              WeatherCard,
+    "script":               ScriptCard,
+    "automation":           AutomationCard,
+    "button":               ButtonCard,
+    "person":               PersonCard,
+    "event":                EventCard,
     _capabilities: {
       fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
       input_number: { display_modes: ["slider", "buttons"] },

@@ -63,6 +63,15 @@ const DOMAIN_ICON_DEFAULTS = {
   sensor:         { "*": "mdi:gauge" },
   binary_sensor:  { on: "mdi:radiobox-marked",       "*": "mdi:radiobox-blank" },
   timer:          { active: "mdi:timer", paused: "mdi:timer-pause", "*": "mdi:timer-outline" },
+  lock: {
+    locked: "mdi:lock", unlocked: "mdi:lock-open",
+    locking: "mdi:lock", unlocking: "mdi:lock-open",
+    jammed: "mdi:lock-alert", "*": "mdi:lock",
+  },
+  person:         { home: "mdi:home",                    "*": "mdi:account" },
+  script:         { on: "mdi:script-text",               "*": "mdi:script-text-play" },
+  automation:     { on: "mdi:robot",                     "*": "mdi:robot-off" },
+  button:         { "*": "mdi:gesture-tap-button" },
   weather: {
     sunny:           "mdi:weather-sunny",
     "clear-night":   "mdi:weather-night",

@@ -381,18 +381,19 @@ export const api = {
     reloadById: (themeId: string): Promise<{ status: string; theme: ThemeDefinition }> =>
       _post<{ status: string; theme: ThemeDefinition }>(`/themes/${themeId}/reload`, {}),
 
-    importZip: async (file: File): Promise<ThemeDefinition & { has_renderer_file: boolean; error?: string }> => {
+    importZip: async (file: File, overwrite = false): Promise<ThemeDefinition & { has_renderer_file: boolean; error?: string }> => {
       const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch(`${BASE}/themes/import`, {
+      const url = overwrite ? `${BASE}/themes/import?overwrite=true` : `${BASE}/themes/import`;
+      const res = await fetch(url, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: form,
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (res.status === 409 && json.error === "renderer_consent_required") {
+        if (res.status === 409 && (json.error === "renderer_consent_required" || json.error === "theme_already_exists")) {
           return json as any;
         }
         throw new Error(`Import failed: ${res.status}${json.message ? ` - ${json.message}` : ""}`);

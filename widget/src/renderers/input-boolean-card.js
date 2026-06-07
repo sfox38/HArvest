@@ -19,7 +19,8 @@ const INPUT_BOOLEAN_STYLES = /* css */`
   }
 
   [part=toggle-button] {
-    padding: var(--hrv-spacing-xs) var(--hrv-spacing-m);
+    width: 100%;
+    padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
     border: none;
     border-radius: var(--hrv-radius-m);
     font-size: var(--hrv-font-size-s);
@@ -27,12 +28,11 @@ const INPUT_BOOLEAN_STYLES = /* css */`
     font-family: inherit;
     cursor: pointer;
     transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
-    min-width: 64px;
   }
 
   [part=toggle-button][aria-pressed=true] {
-    background: var(--hrv-color-state-on);
-    color: var(--hrv-color-text-inverse);
+    background: var(--hrv-color-primary);
+    color: var(--hrv-color-on-primary);
   }
 
   [part=toggle-button][aria-pressed=false] {
@@ -96,7 +96,7 @@ export class InputBooleanCard extends BaseCard {
     }
 
     this.renderIcon(
-      this.def.icon ?? "mdi:toggle-switch-off",
+      this.resolveIcon(this.def.icon, "mdi:toggle-switch-off-outline"),
       "card-icon",
     );
 
@@ -141,10 +141,9 @@ export class InputBooleanCard extends BaseCard {
     const rowStateEl = this.root.querySelector("[part=row-state]");
     if (rowStateEl) rowStateEl.textContent = label;
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (isOn ? "mdi:toggle-switch" : "mdi:toggle-switch-off");
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = isOn ? "mdi:toggle-switch" : "mdi:toggle-switch-off-outline";
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }

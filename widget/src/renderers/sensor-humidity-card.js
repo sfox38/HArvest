@@ -19,7 +19,7 @@ const HUMIDITY_STYLES = /* css */`
   [part=sensor-value] {
     font-size: 2rem;
     font-weight: var(--hrv-font-weight-bold);
-    color: var(--hrv-color-primary);
+    color: var(--hrv-color-text);
     line-height: 1;
   }
 
@@ -58,7 +58,7 @@ export class HumiditySensorCard extends BaseCard {
 
     this.#valueEl  = this.root.querySelector("[part=sensor-value]");
     this.#rowValue = this.root.querySelector("[part=row-value]");
-    this.renderIcon(this.def.icon ?? "mdi:water-percent", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:water-percent"), "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }

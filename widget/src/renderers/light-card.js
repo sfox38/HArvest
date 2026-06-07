@@ -46,7 +46,7 @@ const LIGHT_CARD_STYLES = /* css */`
   [part=toggle-button][data-pressing=true] { opacity: 0.65; filter: brightness(1.15); }
 
   [part=toggle-button][aria-pressed=true] {
-    background: var(--hrv-color-state-on);
+    background: var(--hrv-color-primary);
   }
 
   [part=toggle-button][aria-pressed=false] {
@@ -126,7 +126,7 @@ const LIGHT_CARD_STYLES = /* css */`
   }
 
   :host([data-harvest-state=live]) [part=card-icon][data-on=false] {
-    color: var(--hrv-color-state-off);
+    color: var(--hrv-color-text-secondary);
   }
 `;
 

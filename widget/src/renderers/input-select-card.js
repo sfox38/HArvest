@@ -195,7 +195,7 @@ export class InputSelectCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:format-list-bulleted", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:format-list-bulleted"), "card-icon");
 
     if (this.#trigger && isWritable) {
       this.#trigger.addEventListener("click", (e) => {

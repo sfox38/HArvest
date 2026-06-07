@@ -65,6 +65,13 @@ const SCRIPT_CARD_STYLES = /* css */`
     display: block;
     text-align: center;
   }
+
+  [part=card][data-readonly=true] [part=state-label] {
+    font-size: var(--hrv-font-size-l);
+    font-weight: var(--hrv-font-weight-medium);
+    color: var(--hrv-color-text);
+    margin-top: 0;
+  }
 `;
 
 const SCRIPT_ROW_STYLES = /* css */`
@@ -129,7 +136,7 @@ export class ScriptCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:script-text-play", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:script-text-play"), "card-icon");
 
     const onRun = () => {
       const tap = this.config.gestureConfig?.tap;
@@ -146,11 +153,14 @@ export class ScriptCard extends BaseCard {
     const isRunning     = state === "on";
     const isUnavailable = state === "unavailable" || state === "unknown";
 
+    const isReadOnly = this.def.capabilities !== "read-write";
     const stateText = isRunning
       ? (this.i18n.t("state.running") !== "state.running" ? this.i18n.t("state.running") : "Running")
       : isUnavailable
         ? (this.i18n.t(`state.${state}`) !== `state.${state}` ? this.i18n.t(`state.${state}`) : state)
-        : "";
+        : isReadOnly
+          ? this.formatStateLabel(state)
+          : "";
 
     if (this.#stateLabel) this.#stateLabel.textContent = stateText;
 
@@ -162,10 +172,9 @@ export class ScriptCard extends BaseCard {
       this.#rowRunBtn.disabled = isRunning || isUnavailable;
     }
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (isRunning ? "mdi:script-text" : "mdi:script-text-play");
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = isRunning ? "mdi:script-text" : "mdi:script-text-play";
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${stateText || state}`);
   }

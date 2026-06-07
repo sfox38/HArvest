@@ -1452,12 +1452,24 @@ class HarvestThemeImportView(_HarvestView):
         except Exception:
             raise web.HTTPBadRequest(reason="theme.json is not valid JSON.")
 
+        overwrite = request.query.get("overwrite") == "true"
+
         name = str(raw.get("name", "")).strip()
         name_err = _validate_theme_name(name)
         if name_err:
             raise web.HTTPBadRequest(reason=name_err)
-        if self._theme_manager.name_exists(name):
-            raise web.HTTPConflict(reason=f"A theme named \"{name}\" already exists.")
+
+        existing_theme = next(
+            (t for t in self._theme_manager.get_all() if t.name.lower() == name.lower()),
+            None,
+        )
+        if existing_theme is not None and not overwrite:
+            return self.json(
+                {"error": "theme_already_exists", "theme_id": existing_theme.theme_id, "name": name},
+                status_code=409,
+            )
+        if existing_theme is not None and existing_theme.is_bundled:
+            raise web.HTTPConflict(reason="Cannot overwrite a bundled theme.")
 
         variables = raw.get("variables")
         if not isinstance(variables, dict):
@@ -1479,19 +1491,34 @@ class HarvestThemeImportView(_HarvestView):
         font_filename = str(raw_font.get("file", "font.woff2")).strip() if isinstance(raw_font, dict) else "font.woff2"
         has_font = bool(icon_font_family) and (font_filename in zf.namelist())
 
-        theme = await self._theme_manager.create(
-            name=name,
-            variables=variables,
-            dark_variables=raw.get("dark_variables"),
-            created_by=user.id,
-            author=str(raw.get("author", "")),
-            version=str(raw.get("version", "1.0")),
-            has_renderer=has_renderer_js or has_renderer_flag,
-            capabilities=capabilities,
-            renderer_settings=renderer_settings,
-            description=str(raw.get("description", "")),
-            icon_font_family=icon_font_family if has_font else "",
-        )
+        if overwrite and existing_theme is not None:
+            theme = await self._theme_manager.update(existing_theme.theme_id, {
+                "author": str(raw.get("author", "")),
+                "version": str(raw.get("version", "1.0")),
+                "variables": variables,
+                "dark_variables": raw.get("dark_variables") or {},
+                "has_renderer": has_renderer_js or has_renderer_flag,
+                "capabilities": capabilities,
+                "renderer_settings": renderer_settings or [],
+                "description": str(raw.get("description", "")),
+                "icon_font_family": icon_font_family if has_font else "",
+            })
+            status_code = 200
+        else:
+            theme = await self._theme_manager.create(
+                name=name,
+                variables=variables,
+                dark_variables=raw.get("dark_variables"),
+                created_by=user.id,
+                author=str(raw.get("author", "")),
+                version=str(raw.get("version", "1.0")),
+                has_renderer=has_renderer_js or has_renderer_flag,
+                capabilities=capabilities,
+                renderer_settings=renderer_settings,
+                description=str(raw.get("description", "")),
+                icon_font_family=icon_font_family if has_font else "",
+            )
+            status_code = 201
 
         if has_renderer_js and self._renderer_manager is not None:
             js_code = zf.read("renderer.js").decode("utf-8")
@@ -1506,7 +1533,7 @@ class HarvestThemeImportView(_HarvestView):
         font_url = f"/api/harvest/themes/{theme.theme_id}/font" if has_font else None
         d = theme_to_api_dict(theme, font_url=font_url)
         d["has_renderer"] = has_renderer_js and self._renderer_manager is not None
-        return self.json(d, status_code=201)
+        return self.json(d, status_code=status_code)
 
 
 class HarvestThemeExportView(_HarvestView):

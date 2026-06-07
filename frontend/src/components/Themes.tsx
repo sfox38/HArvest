@@ -97,6 +97,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
   // Delete confirm
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Overwrite confirm (when importing a zip whose name already exists)
+  const [overwriteConflict, setOverwriteConflict] = useState<{ name: string; theme_id: string } | null>(null);
+  const [pendingOverwriteFile, setPendingOverwriteFile] = useState<File | null>(null);
+
   // Thumbnail state
   const [thumbKey, setThumbKey] = useState(0);
   const thumbUrls = useThemeThumbs(themes, thumbKey);
@@ -360,6 +364,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
           requireConsent(doImport);
           return;
         }
+        if ((result as any).error === "theme_already_exists") {
+          setPendingOverwriteFile(file);
+          setOverwriteConflict({ name: (result as any).name, theme_id: (result as any).theme_id });
+          return;
+        }
         const updated = await reload();
         if (updated) setSelected(result.theme_id);
       } catch (err) {
@@ -368,6 +377,29 @@ export function Themes({ onSelectToken }: ThemesProps) {
     };
     await doImport();
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleOverwriteConfirm = async () => {
+    const file = pendingOverwriteFile;
+    const conflict = overwriteConflict;
+    if (!file || !conflict) return;
+    setOverwriteConflict(null);
+    setPendingOverwriteFile(null);
+    const doOverwrite = async () => {
+      try {
+        const result = await api.themes.importZip(file, true);
+        if ((result as any).error === "renderer_consent_required") {
+          requireConsent(doOverwrite);
+          return;
+        }
+        await reload();
+        setSelected(result.theme_id ?? conflict.theme_id);
+        setPreviewKey(k => k + 1);
+      } catch (err) {
+        setError(String(err));
+      }
+    };
+    await doOverwrite();
   };
 
   const handleSave = async () => {
@@ -847,6 +879,16 @@ export function Themes({ onSelectToken }: ThemesProps) {
         <div className="muted" style={{ textAlign: "center", padding: 32, fontSize: 14 }}>
           Select a theme above to view and edit it.
         </div>
+      )}
+
+      {overwriteConflict && (
+        <ConfirmDialog
+          title="Theme already exists"
+          message={`A theme named "${overwriteConflict.name}" already exists. Overwrite it with the imported version?`}
+          confirmLabel="Overwrite"
+          onConfirm={handleOverwriteConfirm}
+          onCancel={() => { setOverwriteConflict(null); setPendingOverwriteFile(null); }}
+        />
       )}
 
       {confirmDelete && selectedTheme && (

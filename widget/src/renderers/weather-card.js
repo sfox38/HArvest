@@ -374,7 +374,7 @@ export class WeatherCard extends BaseCard {
       this.#scrollTrackEl.addEventListener("pointerdown", (e) => this.#onTrackPointerDown(e));
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:weather-cloudy", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:weather-cloudy"), "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
@@ -413,8 +413,8 @@ export class WeatherCard extends BaseCard {
       if (unitEl) unitEl.textContent = tempUnit;
     }
 
-    const headerIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? iconName;
-    this.renderIcon(headerIcon, "card-icon");
+    const rawHeaderIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? iconName;
+    this.renderIcon(this.resolveIcon(rawHeaderIcon, iconName), "card-icon");
 
     if (this.#humidityEl) {
       const h = attributes.humidity;

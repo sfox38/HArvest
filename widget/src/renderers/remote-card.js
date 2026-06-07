@@ -1,10 +1,8 @@
 /**
  * renderers/remote-card.js - Renderer for the "remote" domain.
  *
- * Renders a send_command button. The remote domain only supports
- * send_command in ALLOWED_SERVICES, so the card is intentionally minimal -
- * a tap action fires the configured command, or shows a static icon if
- * the card is read-only.
+ * Single full-width button. Button label shows the current state.
+ * Tapping fires send_command with the configured command (default "power").
  */
 
 import { BaseCard } from "./base-card.js";
@@ -13,14 +11,14 @@ import { esc as _esc } from "../_utils/esc.js";
 const REMOTE_STYLES = /* css */`
   [part=card-body] {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
     gap: var(--hrv-spacing-s);
   }
 
   [part=command-button] {
-    min-height: 44px;
-    padding: var(--hrv-spacing-xs) var(--hrv-spacing-m);
+    width: 100%;
+    padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
     border: none;
     border-radius: var(--hrv-radius-m);
     background: var(--hrv-color-primary);
@@ -36,19 +34,15 @@ const REMOTE_STYLES = /* css */`
   [part=command-button]:active { opacity: 0.75; }
   [part=command-button]:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  [part=state-label] {
-    font-size: var(--hrv-font-size-s);
-    color: var(--hrv-color-text-secondary);
+  [part=card] [part=state-label] {
+    font-size: var(--hrv-font-size-l);
+    font-weight: var(--hrv-font-weight-medium);
+    color: var(--hrv-color-text);
+    text-align: center;
   }
 
   [part=card][data-readonly=true] [part=card-body] {
     justify-content: center;
-  }
-
-  [part=card][data-readonly=true] [part=state-label] {
-    font-size: var(--hrv-font-size-l);
-    font-weight: var(--hrv-font-weight-medium);
-    color: var(--hrv-color-text);
   }
 `;
 
@@ -59,8 +53,6 @@ export class RemoteCard extends BaseCard {
 
   render() {
     const isWritable = this.def.capabilities === "read-write";
-    // tap_action command defaults to "power" if not configured.
-    const commandLabel = this.config.tapAction?.data?.command ?? "power";
 
     this.root.innerHTML = /* html */`
       <style>${REMOTE_STYLES}</style>
@@ -70,13 +62,11 @@ export class RemoteCard extends BaseCard {
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
         </div>
         <div part="card-body">
-          <span part="state-label"></span>
           ${isWritable ? /* html */`
             <button part="command-button" type="button"
-              aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.send"))} ${_esc(commandLabel)}">
-              ${_esc(commandLabel)}
+              aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.send") !== "action.send" ? this.i18n.t("action.send") : "Send")}">
             </button>
-          ` : ""}
+          ` : `<span part="state-label"></span>`}
         </div>
         ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
@@ -91,10 +81,12 @@ export class RemoteCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:remote", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:remote"), "card-icon");
 
     this._attachGestureHandlers(this.#commandBtn, {
       onTap: () => {
+        const tap  = this.config.gestureConfig?.tap;
+        if (tap) { this._runAction(tap); return; }
         const cmd    = this.config.tapAction?.data?.command ?? "power";
         const device = this.config.tapAction?.data?.device;
         const data   = device ? { command: cmd, device } : { command: cmd };
@@ -106,17 +98,21 @@ export class RemoteCard extends BaseCard {
   }
 
   applyState(state, _attributes) {
+    const label = this.i18n.t(`state.${state}`) !== `state.${state}`
+      ? this.i18n.t(`state.${state}`)
+      : state;
+
+    if (this.#commandBtn) {
+      this.#commandBtn.textContent = label;
+      this.#commandBtn.disabled = state === "unavailable" || state === "unknown";
+    }
     if (this.#stateLabel) {
-      this.#stateLabel.textContent = this.i18n.t(`state.${state}`) !== `state.${state}`
-        ? this.i18n.t(`state.${state}`)
-        : state;
+      this.#stateLabel.textContent = label;
     }
 
-    const iconName = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:remote";
-    this.renderIcon(iconName, "card-icon");
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:remote";
+    this.renderIcon(this.resolveIcon(rawIcon, "mdi:remote"), "card-icon");
 
-    const label = this.i18n.t(`state.${state}`) !== `state.${state}`
-      ? this.i18n.t(`state.${state}`) : state;
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 }
