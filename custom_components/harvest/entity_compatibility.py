@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from enum import IntEnum
 
-from .const import ERR_ENTITY_INCOMPATIBLE, ERR_PERMISSION_DENIED
+from .const import ERR_ENTITY_INCOMPATIBLE, ERR_PERMISSION_DENIED, CONF_SENSITIVE_DOMAINS
 
 
 class SupportTier(IntEnum):
@@ -85,6 +85,12 @@ COMPANION_ALLOWED_DOMAINS: frozenset[str] = frozenset({
     "input_boolean", "cover", "remote", "fan", "sensor", "lock",
 })
 
+# Tier 1 domains that are disabled by default. Admins must explicitly enable
+# each one in Settings before tokens can include entities from that domain.
+SENSITIVE_DOMAINS: frozenset[str] = frozenset({
+    "lock", "script", "automation", "button", "cover",
+})
+
 
 def get_support_tier(domain: str) -> SupportTier:
     """Return the support tier for a given entity domain."""
@@ -151,3 +157,21 @@ def get_custom_domains(hass) -> list[dict]:
 def get_blocked_reason(domain: str) -> str | None:
     """Return the human-readable reason a Tier 3 domain is blocked, or None."""
     return TIER3_DOMAINS.get(domain)
+
+
+def is_sensitive_domain_blocked(domain: str, sensitive_config: dict) -> bool:
+    """Return True if domain is sensitive and not enabled in global config."""
+    if domain not in SENSITIVE_DOMAINS:
+        return False
+    return not sensitive_config.get(domain, False)
+
+
+def get_sensitive_domains(hass) -> dict:
+    """Read the sensitive_domains config from the live config entry."""
+    from .const import DOMAIN, DEFAULTS
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return dict(DEFAULTS[CONF_SENSITIVE_DOMAINS])
+    entry = entries[0]
+    merged = {**DEFAULTS, **entry.data, **entry.options}
+    return merged.get(CONF_SENSITIVE_DOMAINS, dict(DEFAULTS[CONF_SENSITIVE_DOMAINS]))

@@ -275,6 +275,13 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   useEffect(() => { if (entityCacheList.length === 0) loadEntityCache(); }, []);
   useEffect(() => { api.themes.list().then(setThemes).catch(() => {}); }, []);
   useEffect(() => { api.renderers.list().then(d => setRenderersAgreed(d.agreed)).catch(() => {}); }, []);
+  const [blockedDomains, setBlockedDomains] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    api.config.get().then(c => {
+      const sd = c.sensitive_domains ?? {};
+      setBlockedDomains(new Set(Object.keys(sd).filter(k => !sd[k])));
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (selectedEntityId && !attrCache[selectedEntityId]) {
@@ -671,6 +678,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               disabled={adding || saving}
               excludeIds={existingIds}
               filterDomains={token.entities_block ? ENTITIES_BLOCK_DOMAINS : undefined}
+              excludeDomains={blockedDomains}
               placeholder="Add entity..."
             />
           </div>
@@ -1366,6 +1374,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       disabled={adding || saving}
                       excludeIds={existingIds}
                       filterDomains={COMPANION_ALLOWED_DOMAINS}
+                      excludeDomains={blockedDomains}
                       placeholder="Add companion..."
                     />
                   )}

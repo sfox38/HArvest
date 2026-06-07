@@ -262,8 +262,8 @@ def _parse_gesture_config(raw: dict) -> dict:
     return result
 
 
-def _parse_entities(raw_list: list) -> list[EntityAccess]:
-    from .entity_compatibility import get_support_tier
+def _parse_entities(raw_list: list, sensitive_domains: dict | None = None) -> list[EntityAccess]:
+    from .entity_compatibility import get_support_tier, is_sensitive_domain_blocked
     entities = []
     for e in raw_list:
         entity_id = str(e["entity_id"])
@@ -272,6 +272,8 @@ def _parse_entities(raw_list: list) -> list[EntityAccess]:
         domain = entity_id.split(".")[0]
         if get_support_tier(domain) == 3:
             raise ValueError(f"Domain '{domain}' is not supported (Tier 3).")
+        if sensitive_domains is not None and is_sensitive_domain_blocked(domain, sensitive_domains):
+            raise ValueError(f"Domain '{domain}' is disabled in global Settings.")
         cap = str(e.get("capabilities", "read"))
         if cap not in _VALID_CAPABILITIES:
             raise ValueError(f"Invalid capabilities {cap!r}; must be one of {_VALID_CAPABILITIES}")
@@ -547,7 +549,8 @@ class HarvestTokensView(_HarvestView):
             raise web.HTTPBadRequest(reason="Invalid JSON body.")
 
         try:
-            entities = _parse_entities(body.get("entities", []))
+            from .entity_compatibility import get_sensitive_domains
+            entities = _parse_entities(body.get("entities", []), get_sensitive_domains(self._hass))
             origins = _parse_origins(body.get("origins", {}))
             rate_limits = _parse_rate_limits(body.get("rate_limits", {}))
             session_cfg = _parse_session_config(body.get("session", {}))
@@ -899,7 +902,8 @@ class HarvestTokenDetailView(_HarvestView):
         if "origins" in body:
             updates["origins"] = _parse_origins(body["origins"])
         if "entities" in body:
-            updates["entities"] = _parse_entities(body["entities"])
+            from .entity_compatibility import get_sensitive_domains
+            updates["entities"] = _parse_entities(body["entities"], get_sensitive_domains(self._hass))
         if "rate_limits" in body:
             updates["rate_limits"] = _parse_rate_limits(body["rate_limits"])
         if "session" in body:
@@ -2510,7 +2514,8 @@ class HarvestEntitiesView(_HarvestView):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
-        from .entity_compatibility import get_support_tier
+        from .entity_compatibility import get_support_tier, get_sensitive_domains, is_sensitive_domain_blocked
+        sensitive = get_sensitive_domains(self._hass)
         return self.json([
             {
                 "entity_id": s.entity_id,
@@ -2519,7 +2524,7 @@ class HarvestEntitiesView(_HarvestView):
                 "state": s.state,
             }
             for s in self._hass.states.async_all()
-            if get_support_tier(s.domain) != 3
+            if get_support_tier(s.domain) != 3 and not is_sensitive_domain_blocked(s.domain, sensitive)
         ])
 
 

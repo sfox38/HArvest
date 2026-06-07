@@ -777,6 +777,7 @@ interface EntityAutocompleteProps {
   onSelect: (entityId: string) => void;
   disabled?: boolean;
   filterDomains?: Set<string>;
+  excludeDomains?: Set<string>;
   placeholder?: string;
   excludeIds?: string[];
 }
@@ -802,7 +803,7 @@ function scrollInputToTopOnMobile(input: HTMLInputElement | null) {
   window.scrollBy({ top: inputRect.top - 8, behavior: "smooth" });
 }
 
-export function EntityAutocomplete({ value, onChange, onSelect, disabled, filterDomains, placeholder, excludeIds }: EntityAutocompleteProps) {
+export function EntityAutocomplete({ value, onChange, onSelect, disabled, filterDomains, excludeDomains, placeholder, excludeIds }: EntityAutocompleteProps) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
@@ -855,6 +856,7 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
       .filter(e => {
         if (excluded.has(e.entity_id)) return false;
         if (filterDomains && !filterDomains.has(e.domain)) return false;
+        if (excludeDomains && excludeDomains.has(e.domain)) return false;
         const hay = `${e.entity_id} ${e.friendly_name}`.toLowerCase();
         return words.every(w => hay.includes(w));
       })
@@ -862,7 +864,7 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
       .sort((a, b) => b.s - a.s)
       .slice(0, 8)
       .map(({ e }) => e);
-  }, [value, filterDomains, excluded, cacheLen]);
+  }, [value, filterDomains, excludeDomains, excluded, cacheLen]);
 
   useEffect(() => { setHighlighted(0); }, [matches.length]);
 

@@ -437,9 +437,13 @@ class HarvestWsView(HomeAssistantView):
         real_entity_ids: list[str] = []
         outgoing_ids: dict[str, str] = {}  # real_entity_id -> outgoing id (alias or real)
 
+        from .entity_compatibility import get_sensitive_domains, is_sensitive_domain_blocked
+        sensitive = get_sensitive_domains(self._hass)
         for ref in entity_refs:
             ea = self._resolve_entity_ref(ref, token)
             if ea is not None and ea.entity_id not in outgoing_ids:
+                if is_sensitive_domain_blocked(ea.entity_id.split(".")[0], sensitive):
+                    continue
                 real_entity_ids.append(ea.entity_id)
                 outgoing_ids[ea.entity_id] = ref  # echo back whatever the client sent
 

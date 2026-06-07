@@ -983,6 +983,28 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             onPortChange={patchNum("external_port")}
           />
         </dl>
+        <div className="divider" style={{ margin: "8px 0 12px" }} />
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Sensitive domains</div>
+        <div className="settings-field-hint" style={{ marginBottom: 12 }}>
+          These Tier 1 domains are disabled by default. Enable each one to allow tokens to include entities from that domain. Disabling a domain silently drops those entities from active sessions.
+        </div>
+        {([
+          { key: "lock",       label: "Lock",       hint: "lock.* entities - physical lock/unlock control" },
+          { key: "cover",      label: "Cover",      hint: "cover.* entities - garage doors, gates, blinds" },
+          { key: "script",     label: "Script",     hint: "script.* entities - arbitrary HA script execution" },
+          { key: "automation", label: "Automation", hint: "automation.* entities - trigger, enable, or disable automations" },
+          { key: "button",     label: "Button",     hint: "button.* entities - one-shot press actions" },
+        ] as const).map(({ key, label, hint }) => (
+          <ToggleField
+            key={key}
+            label={label}
+            hint={hint}
+            value={!!(config.sensitive_domains ?? {})[key]}
+            onChange={async (v) => {
+              await patch({ sensitive_domains: { ...(config.sensitive_domains ?? {}), [key]: v } });
+            }}
+          />
+        ))}
       </Card>
 
       {/* Custom Domains */}

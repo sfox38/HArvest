@@ -304,6 +304,7 @@ export interface IntegrationConfig {
   ha_event_bus: HaEventBusConfig;
   custom_domains: CustomDomainEntry[];
   available_domains?: AvailableDomain[];
+  sensitive_domains: Record<string, boolean>;
   platform_version?: string;
 }
 

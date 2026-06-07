@@ -229,9 +229,10 @@ interface CompanionPickerProps {
   excludeIds: string[];
   parentCapability: "badge" | "read" | "read-write";
   onChange: (c: { entity_id: string; alias: string | null; read_only?: boolean }[]) => void;
+  blockedDomains?: Set<string>;
 }
 
-function CompanionPicker({ companions, excludeIds, parentCapability, onChange }: CompanionPickerProps) {
+function CompanionPicker({ companions, excludeIds, parentCapability, onChange, blockedDomains }: CompanionPickerProps) {
   const [input, setInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
   const canAdd = true;
@@ -267,6 +268,7 @@ function CompanionPicker({ companions, excludeIds, parentCapability, onChange }:
           onSelect={id => { addCompanion(id); setInput(""); }}
           disabled={loadingAlias !== null}
           filterDomains={COMPANION_ALLOWED_DOMAINS}
+          excludeDomains={blockedDomains}
           placeholder="Add companion entity..."
         />
       )}
@@ -594,7 +596,7 @@ function EntitiesBlockPreview({ entities, capability }: { entities: SelectedEnti
   );
 }
 
-function Step1({ state, onChange, existingLabels, maxEntities }: { state: WizardState; onChange: (u: Partial<WizardState>) => void; existingLabels: string[]; maxEntities: number }) {
+function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }: { state: WizardState; onChange: (u: Partial<WizardState>) => void; existingLabels: string[]; maxEntities: number; blockedDomains?: Set<string> }) {
   const [entityInput, setEntityInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
   const [expandedCompanions, setExpandedCompanions] = useState<Set<string>>(new Set());
@@ -716,6 +718,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
           placeholder={state.mode === "single" ? "Search entity ID or friendly name..." : multiMode ? "Add entity..." : "Add entity..."}
           excludeIds={primaryIds}
           filterDomains={state.entitiesBlock ? ENTITIES_BLOCK_DOMAINS : undefined}
+          excludeDomains={blockedDomains}
         />
       )}
 
@@ -796,6 +799,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                     excludeIds={primaryIds}
                     parentCapability={state.capability}
                     onChange={cs => updateCompanions(e.entity_id, cs)}
+                    blockedDomains={blockedDomains}
                   />
                 )}
                 {domain === "script" && state.capability === "read-write" && (
@@ -1345,6 +1349,7 @@ export function Wizard({ onClose }: WizardProps) {
   const [externalPort,       setExternalPort]       = useState(0);
   const [existingLabels,     setExistingLabels]     = useState<string[]>([]);
   const [maxEntities,        setMaxEntities]        = useState(50);
+  const [blockedDomains,     setBlockedDomains]     = useState<Set<string>>(new Set());
   const [secretAcknowledged, setSecretAcknowledged] = useState(false);
   const wizardRef = useRef<HTMLDivElement>(null);
   const closeRequestRef = useRef<() => void>(() => {});
@@ -1380,6 +1385,8 @@ export function Wizard({ onClose }: WizardProps) {
       setWidgetScriptUrl(c.widget_script_url || "");
       setExternalPort(c.external_port ?? 0);
       if (c.max_entities_per_token) setMaxEntities(c.max_entities_per_token);
+      const sd = c.sensitive_domains ?? {};
+      setBlockedDomains(new Set(Object.keys(sd).filter(k => !sd[k])));
     }).catch(() => {});
     api.tokens.list().then(ts => {
       setExistingLabels(ts.map(t => t.label));
@@ -1533,7 +1540,7 @@ export function Wizard({ onClose }: WizardProps) {
 
         {/* Body */}
         <div className="wizard-body">
-          {step === 1 && <Step1 state={wState} onChange={patchState} existingLabels={existingLabels} maxEntities={maxEntities} />}
+          {step === 1 && <Step1 state={wState} onChange={patchState} existingLabels={existingLabels} maxEntities={maxEntities} blockedDomains={blockedDomains} />}
           {step === 2 && <Step2 state={wState} onChange={patchState} />}
           {step === 3 && <Step3 state={wState} onChange={patchState} />}
           {isDone && (

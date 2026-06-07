@@ -91,7 +91,8 @@
           <li>Your HA credentials (long-lived access token) never reach the client</li>
           <li>Visitors can only access entities explicitly listed in their token</li>
           <li>Write access is separate from read access and must be explicitly granted</li>
-          <li>Tier 3 domains (alarm panels, cameras, device trackers) are blocked at token creation time - they cannot be added regardless of capability setting</li>
+          <li>Tier 3 domains (alarm panels, cameras, device trackers) are permanently blocked at token creation time - they cannot be added regardless of configuration</li>
+          <li>Sensitive Tier 1 domains (<code>lock</code>, <code>cover</code>, <code>script</code>, <code>automation</code>, <code>button</code>) are disabled by default and must be explicitly enabled in Settings before use</li>
           <li>Only service calls in the <a href="entities.html#allowed-services">allowed services whitelist</a> can be executed</li>
           <li>Tokens can be restricted to specific websites, IP ranges, and time windows</li>
           <li>All auth events and service calls are logged with session, origin, and entity details</li>
