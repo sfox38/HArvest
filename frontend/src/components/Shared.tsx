@@ -509,6 +509,8 @@ const EVENT_STYLE: Record<string, { icon: string; cls: string }> = {
   SUSPICIOUS_ORIGIN: { icon: "alert",       cls: "ev-warn"    },
   FLOOD_PROTECTION:  { icon: "waves",       cls: "ev-danger"  },
   RATE_LIMITED:      { icon: "alert",       cls: "ev-warn"    },
+  SERVER_STARTED:    { icon: "plug",        cls: "ev-ok"      },
+  SERVER_STOPPED:    { icon: "power",       cls: "ev-neutral" },
 };
 
 interface EventRowProps {
@@ -582,6 +584,14 @@ export function EventRow({ ev, onSelectToken }: EventRowProps) {
     case "RATE_LIMITED":
       title = "Rate limited";
       sub = <>{widgetLink}{origin ? ` - ${origin}` : ""}</>;
+      break;
+    case "SERVER_STARTED":
+      title = "Alternate port server started";
+      sub = ev.code ? <span>{ev.code}</span> : null;
+      break;
+    case "SERVER_STOPPED":
+      title = "Alternate port server stopped";
+      sub = ev.code ? <span>{ev.code}</span> : null;
       break;
   }
 

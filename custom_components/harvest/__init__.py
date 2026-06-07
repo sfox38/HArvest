@@ -140,7 +140,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from pathlib import Path
     widget_dir = Path(hass.config.path("custom_components", DOMAIN, "panel"))
     themes_dir = Path(hass.config.path("custom_components", DOMAIN, "themes"))
-    secondary_server = SecondaryServer(widget_dir, themes_dir, ws_view)
+    secondary_server = SecondaryServer(widget_dir, themes_dir, ws_view, activity_store)
     ext_port = int(config.get(CONF_EXTERNAL_PORT, 0) or 0)
     if ext_port:
         try:

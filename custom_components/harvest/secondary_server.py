@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from aiohttp import web
 
 if TYPE_CHECKING:
+    from .activity_store import ActivityStore
     from .ws_proxy import HarvestWsView
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,10 +61,12 @@ class SecondaryServer:
         widget_dir: Path,
         themes_dir: Path,
         ws_view: "HarvestWsView",
+        activity_store: "ActivityStore | None" = None,
     ) -> None:
         self._widget_dir = widget_dir
         self._themes_dir = themes_dir
         self._ws_view = ws_view
+        self._activity: "ActivityStore | None" = activity_store
         self._runner: web.AppRunner | None = None
         self._port: int | None = None
 
@@ -96,6 +99,8 @@ class SecondaryServer:
 
         self._port = port
         _LOGGER.info("HArvest alternate-port server started on %s:%s", BIND_HOST, port)
+        if self._activity:
+            self._activity.record_system("SERVER_STARTED", f"port {port}")
 
     async def stop(self) -> None:
         """Stop the server if running."""
@@ -105,10 +110,13 @@ class SecondaryServer:
             except Exception:  # noqa: BLE001
                 pass
             self._runner = None
+            stopped_port = self._port
             _LOGGER.info(
                 "HArvest alternate-port server stopped (was port %s).",
-                self._port,
+                stopped_port,
             )
+            if self._activity:
+                self._activity.record_system("SERVER_STOPPED", f"port {stopped_port}")
             self._port = None
 
     async def reconfigure(self, port: int) -> None:

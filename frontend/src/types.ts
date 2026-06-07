@@ -168,7 +168,9 @@ export type ActivityEventType =
   | "SUSPICIOUS_ORIGIN"
   | "FLOOD_PROTECTION"
   | "RATE_LIMITED"
-  | "ERROR";
+  | "ERROR"
+  | "SERVER_STARTED"
+  | "SERVER_STOPPED";
 
 export interface ActivityEvent {
   id: number;

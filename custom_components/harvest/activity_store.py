@@ -171,6 +171,15 @@ class ActivityStore:
         """Enqueue a token lifecycle event (revoked, deleted). Non-blocking."""
         self._enqueue(("lifecycle", event))
 
+    def record_system(self, display_type: str, reason: str | None = None) -> None:
+        """Enqueue a system-level lifecycle event (not tied to a token)."""
+        self._enqueue(("lifecycle", TokenLifecycleEvent(
+            token_id="__system__",
+            display_type=display_type,
+            reason=reason,
+            timestamp=datetime.now(tz=timezone.utc),
+        )))
+
     # ------------------------------------------------------------------
     # Query methods
     # ------------------------------------------------------------------
@@ -212,7 +221,7 @@ class ActivityStore:
             error_codes = ["SUSPICIOUS_ORIGIN", "FLOOD_PROTECTION"]
         elif display_type_filter in ("SUSPICIOUS_ORIGIN", "FLOOD_PROTECTION"):
             error_codes = [display_type_filter]
-        include_lifecycle = display_type_filter in (None, "TOKEN_CREATED", "TOKEN_REVOKED", "TOKEN_DELETED")
+        include_lifecycle = display_type_filter in (None, "TOKEN_CREATED", "TOKEN_REVOKED", "TOKEN_DELETED", "SYSTEM")
 
         # Extra conditions for fine-grained auth result filtering.
         auth_conds: list[str] = []
@@ -278,7 +287,10 @@ class ActivityStore:
 
         if include_lifecycle:
             lc_type = display_type_filter if display_type_filter in ("TOKEN_CREATED", "TOKEN_REVOKED", "TOKEN_DELETED") else None
-            clause, p = _build_lifecycle_clause(token_id, since_ts, until_ts, lc_type)
+            lc_token = token_id
+            if display_type_filter == "SYSTEM":
+                lc_token = "__system__"
+            clause, p = _build_lifecycle_clause(lc_token, since_ts, until_ts, lc_type)
             union_parts.append(
                 "SELECT 'lifecycle' AS raw_type, token_id, NULL AS origin, NULL AS source_ip, "
                 "NULL AS entity_id, NULL AS action, display_type AS result, "
