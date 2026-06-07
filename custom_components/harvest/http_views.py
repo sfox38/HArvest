@@ -262,7 +262,11 @@ def _parse_gesture_config(raw: dict) -> dict:
     return result
 
 
-def _parse_entities(raw_list: list, sensitive_domains: dict | None = None) -> list[EntityAccess]:
+def _parse_entities(
+    raw_list: list,
+    sensitive_domains: dict | None = None,
+    existing_ids: set | None = None,
+) -> list[EntityAccess]:
     from .entity_compatibility import get_support_tier, is_sensitive_domain_blocked
     entities = []
     for e in raw_list:
@@ -273,7 +277,8 @@ def _parse_entities(raw_list: list, sensitive_domains: dict | None = None) -> li
         if get_support_tier(domain) == 3:
             raise ValueError(f"Domain '{domain}' is not supported (Tier 3).")
         if sensitive_domains is not None and is_sensitive_domain_blocked(domain, sensitive_domains):
-            raise ValueError(f"Domain '{domain}' is disabled in global Settings.")
+            if existing_ids is None or entity_id not in existing_ids:
+                raise ValueError(f"Domain '{domain}' is disabled in global Settings.")
         cap = str(e.get("capabilities", "read"))
         if cap not in _VALID_CAPABILITIES:
             raise ValueError(f"Invalid capabilities {cap!r}; must be one of {_VALID_CAPABILITIES}")
@@ -903,7 +908,13 @@ class HarvestTokenDetailView(_HarvestView):
             updates["origins"] = _parse_origins(body["origins"])
         if "entities" in body:
             from .entity_compatibility import get_sensitive_domains
-            updates["entities"] = _parse_entities(body["entities"], get_sensitive_domains(self._hass))
+            try:
+                existing_ids = {ea.entity_id for ea in token.entities}
+                updates["entities"] = _parse_entities(
+                    body["entities"], get_sensitive_domains(self._hass), existing_ids
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise web.HTTPBadRequest(reason=f"Invalid request body: {exc}")
         if "rate_limits" in body:
             updates["rate_limits"] = _parse_rate_limits(body["rate_limits"])
         if "session" in body:
