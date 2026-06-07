@@ -56,6 +56,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
     views = [
         HarvestTokensView,
         HarvestTokenDetailView,
+        HarvestTokenDuplicateView,
         HarvestSessionsView,
         HarvestSessionTerminateView,
         HarvestActivityView,
@@ -1129,6 +1130,84 @@ class HarvestTokenDetailView(_HarvestView):
         if self._controls:
             self._controls.remove_token_controls(token_id)
         return web.Response(status=204)
+
+
+class HarvestTokenDuplicateView(_HarvestView):
+    """POST /api/harvest/tokens/{token_id}/duplicate - duplicate a token."""
+
+    url = "/api/harvest/tokens/{token_id}/duplicate"
+    name = "api:harvest:token_duplicate"
+
+    async def post(self, request: web.Request, token_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None:
+            raise web.HTTPUnauthorized()
+        if not user.is_admin:
+            raise web.HTTPForbidden()
+
+        source = self._token_manager.get(token_id)
+        if source is None:
+            raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
+
+        base_label = source.label
+        if not base_label.endswith(" (copy)"):
+            base_label = f"{base_label} (copy)"
+        label = base_label
+        suffix = 2
+        while _validate_label(label, self._token_manager) is not None:
+            label = f"{base_label} {suffix}"
+            suffix += 1
+            if suffix > 100:
+                raise web.HTTPBadRequest(reason="Too many copies with similar names.")
+
+        new_entities = []
+        for ea in source.entities:
+            new_alias = self._token_manager.generate_alias() if ea.alias else None
+            new_entities.append(dataclasses.replace(ea, alias=new_alias))
+
+        token = await self._token_manager.create(
+            label=label,
+            created_by=user.id,
+            origins=dataclasses.replace(source.origins),
+            entities=new_entities,
+            expires=None,
+            token_secret=None,
+            rate_limits=dataclasses.replace(source.rate_limits),
+            session=dataclasses.replace(source.session),
+            max_sessions=source.max_sessions,
+            active_schedule=dataclasses.replace(source.active_schedule) if source.active_schedule else None,
+            allowed_ips=list(source.allowed_ips),
+            embed_mode=source.embed_mode,
+            entities_block=source.entities_block,
+            theme_url=source.theme_url,
+        )
+
+        display_updates: dict[str, Any] = {}
+        for field_name in (
+            "block_label", "block_icon", "block_show_label",
+            "block_highlight_rows", "block_show_icons", "renderer_pack",
+            "lang", "a11y", "color_scheme", "custom_messages",
+            "on_offline", "on_error", "offline_text", "error_text",
+        ):
+            val = getattr(source, field_name)
+            default = getattr(Token, field_name, None)
+            if val != default:
+                display_updates[field_name] = val
+        if display_updates:
+            token = await self._token_manager.update(token.token_id, display_updates)
+
+        self._activity_store.record_token_lifecycle(TokenLifecycleEvent(
+            token_id=token.token_id,
+            display_type="TOKEN_CREATED",
+            reason=None,
+            timestamp=datetime.now(timezone.utc),
+            label=token.label,
+        ))
+        if self._sensors:
+            await self._sensors.create_and_register_token_sensors(token.token_id, token.label)
+        if self._controls:
+            await self._controls.create_and_register_token_controls(token.token_id, token.label)
+        return self.json(_token_to_dict(token), status_code=201)
 
 
 # ---------------------------------------------------------------------------

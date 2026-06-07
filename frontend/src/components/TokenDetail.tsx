@@ -22,6 +22,7 @@ interface TokenDetailProps {
   onBack: () => void;
   onOpenWizard: () => void;
   onDeleted: () => void;
+  onDuplicated: (newTokenId: string) => void;
 }
 
 function fmtDateLong(iso: string): string {
@@ -33,7 +34,7 @@ function fmtDateLong(iso: string): string {
 // TokenDetail
 // ---------------------------------------------------------------------------
 
-export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
+export function TokenDetail({ tokenId, onBack, onDeleted, onDuplicated }: TokenDetailProps) {
   const [token,         setToken]         = useState<Token | null>(null);
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState<string | null>(null);
@@ -57,9 +58,10 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
     prevSaving.current = saving;
   }, [saving, error]);
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current); }, []);
-  const [confirmRevoke, setConfirmRevoke] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [confirmPause,  setConfirmPause]  = useState(false);
+  const [confirmRevoke,    setConfirmRevoke]    = useState(false);
+  const [confirmDelete,    setConfirmDelete]    = useState(false);
+  const [confirmPause,     setConfirmPause]     = useState(false);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [hmacSecret,    setHmacSecret]    = useState<string | null>(null);
   // Acknowledgment that the user has saved the just-generated HMAC secret.
   // Lifted out of SecurityEditor so this component can guard navigation
@@ -166,6 +168,18 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
     } catch (e) { setError(String(e)); }
   };
 
+  const doDuplicate = async () => {
+    if (!token) return;
+    try {
+      const newToken = await api.tokens.duplicate(token.token_id);
+      setConfirmDuplicate(false);
+      onDuplicated(newToken.token_id);
+    } catch (e) {
+      setConfirmDuplicate(false);
+      setError(String(e));
+    }
+  };
+
   if (loading) {
     return (
       <div className="center-spinner">
@@ -230,6 +244,9 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
                   <Icon name={token.paused ? "play" : "pause"} size={13} />
                   {token.paused ? "Resume" : "Pause"}
                 </button>
+                <button className="btn btn-sm" onClick={() => setConfirmDuplicate(true)}>
+                  <Icon name="copy" size={13} /> Duplicate
+                </button>
                 <button className="btn btn-sm btn-danger" onClick={() => setConfirmRevoke(true)}>
                   <Icon name="trash" size={13} /> Revoke
                 </button>
@@ -266,6 +283,15 @@ export function TokenDetail({ tokenId, onBack, onDeleted }: TokenDetailProps) {
         setSavedMsg={showSavedMsg}
       />
 
+      {confirmDuplicate && (
+        <ConfirmDialog
+          title="Duplicate widget"
+          message={`Create a copy of "${token.label}" with a new token and fresh aliases? The copy will have no expiry and no HMAC secret.`}
+          confirmLabel="Duplicate"
+          onConfirm={doDuplicate}
+          onCancel={() => setConfirmDuplicate(false)}
+        />
+      )}
       {confirmPause && (
         <ConfirmDialog
           title="Pause widget"

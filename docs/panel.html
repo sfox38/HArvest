@@ -141,6 +141,13 @@
           <img src="widget-detail.jpg">
         </div>
 
+        <p>The header shows the widget name (editable inline), a status badge, and action buttons:</p>
+        <ul>
+          <li><strong>Pause / Resume</strong> - temporarily suspend the widget, dropping all active sessions. Resume restores normal operation.</li>
+          <li><strong>Duplicate</strong> - create a new widget that copies all settings (entities, origins, theme, display, rate limits) from this one. The copy gets a fresh token, fresh aliases, no expiry, and no HMAC secret. The name is set to "... (copy)".</li>
+          <li><strong>Revoke</strong> - permanently disable the widget. This cannot be undone.</li>
+        </ul>
+
         <p>The detail screen uses a single-column layout with five tabs across the top:</p>
         <ul>
           <li><strong>Entities</strong> - entity management, theme selection, live preview, and per-entity settings</li>

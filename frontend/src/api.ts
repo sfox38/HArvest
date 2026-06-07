@@ -295,6 +295,9 @@ export const api = {
 
     generateAlias: (entityId: string): Promise<{ entity_id: string; alias: string }> =>
       _post("/alias", { entity_id: entityId }),
+
+    duplicate: (tokenId: string): Promise<Token> =>
+      _post<Token>(`/tokens/${tokenId}/duplicate`, {}),
   },
 
   // ---------------------------------------------------------------------------

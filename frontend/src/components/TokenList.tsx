@@ -182,6 +182,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
         onBack={() => { setSelectedId(null); load(); }}
         onOpenWizard={onOpenWizard}
         onDeleted={() => { setSelectedId(null); load(); }}
+        onDuplicated={(newId) => { setSelectedId(newId); load(); }}
       />
     );
   }
