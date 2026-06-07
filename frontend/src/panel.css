@@ -497,7 +497,7 @@ a.nav-item { text-decoration: none; color: var(--ink-3); }
   position: sticky;
   top: -28px;
   align-self: flex-start;
-  max-height: calc(100vh - 28px);
+  max-height: calc(100vh - 56px);
 }
 
 .entity-list-row {
