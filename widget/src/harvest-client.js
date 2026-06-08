@@ -140,6 +140,11 @@ export class HarvestClient {
   /** @type {Map<string, object>} */ #pendingDefinitions = new Map();
   /** @type {Map<string, object>} */ #pendingStateUpdates = new Map();
 
+  // rAF batching: coalesce rapid state_update dispatches into one paint cycle.
+  /** @type {Map<string, {state: string, attributes: object, lastUpdated: string}>} */
+  #rafQueue = new Map();
+  /** @type {number|null} */ #rafId = null;
+
   /**
    * @param {string} haUrl   - Base URL of the HA instance (e.g. https://ha.example.com)
    * @param {string} tokenId - HArvest token ID (hwt_...)
@@ -395,10 +400,13 @@ export class HarvestClient {
     clearTimeout(this.#reconnectTimer);
     clearTimeout(this.#heartbeatTimer);
     clearTimeout(this.#staleGraceTimer);
+    if (this.#rafId !== null) cancelAnimationFrame(this.#rafId);
     this.#authDebounceTimer = null;
     this.#reconnectTimer = null;
     this.#heartbeatTimer = null;
     this.#staleGraceTimer = null;
+    this.#rafId = null;
+    this.#rafQueue.clear();
     document.removeEventListener("visibilitychange", this.#visibilityHandler);
     if (this.#ws) {
       this.#ws.onclose = null; // suppress reconnect on deliberate destroy
@@ -819,7 +827,10 @@ export class HarvestClient {
 
     const card = this.#cards.get(entityId);
     if (card) {
-      card.receiveStateUpdate?.(msg.state, attributes, msg.last_updated);
+      this.#rafQueue.set(entityId, { state: msg.state, attributes, lastUpdated: msg.last_updated });
+      if (this.#rafId === null) {
+        this.#rafId = requestAnimationFrame(() => this.#flushStateUpdates());
+      }
     } else {
       if (this.#pendingStateUpdates.size >= 200) {
         const oldest = this.#pendingStateUpdates.keys().next().value;
@@ -828,9 +839,19 @@ export class HarvestClient {
       this.#pendingStateUpdates.set(entityId, msg);
     }
 
+    // Public API listeners fire synchronously per-message (no batching).
     for (const listener of this.#stateListeners) {
       try { listener(entityId, msg.state, attributes); } catch { /* ignore */ }
     }
+  }
+
+  #flushStateUpdates() {
+    this.#rafId = null;
+    for (const [entityId, update] of this.#rafQueue) {
+      const card = this.#cards.get(entityId);
+      card?.receiveStateUpdate?.(update.state, update.attributes, update.lastUpdated);
+    }
+    this.#rafQueue.clear();
   }
 
   #handleEntityRemoved(msg) {
