@@ -1,9 +1,9 @@
 {
   "name": "Shrooms",
   "author": "Inspired by Mushroom Cards by Paul Bottein (https://github.com/piitaya/lovelace-mushroom)",
-  "version": "1.0.0",
+  "version": "1.0",
   "harvest_version": 1,
-  "description": "Mushroom-inspired horizontal layout with circular icons and pill sliders.",
+  "description": "Mushroom-inspired horizontal and vertical layout with pill icons",
   "has_renderer": true,
   "renderer_settings": ["layout"],
   "capabilities": {
