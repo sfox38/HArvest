@@ -1,5 +1,5 @@
 /**
- * minimus-pack.js - HArvest Minimus renderer pack.
+ * minimus-pack.js - HArvest minimus renderer pack.
  *
  * A collection of alternative renderers that override built-in widgets.
  * Loaded at runtime via script injection; references window.HArvest globals.
@@ -9,7 +9,7 @@
 
   const HArvest = window.HArvest;
   if (!HArvest || !HArvest.renderers || !HArvest.renderers.BaseCard) {
-    console.warn("[HArvest Minimus] HArvest not found - pack not loaded.");
+    console.warn("[HArvest minimus] HArvest not found - pack not loaded.");
     return;
   }
 

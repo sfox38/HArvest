@@ -2,7 +2,7 @@
  * App.tsx - Root component and navigation for the HArvest panel.
  *
  * Two-row appbar: brand + "New widget" action on top, nav tabs below.
- * Five tabs: Dashboard, Widgets, Sessions, Activity, Settings & help.
+ * Five tabs: Dashboard, Widgets, Sessions, Activity, Settings.
  * Dark/light/auto theme toggled in Settings and persisted to localStorage.
  */
 
@@ -38,7 +38,7 @@ const NAV_MAIN: { id: Screen; label: string; icon: string }[] = [
 ];
 
 const NAV_FOOT: { id: Screen; label: string; icon: string }[] = [
-  { id: "settings", label: "Settings & help", icon: "settings" },
+  { id: "settings", label: "Settings", icon: "settings" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -107,6 +107,7 @@ export function App() {
     setConverterOpen(false);
     if (createdIds && createdIds.length > 0) {
       setTokenListKey(k => k + 1);
+      setInitialTokenId(createdIds[0]);
       setScreen("widgets");
     }
   }, []);

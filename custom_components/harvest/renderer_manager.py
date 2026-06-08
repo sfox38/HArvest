@@ -53,7 +53,7 @@ class RendererManager:
         """Load bundled renderer definitions and consent state."""
         self._bundled["minimus"] = RendererDefinition(
             renderer_id="minimus",
-            name="Minimus",
+            name="minimus",
             description="Alternative renderers: dial-based light control and more.",
             version="1.0",
             author="HArvest",
