@@ -267,19 +267,33 @@
         <h3>How it works</h3>
         <ol>
           <li><strong>Select a dashboard</strong> - pick from your installed Lovelace dashboards (default or custom).</li>
-          <li><strong>Configure</strong> - choose which views to include, set entity capabilities (Smart, Read, Read-write, or Badge), pick a theme, and optionally restrict the origin.</li>
+          <li><strong>Configure</strong> - choose which views to include, set entity capabilities (Smart, Read only, Control, or Badge), pick a theme, and optionally restrict the origin.</li>
           <li><strong>Generate</strong> - the wizard creates HArvest widgets (one per view, automatically split if a view exceeds 50 entities) and renders the HTML.</li>
           <li><strong>Download</strong> - save the generated HTML file. Upload it to your web server, open it locally, or paste the code into your site.</li>
         </ol>
 
         <h3>What gets converted</h3>
-        <p>The converter handles most standard Lovelace card types: single-entity cards (light, thermostat, sensor, tile, etc.), multi-entity cards (entities, glance), stacks and grids, heading cards with inline badges, and view-level badges. Custom cards (Mushroom, Bubble, etc.) have their entities extracted and rendered as standard HArvest cards. Text-only cards appear as styled text blocks. Unsupported cards show a placeholder with contextual information.</p>
+        <p>The converter handles most standard Lovelace card types: single-entity cards (light, thermostat, sensor, tile, etc.), multi-entity cards (entities, glance), stacks and grids, heading cards with inline badges, and view-level badges. Text-only cards appear as styled text blocks. Unsupported cards show a placeholder with contextual information.</p>
+
+        <h3>Custom card support</h3>
+        <p>Popular custom card sets have dedicated conversion support:</p>
+        <ul>
+          <li><strong>Mushroom cards</strong> - all single-entity mushroom cards (entity, light, fan, cover, climate, lock, media-player, vacuum, humidifier, number, update, alarm, person, select) are converted with proper entity extraction. Mushroom chips cards convert to HArvest badges. Template cards are skipped (Jinja templates cannot be converted).</li>
+          <li><strong>Bubble Card</strong> - button, climate, cover, media-player, select, and calendar card types are converted. Sub-buttons are automatically mapped to HArvest companion entities so they appear alongside the primary card. Separators, empty columns, and pop-ups are skipped.</li>
+          <li><strong>Button Card</strong> - the primary entity is extracted and converted. Template-based custom fields and variables that reference entities via JS templates are not converted.</li>
+          <li><strong>mini-graph-card</strong> - all entities from the card's entities list are extracted and converted.</li>
+          <li><strong>mini-media-player</strong> - the primary entity is extracted and converted.</li>
+          <li><strong>simple-thermostat</strong> - the primary entity is extracted and converted.</li>
+          <li><strong>Stack containers</strong> - stack-in-card, vertical-stack-in-card, layout-card, swipe-card, and tabbed-card are treated as layout containers and their child cards are recursively converted.</li>
+        </ul>
+        <p>Other custom cards not listed above still have their entities extracted via a deep scan of the card config, though this may pick up entity IDs from action targets or template variables that are not the card's primary entity.</p>
 
         <h3>Limitations</h3>
         <ul>
           <li>Tier 3 entities (cameras, alarm panels, device trackers, scenes, updates) are excluded for security.</li>
           <li>Visual styling is not copied from Lovelace; cards use the selected HArvest theme instead.</li>
-          <li>Companions, gestures, and tap actions are not auto-detected.</li>
+          <li>Bubble Card sub-buttons are auto-detected as companions, but other companion relationships are not. You can add companions manually after conversion.</li>
+          <li>Gestures and tap actions are not converted.</li>
           <li>Conditional card logic is dropped (the inner card is included unconditionally).</li>
         </ul>
 

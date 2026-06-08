@@ -20,6 +20,12 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function stackLayoutTag(cardType: string): string {
+  if (cardType === "horizontal-stack") return "hrv-row";
+  if (cardType === "grid") return "hrv-grid";
+  return "hrv-col";
+}
+
 // ---------------------------------------------------------------------------
 // Card rendering
 // ---------------------------------------------------------------------------
@@ -30,7 +36,7 @@ const TEXT_ONLY_CARD_TYPES = new Set([
   "markdown",
 ]);
 
-function renderCardHtml(card: ExtractedCard, indentLevel: number): string {
+function renderCardHtml(card: ExtractedCard, indentLevel: number, companionIds: Set<string>): string {
   const ind = indent(indentLevel);
   const lines: string[] = [];
 
@@ -55,24 +61,14 @@ function renderCardHtml(card: ExtractedCard, indentLevel: number): string {
     return lines.join("\n");
   }
 
-  if (card.card_type === "horizontal-stack") {
-    lines.push(`${ind}<div class="hrv-row">`);
-    for (const child of card.children) lines.push(renderCardHtml(child, indentLevel + 1));
-    lines.push(`${ind}</div>`);
-    return lines.join("\n");
-  }
-
-  if (card.card_type === "vertical-stack") {
-    lines.push(`${ind}<div class="hrv-col">`);
-    for (const child of card.children) lines.push(renderCardHtml(child, indentLevel + 1));
-    lines.push(`${ind}</div>`);
-    return lines.join("\n");
-  }
-
-  if (card.card_type === "grid") {
-    const cols = card.grid_columns || 3;
-    lines.push(`${ind}<div class="hrv-grid" style="grid-template-columns: repeat(${cols}, 1fr)">`);
-    for (const child of card.children) lines.push(renderCardHtml(child, indentLevel + 1));
+  if (card.children.length > 0) {
+    const tag = stackLayoutTag(card.card_type);
+    let style = "";
+    if (card.card_type === "grid" && card.grid_columns) {
+      style = ` style="grid-template-columns: repeat(${card.grid_columns}, 1fr)"`;
+    }
+    lines.push(`${ind}<div class="${tag}"${style}>`);
+    for (const child of card.children) lines.push(renderCardHtml(child, indentLevel + 1, companionIds));
     lines.push(`${ind}</div>`);
     return lines.join("\n");
   }
@@ -80,6 +76,8 @@ function renderCardHtml(card: ExtractedCard, indentLevel: number): string {
   for (const entity of card.entities) {
     if (TIER3_DOMAINS.has(entity.domain)) {
       lines.push(`${ind}<!-- Skipped (Tier 3): ${entity.entity_id} -->`);
+    } else if (companionIds.has(entity.entity_id)) {
+      continue;
     } else {
       lines.push(`${ind}<hrv-card entity="${entity.entity_id}"></hrv-card>`);
     }
@@ -96,9 +94,10 @@ function renderCardDeduped(
   card: ExtractedCard,
   indentLevel: number,
   rendered: Set<string>,
+  companionIds: Set<string>,
 ): string {
   if (!card.is_supported && card.entities.length === 0) {
-    return renderCardHtml(card, indentLevel);
+    return renderCardHtml(card, indentLevel, companionIds);
   }
 
   if (card.card_type === "heading") return "";
@@ -107,12 +106,11 @@ function renderCardDeduped(
     const ind = indent(indentLevel);
     const childLines: string[] = [];
     for (const child of card.children) {
-      const html = renderCardDeduped(child, indentLevel + 1, rendered);
+      const html = renderCardDeduped(child, indentLevel + 1, rendered, companionIds);
       if (html) childLines.push(html);
     }
     if (childLines.length === 0) return "";
-    const tag = card.card_type === "horizontal-stack" ? "hrv-row"
-      : card.card_type === "vertical-stack" ? "hrv-col" : "hrv-grid";
+    const tag = stackLayoutTag(card.card_type);
     let style = "";
     if (card.card_type === "grid" && card.grid_columns) {
       style = ` style="grid-template-columns: repeat(${card.grid_columns}, 1fr)"`;
@@ -120,7 +118,7 @@ function renderCardDeduped(
     return [`${ind}<div class="${tag}"${style}>`, ...childLines, `${ind}</div>`].join("\n");
   }
 
-  const newEntities = card.entities.filter(e => !rendered.has(e.entity_id));
+  const newEntities = card.entities.filter(e => !rendered.has(e.entity_id) && !companionIds.has(e.entity_id));
   if (newEntities.length === 0) return "";
 
   const ind = indent(indentLevel);
@@ -144,6 +142,7 @@ function renderSectionHtml(
   section: SectionData,
   indentLevel: number,
   rendered: Set<string>,
+  companionIds: Set<string>,
 ): string {
   const ind = indent(indentLevel);
   const lines: string[] = [];
@@ -194,7 +193,7 @@ function renderSectionHtml(
       if (cards.length > 0) {
         lines.push(`${ind}    <div class="hrv-card-group-body">`);
         for (const card of cards) {
-          const html = renderCardDeduped(card, indentLevel + 3, rendered);
+          const html = renderCardDeduped(card, indentLevel + 3, rendered, companionIds);
           if (html) lines.push(html);
         }
         lines.push(`${ind}    </div>`);
@@ -202,7 +201,7 @@ function renderSectionHtml(
       lines.push(`${ind}  </div>`);
     } else {
       for (const card of cards) {
-        const html = renderCardDeduped(card, indentLevel + 1, rendered);
+        const html = renderCardDeduped(card, indentLevel + 1, rendered, companionIds);
         if (html) lines.push(html);
       }
     }
@@ -267,6 +266,11 @@ function renderViewHtml(
   const ind = indent(indentLevel);
   const lines: string[] = [];
 
+  const companionIds = new Set<string>();
+  for (const e of getAllEntities(view)) {
+    if (e.companion_of) companionIds.add(e.entity_id);
+  }
+
   for (let i = 0; i < tokenIds.length; i++) {
     lines.push(`${ind}<hrv-group token="${tokenIds[i]}" ha-url="${escapeHtml(haUrl)}">`);
 
@@ -275,7 +279,7 @@ function renderViewHtml(
       const bind = indent(indentLevel + 2);
       for (const badge of view.badges) {
         for (const entity of badge.entities) {
-          if (!TIER3_DOMAINS.has(entity.domain)) {
+          if (!TIER3_DOMAINS.has(entity.domain) && !companionIds.has(entity.entity_id)) {
             lines.push(`${bind}<hrv-card entity="${entity.entity_id}"></hrv-card>`);
           }
         }
@@ -306,7 +310,7 @@ function renderViewHtml(
     if (sectionsToRender.length > 1) {
       lines.push(`${ind}  <div class="hrv-sections">`);
       for (const section of sectionsToRender) {
-        lines.push(renderSectionHtml(section, indentLevel + 2, rendered));
+        lines.push(renderSectionHtml(section, indentLevel + 2, rendered, companionIds));
       }
       lines.push(`${ind}  </div>`);
     } else if (sectionsToRender.length === 1) {
@@ -316,7 +320,7 @@ function renderViewHtml(
       }
       lines.push(`${ind}  <div class="hrv-cards">`);
       for (const card of section.cards) {
-        const html = renderCardDeduped(card, indentLevel + 2, rendered);
+        const html = renderCardDeduped(card, indentLevel + 2, rendered, companionIds);
         if (html) lines.push(html);
       }
       lines.push(`${ind}  </div>`);

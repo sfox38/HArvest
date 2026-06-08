@@ -41,7 +41,14 @@ SINGLE_ENTITY_CARD_TYPES = {
 
 MULTI_ENTITY_CARD_TYPES = {"entities", "glance"}
 
-STACK_CARD_TYPES = {"horizontal-stack", "vertical-stack", "grid"}
+STACK_CARD_TYPES = {
+    "horizontal-stack", "vertical-stack", "grid",
+    "custom:stack-in-card",
+    "custom:vertical-stack-in-card",
+    "custom:layout-card",
+    "custom:swipe-card",
+    "custom:tabbed-card",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +61,7 @@ class ExtractedEntity:
     domain: str
     source_card_type: str
     display_hints: dict = field(default_factory=dict)
+    companion_of: str | None = None
 
 
 @dataclass
@@ -522,9 +530,64 @@ def _summarize_unsupported(card: dict) -> str:
 
 TEXT_ONLY_CARD_TYPES = {
     "custom:mushroom-title-card",
+    "custom:mushroom-template-card",
     "custom:bubble-separator",
     "markdown",
 }
+
+CUSTOM_SINGLE_ENTITY_CARD_TYPES = {
+    "custom:button-card",
+    "custom:mini-media-player",
+    "custom:simple-thermostat",
+    "custom:slider-entity-row",
+    "custom:mushroom-entity-card",
+    "custom:mushroom-light-card",
+    "custom:mushroom-fan-card",
+    "custom:mushroom-cover-card",
+    "custom:mushroom-climate-card",
+    "custom:mushroom-lock-card",
+    "custom:mushroom-media-player-card",
+    "custom:mushroom-vacuum-card",
+    "custom:mushroom-humidifier-card",
+    "custom:mushroom-number-card",
+    "custom:mushroom-update-card",
+    "custom:mushroom-alarm-control-panel-card",
+    "custom:mushroom-person-card",
+    "custom:mushroom-select-card",
+}
+
+
+def _extract_bubble_sub_buttons(card: dict, primary_id: str, out: list) -> None:
+    for i in range(1, 5):
+        sub = card.get(f"sub_button_{i}")
+        if isinstance(sub, dict):
+            eid = sub.get("entity", "")
+            if eid and "." in eid and eid != primary_id:
+                domain = eid.split(".")[0]
+                out.append(ExtractedEntity(
+                    entity_id=eid, domain=domain,
+                    source_card_type="companion", companion_of=primary_id,
+                ))
+    sub_button = card.get("sub_button")
+    if isinstance(sub_button, dict):
+        bottom = sub_button.get("bottom", sub_button)
+        groups = bottom.get("groups", sub_button.get("groups", []))
+        if isinstance(groups, list):
+            for group in groups:
+                if not isinstance(group, dict):
+                    continue
+                buttons = group.get("buttons", [])
+                if isinstance(buttons, list):
+                    for btn in buttons:
+                        if isinstance(btn, dict):
+                            eid = btn.get("entity", "")
+                            if eid and "." in eid and eid != primary_id:
+                                domain = eid.split(".")[0]
+                                out.append(ExtractedEntity(
+                                    entity_id=eid, domain=domain,
+                                    source_card_type="companion",
+                                    companion_of=primary_id,
+                                ))
 
 
 def extract_card(card: dict) -> ExtractedCard:
@@ -561,6 +624,78 @@ def extract_card(card: dict) -> ExtractedCard:
             raw_config=card,
         )
 
+    if card_type in CUSTOM_SINGLE_ENTITY_CARD_TYPES:
+        eid = card.get("entity", "")
+        if eid and "." in eid:
+            domain = eid.split(".")[0]
+            return ExtractedCard(
+                card_type=card_type,
+                entities=[ExtractedEntity(entity_id=eid, domain=domain, source_card_type=card_type)],
+            )
+        return ExtractedCard(card_type=card_type, is_supported=False, raw_config=card)
+
+    if card_type == "custom:mushroom-chips-card":
+        chips = card.get("chips", [])
+        entities = []
+        if isinstance(chips, list):
+            for chip in chips:
+                if isinstance(chip, dict):
+                    eid = chip.get("entity", "")
+                    if eid and "." in eid:
+                        domain = eid.split(".")[0]
+                        entities.append(ExtractedEntity(
+                            entity_id=eid, domain=domain, source_card_type="badge",
+                        ))
+        if entities:
+            return ExtractedCard(card_type=card_type, entities=entities)
+        return ExtractedCard(card_type=card_type, is_supported=False, raw_config=card)
+
+    if card_type == "custom:bubble-card":
+        bubble_type = card.get("card_type", "")
+        if bubble_type in ("separator", "empty-column", "pop-up"):
+            return ExtractedCard(card_type=card_type, is_supported=False, raw_config=card)
+        entities = []
+        eid = card.get("entity", "")
+        if eid and "." in eid:
+            domain = eid.split(".")[0]
+            entities.append(ExtractedEntity(entity_id=eid, domain=domain, source_card_type=card_type))
+            _extract_bubble_sub_buttons(card, eid, entities)
+        if entities:
+            return ExtractedCard(card_type=card_type, entities=entities)
+        return ExtractedCard(card_type=card_type, is_supported=False, raw_config=card)
+
+    if card_type in STACK_CARD_TYPES:
+        child_cards = card.get("cards", [])
+        if not child_cards and card_type == "custom:tabbed-card":
+            tabs = card.get("tabs", [])
+            if isinstance(tabs, list):
+                child_cards = [c for t in tabs if isinstance(t, dict) for c in t.get("cards", [])]
+        children = [extract_card(c) for c in (child_cards or [])]
+        columns = card.get("columns", 3) if card_type == "grid" else 0
+        return ExtractedCard(
+            card_type=card_type,
+            children=children,
+            grid_columns=columns,
+        )
+
+    if card_type == "custom:mini-graph-card":
+        entities = []
+        items = card.get("entities", [])
+        if isinstance(items, list):
+            for item in items:
+                eid = _extract_entity_id(item)
+                if eid:
+                    domain = eid.split(".")[0]
+                    entities.append(ExtractedEntity(entity_id=eid, domain=domain, source_card_type=card_type))
+        if not entities:
+            eid = card.get("entity", "")
+            if eid and "." in eid:
+                domain = eid.split(".")[0]
+                entities.append(ExtractedEntity(entity_id=eid, domain=domain, source_card_type=card_type))
+        if entities:
+            return ExtractedCard(card_type=card_type, entities=entities)
+        return ExtractedCard(card_type=card_type, is_supported=False, raw_config=card)
+
     if card_type.startswith("custom:"):
         entities = []
         for eid in _extract_all_entity_ids(card):
@@ -571,15 +706,6 @@ def extract_card(card: dict) -> ExtractedCard:
             entities=entities,
             is_supported=bool(entities),
             raw_config=card,
-        )
-
-    if card_type in STACK_CARD_TYPES:
-        children = [extract_card(c) for c in card.get("cards", [])]
-        columns = card.get("columns", 3) if card_type == "grid" else 0
-        return ExtractedCard(
-            card_type=card_type,
-            children=children,
-            grid_columns=columns,
         )
 
     if card_type == "conditional":

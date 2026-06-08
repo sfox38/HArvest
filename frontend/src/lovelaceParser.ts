@@ -21,12 +21,41 @@ const SINGLE_ENTITY_CARD_TYPES = new Set([
   "sensor", "gauge", "tile", "humidifier", "fan", "area",
 ]);
 
+const CUSTOM_SINGLE_ENTITY_CARD_TYPES = new Set([
+  "custom:button-card",
+  "custom:mini-media-player",
+  "custom:simple-thermostat",
+  "custom:slider-entity-row",
+  "custom:mushroom-entity-card",
+  "custom:mushroom-light-card",
+  "custom:mushroom-fan-card",
+  "custom:mushroom-cover-card",
+  "custom:mushroom-climate-card",
+  "custom:mushroom-lock-card",
+  "custom:mushroom-media-player-card",
+  "custom:mushroom-vacuum-card",
+  "custom:mushroom-humidifier-card",
+  "custom:mushroom-number-card",
+  "custom:mushroom-update-card",
+  "custom:mushroom-alarm-control-panel-card",
+  "custom:mushroom-person-card",
+  "custom:mushroom-select-card",
+]);
+
 const MULTI_ENTITY_CARD_TYPES = new Set(["entities", "glance"]);
 
-const STACK_CARD_TYPES = new Set(["horizontal-stack", "vertical-stack", "grid"]);
+const STACK_CARD_TYPES = new Set([
+  "horizontal-stack", "vertical-stack", "grid",
+  "custom:stack-in-card",
+  "custom:vertical-stack-in-card",
+  "custom:layout-card",
+  "custom:swipe-card",
+  "custom:tabbed-card",
+]);
 
 const TEXT_ONLY_CARD_TYPES = new Set([
   "custom:mushroom-title-card",
+  "custom:mushroom-template-card",
   "custom:bubble-separator",
   "markdown",
 ]);
@@ -42,6 +71,7 @@ export interface ExtractedEntity {
   domain: string;
   source_card_type: string;
   display_hints: Record<string, unknown>;
+  companion_of?: string;
 }
 
 export interface ExtractedCard {
@@ -67,7 +97,7 @@ export interface ViewData {
 
 export interface TokenSpec {
   label: string;
-  entities: { entity_id: string; capabilities: string; display_hints?: Record<string, unknown> }[];
+  entities: { entity_id: string; capabilities: string; display_hints?: Record<string, unknown>; companion_of?: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +189,37 @@ function makeCard(overrides: Partial<ExtractedCard>): ExtractedCard {
   };
 }
 
+function extractBubbleSubButtons(card: Record<string, unknown>, primaryId: string, out: ExtractedEntity[]): void {
+  for (let i = 1; i <= 4; i++) {
+    const sub = card[`sub_button_${i}`] as Record<string, unknown> | undefined;
+    if (!sub) continue;
+    const eid = sub.entity as string | undefined;
+    if (eid && eid.includes(".") && eid !== primaryId) {
+      const domain = eid.split(".")[0];
+      out.push({ entity_id: eid, domain, source_card_type: "companion", display_hints: {}, companion_of: primaryId });
+    }
+  }
+  const subButton = card.sub_button as Record<string, unknown> | undefined;
+  if (subButton) {
+    const bottom = subButton.bottom as Record<string, unknown> | undefined;
+    const groups = (bottom?.groups ?? subButton.groups) as Record<string, unknown>[] | undefined;
+    if (Array.isArray(groups)) {
+      for (const group of groups) {
+        const buttons = group.buttons as Record<string, unknown>[] | undefined;
+        if (Array.isArray(buttons)) {
+          for (const btn of buttons) {
+            const eid = btn.entity as string | undefined;
+            if (eid && eid.includes(".") && eid !== primaryId) {
+              const domain = eid.split(".")[0];
+              out.push({ entity_id: eid, domain, source_card_type: "companion", display_hints: {}, companion_of: primaryId });
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 export function extractCard(card: Record<string, unknown>): ExtractedCard {
   const cardType = (card.type as string) ?? "";
 
@@ -186,6 +247,94 @@ export function extractCard(card: Record<string, unknown>): ExtractedCard {
     return makeCard({ card_type: cardType, is_supported: false, raw_config: card });
   }
 
+  if (CUSTOM_SINGLE_ENTITY_CARD_TYPES.has(cardType)) {
+    const eid = card.entity as string | undefined;
+    if (eid && eid.includes(".")) {
+      const domain = eid.split(".")[0];
+      return makeCard({
+        card_type: cardType,
+        entities: [{ entity_id: eid, domain, source_card_type: cardType, display_hints: {} }],
+      });
+    }
+    return makeCard({ card_type: cardType, is_supported: false, raw_config: card });
+  }
+
+  if (cardType === "custom:mushroom-chips-card") {
+    const chips = card.chips as Record<string, unknown>[] | undefined;
+    if (Array.isArray(chips)) {
+      const entities: ExtractedEntity[] = [];
+      for (const chip of chips) {
+        const eid = chip.entity as string | undefined;
+        if (eid && eid.includes(".")) {
+          const domain = eid.split(".")[0];
+          entities.push({ entity_id: eid, domain, source_card_type: "badge", display_hints: {} });
+        }
+      }
+      if (entities.length > 0) {
+        return makeCard({ card_type: cardType, entities });
+      }
+    }
+    return makeCard({ card_type: cardType, is_supported: false, raw_config: card });
+  }
+
+  if (cardType === "custom:bubble-card") {
+    const bubbleType = card.card_type as string | undefined;
+    const BUBBLE_DECORATIVE = new Set(["separator", "empty-column"]);
+    if (bubbleType && BUBBLE_DECORATIVE.has(bubbleType)) {
+      return makeCard({ card_type: cardType, is_supported: false, raw_config: card });
+    }
+    if (bubbleType === "pop-up") {
+      return makeCard({ card_type: cardType, is_supported: false, raw_config: card });
+    }
+    const entities: ExtractedEntity[] = [];
+    const eid = card.entity as string | undefined;
+    if (eid && eid.includes(".")) {
+      const domain = eid.split(".")[0];
+      entities.push({ entity_id: eid, domain, source_card_type: cardType, display_hints: {} });
+      extractBubbleSubButtons(card, eid, entities);
+    }
+    if (entities.length > 0) {
+      return makeCard({ card_type: cardType, entities });
+    }
+    return makeCard({ card_type: cardType, is_supported: false, raw_config: card });
+  }
+
+  if (STACK_CARD_TYPES.has(cardType)) {
+    let childCards = card.cards as Record<string, unknown>[] | undefined;
+    if (!Array.isArray(childCards) && cardType === "custom:tabbed-card") {
+      const tabs = card.tabs as Record<string, unknown>[] | undefined;
+      if (Array.isArray(tabs)) {
+        childCards = tabs.flatMap(t => (t.cards as Record<string, unknown>[]) ?? []);
+      }
+    }
+    const children = (childCards ?? []).map(extractCard);
+    const gridCols = cardType === "grid" ? ((card.columns as number) ?? 3) : 0;
+    return makeCard({ card_type: cardType, children, grid_columns: gridCols });
+  }
+
+  if (cardType === "custom:mini-graph-card") {
+    const entities: ExtractedEntity[] = [];
+    const items = card.entities;
+    if (Array.isArray(items)) {
+      for (const item of items) {
+        const eid = extractEntityId(item);
+        if (eid) {
+          const domain = eid.split(".")[0];
+          entities.push({ entity_id: eid, domain, source_card_type: cardType, display_hints: {} });
+        }
+      }
+    }
+    if (entities.length === 0) {
+      const eid = card.entity as string | undefined;
+      if (eid && eid.includes(".")) {
+        const domain = eid.split(".")[0];
+        entities.push({ entity_id: eid, domain, source_card_type: cardType, display_hints: {} });
+      }
+    }
+    if (entities.length > 0) return makeCard({ card_type: cardType, entities });
+    return makeCard({ card_type: cardType, is_supported: false, raw_config: card });
+  }
+
   if (cardType.startsWith("custom:")) {
     const entities: ExtractedEntity[] = [];
     for (const eid of extractAllEntityIds(card)) {
@@ -193,12 +342,6 @@ export function extractCard(card: Record<string, unknown>): ExtractedCard {
       entities.push({ entity_id: eid, domain, source_card_type: cardType, display_hints: {} });
     }
     return makeCard({ card_type: cardType, entities, is_supported: entities.length > 0, raw_config: card });
-  }
-
-  if (STACK_CARD_TYPES.has(cardType)) {
-    const children = ((card.cards as Record<string, unknown>[]) ?? []).map(extractCard);
-    const gridCols = cardType === "grid" ? ((card.columns as number) ?? 3) : 0;
-    return makeCard({ card_type: cardType, children, grid_columns: gridCols });
   }
 
   if (cardType === "conditional") {
@@ -324,13 +467,29 @@ export function buildTokenSpecs(
   for (const view of views) {
     const allEnts = getAllEntities(view);
     const seen = new Map<string, ExtractedEntity>();
+    const companions: ExtractedEntity[] = [];
     for (const e of allEnts) {
       if (TIER3_DOMAINS.has(e.domain)) continue;
+      if (e.companion_of) {
+        companions.push(e);
+        continue;
+      }
       if (!seen.has(e.entity_id)) {
         seen.set(e.entity_id, e);
       } else if (seen.get(e.entity_id)!.source_card_type === "badge" && e.source_card_type !== "badge") {
         seen.set(e.entity_id, e);
       }
+    }
+
+    const primaryIds = new Set(seen.keys());
+    const seenCompanionKeys = new Set<string>();
+    for (const c of companions) {
+      if (!primaryIds.has(c.companion_of!)) continue;
+      if (seen.has(c.entity_id)) continue;
+      const key = `${c.entity_id}:${c.companion_of}`;
+      if (seenCompanionKeys.has(key)) continue;
+      seenCompanionKeys.add(key);
+      seen.set(c.entity_id, c);
     }
 
     const uniqueEntities = Array.from(seen.values());
@@ -339,10 +498,13 @@ export function buildTokenSpecs(
     const entityDicts = uniqueEntities.map(e => {
       const d: TokenSpec["entities"][number] = {
         entity_id: e.entity_id,
-        capabilities: capabilityFor(e, capMode),
+        capabilities: e.companion_of ? "read" : capabilityFor(e, capMode),
       };
       if (Object.keys(e.display_hints).length > 0) {
         d.display_hints = e.display_hints;
+      }
+      if (e.companion_of) {
+        d.companion_of = e.companion_of;
       }
       return d;
     });
