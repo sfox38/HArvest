@@ -155,11 +155,14 @@ const SHARED_CSS_VARS = /* css */`
     overflow: hidden;
     box-sizing: border-box;
     contain: inline-size;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 80px;
     font-family: var(--hrv-font-family);
   }
 
   :host([preview]) {
     contain: none;
+    content-visibility: visible;
   }
 
   /* Dark mode overrides - applied when no explicit theme is set */
