@@ -89,7 +89,12 @@ const BLOCK_CSS = /* css */`
     box-shadow: var(--hrv-card-shadow);
     color: var(--hrv-color-text);
     overflow: hidden;
+    padding-bottom: 4px;
   }
+
+  :host([data-border=outer]) [part=block] { box-shadow: var(--hrv-card-shadow); }
+  :host([data-border=inner]) [part=block] { box-shadow: var(--hrv-card-shadow-inner, inset 0 2px 4px rgba(0,0,0,0.06)); }
+  :host([data-border=none]) [part=block] { box-shadow: none; }
 
   .header {
     display: flex;
@@ -100,6 +105,8 @@ const BLOCK_CSS = /* css */`
     font-size: 13px;
     color: var(--hrv-color-text);
     border-bottom: 1px solid var(--hrv-color-border);
+    box-shadow: var(--hrv-block-header-shadow, none);
+    background: var(--hrv-block-header-bg, transparent);
   }
 
   .header svg {
@@ -119,6 +126,8 @@ const BLOCK_CSS = /* css */`
 
 export class HrvEntitiesBlock extends HTMLElement {
 
+  static observedAttributes = ["data-highlight-rows"];
+
   #theme = null;
   #headerLabel = null;
   #headerIcon = null;
@@ -134,6 +143,10 @@ export class HrvEntitiesBlock extends HTMLElement {
     this.#forceChildRowLayout();
     this._slotObserver = new MutationObserver(() => this.#forceChildRowLayout());
     this._slotObserver.observe(this, { childList: true });
+  }
+
+  attributeChangedCallback(name) {
+    if (name === "data-highlight-rows") this.#forceChildRowLayout();
   }
 
   disconnectedCallback() {
@@ -193,9 +206,17 @@ export class HrvEntitiesBlock extends HTMLElement {
   }
 
   #forceChildRowLayout() {
+    const highlight = this.hasAttribute("data-highlight-rows");
+    let idx = 0;
     for (const child of this.children) {
       if (child.tagName === "HRV-CARD") {
         child.setAttribute("layout", "row");
+        if (highlight) {
+          child.setAttribute("data-highlight", idx % 2 === 0 ? "odd" : "even");
+        } else {
+          child.removeAttribute("data-highlight");
+        }
+        idx++;
       }
     }
   }

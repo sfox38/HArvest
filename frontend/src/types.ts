@@ -90,6 +90,7 @@ export interface Token {
   block_show_label: boolean;
   block_highlight_rows: boolean;
   block_show_icons: boolean;
+  block_widget_border: string | null;
   theme_url: string;
   renderer_pack: string;
   lang: string;

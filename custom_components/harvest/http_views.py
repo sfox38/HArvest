@@ -1077,6 +1077,11 @@ class HarvestTokenDetailView(_HarvestView):
                 if not isinstance(body[bf], bool):
                     raise web.HTTPBadRequest(reason=f"{bf} must be a boolean.")
                 updates[bf] = body[bf]
+        if "block_widget_border" in body:
+            bwb = body["block_widget_border"]
+            if bwb is not None and bwb not in ("inner", "outer", "none"):
+                raise web.HTTPBadRequest(reason="block_widget_border must be 'inner', 'outer', 'none', or null.")
+            updates["block_widget_border"] = bwb
         if "theme_url" in body:
             new_theme_url = str(body["theme_url"] or "")
             updates["theme_url"] = new_theme_url
@@ -1295,7 +1300,8 @@ class HarvestTokenDuplicateView(_HarvestView):
         display_updates: dict[str, Any] = {}
         for field_name in (
             "block_label", "block_icon", "block_show_label",
-            "block_highlight_rows", "block_show_icons", "renderer_pack",
+            "block_highlight_rows", "block_show_icons", "block_widget_border",
+            "renderer_pack",
             "lang", "a11y", "color_scheme", "custom_messages",
             "on_offline", "on_error", "offline_text", "error_text",
         ):

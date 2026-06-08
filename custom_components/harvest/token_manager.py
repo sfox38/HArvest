@@ -153,6 +153,7 @@ class Token:
     block_show_label: bool = True
     block_highlight_rows: bool = False
     block_show_icons: bool = True
+    block_widget_border: str | None = None     # "inner" | "outer" | None (outer default)
     theme_url: str = ""                    # bundled theme URL or custom theme URL; empty means default
     renderer_pack: str = ""                # "" = none; derived from theme_id when theme has a pack
     lang: str = "auto"                     # BCP 47 language tag or "auto"
@@ -494,7 +495,7 @@ class TokenManager:
             "rate_limits", "session", "max_sessions", "allowed_ips",
             "active_schedule", "paused", "embed_mode", "entities_block",
             "block_label", "block_icon", "block_show_label", "block_highlight_rows",
-            "block_show_icons", "theme_url",
+            "block_show_icons", "block_widget_border", "theme_url",
             "renderer_pack", "lang", "a11y", "color_scheme", "custom_messages",
             "on_offline", "on_error", "offline_text", "error_text",
         }
@@ -941,6 +942,7 @@ class TokenManager:
             block_show_label=d.get("block_show_label", True),
             block_highlight_rows=d.get("block_highlight_rows", False),
             block_show_icons=d.get("block_show_icons", True),
+            block_widget_border=d.get("block_widget_border"),
             theme_url=d.get("theme_url", ""),
             renderer_pack=d.get("renderer_pack", ""),
             lang=d.get("lang", "auto"),

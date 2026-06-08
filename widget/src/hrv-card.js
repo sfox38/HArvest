@@ -298,13 +298,10 @@ export class HrvCard extends HTMLElement {
     this.#config.companions = this.#companions;
 
     const isBadge = def.capabilities === "badge";
-    const isRow = this.getAttribute("layout") === "row";
     const RendererClass = isBadge
       ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
-      : (isRow
-        ? lookupRenderer(def.domain, def.device_class ?? null)
-        : (this.#client?._getRendererOverride?.(def.domain, def.device_class ?? null)
-          || lookupRenderer(def.domain, def.device_class ?? null)));
+      : (this.#client?._getRendererOverride?.(def.domain, def.device_class ?? null)
+          || lookupRenderer(def.domain, def.device_class ?? null));
 
     if (isBadge) this.setAttribute("data-hrv-badge", "");
     else this.removeAttribute("data-hrv-badge");

@@ -18,7 +18,7 @@ import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { doCopy, groupEntities } from "./CodeSection";
 import { EntityPreview } from "./EntityPreview";
-import { loadWidgetScript } from "./WidgetPreview";
+import { loadWidgetScript, loadRendererScript, isRendererLoaded } from "./WidgetPreview";
 import { loadEntityCache, getEntityCache, useEntityCache } from "../entityCache";
 import { WIDGET_ICONS, WIDGET_ICON_NAMES } from "../widgetIcons";
 
@@ -85,7 +85,7 @@ function hasFeature(cap: ThemeCapabilities | null, domain: string, feature: stri
   return list.includes(feature);
 }
 
-function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowLabel, blockHighlightRows, blockShowIcons, colorScheme }: {
+function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowLabel, blockHighlightRows, blockShowIcons, blockWidgetBorder, colorScheme }: {
   entities: Token["entities"];
   theme: ThemeDefinition | null;
   blockLabel: string | null;
@@ -93,6 +93,7 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
   blockShowLabel: boolean;
   blockHighlightRows: boolean;
   blockShowIcons: boolean;
+  blockWidgetBorder: string | null;
   colorScheme: "auto" | "light" | "dark";
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,11 +104,14 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
   const [defs, setDefs] = useState<Record<string, { definition: Record<string, unknown>; state: string; attributes: Record<string, unknown>; _key?: string }>>({});
   const primaries = entities.filter(e => !e.companion_of);
 
+  const packId = theme?.has_renderer ? theme.theme_id : null;
   useEffect(() => {
+    if (packId && !isRendererLoaded(packId)) setReady(false);
     loadWidgetScript()
+      .then(() => packId ? loadRendererScript(packId) : Promise.resolve())
       .then(() => setReady(true))
       .catch(() => setLoadError(true));
-  }, []);
+  }, [packId]);
 
   const defDepKey = primaries.map(e => `${e.entity_id}:${e.capabilities}:${e.name_override}:${e.icon_override}:${colorScheme}`).join(",");
   useEffect(() => {
@@ -132,7 +136,7 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
   }, [theme?.theme_id]);
 
   const cardKey = primaries.map(e => `${e.entity_id}:${e.capabilities}:${defs[e.entity_id]?.state ?? ""}:${defs[e.entity_id]?._key ?? ""}`).join("|")
-    + `:${theme?.theme_id ?? ""}:${blockLabel}:${blockShowLabel}:${blockHighlightRows}:${blockShowIcons}:${blockIcon}:${colorScheme}`;
+    + `:${theme?.theme_id ?? ""}:${blockLabel}:${blockShowLabel}:${blockHighlightRows}:${blockShowIcons}:${blockIcon}:${blockWidgetBorder}:${colorScheme}`;
 
   useEffect(() => {
     if (!ready || !containerRef.current || !window.HArvest) return;
@@ -167,18 +171,21 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
       block.removeAttribute("data-highlight-rows");
     }
 
+    block.setAttribute("data-border", blockWidgetBorder ?? "outer");
+
     if (colorScheme === "light" || colorScheme === "dark") {
       block.setAttribute("data-color-scheme", colorScheme);
     } else {
       block.removeAttribute("data-color-scheme");
     }
 
-    // Add cards - no custom rendererId in entities block (standard renderers only)
     for (const e of primaries) {
       const def = defs[e.entity_id];
       if (!def) continue;
+      const opts: Record<string, unknown> = {};
+      if (packId) opts.rendererId = packId;
       const card = window.HArvest!.preview(
-        block, def.definition, def.state, def.attributes, themeObj as never,
+        block, def.definition, def.state, def.attributes, themeObj as never, opts,
       );
       if (!blockShowIcons) {
         card.style.setProperty("--hrv-icon-display", "none");
@@ -215,13 +222,12 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
     const cached = defs[e.entity_id];
     return cached && cached._key === `${e.capabilities}:${colorScheme}`;
   });
-  const minH = primaries.length * 48 + 40;
   if (!ready || !defsReady) {
-    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: minH, padding: 12 }}><Spinner size={20} /></div>;
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 80, padding: 12 }}><Spinner size={20} /></div>;
   }
   return (
     <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entities block preview"
-      style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: minH, padding: "12px 0" }} />
+      style={{ display: "flex", justifyContent: "center", padding: "12px 0" }} />
   );
 }
 
@@ -848,6 +854,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   blockShowLabel={blockShowLabel}
                   blockHighlightRows={blockHighlightRows}
                   blockShowIcons={blockShowIcons}
+                  blockWidgetBorder={token.block_widget_border}
                   colorScheme={token.color_scheme}
                 />
               </div>
@@ -1018,7 +1025,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
 
             <div className="entity-setting-group">
-              <div className="entity-setting-group-title">Settings</div>
+              <div className="entity-setting-group-title">Entities block settings</div>
               <div className="settings-toggle-grid">
                 <div className="settings-toggle-item">
                   <Toggle
@@ -1060,6 +1067,31 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   <span>Show entity icons</span>
                 </div>
               </div>
+              {rendererSettings.includes("widget_border") && (
+              <div className="entity-setting-row" style={{ paddingTop: 4 }}>
+                <label className="entity-setting-label">Widget border</label>
+                <div className="segmented-toggle" role="radiogroup" aria-label="Widget border" style={{ marginLeft: "auto" }}>
+                  {(["outer", "none"] as const).map(b => (
+                    <button
+                      key={b}
+                      className={(token.block_widget_border ?? "outer") === b ? "active" : ""}
+                      aria-pressed={(token.block_widget_border ?? "outer") === b}
+                      onClick={async () => {
+                        if (!canEdit) return;
+                        try {
+                          const updated = await api.tokens.update(token.token_id, { block_widget_border: b === "outer" ? null : b });
+                          setToken(updated);
+                        } catch (e) { setError(String(e)); }
+                      }}
+                      disabled={!canEdit}
+                      type="button"
+                    >
+                      {b.charAt(0).toUpperCase() + b.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              )}
             </div>
           </div>
           );
@@ -1289,6 +1321,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                     <span>Show state</span>
                   </label>
                 </div>
+                {(rendererSettings.length === 0 || rendererSettings.includes("badge_icon_color")) && (
                 <div className="entity-setting-row" style={{ paddingTop: 4 }}>
                   <label className="entity-setting-label">Icon color</label>
                   <div className="badge-color-swatches" role="radiogroup" aria-label="Icon color">
@@ -1323,6 +1356,26 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                     >(Auto)</button>
                   </div>
                 </div>
+                )}
+                {rendererSettings.includes("widget_border") && (
+                <div className="entity-setting-row" style={{ paddingTop: 4 }}>
+                  <label className="entity-setting-label">Widget border</label>
+                  <div className="segmented-toggle" role="radiogroup" aria-label="Widget border" style={{ marginLeft: "auto" }}>
+                    {(["inner", "outer", "none"] as const).map(b => (
+                      <button
+                        key={b}
+                        className={(selectedEntity.display_hints?.widget_border ?? "outer") === b ? "active" : ""}
+                        aria-pressed={(selectedEntity.display_hints?.widget_border ?? "outer") === b}
+                        onClick={() => updateDisplayHint(selectedEntity.entity_id, "widget_border", b === "outer" ? null : b)}
+                        disabled={!canEdit}
+                        type="button"
+                      >
+                        {b.charAt(0).toUpperCase() + b.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                )}
               </div>
             )}
 
@@ -1343,6 +1396,55 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   </button>
                 ))}
               </div>
+            </div>
+            )}
+
+            {selectedEntity.capabilities !== "badge" && !token.entities_block && (rendererSettings.includes("show_icon") || rendererSettings.includes("show_name") || rendererSettings.includes("widget_border")) && (
+            <div className="entity-setting-group">
+              <div className="entity-setting-group-title">Theme settings</div>
+              {(rendererSettings.includes("show_icon") || rendererSettings.includes("show_name")) && (
+              <div className="settings-toggle-grid">
+                {rendererSettings.includes("show_icon") && (
+                  <label className="settings-toggle-item">
+                    <Toggle
+                      checked={selectedEntity.display_hints?.show_icon !== false}
+                      onChange={v => updateDisplayHint(selectedEntity.entity_id, "show_icon", v ? null : false)}
+                      disabled={!canEdit}
+                    />
+                    <span>Show icon</span>
+                  </label>
+                )}
+                {rendererSettings.includes("show_name") && (
+                  <label className="settings-toggle-item">
+                    <Toggle
+                      checked={selectedEntity.display_hints?.show_name !== false}
+                      onChange={v => updateDisplayHint(selectedEntity.entity_id, "show_name", v ? null : false)}
+                      disabled={!canEdit}
+                    />
+                    <span>Show name</span>
+                  </label>
+                )}
+              </div>
+              )}
+              {rendererSettings.includes("widget_border") && (
+              <div className="entity-setting-row" style={{ paddingTop: 4 }}>
+                <label className="entity-setting-label">Widget border</label>
+                <div className="segmented-toggle" role="radiogroup" aria-label="Widget border" style={{ marginLeft: "auto" }}>
+                  {(["inner", "outer", "none"] as const).map(b => (
+                    <button
+                      key={b}
+                      className={(selectedEntity.display_hints?.widget_border ?? "outer") === b ? "active" : ""}
+                      aria-pressed={(selectedEntity.display_hints?.widget_border ?? "outer") === b}
+                      onClick={() => updateDisplayHint(selectedEntity.entity_id, "widget_border", b === "outer" ? null : b)}
+                      disabled={!canEdit}
+                      type="button"
+                    >
+                      {b.charAt(0).toUpperCase() + b.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              )}
             </div>
             )}
 

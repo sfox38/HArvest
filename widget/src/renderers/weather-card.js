@@ -141,11 +141,19 @@ const WEATHER_STYLES = /* css */`
     display: flex;
     gap: var(--hrv-spacing-xs);
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
     width: 0;
     min-width: 100%;
   }
+  [part=forecast-strip][data-mode=hourly]:active { cursor: grabbing; }
   [part=forecast-strip][data-mode=hourly]::-webkit-scrollbar { display: none; }
+  [part=forecast-strip][data-dragging] * { pointer-events: none; }
 
   [part=forecast-day] {
     display: flex;
