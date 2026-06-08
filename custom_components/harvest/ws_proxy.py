@@ -626,11 +626,23 @@ class HarvestWsView(HomeAssistantView):
             theme_id = theme_url_to_id(token.theme_url)
             theme_def = theme_mgr.get(theme_id)
             if theme_def:
-                await ws.send_json({
+                theme_msg: dict = {
                     "type": "theme",
                     "variables": theme_def.variables,
                     "dark_variables": theme_def.dark_variables,
-                })
+                }
+                if theme_def.custom_fonts:
+                    theme_msg["custom_fonts"] = [
+                        {
+                            "family": f.get("family", ""),
+                            "url": f"/api/harvest/themes/{theme_id}/fonts/{f['file']}",
+                            **({"weight": f["weight"]} if f.get("weight") else {}),
+                            **({"style": f["style"]} if f.get("style") else {}),
+                        }
+                        for f in theme_def.custom_fonts
+                        if f.get("file")
+                    ]
+                await ws.send_json(theme_msg)
 
         # --- Step 4a.2: Send renderer URL if token has one ---
         if token.renderer_pack:

@@ -54,6 +54,12 @@ export const DOMAIN_FEATURES: Record<string, FeatureOption[]> = {
   weather: [
     { key: "forecast", label: "Forecast", default: true },
   ],
+  number: [
+    { key: "slider", label: "Value slider", default: true },
+  ],
+  automation: [
+    { key: "toggle", label: "Enable/disable toggle", default: true },
+  ],
 };
 
 type GraphType = "none" | "line" | "bar" | "step";
@@ -61,12 +67,14 @@ type GraphType = "none" | "line" | "bar" | "step";
 const GRAPH_DOMAINS: Record<string, GraphType[]> = {
   sensor:        ["none", "line", "bar"],
   input_number:  ["none", "line", "bar"],
+  number:        ["none", "line", "bar"],
   binary_sensor: ["none", "step"],
 };
 
 const DEFAULT_GRAPH: Record<string, GraphType> = {
   sensor: "none",
   input_number: "none",
+  number: "none",
   binary_sensor: "none",
 };
 
@@ -135,7 +143,13 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   input_boolean:  { domain: "input_boolean",  label: "Input Boolean",  friendly_name: "Guest Mode",       state: "on",       attributes: {} },
   input_number:   { domain: "input_number",   label: "Input Number",   friendly_name: "Target Humidity",  state: "42",       unit: "%",  attributes: { min: 0, max: 100, step: 1 } },
   input_select:   { domain: "input_select",   label: "Input Select",   friendly_name: "Scene Mode",       state: "Option B", attributes: { options: ["Option A", "Option B", "Option C"] } },
-  media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Demo Track", media_artist: "Demo Artist", volume_level: 0.7 } },
+  media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Starting Today", media_artist: "Secret Friend", volume_level: 0.7 } },
+  number:         { domain: "number",         label: "Number",         friendly_name: "LED Brightness",   state: "75",       unit: "%",  attributes: { min: 0, max: 100, step: 1 } },
+  lock:           { domain: "lock",           label: "Lock",           friendly_name: "Front Door",       state: "locked",   attributes: {} },
+  person:         { domain: "person",         label: "Person",         friendly_name: "Alice",            state: "home",     attributes: {} },
+  button:         { domain: "button",         label: "Button",         friendly_name: "Restart Server",   state: "unknown",  attributes: {} },
+  script:         { domain: "script",         label: "Script",         friendly_name: "Goodnight",        state: "off",      attributes: {} },
+  automation:     { domain: "automation",     label: "Automation",     friendly_name: "Motion Lights",    state: "on",       attributes: {} },
   remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: {} },
   timer:          { domain: "timer",          label: "Timer",          friendly_name: "Oven Timer",       state: "idle",     attributes: { duration: "0:25:00", remaining: "0:25:00" } },
   weather:        { domain: "weather",        label: "Weather",        friendly_name: "Weather",          state: "sunny",    attributes: { temperature: 24, temperature_unit: "°C", humidity: 45, wind_speed: 12, wind_speed_unit: "km/h", pressure: 1013, pressure_unit: "hPa", forecast_daily: [

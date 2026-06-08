@@ -71,6 +71,7 @@
             <li><a href="#parts">Named parts (::part() selectors)</a></li>
             <li><a href="#bundled-themes">Bundled themes</a></li>
             <li><a href="#custom-themes">Creating custom themes</a></li>
+            <li><a href="#custom-fonts">Custom fonts</a></li>
             <li><a href="#custom-renderers">Custom renderers</a></li>
             <li><a href="#renderer-overrides">Renderer overrides</a></li>
             <li><a href="#renderer-wiring">Pairing a renderer with a theme</a></li>
@@ -144,34 +145,93 @@ hrv-card::part(brightness-slider) {
         </div>
 
         <h3>Theme zip format</h3>
-        <p>Import and export use a <code>.zip</code> file. The zip must contain files with these exact names:</p>
+        <p>Import and export use a <code>.zip</code> file. The zip can contain:</p>
         <ul>
-          <li><code>theme.json</code> (required) - the theme definition. Must be named exactly <code>theme.json</code>.</li>
-          <li><code>renderer.js</code> (optional) - a custom renderer override. Must be named exactly <code>renderer.js</code>. Replaces built-in card renderers when this theme is active.</li>
-          <li><code>font.woff2</code> (optional) - a custom icon font. Must be named exactly <code>font.woff2</code>. See <a href="#custom-fonts">Custom fonts</a> below.</li>
+          <li><code>theme.json</code> (required) - the theme definition.</li>
+          <li><code>renderer.js</code> (optional) - a custom renderer override. Replaces built-in card renderers when this theme is active.</li>
+          <li><code>*.woff2</code> (optional) - custom font files. Up to 8 files. See <a href="#text-fonts">Custom fonts</a> below.</li>
+          <li><code>thumbnail.png</code> or <code>thumbnail.jpg</code> (optional) - a preview image shown in the theme picker.</li>
         </ul>
-        <p>The zip file itself can be named anything (e.g. <code>my-cool-theme.zip</code>), but the files inside must use the exact names above. Maximum upload size is 10 MB. When <code>renderer.js</code> is present, the panel shows a renderer consent dialog before completing the import.</p>
+        <p>The zip file itself can be named anything (e.g. <code>my-cool-theme.zip</code>). Maximum upload size is 10 MB. When <code>renderer.js</code> is present, the panel shows a renderer consent dialog before completing the import. Exporting a theme produces a zip in the same format, including any thumbnail, fonts, and renderer associated with it.</p>
 
         <p>Unknown fields and unknown variable names are silently ignored, which makes themes forward-compatible. Only use variable names from the published list below.</p>
 
         <h3 id="custom-fonts">Custom fonts</h3>
-        <p>Themes can bundle a custom icon font to replace the default Material Design Icons. To include a custom font:</p>
-        <ol>
-          <li>Add an <code>icon_font</code> object to your <code>theme.json</code> with <code>family</code> (the CSS font-family name) and <code>file</code> (always <code>"font.woff2"</code>):</li>
-        </ol>
-<pre><code>{
+        <p>Themes can bundle custom fonts to give cards a distinctive typeface. This is useful when your theme's visual identity depends on a specific font that users won't have installed locally.</p>
+
+        <h4 id="text-fonts">Bundled fonts</h4>
+        <p>Bundle a WOFF2 font file inside the theme zip. The widget injects <code>@font-face</code> rules into the page so the font is available inside card shadow DOMs.</p>
+
+        <p><strong>Step 1:</strong> Place your <code>.woff2</code> file alongside <code>theme.json</code> in the zip:</p>
+<pre><code>theme.json
+nunito.woff2</code></pre>
+
+        <p>Variable fonts (a single file covering multiple weights) are recommended. They keep the zip small and require only one <code>custom_fonts</code> entry.</p>
+
+        <p><strong>Step 2:</strong> Add a <code>custom_fonts</code> array to your <code>theme.json</code>:</p>
+<pre><code class="language-json">{
   "name": "My Theme",
-  "icon_font": {
-    "family": "MyIcons",
-    "file": "font.woff2"
-  },
-  "variables": { ... }
+  "harvest_version": 1,
+  "custom_fonts": [
+    {
+      "family": "Nunito",
+      "url": "nunito.woff2",
+      "weight": "200 1000",
+      "style": "normal"
+    }
+  ],
+  "variables": {
+    "--hrv-font-family": "'Nunito', system-ui, sans-serif"
+  }
 }</code></pre>
-        <ol start="2">
-          <li>Include the <code>font.woff2</code> file in the root of the zip alongside <code>theme.json</code>.</li>
-          <li>In your renderer or CSS variables, reference the font with <code>font-family: "MyIcons"</code>.</li>
-        </ol>
-        <p>The widget automatically injects a <code>@font-face</code> declaration when a theme with a custom font is active. Only WOFF2 format is supported. The font file is served by the integration at <code>/api/harvest/themes/{theme_id}/font</code>.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>family</code></td><td>Yes</td><td>The CSS font-family name to register</td></tr>
+              <tr><td><code>url</code></td><td>Yes</td><td>Filename of the woff2 file in the zip</td></tr>
+              <tr><td><code>weight</code></td><td>No</td><td>CSS font-weight. Use a range for variable fonts, e.g. <code>"200 800"</code>. Defaults to <code>"normal"</code>.</td></tr>
+              <tr><td><code>style</code></td><td>No</td><td>CSS font-style, e.g. <code>"normal"</code> or <code>"italic"</code>. Defaults to <code>"normal"</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>Step 3:</strong> Reference the font in <code>--hrv-font-family</code>, quoted, with fallbacks:</p>
+<pre><code class="language-json">"--hrv-font-family": "'Nunito', system-ui, sans-serif"</code></pre>
+        <p>Always include fallback fonts. Custom fonts load asynchronously with <code>font-display: swap</code> - text renders immediately in the fallback and swaps once the font is ready.</p>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Finding free fonts</span>
+          <p><a href="https://fonts.google.com" target="_blank">Google Fonts</a> has thousands of freely licensed fonts. To get a WOFF2 URL, request the CSS with a browser user-agent:<br><code>curl -H "User-Agent: Mozilla/5.0" "https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&amp;display=swap"</code><br>The response contains direct download URLs. For variable fonts not available as WOFF2, download the TTF from the font's GitHub repo and convert with <code>fonttools</code> (Python: <code>pip install fonttools brotli</code>).</p>
+        </div>
+
+        <p>If your theme needs separate files for different styles (e.g. regular and italic), add multiple entries to the array. Each gets its own <code>@font-face</code> rule.</p>
+
+        <p><strong>Updating fonts:</strong> There is no separate font upload UI. To change fonts on an installed theme, export the zip, replace or add font files, update <code>custom_fonts</code> in <code>theme.json</code>, and re-import with overwrite enabled.</p>
+
+        <h4 id="google-fonts">Alternative: Google Fonts CSS</h4>
+        <p>Instead of bundling a font file, you can load fonts from Google Fonts by adding a <code>&lt;link&gt;</code> tag to your page. The <code>@font-face</code> rules from Google's stylesheet are global and apply inside shadow DOMs via <code>font-family</code> inheritance, so no <code>custom_fonts</code> array is needed.</p>
+
+        <p><strong>Step 1:</strong> Add the Google Fonts stylesheet to your page's <code>&lt;head&gt;</code>:</p>
+<pre><code class="language-html">&lt;link rel="preconnect" href="https://fonts.googleapis.com"&gt;
+&lt;link rel="preconnect" href="https://fonts.gstatic.com" crossorigin&gt;
+&lt;link href="https://fonts.googleapis.com/css2?family=Nunito:wght@200..1000&amp;display=swap" rel="stylesheet"&gt;</code></pre>
+        <p>In WordPress, paste these into your theme's header (Appearance &gt; Theme Editor &gt; header.php, or use a plugin like Insert Headers and Footers).</p>
+
+        <p><strong>Step 2:</strong> Reference the font in your theme's <code>--hrv-font-family</code> variable:</p>
+<pre><code class="language-json">{
+  "name": "My Theme",
+  "harvest_version": 1,
+  "variables": {
+    "--hrv-font-family": "'Nunito', system-ui, sans-serif"
+  }
+}</code></pre>
+
+        <div class="callout callout-info">
+          <span class="callout-label">Bundled vs. Google Fonts</span>
+          <p><strong>Bundled fonts</strong> are self-contained - the theme works offline and on any site without extra setup. <strong>Google Fonts</strong> are lighter to distribute (no woff2 in the zip) but require an internet connection and a page-level <code>&lt;link&gt;</code> tag on every site that uses the theme. Bundled fonts are recommended for shared themes; Google Fonts work well for personal use on sites you control.</p>
+        </div>
 
         <h2 id="css-variables">CSS variable reference</h2>
 
@@ -650,7 +710,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
 
         <h2 id="renderer-distribution">Distributing a theme with a renderer</h2>
 
-        <p>A theme with a renderer override is distributed as a single <code>.zip</code> file. The zip always contains <code>theme.json</code> (required) and <code>renderer.js</code> (the custom renderer). It may also include <code>font.woff2</code> (a custom icon font). Name the zip file itself after your theme (e.g. <code>dial-theme.zip</code>).</p>
+        <p>A theme with a renderer override is distributed as a single <code>.zip</code> file. The zip always contains <code>theme.json</code> (required) and <code>renderer.js</code> (the custom renderer). It may also include <code>.woff2</code> font files and a <code>thumbnail.png</code> or <code>thumbnail.jpg</code> (preview image). Name the zip file itself after your theme (e.g. <code>dial-theme.zip</code>).</p>
         <ul>
           <li>Share the <code>.zip</code> directly (GitHub release, repo attachment, etc.)</li>
           <li>Users import it via the HArvest panel Themes tab - Import .zip</li>

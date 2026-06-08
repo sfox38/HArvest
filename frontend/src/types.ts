@@ -222,6 +222,7 @@ export interface ThemeDefinition {
   has_renderer_file: boolean;
   is_bundled: boolean;
   has_thumbnail: boolean;
+  custom_fonts: { family: string; url: string; weight?: string; style?: string }[];
   usage_count: number;
   created_by: string;
   created_at: string;

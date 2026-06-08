@@ -1044,6 +1044,122 @@ The `has_renderer` field indicates that a theme has a paired renderer override. 
 
 Renderer overrides may define additional custom CSS variables (prefixed with `--hrv-ex-` or a renderer-specific prefix) for renderer-internal styling that should be theme-configurable.
 
+### Theme zip format
+
+The theme import endpoint accepts a `.zip` file containing any combination of the following:
+
+```
+theme.json                (required)
+renderer.js               (optional - custom renderer override)
+my-font.woff2             (optional - custom font files)
+thumbnail.png             (optional - theme thumbnail, .png or .jpg)
+```
+
+All files except `theme.json` are optional. The zip may contain up to 12 files total (4 base + 8 font files). Each file must be under 10 MB; total expanded size must be under 20 MB.
+
+Exporting a theme produces a zip in the same format, including any thumbnail, fonts, and renderer currently associated with it. Re-importing an exported zip with `?overwrite=true` is the supported way to update fonts or thumbnails.
+
+### Custom fonts
+
+A theme can bundle custom web fonts (woff2 format) so cards render with a specific typeface without depending on the user's installed fonts or a CDN.
+
+**Step 1: Add the font file to the zip**
+
+Place the woff2 file alongside `theme.json` in the zip:
+
+```
+theme.json
+my-font.woff2
+```
+
+Variable fonts (single file covering multiple weights) are recommended over separate files per weight. They keep the zip smaller and the `custom_fonts` declaration simpler.
+
+**Step 2: Declare the font in theme.json**
+
+Add a `custom_fonts` array at the top level of your theme.json:
+
+```json
+{
+  "name": "My Theme",
+  "harvest_version": 1,
+  "custom_fonts": [
+    {
+      "family": "My Font",
+      "url": "my-font.woff2",
+      "weight": "200 800",
+      "style": "normal"
+    }
+  ],
+  "variables": {
+    "--hrv-font-family": "'My Font', system-ui, sans-serif",
+    ...
+  }
+}
+```
+
+Each entry in `custom_fonts`:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `family` | Yes | The CSS font-family name to register |
+| `url` | Yes | Filename of the woff2 file in the zip |
+| `weight` | No | CSS font-weight descriptor. Use a range for variable fonts, e.g. `"200 800"`. Defaults to `"normal"`. |
+| `style` | No | CSS font-style descriptor, e.g. `"normal"` or `"italic"`. Defaults to `"normal"`. |
+
+**Step 3: Reference the font in your variables**
+
+Set `--hrv-font-family` to your font name, quoted, with a fallback stack:
+
+```json
+"--hrv-font-family": "'My Font', system-ui, sans-serif"
+```
+
+Always include fallbacks. The custom font loads asynchronously with `font-display: swap`, so text renders immediately in the fallback and swaps to the custom font once loaded.
+
+**Finding fonts**
+
+Google Fonts (fonts.google.com) is the easiest source of freely licensed woff2 files. To get the woff2 URL for any Google Font, request the CSS from the API with a browser User-Agent:
+
+```
+curl -H "User-Agent: Mozilla/5.0" \
+  "https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap"
+```
+
+The response contains `@font-face` rules with direct woff2 URLs on `fonts.gstatic.com`. Download the latin subset URL for the weight range you need.
+
+For variable fonts not served as woff2 by Google, download the TTF from the font's GitHub repository and convert with fonttools:
+
+```python
+from fontTools.ttLib import TTFont
+font = TTFont("MyFont[wght].ttf")
+font.flavor = "woff2"
+font.save("my-font.woff2")
+```
+
+Requires: `pip install fonttools brotli`
+
+**Multiple font files**
+
+If your theme needs separate files (e.g. regular and italic), add multiple entries:
+
+```json
+"custom_fonts": [
+  { "family": "My Font", "url": "my-font.woff2", "weight": "200 800", "style": "normal" },
+  { "family": "My Font", "url": "my-font-italic.woff2", "weight": "200 800", "style": "italic" }
+]
+```
+
+**Updating fonts on an installed theme**
+
+There is no separate font upload UI. To change fonts on an already-installed theme:
+
+1. Export the theme via the panel (Settings, theme detail, "Export .zip")
+2. Replace or add font files in the zip
+3. Update the `custom_fonts` array in `theme.json`
+4. Re-import the zip with "overwrite" enabled
+
+**Alternative: Google Fonts CSS.** Instead of bundling a font, you can load it from Google Fonts by adding a `<link>` tag to the host page's `<head>`. The `@font-face` rules from Google's stylesheet are global and apply inside shadow DOMs via `font-family` inheritance. No `custom_fonts` array is needed - just set `--hrv-font-family` in your theme variables. This is lighter to distribute but requires an internet connection and per-site setup. See the [theming docs](docs/theming.html#google-fonts) for full instructions.
+
 ### Theme application and host isolation
 
 `ThemeLoader` applies `variables` and the applicable `dark_variables` as custom properties on the card host. It tracks the properties it owns and restores any host-page inline values when a theme changes or detaches.

@@ -94,6 +94,7 @@ export class ThemeLoader {
           return null;
         }
         const json = await res.json();
+        json._sourceUrl = url;
         _cache.set(url, json);
         return json;
       } catch (err) {
@@ -184,12 +185,17 @@ export class ThemeLoader {
 
     applyVars();
 
-    // Inject custom icon font if the theme declares one.
-    // @font-face rules in document.head are global - they apply inside shadow
-    // DOM via the font-family property even though class selectors do not cross
-    // shadow boundaries. Idempotent: keyed by sanitised family name.
-    if (theme.icon_font?.family && theme.icon_font?.url) {
-      _injectFontFace(theme.icon_font.family, theme.icon_font.url);
+    // Inject custom fonts declared by the theme. @font-face rules in
+    // document.head are global - they apply inside shadow DOM via the
+    // font-family property even though class selectors do not cross shadow
+    // boundaries. Idempotent: keyed by sanitised family name + weight.
+    const baseUrl = theme._sourceUrl || null;
+    if (Array.isArray(theme.custom_fonts)) {
+      for (const face of theme.custom_fonts) {
+        if (face.family && face.url) {
+          _injectFontFace(face.family, _resolveFontUrl(face.url, baseUrl), face.weight, face.style);
+        }
+      }
     }
 
     // Only register OS-change listener when not forced to a specific scheme.
@@ -248,18 +254,41 @@ const _CLEANUP_KEY = Symbol("harvThemeCleanup");
 const _APPLIED_KEYS = Symbol("harvThemeAppliedKeys");
 
 /**
- * Inject a @font-face rule into document.head for a custom icon font.
- * Idempotent: the data-hrv-font attribute is keyed by the sanitised family
- * name so a second call with the same font is a no-op.
+ * Resolve a font URL relative to the theme's source URL. Absolute URLs
+ * and data URIs pass through unchanged. Relative paths are resolved
+ * against the directory containing the theme JSON.
  *
- * @param {string} family - Font family name, e.g. "Material Design Icons"
- * @param {string} url    - URL to the woff2 file
+ * @param {string} fontUrl
+ * @param {string|null} themeBaseUrl
+ * @returns {string}
  */
-function _injectFontFace(family, url) {
-  const key = family.toLowerCase().replace(/\s+/g, "-");
+function _resolveFontUrl(fontUrl, themeBaseUrl) {
+  if (!themeBaseUrl || /^(https?:|data:|blob:)/i.test(fontUrl)) return fontUrl;
+  try {
+    const base = themeBaseUrl.substring(0, themeBaseUrl.lastIndexOf("/") + 1);
+    return new URL(fontUrl, base).href;
+  } catch {
+    return fontUrl;
+  }
+}
+
+/**
+ * Inject a @font-face rule into document.head.
+ * Idempotent: the data-hrv-font attribute is keyed by the sanitised family
+ * name plus weight so multiple weights of the same family each get one rule.
+ *
+ * @param {string} family  - Font family name, e.g. "Inter"
+ * @param {string} url     - URL to the woff2 file
+ * @param {string} [weight="normal"] - CSS font-weight value, e.g. "400" or "100 900"
+ * @param {string} [fontStyle="normal"] - CSS font-style value
+ */
+function _injectFontFace(family, url, weight, fontStyle) {
+  const w = weight || "normal";
+  const s = fontStyle || "normal";
+  const key = `${family.toLowerCase().replace(/\s+/g, "-")}-${w}-${s}`;
   if (document.head.querySelector(`[data-hrv-font="${CSS.escape(key)}"]`)) return;
   const style = document.createElement("style");
   style.setAttribute("data-hrv-font", key);
-  style.textContent = `@font-face{font-family:${JSON.stringify(family)};src:url(${JSON.stringify(url)}) format("woff2");font-weight:normal;font-style:normal}`;
+  style.textContent = `@font-face{font-family:${JSON.stringify(family)};src:url(${JSON.stringify(url)}) format("woff2");font-weight:${w};font-style:${s};font-display:swap}`;
   document.head.appendChild(style);
 }

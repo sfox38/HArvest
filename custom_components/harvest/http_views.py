@@ -68,7 +68,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestThemeDetailView,
         HarvestThemeReloadByIdView,
         HarvestThemeThumbnailView,
-        HarvestThemeFontView,
+        HarvestThemeCustomFontView,
         HarvestRenderersView,
         HarvestRendererAgreeView,
         HarvestRendererFileView,
@@ -140,6 +140,27 @@ def _session_to_dict(session) -> dict:
         },
         "compatibility": session.compatibility,
     }
+
+
+def _build_custom_font_urls(theme_id: str, theme) -> list[dict]:
+    """Build the custom_fonts list with resolved API URLs for a theme."""
+    if not theme.custom_fonts:
+        return []
+    result = []
+    for face in theme.custom_fonts:
+        filename = face.get("file", "")
+        if not filename:
+            continue
+        entry = {
+            "family": face.get("family", ""),
+            "url": f"/api/harvest/themes/{theme_id}/fonts/{filename}",
+        }
+        if face.get("weight"):
+            entry["weight"] = face["weight"]
+        if face.get("style"):
+            entry["style"] = face["style"]
+        result.append(entry)
+    return result
 
 
 def _parse_dt(value: Any) -> datetime | None:
@@ -1517,9 +1538,8 @@ class HarvestThemesView(_HarvestView):
         counts = self._usage_counts()
         result = []
         for theme in self._theme_manager.get_all():
-            _fp = self._theme_manager.get_font_path(theme.theme_id)
-            _font_url = f"/api/harvest/themes/{theme.theme_id}/font" if _fp else None
-            d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme.theme_id), font_url=_font_url)
+            _cf_urls = _build_custom_font_urls(theme.theme_id, theme)
+            d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme.theme_id), custom_font_urls=_cf_urls)
             d["usage_count"] = counts.get(theme.theme_id, 0)
             if theme.has_renderer and self._renderer_manager is not None:
                 d["has_renderer_file"] = self._renderer_manager.get_renderer_path(theme.theme_id) is not None
@@ -1632,11 +1652,21 @@ class HarvestThemeImportView(_HarvestView):
         except zipfile.BadZipFile:
             raise web.HTTPBadRequest(reason="File is not a valid zip archive.")
         members = zf.infolist()
-        allowed_members = {"theme.json", "renderer.js", "font.woff2", "font.woff"}
-        if len(members) > self._MAX_MEMBERS:
+        allowed_top = {
+            "theme.json", "renderer.js",
+            "thumbnail.png", "thumbnail.jpg", "thumbnail.jpeg",
+        }
+        _MAX_FONT_FILES = 8
+        if len(members) > self._MAX_MEMBERS + _MAX_FONT_FILES:
             raise web.HTTPBadRequest(reason="Zip archive contains too many files.")
-        if any(info.filename not in allowed_members for info in members):
-            raise web.HTTPBadRequest(reason="Zip archive contains an unsupported file.")
+        for info in members:
+            if info.filename in allowed_top:
+                continue
+            if info.filename.endswith(".woff2") or info.filename.endswith(".woff"):
+                continue
+            if info.filename.startswith("fonts/") and info.filename.endswith("/"):
+                continue
+            raise web.HTTPBadRequest(reason=f"Zip archive contains an unsupported file: {info.filename}")
         if any(info.file_size > self._MAX_MEMBER_BYTES for info in members):
             raise web.HTTPRequestEntityTooLarge(
                 max_size=self._MAX_MEMBER_BYTES,
@@ -1690,10 +1720,26 @@ class HarvestThemeImportView(_HarvestView):
         raw_ps = raw.get("renderer_settings", raw.get("pack_settings"))
         renderer_settings = list(raw_ps) if isinstance(raw_ps, list) else None
 
-        raw_font = raw.get("icon_font") or {}
-        icon_font_family = str(raw_font.get("family", "")).strip() if isinstance(raw_font, dict) else ""
-        font_filename = str(raw_font.get("file", "font.woff2")).strip() if isinstance(raw_font, dict) else "font.woff2"
-        has_font = bool(icon_font_family) and (font_filename in zf.namelist())
+        raw_custom_fonts = raw.get("custom_fonts") or []
+        custom_fonts: list[dict] = []
+        zip_names = set(zf.namelist())
+        if isinstance(raw_custom_fonts, list):
+            for face in raw_custom_fonts:
+                if not isinstance(face, dict):
+                    continue
+                url = str(face.get("url", ""))
+                if not url:
+                    continue
+                filename = url.removeprefix("fonts/")
+                zip_path = filename if filename in zip_names else f"fonts/{filename}"
+                if zip_path not in zip_names:
+                    continue
+                entry: dict = {"family": str(face.get("family", "")), "file": filename}
+                if face.get("weight"):
+                    entry["weight"] = str(face["weight"])
+                if face.get("style"):
+                    entry["style"] = str(face["style"])
+                custom_fonts.append(entry)
 
         if overwrite and existing_theme is not None:
             theme = await self._theme_manager.update(existing_theme.theme_id, {
@@ -1705,7 +1751,7 @@ class HarvestThemeImportView(_HarvestView):
                 "capabilities": capabilities,
                 "renderer_settings": renderer_settings or [],
                 "description": str(raw.get("description", "")),
-                "icon_font_family": icon_font_family if has_font else "",
+                "custom_fonts": custom_fonts,
             })
             status_code = 200
         else:
@@ -1720,7 +1766,7 @@ class HarvestThemeImportView(_HarvestView):
                 capabilities=capabilities,
                 renderer_settings=renderer_settings,
                 description=str(raw.get("description", "")),
-                icon_font_family=icon_font_family if has_font else "",
+                custom_fonts=custom_fonts,
             )
             status_code = 201
 
@@ -1728,14 +1774,30 @@ class HarvestThemeImportView(_HarvestView):
             js_code = zf.read("renderer.js").decode("utf-8")
             await self._renderer_manager.update_code(theme.theme_id, js_code)
 
-        if has_font:
-            font_bytes = zf.read(font_filename)
+        if custom_fonts:
+            self._theme_manager.delete_custom_fonts(theme.theme_id)
+            for face in custom_fonts:
+                zip_path = face["file"] if face["file"] in zip_names else f"fonts/{face['file']}"
+                if zip_path in zip_names:
+                    data = zf.read(zip_path)
+                    await self._hass.async_add_executor_job(
+                        self._theme_manager.save_custom_font, theme.theme_id, face["file"], data
+                    )
+
+        thumb_file = next(
+            (n for n in zip_names if n in ("thumbnail.png", "thumbnail.jpg", "thumbnail.jpeg")),
+            None,
+        )
+        if thumb_file is not None:
+            ext = "." + thumb_file.rsplit(".", 1)[-1]
+            thumb_bytes = zf.read(thumb_file)
             await self._hass.async_add_executor_job(
-                self._theme_manager.save_font, theme.theme_id, font_bytes
+                self._theme_manager.save_thumbnail, theme.theme_id, thumb_bytes, ext
             )
 
-        font_url = f"/api/harvest/themes/{theme.theme_id}/font" if has_font else None
-        d = theme_to_api_dict(theme, font_url=font_url)
+        has_thumb = self._theme_manager.has_thumbnail(theme.theme_id)
+        _cf_urls = _build_custom_font_urls(theme.theme_id, theme)
+        d = theme_to_api_dict(theme, has_thumbnail=has_thumb, custom_font_urls=_cf_urls)
         d["has_renderer"] = has_renderer_js and self._renderer_manager is not None
         return self.json(d, status_code=status_code)
 
@@ -1782,9 +1844,16 @@ class HarvestThemeExportView(_HarvestView):
                 obj["capabilities"] = theme.capabilities
             if theme.renderer_settings:
                 obj["renderer_settings"] = theme.renderer_settings
-            font_path = self._theme_manager.get_font_path(theme_id)
-            if theme.icon_font_family and font_path is not None:
-                obj["icon_font"] = {"family": theme.icon_font_family, "file": "font.woff2"}
+            if theme.custom_fonts:
+                export_cf = []
+                for face in theme.custom_fonts:
+                    entry = {"family": face.get("family", ""), "url": face["file"]}
+                    if face.get("weight"):
+                        entry["weight"] = face["weight"]
+                    if face.get("style"):
+                        entry["style"] = face["style"]
+                    export_cf.append(entry)
+                obj["custom_fonts"] = export_cf
             obj["variables"] = theme.variables
             if theme.dark_variables:
                 obj["dark_variables"] = theme.dark_variables
@@ -1799,10 +1868,18 @@ class HarvestThemeExportView(_HarvestView):
                     )
                     zf.writestr("renderer.js", js_bytes)
 
-            # Include font.woff2 if present.
-            if font_path is not None:
-                font_bytes = await self._hass.async_add_executor_job(font_path.read_bytes)
-                zf.writestr("font.woff2", font_bytes)
+            # Include custom font files.
+            for cf_name in self._theme_manager.get_custom_font_files(theme_id):
+                cf_path = self._theme_manager.get_custom_font_path(theme_id, cf_name)
+                if cf_path is not None:
+                    cf_bytes = await self._hass.async_add_executor_job(cf_path.read_bytes)
+                    zf.writestr(cf_name, cf_bytes)
+
+            # Include thumbnail if present.
+            thumb_path = self._theme_manager.get_thumbnail_path(theme_id)
+            if thumb_path is not None:
+                thumb_bytes = await self._hass.async_add_executor_job(thumb_path.read_bytes)
+                zf.writestr(f"thumbnail{thumb_path.suffix}", thumb_bytes)
 
         slug = theme.name.lower().replace(" ", "-")
         filename = f"{slug}.zip"
@@ -1868,11 +1945,22 @@ class HarvestThemeDetailView(_HarvestView):
 
     async def _push_theme_to_tokens(self, theme_id: str, theme: object) -> None:
         """Push updated theme variables to all active sessions using this theme."""
-        msg = {
+        msg: dict = {
             "type": "theme",
             "variables": theme.variables,
             "dark_variables": theme.dark_variables,
         }
+        if theme.custom_fonts:
+            msg["custom_fonts"] = [
+                {
+                    "family": f.get("family", ""),
+                    "url": f"/api/harvest/themes/{theme_id}/fonts/{f['file']}",
+                    **({"weight": f["weight"]} if f.get("weight") else {}),
+                    **({"style": f["style"]} if f.get("style") else {}),
+                }
+                for f in theme.custom_fonts
+                if f.get("file")
+            ]
         for token in self._token_manager.get_all():
             if theme_url_to_id(token.theme_url) != theme_id:
                 continue
@@ -1890,9 +1978,8 @@ class HarvestThemeDetailView(_HarvestView):
         theme = self._theme_manager.get(theme_id)
         if theme is None:
             raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
-        _fp = self._theme_manager.get_font_path(theme_id)
-        _font_url = f"/api/harvest/themes/{theme_id}/font" if _fp else None
-        d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme_id), font_url=_font_url)
+        _cf_urls = _build_custom_font_urls(theme_id, theme)
+        d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme_id), custom_font_urls=_cf_urls)
         count = sum(
             1 for t in self._token_manager.get_all()
             if theme_url_to_id(t.theme_url) == theme_id
@@ -1956,9 +2043,8 @@ class HarvestThemeDetailView(_HarvestView):
         if "variables" in updates or "dark_variables" in updates:
             await self._push_theme_to_tokens(theme_id, theme)
 
-        _fp = self._theme_manager.get_font_path(theme_id)
-        _font_url = f"/api/harvest/themes/{theme_id}/font" if _fp else None
-        d = theme_to_api_dict(theme, font_url=_font_url)
+        _cf_urls = _build_custom_font_urls(theme_id, theme)
+        d = theme_to_api_dict(theme, custom_font_urls=_cf_urls)
         if theme.has_renderer and self._renderer_manager is not None:
             d["has_renderer_file"] = self._renderer_manager.get_renderer_path(theme_id) is not None
         else:
@@ -2066,24 +2152,24 @@ class HarvestThemeThumbnailView(_HarvestView):
         return web.Response(status=204)
 
 
-class HarvestThemeFontView(_HarvestView):
-    """GET /api/harvest/themes/{theme_id}/font - serve custom icon font.
+class HarvestThemeCustomFontView(_HarvestView):
+    """GET /api/harvest/themes/{theme_id}/fonts/{filename} - serve a custom font file.
 
-    No authentication required - the widget fetches this unauthenticated,
-    the same as theme thumbnails. Only user themes can have a font file.
+    No authentication required - the widget fetches this unauthenticated.
     """
 
-    url = "/api/harvest/themes/{theme_id}/font"
-    name = "api:harvest:theme_font"
+    url = "/api/harvest/themes/{theme_id}/fonts/{filename}"
+    name = "api:harvest:theme_custom_font"
 
-    async def get(self, request: web.Request, theme_id: str) -> web.Response:
-        path = self._theme_manager.get_font_path(theme_id)
+    async def get(self, request: web.Request, theme_id: str, filename: str) -> web.Response:
+        path = self._theme_manager.get_custom_font_path(theme_id, filename)
         if path is None:
             raise web.HTTPNotFound()
         data = await self._hass.async_add_executor_job(path.read_bytes)
+        ct = "font/woff2" if filename.endswith(".woff2") else "font/woff"
         return web.Response(
             body=data,
-            content_type="font/woff2",
+            content_type=ct,
             headers={"Cache-Control": "public, max-age=604800"},
         )
 
@@ -2116,11 +2202,22 @@ class HarvestThemeReloadByIdView(_HarvestView):
             theme = self._theme_manager.get(theme_id)
 
         ts = int(datetime.now(timezone.utc).timestamp())
-        theme_msg = {
+        theme_msg: dict = {
             "type": "theme",
             "variables": theme.variables,
             "dark_variables": theme.dark_variables,
         }
+        if theme.custom_fonts:
+            theme_msg["custom_fonts"] = [
+                {
+                    "family": f.get("family", ""),
+                    "url": f"/api/harvest/themes/{theme_id}/fonts/{f['file']}",
+                    **({"weight": f["weight"]} if f.get("weight") else {}),
+                    **({"style": f["style"]} if f.get("style") else {}),
+                }
+                for f in theme.custom_fonts
+                if f.get("file")
+            ]
         for token in self._token_manager.get_all():
             if theme_url_to_id(token.theme_url) != theme_id:
                 continue
@@ -2137,9 +2234,8 @@ class HarvestThemeReloadByIdView(_HarvestView):
                     except Exception:
                         pass
 
-        _fp = self._theme_manager.get_font_path(theme_id)
-        _font_url = f"/api/harvest/themes/{theme_id}/font" if _fp else None
-        d = theme_to_api_dict(theme, font_url=_font_url)
+        _cf_urls = _build_custom_font_urls(theme_id, theme)
+        d = theme_to_api_dict(theme, custom_font_urls=_cf_urls)
         if theme.has_renderer and self._renderer_manager is not None:
             d["has_renderer"] = self._renderer_manager.get_renderer_path(theme_id) is not None
         else:

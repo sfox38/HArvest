@@ -47,7 +47,7 @@ class ThemeDefinition:
     capabilities: dict | None = None
     renderer_settings: list[str] = dataclasses.field(default_factory=list)
     description: str = ""
-    icon_font_family: str = ""
+    custom_fonts: list[dict] = dataclasses.field(default_factory=list)
 
 
 class ThemeManager:
@@ -171,7 +171,7 @@ class ThemeManager:
         capabilities: dict | None = None,
         renderer_settings: list[str] | None = None,
         description: str = "",
-        icon_font_family: str = "",
+        custom_fonts: list[dict] | None = None,
     ) -> ThemeDefinition:
         """Create and persist a new user theme."""
         theme = ThemeDefinition(
@@ -186,7 +186,7 @@ class ThemeManager:
             capabilities=capabilities or None,
             renderer_settings=list(renderer_settings or []),
             description=description,
-            icon_font_family=icon_font_family,
+            custom_fonts=list(custom_fonts or []),
             created_by=created_by,
             created_at=datetime.now(tz=timezone.utc).isoformat(),
             is_bundled=False,
@@ -203,7 +203,7 @@ class ThemeManager:
         if theme is None:
             raise KeyError(f"Theme not found: {theme_id}")
 
-        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer", "capabilities", "renderer_settings", "description", "icon_font_family"}
+        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer", "capabilities", "renderer_settings", "description", "custom_fonts"}
         for field, value in updates.items():
             if field in _UPDATABLE:
                 setattr(theme, field, value)
@@ -219,7 +219,7 @@ class ThemeManager:
             raise KeyError(f"Theme not found: {theme_id}")
         del self._user[theme_id]
         self.delete_thumbnail(theme_id)
-        self.delete_font(theme_id)
+        self.delete_custom_fonts(theme_id)
         await self._hass.async_add_executor_job(self._delete_theme_file, theme_id)
 
     @staticmethod
@@ -293,35 +293,52 @@ class ThemeManager:
                 return True
         return False
 
-    # -- Icon font helpers ----------------------------------------------------
+    # -- Custom font helpers --------------------------------------------------
 
-    def get_font_path(self, theme_id: str) -> Path | None:
-        """Return the path to a user theme's woff2 font, or None if absent."""
+    def _custom_fonts_dir(self, theme_id: str) -> Path:
+        """Return the directory for a theme's custom font files."""
+        return _USER_THEMES_DIR / f"{theme_id}-fonts"
+
+    def get_custom_font_path(self, theme_id: str, filename: str) -> Path | None:
+        """Return the path to a specific custom font file, or None if absent."""
         if not self._safe_theme_id(theme_id):
             return None
-        path = _USER_THEMES_DIR / f"{theme_id}.woff2"
+        if not filename or "/" in filename or "\\" in filename or ".." in filename:
+            return None
+        path = self._custom_fonts_dir(theme_id) / filename
         return path if path.is_file() else None
 
-    def save_font(self, theme_id: str, data: bytes) -> Path:
-        """Save a woff2 font for a user theme. Returns the saved path."""
+    def get_custom_font_files(self, theme_id: str) -> list[str]:
+        """Return a list of custom font filenames for a theme."""
+        d = self._custom_fonts_dir(theme_id)
+        if not d.is_dir():
+            return []
+        return sorted(f.name for f in d.iterdir() if f.is_file())
+
+    def save_custom_font(self, theme_id: str, filename: str, data: bytes) -> Path:
+        """Save a custom font file for a user theme."""
         if not self._safe_theme_id(theme_id):
             raise ValueError(f"Invalid theme id: {theme_id}")
+        if not filename or "/" in filename or "\\" in filename or ".." in filename:
+            raise ValueError(f"Invalid font filename: {filename}")
         if theme_id not in self._user:
             raise KeyError(f"Theme not found: {theme_id}")
-        _USER_THEMES_DIR.mkdir(parents=True, exist_ok=True)
-        path = _USER_THEMES_DIR / f"{theme_id}.woff2"
+        d = self._custom_fonts_dir(theme_id)
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / filename
         path.write_bytes(data)
         return path
 
-    def delete_font(self, theme_id: str) -> bool:
-        """Delete a user theme's font file. Returns True if a file was removed."""
+    def delete_custom_fonts(self, theme_id: str) -> bool:
+        """Delete all custom font files for a theme. Returns True if any removed."""
         if not self._safe_theme_id(theme_id):
             return False
-        path = _USER_THEMES_DIR / f"{theme_id}.woff2"
-        if path.is_file():
-            path.unlink()
-            return True
-        return False
+        d = self._custom_fonts_dir(theme_id)
+        if not d.is_dir():
+            return False
+        import shutil
+        shutil.rmtree(d)
+        return True
 
 
 def _theme_to_dict(theme: ThemeDefinition) -> dict:
@@ -344,8 +361,8 @@ def _theme_to_dict(theme: ThemeDefinition) -> dict:
         d["capabilities"] = theme.capabilities
     if theme.renderer_settings:
         d["renderer_settings"] = theme.renderer_settings
-    if theme.icon_font_family:
-        d["icon_font_family"] = theme.icon_font_family
+    if theme.custom_fonts:
+        d["custom_fonts"] = theme.custom_fonts
     return d
 
 
@@ -363,7 +380,7 @@ def _theme_from_dict(d: dict) -> ThemeDefinition:
         capabilities=d.get("capabilities") or None,
         renderer_settings=list(d.get("renderer_settings", d.get("pack_settings") or []) or []),
         description=d.get("description", ""),
-        icon_font_family=d.get("icon_font_family", ""),
+        custom_fonts=list(d.get("custom_fonts") or []),
         created_by=d.get("created_by", ""),
         created_at=d.get("created_at", ""),
         is_bundled=False,
@@ -373,7 +390,7 @@ def _theme_from_dict(d: dict) -> ThemeDefinition:
 def theme_to_api_dict(
     theme: ThemeDefinition,
     has_thumbnail: bool = False,
-    font_url: str | None = None,
+    custom_font_urls: list[dict] | None = None,
 ) -> dict:
     """Serialise a ThemeDefinition for API responses (includes is_bundled)."""
     d = _theme_to_dict(theme)
@@ -382,10 +399,7 @@ def theme_to_api_dict(
     d["description"] = theme.description
     d["capabilities"] = theme.capabilities
     d["renderer_settings"] = theme.renderer_settings
-    if font_url and theme.icon_font_family:
-        d["icon_font"] = {"family": theme.icon_font_family, "url": font_url}
-    else:
-        d["icon_font"] = None
+    d["custom_fonts"] = custom_font_urls or []
     return d
 
 

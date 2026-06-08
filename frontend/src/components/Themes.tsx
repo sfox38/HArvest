@@ -664,6 +664,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
                       {t.has_renderer_file ? "★" : "⚠"}
                     </span>
                   )}
+                  {t.custom_fonts?.length > 0 && (
+                    <span className="theme-font-badge" title={`Custom font: ${t.custom_fonts.map(f => f.family).join(", ")}`}>
+                      F
+                    </span>
+                  )}
                 </div>
                 <span className="theme-strip-name">{t.name}</span>
                 <div className="theme-strip-meta">
