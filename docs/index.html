@@ -8,6 +8,7 @@
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -52,7 +53,7 @@
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
@@ -61,12 +62,12 @@
             <img src="logo.png" alt="HArvest logo">
             <div>
               <h1>HArvest</h1>
-              <p class="leadhero">Securely share and control your Home Assistant smart home devices on any HTML or WordPress page.</p>
+              <p class="leadhero">Share and control your Home Assistant devices on any HTML or WordPress page, with scoped tokens and origin restrictions.</p>
             </div>
           </div>
         </div>
 
-        <img class="hero-img" src="hero.jpg" alt="HArvest panel showing the widget wizard and live card previews">
+        <img class="hero-img" src="hero.jpg" alt="HArvest panel showing the widget wizard and live card previews" width="3264" height="2116">
 
         <section>
         <h2>How it works</h2>
@@ -75,17 +76,17 @@
 
         <p>The panel gives you a wizard that walks through picking entities, setting permissions, restricting access by origin/IP/schedule, choosing a theme, and generating an embed snippet. Paste the snippet into a page. Done.</p>
 
-        <p>Widgets connect from the visitor's browser directly to your HA instance over WebSocket. State changes push from HA to the widget in real time. No intermediary service.</p>
+        <p>Widgets connect from the visitor's browser directly to your HA instance over WebSocket. State changes push in real time. There is no intermediary service.</p>
         </section>
 
         <section>
         <h2>Key concepts</h2>
 
         <h3>Widget tokens</h3>
-        <p>Every widget has a token - a short random ID (prefixed <code>hwt_</code>) that identifies both the widget and its access rules. The token determines which entities are accessible, whether visitors can control them, which websites are allowed to connect, and more. Tokens can be revoked instantly from the panel.</p>
+        <p>Every widget has a token - a short random ID (prefixed <code>hwt_</code>) that identifies both the widget and its access rules. The token determines which entities are accessible, whether visitors can control them, and which websites are allowed to connect. Tokens can be revoked instantly from the panel.</p>
 
         <h3>Configuration hierarchy</h3>
-        <p>Widget configuration flows through three levels. Each level inherits from the one above and can override any value:</p>
+        <p>Widget configuration has three levels. Each level inherits from the one above and can override any value:</p>
 
         <pre><code class="language-text">Page level:   HArvest.config({ haUrl: "...", token: "..." })
                 |

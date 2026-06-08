@@ -8,6 +8,7 @@
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -52,13 +53,13 @@
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Reference</div>
           <h1>Full reference</h1>
-          <p class="lead">Token settings, widget attributes, JavaScript API, WordPress shortcodes, CSS variables, and global settings.</p>
+          <p class="lead">Covers token settings, widget attributes, the JavaScript API, WordPress shortcodes, CSS variables, and global settings.</p>
         </div>
 
         <div class="toc">

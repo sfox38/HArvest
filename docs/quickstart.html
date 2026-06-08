@@ -8,6 +8,7 @@
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -52,13 +53,13 @@
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Getting started</div>
           <h1>Quick setup</h1>
-          <p class="lead">Create a widget for one of your smart home devices, then put it on a webpage. Takes about five minutes. This guide assumes HArvest is already <a href="installation.html">installed</a>.</p>
+          <p class="lead">Create a widget for one of your smart home devices, then put it on a webpage. This takes about five minutes and assumes HArvest is already <a href="installation.html">installed</a>.</p>
         </div>
 
         <div class="toc">
@@ -84,7 +85,7 @@
           <li>Set permissions: <strong>Badge</strong> (a compact pill showing icon, name, and state - ideal for status displays), <strong>View only</strong> (full card, visitors see state but cannot change anything), or <strong>Control</strong> (full card, visitors can also interact, for example toggling a light). You can override this per entity later from the widget detail screen. When Badge is selected, companion pickers are hidden.</li>
           <li>Pick a visual theme from the theme strip. You can change the theme later from the widget detail screen.</li>
         </ul>
-        <p>A live preview of your selected entity appears as you configure it, updating in real time when you change the permission level or theme.</p>
+        <p>The live preview updates in real time as you change the permission level or theme.</p>
 
         <img src="widget-step-1.jpg" alt="Step 1 - entity picker showing search results and selected entities">
 
@@ -136,7 +137,7 @@
 
         <div class="callout callout-tip">
           <span class="callout-label">Where does harvest.min.js come from?</span>
-          <p>The script URL points at your Home Assistant instance. The HArvest integration serves the widget bundle directly out of its own files at <code>/harvest_assets/harvest.min.js</code>. This means the widget always matches the running integration version - update HArvest via HACS and every embedded widget picks up the new bundle on the next page load. No separate widget upload, no CDN, no version drift.</p>
+          <p>The script URL points at your Home Assistant instance. The HArvest integration serves the widget bundle directly at <code>/harvest_assets/harvest.min.js</code>. The widget always matches the running integration version: update HArvest via HACS and every embedded widget picks up the new bundle on the next page load. You don't need to upload the widget separately, configure a CDN, or keep versions in sync.</p>
         </div>
 
         <div class="callout callout-tip">
@@ -152,18 +153,18 @@
 
         <pre><code class="language-text">[harvest token="hwt_a3F9bC2d114eF5A6b7c8dE" entity="light.bedroom_main"]</code></pre>
 
-        <p>Paste it into any post or page using the Classic Editor or any editor that allows shortcodes. The HArvest WordPress plugin takes care of the rest: loading the widget script, setting up browser security headers, and matching your site's light or dark mode.</p>
+        <p>Paste it into any post or page using the Classic Editor or any editor that allows shortcodes. The HArvest WordPress plugin handles the widget script, browser security headers, and light/dark mode matching.</p>
 
         <p>The plugin needs to be installed and configured with your HA URL before shortcodes will work. Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank">GitHub Releases</a> and find <code>harvest.zip</code> in the <code>wordpress/</code> folder. See the <a href="wordpress.html">WordPress setup page</a> for the full install process.</p>
 
         <div class="callout callout-tip">
           <span class="callout-label">Already have a Lovelace dashboard?</span>
-          <p>The <strong>Dashboard Converter</strong> tool can automatically convert an existing HA dashboard into an HArvest HTML page. It connects to your HA instance, pulls the dashboard config, creates tokens, and generates a complete HTML file preserving your tab layout, sections, and badges. Find it in the <code>tools/</code> folder: <code>python tools/lovelace_convert.py</code></p>
+          <p>The <strong>Dashboard Converter</strong> wizard can automatically convert an existing HA dashboard into an HArvest HTML page. It pulls the dashboard config, creates tokens, and generates a complete HTML file preserving your tab layout, sections, and badges. Open it from the <strong>Widgets</strong> tab in the HArvest panel.</p>
         </div>
 
         <div class="callout callout-tip">
           <span class="callout-label">Where to go next</span>
-          <p>The <a href="panel.html">Panel guide</a> covers everything you can do from the HArvest panel: display settings, security options, activity logs, and more. The <a href="widgets.html">Widget reference</a> has all embed options and the JavaScript API.</p>
+          <p>The <a href="panel.html">Panel guide</a> covers the rest of the HArvest panel: display settings, security options, and activity logs. The <a href="widgets.html">Widget reference</a> has all embed options and the JavaScript API.</p>
         </div>
         </section>
 

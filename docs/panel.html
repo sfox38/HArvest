@@ -8,6 +8,7 @@
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -52,13 +53,13 @@
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Using HArvest</div>
           <h1>Panel guide</h1>
-          <p class="lead">A walkthrough of every screen in the HArvest panel - dashboard, token management, the wizard, themes, settings, and the activity log.</p>
+          <p class="lead">Covers every screen in the HArvest panel: dashboard, widget management, the wizard, themes, settings, and the activity log.</p>
         </div>
 
         <div class="toc">
@@ -77,7 +78,7 @@
 
         <h2 id="dashboard">Dashboard</h2>
 
-        <p>The dashboard is the first screen you see when opening the panel. It shows a real-time snapshot of what's happening across all your widgets.</p>
+        <p>The dashboard is the first screen you see when you open the panel. It shows a real-time snapshot of what's happening across all your widgets.</p>
 
         <div class="screenshot">
           <img src="dashboard.jpg">

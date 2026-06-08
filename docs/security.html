@@ -8,6 +8,7 @@
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -52,13 +53,13 @@
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Reference</div>
           <h1>Security</h1>
-          <p class="lead">How HArvest's security model works, what it protects against, what it doesn't, and how to harden a token for sensitive deployments.</p>
+          <p class="lead">Covers HArvest's security model, its protections and limitations, and how to harden a token for sensitive deployments.</p>
         </div>
 
         <div class="toc">
@@ -101,7 +102,7 @@
 
         <h2 id="limitations">What it doesn't protect</h2>
 
-        <p>Being clear about limitations is important for making good deployment decisions.</p>
+        <p>Understanding these limitations helps you make better deployment decisions.</p>
 
         <ul>
           <li><strong>Token ID in page source</strong> - the token ID is visible in your page HTML. Anyone who copies it can use it from a non-browser tool (curl, etc.) as long as the origin check passes or isn't set. Use HMAC signing and strict origin restrictions for write-access tokens.</li>

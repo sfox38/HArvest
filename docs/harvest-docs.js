@@ -93,6 +93,13 @@
       overlay.addEventListener("click", closeSidebar);
     }
 
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && sidebar.classList.contains("open")) {
+        closeSidebar();
+        toggle.focus();
+      }
+    });
+
     // Close sidebar when a nav link is clicked on mobile
     var navLinks = sidebar.querySelectorAll("a.nav-item");
     navLinks.forEach(function (link) {

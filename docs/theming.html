@@ -8,6 +8,7 @@
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -52,13 +53,13 @@
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Customization</div>
           <h1>Theming and custom renderers</h1>
-          <p class="lead">CSS variables, the theme JSON format, custom themes, named parts for surgical CSS overrides, and how to build and distribute renderer overrides that replace card layouts entirely.</p>
+          <p class="lead">Covers CSS variables, the theme JSON format, custom themes, named parts for surgical CSS overrides, and building renderer overrides that replace card layouts entirely.</p>
         </div>
 
         <div class="toc">

@@ -11,7 +11,7 @@
   --border:         #dde4df;
   --text:           #0f1a14;
   --text-2:         #3b4a42;
-  --text-3:         #6b7a71;
+  --text-3:         #5a6960;
   --accent:         #2f7d4d;
   --accent-dim:     #e8f3ec;
   --accent-text:    #1f5c38;
@@ -21,7 +21,7 @@
   --code-text:      #0f1a14;
   --pre-bg:         #0f2018;
   --pre-text:       #dce7e0;
-  --pre-comment:    #7a8a82;
+  --pre-comment:    #8a9a92;
   --pre-keyword:    #8ee6b0;
   --pre-string:     #f0c674;
   --pre-number:     #fbbf24;
@@ -61,7 +61,7 @@
   --code-text:      #eef3ef;
   --pre-bg:         #0f2018;
   --pre-text:       #dce7e0;
-  --pre-comment:    #7a8a82;
+  --pre-comment:    #8a9a92;
   --pre-keyword:    #8ee6b0;
   --pre-string:     #f0c674;
   --pre-number:     #fbbf24;
@@ -103,6 +103,30 @@
    ============================================================ */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Skip to content link */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 300;
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 12px;
+}
+
+/* Focus visible */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 html { font-size: 16px; scroll-behavior: smooth; height: 100%; }
 
@@ -302,10 +326,8 @@ img { max-width: 100%; height: auto; border-radius: var(--radius-lg); }
 }
 
 .page-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 13px;
+  font-weight: 550;
   color: var(--accent);
   margin-bottom: 8px;
 }
@@ -360,15 +382,6 @@ h2 {
   scroll-margin-top: 32px;
 }
 
-h2::before {
-  content: "";
-  display: block;
-  width: 28px;
-  height: 3px;
-  background: var(--accent);
-  border-radius: 2px;
-  margin-bottom: 10px;
-}
 
 h3 {
   font-size: 1.125rem;
@@ -570,7 +583,7 @@ td code { font-size: 12.5px; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 8px;
-  color: #fafdfb;
+  color: var(--surface);
 }
 
 .callout-tip .callout-label    { background: var(--tip-border); }
@@ -602,7 +615,7 @@ td code { font-size: 12.5px; }
   height: 30px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fafdfb;
+  color: var(--surface);
   font-size: 13px;
   font-weight: 700;
   display: flex;
