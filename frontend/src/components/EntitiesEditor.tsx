@@ -13,7 +13,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail } from "../types";
 import { api } from "../api";
-import { ConfirmDialog, Card, Spinner, EntityAutocomplete, useThemeThumbs, useDragScroll } from "./Shared";
+import { ConfirmDialog, Card, Spinner, EntityAutocomplete, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { doCopy, groupEntities } from "./CodeSection";
@@ -46,19 +46,6 @@ const DOMAIN_ICON: Record<string, string> = {
   climate: "thermostat",
   cover: "chevDown",
 };
-
-function themeIdToUrl(id: string): string {
-  if (id === "default") return "";
-  if (id.startsWith("hth_")) return `user:${id}`;
-  return `bundled:${id}`;
-}
-
-function themeUrlToId(url: string): string {
-  if (!url) return "default";
-  if (url.startsWith("bundled:")) return url.slice(8);
-  if (url.startsWith("user:")) return url.slice(5);
-  return url;
-}
 
 interface EntitiesEditorProps {
   token: Token;
@@ -272,7 +259,6 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const patchPendingRef  = useRef<Token["entities"] | null>(null);
   const [companionInputs, setCompanionInputs] = useState<Record<string, string>>({});
   const entityCacheList = useEntityCache();
-  const themeStripRef = useDragScroll<HTMLDivElement>();
 
   useEffect(() => { if (entityCacheList.length === 0) loadEntityCache(); }, []);
   useEffect(() => { api.themes.list().then(setThemes).catch(() => {}); }, []);
@@ -310,7 +296,6 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const entities = localEntities ?? token.entities;
   const existingIds = entities.map(e => e.entity_id);
   const grouped = groupEntities(entities);
-  const thumbUrls = useThemeThumbs(themes);
   const currentThemeId = themeUrlToId(token.theme_url ?? "");
   const selectedTheme = themes.find(t => t.theme_id === currentThemeId) ?? null;
   const rendererCap = selectedTheme?.capabilities ?? null;
@@ -832,33 +817,11 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             placeholder="Filter themes..."
             style={{ marginBottom: 8 }}
           />
-          <div ref={themeStripRef} className="theme-strip">
-            {filteredThemes.map(t => (
-              <button
-                key={t.theme_id}
-                className={`theme-strip-item${currentThemeId === t.theme_id ? " selected" : ""}`}
-                onClick={() => changeTheme(t.theme_id)}
-                type="button"
-              >
-                <div className="theme-thumb-wrap">
-                  {thumbUrls[t.theme_id] ? (
-                    <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
-                  ) : (
-                    <div className="theme-strip-thumb" />
-                  )}
-                  {t.has_renderer && (
-                    <span className="theme-renderer-star" title="Includes custom renderers">&#9733;</span>
-                  )}
-                  {t.custom_fonts?.length > 0 && (
-                    <span className="theme-font-badge" title={`Custom font: ${t.custom_fonts.map(f => f.family).join(", ")}`}>
-                      F
-                    </span>
-                  )}
-                </div>
-                <span className="theme-strip-name">{t.name}</span>
-              </button>
-            ))}
-          </div>
+          <ThemeStrip
+            themes={filteredThemes}
+            selectedId={currentThemeId}
+            onSelect={changeTheme}
+          />
         </div>
 
         {selectedEntityId === "__block__" && token.entities_block && (() => {

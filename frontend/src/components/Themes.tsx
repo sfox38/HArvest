@@ -9,20 +9,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { ThemeDefinition, Token, RenderersResponse } from "../types";
 import { api } from "../api";
-import { Card, ConfirmDialog, Spinner, ErrorBanner, useThemeThumbs, useDragScroll } from "./Shared";
+import { Card, ConfirmDialog, Spinner, ErrorBanner, ThemeStrip, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { WidgetPreview, clearRendererCache } from "./WidgetPreview";
 
 // ---------------------------------------------------------------------------
 // Theme URL mapping helpers
 // ---------------------------------------------------------------------------
-
-function themeUrlToId(themeUrl: string): string {
-  if (!themeUrl) return "default";
-  if (themeUrl.startsWith("bundled:")) return themeUrl.slice(8);
-  if (themeUrl.startsWith("user:")) return themeUrl.slice(5);
-  return themeUrl;
-}
 
 function useDialogFocus(open: boolean, onClose: () => void) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -104,7 +97,6 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const themeStripRef = useDragScroll<HTMLDivElement>();
 
   // Code editor state
   const [editedJson, setEditedJson] = useState("");
@@ -142,7 +134,6 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
   // Thumbnail state
   const [thumbKey, setThumbKey] = useState(0);
-  const thumbUrls = useThemeThumbs(themes, thumbKey);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -639,46 +630,18 @@ export function Themes({ onSelectToken }: ThemesProps) {
               {reloading ? "Reloading..." : "Reload"}
             </button>
           </div>
-          <div ref={themeStripRef} className="theme-strip">
-            {themes.map(t => (
-              <button
-                key={t.theme_id}
-                className={`theme-strip-item${selected === t.theme_id ? " selected" : ""}`}
-                onClick={() => setSelected(t.theme_id)}
-              >
-                <div className="theme-thumb-wrap">
-                  {thumbUrls[t.theme_id] ? (
-                    <img
-                      className="theme-strip-thumb"
-                      src={thumbUrls[t.theme_id]}
-                      alt={t.name}
-                      draggable={false}
-                    />
-                  ) : (
-                    <div className="theme-strip-thumb" />
-                  )}
-                  {t.has_renderer && (
-                    <span
-                      className={`theme-renderer-star${!t.has_renderer_file ? " renderer-missing" : ""}`}
-                      title={t.has_renderer_file ? "Theme includes custom renderers" : "Renderer JS file is missing"}
-                    >
-                      {t.has_renderer_file ? "★" : "⚠"}
-                    </span>
-                  )}
-                  {t.custom_fonts?.length > 0 && (
-                    <span className="theme-font-badge" title={`Custom font: ${t.custom_fonts.map(f => f.family).join(", ")}`}>
-                      F
-                    </span>
-                  )}
-                </div>
-                <span className="theme-strip-name">{t.name}</span>
-                <div className="theme-strip-meta">
-                  {t.is_bundled && <span className="badge badge-muted">System</span>}
-                  <span className="muted fs-11">{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+          <ThemeStrip
+            themes={themes}
+            selectedId={selected ?? ""}
+            onSelect={setSelected}
+            thumbRefreshKey={thumbKey}
+            renderMeta={t => (
+              <div className="theme-strip-meta">
+                {t.is_bundled && <span className="badge badge-muted">System</span>}
+                <span className="muted fs-11">{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
+              </div>
+            )}
+          />
         </div>
         <input ref={fileRef} type="file" accept=".zip" style={{ display: "none" }} onChange={handleImport} />
         <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />

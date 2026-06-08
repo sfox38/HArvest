@@ -7,9 +7,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../api";
-import { Spinner, ErrorBanner, ConfirmDialog } from "./Shared";
+import { Spinner, ErrorBanner, ConfirmDialog, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
-import { ThemeStrip } from "./Wizard";
 import { loadKnownOrigins, addKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 import type { ThemeDefinition } from "../types";
 import {
@@ -265,7 +264,15 @@ function Step2Configure({
       </div>
 
       {/* Theme selector */}
-      <ThemeStrip themes={themes} themeUrl={state.themeUrl} onChange={url => onChange({ themeUrl: url })} />
+      <div className="col" style={{ gap: 4 }}>
+        <label className="label-strong">Theme</label>
+        <ThemeStrip
+          themes={themes}
+          selectedId={themeUrlToId(state.themeUrl)}
+          onSelect={id => onChange({ themeUrl: themeIdToUrl(id) })}
+          ariaLabel="Widget theme"
+        />
+      </div>
 
       {/* Origin */}
       <div className="col gap-6">

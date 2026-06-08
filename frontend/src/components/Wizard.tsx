@@ -10,7 +10,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { Token, ThemeDefinition } from "../types";
 import { validateLabel as validateLabelWiz } from "../types";
 import { api } from "../api";
-import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, useThemeThumbs, useDragScroll } from "./Shared";
+import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { loadWidgetScript, loadRendererScript } from "./WidgetPreview";
@@ -445,18 +445,6 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
 // Theme URL helpers
 // ---------------------------------------------------------------------------
 
-function themeIdToUrl(id: string): string {
-  if (id === "default") return "";
-  if (id.startsWith("hth_")) return `user:${id}`;
-  return `bundled:${id}`;
-}
-
-function themeUrlToId(url: string): string {
-  if (!url) return "default";
-  if (url.startsWith("bundled:")) return url.slice(8);
-  if (url.startsWith("user:")) return url.slice(5);
-  return url;
-}
 
 // ---------------------------------------------------------------------------
 // ScriptVarsForm - variable configuration for script entities
@@ -520,49 +508,6 @@ function ScriptVarsForm({ entityId, serviceData, onChange }: {
 // ---------------------------------------------------------------------------
 // Step 1: Design (entities + permissions + theme + preview)
 // ---------------------------------------------------------------------------
-
-export function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[]; themeUrl: string; onChange: (url: string) => void }) {
-  const thumbUrls = useThemeThumbs(themes);
-  const selectedId = themeUrlToId(themeUrl);
-  const stripRef = useDragScroll<HTMLDivElement>();
-
-  if (themes.length === 0) return null;
-
-  return (
-    <div className="col" style={{ gap: 4 }}>
-      <label className="label-strong">Theme</label>
-      <div ref={stripRef} className="theme-strip" role="radiogroup" aria-label="Widget theme">
-        {themes.map(t => (
-          <button
-            key={t.theme_id}
-            className={`theme-strip-item${selectedId === t.theme_id ? " selected" : ""}`}
-            onClick={() => onChange(themeIdToUrl(t.theme_id))}
-            role="radio"
-            aria-checked={selectedId === t.theme_id}
-            aria-label={t.name}
-          >
-            <div className="theme-thumb-wrap">
-              {thumbUrls[t.theme_id] ? (
-                <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
-              ) : (
-                <div className="theme-strip-thumb" />
-              )}
-              {t.has_renderer && (
-                <span className="theme-renderer-star" title="Theme includes custom renderers">&#9733;</span>
-              )}
-              {t.custom_fonts?.length > 0 && (
-                <span className="theme-font-badge" title={`Custom font: ${t.custom_fonts.map(f => f.family).join(", ")}`}>
-                  F
-                </span>
-              )}
-            </div>
-            <span className="theme-strip-name">{t.name}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 const ENTITIES_BLOCK_DOMAINS = new Set(["light", "switch", "fan", "input_boolean", "binary_sensor", "lock", "cover", "sensor"]);
 const ENTITIES_BLOCK_READONLY_DOMAINS = new Set(["binary_sensor", "sensor"]);
@@ -861,7 +806,15 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
 
       {/* Theme strip */}
       {state.entities.length > 0 && (
-        <ThemeStrip themes={themes} themeUrl={state.themeUrl} onChange={url => { onChange({ themeUrl: url }); saveMemory({ themeUrl: url }); }} />
+        <div className="col" style={{ gap: 4 }}>
+          <label className="label-strong">Theme</label>
+          <ThemeStrip
+            themes={themes}
+            selectedId={themeUrlToId(state.themeUrl)}
+            onSelect={id => { const url = themeIdToUrl(id); onChange({ themeUrl: url }); saveMemory({ themeUrl: url }); }}
+            ariaLabel="Widget theme"
+          />
+        </div>
       )}
 
       {/* Live entity preview */}

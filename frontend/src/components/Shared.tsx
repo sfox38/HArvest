@@ -1071,3 +1071,81 @@ export function useThemeThumbs(themes: ThemeDefinition[], refreshKey = 0): Recor
 
   return urls;
 }
+
+// ---------------------------------------------------------------------------
+// Theme URL helpers
+// ---------------------------------------------------------------------------
+
+export function themeIdToUrl(id: string): string {
+  if (id === "default") return "";
+  if (id.startsWith("hth_")) return `user:${id}`;
+  return `bundled:${id}`;
+}
+
+export function themeUrlToId(url: string): string {
+  if (!url) return "default";
+  if (url.startsWith("bundled:")) return url.slice(8);
+  if (url.startsWith("user:")) return url.slice(5);
+  return url;
+}
+
+// ---------------------------------------------------------------------------
+// ThemeStrip - shared horizontal theme selector
+// ---------------------------------------------------------------------------
+
+interface ThemeStripProps {
+  themes: ThemeDefinition[];
+  selectedId: string;
+  onSelect: (themeId: string) => void;
+  thumbRefreshKey?: number;
+  renderMeta?: (theme: ThemeDefinition) => React.ReactNode;
+  ariaLabel?: string;
+}
+
+export function ThemeStrip({ themes, selectedId, onSelect, thumbRefreshKey, renderMeta, ariaLabel }: ThemeStripProps) {
+  const thumbUrls = useThemeThumbs(themes, thumbRefreshKey);
+  const stripRef = useDragScroll<HTMLDivElement>();
+
+  if (themes.length === 0) return null;
+
+  return (
+    <div
+      ref={stripRef}
+      className="theme-strip"
+      {...(ariaLabel ? { role: "radiogroup", "aria-label": ariaLabel } : {})}
+    >
+      {themes.map(t => (
+        <button
+          key={t.theme_id}
+          className={`theme-strip-item${selectedId === t.theme_id ? " selected" : ""}`}
+          onClick={() => onSelect(t.theme_id)}
+          type="button"
+          {...(ariaLabel ? { role: "radio", "aria-checked": selectedId === t.theme_id, "aria-label": t.name } : {})}
+        >
+          <div className="theme-thumb-wrap">
+            {thumbUrls[t.theme_id] ? (
+              <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
+            ) : (
+              <div className="theme-strip-thumb" />
+            )}
+            {t.has_renderer && (
+              <span
+                className={`theme-renderer-star${t.has_renderer_file === false ? " renderer-missing" : ""}`}
+                title={t.has_renderer_file === false ? "Renderer JS file is missing" : "Theme includes custom renderers"}
+              >
+                {t.has_renderer_file === false ? "⚠" : "★"}
+              </span>
+            )}
+            {t.custom_fonts?.length > 0 && (
+              <span className="theme-font-badge" title={`Custom font: ${t.custom_fonts.map(f => f.family).join(", ")}`}>
+                F
+              </span>
+            )}
+          </div>
+          <span className="theme-strip-name">{t.name}</span>
+          {renderMeta && renderMeta(t)}
+        </button>
+      ))}
+    </div>
+  );
+}
