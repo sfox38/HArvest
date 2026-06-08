@@ -2736,6 +2736,10 @@ button.entity-setting-group-title:focus-visible {
     padding: 0;
     align-items: stretch;
   }
+  .overlay:has(> .dialog) {
+    align-items: flex-start;
+    padding: 120px 10px 10px;
+  }
   .wizard {
     width: 100% !important;
     max-height: 100% !important;

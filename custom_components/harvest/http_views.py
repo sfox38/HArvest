@@ -1261,13 +1261,11 @@ class HarvestTokenDuplicateView(_HarvestView):
         if source is None:
             raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
 
-        base_label = source.label
-        if not base_label.endswith(" (copy)"):
-            base_label = f"{base_label} (copy)"
+        base_label = re.sub(r"\(\d+\)$", "", source.label).rstrip()
         label = base_label
-        suffix = 2
+        suffix = 1
         while _validate_label(label, self._token_manager) is not None:
-            label = f"{base_label} {suffix}"
+            label = f"{base_label}({suffix})"
             suffix += 1
             if suffix > 100:
                 raise web.HTTPBadRequest(reason="Too many copies with similar names.")

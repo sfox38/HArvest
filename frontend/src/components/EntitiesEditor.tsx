@@ -849,6 +849,11 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   {t.has_renderer && (
                     <span className="theme-renderer-star" title="Includes custom renderers">&#9733;</span>
                   )}
+                  {t.custom_fonts?.length > 0 && (
+                    <span className="theme-font-badge" title={`Custom font: ${t.custom_fonts.map(f => f.family).join(", ")}`}>
+                      F
+                    </span>
+                  )}
                 </div>
                 <span className="theme-strip-name">{t.name}</span>
               </button>

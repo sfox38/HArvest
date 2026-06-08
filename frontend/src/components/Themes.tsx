@@ -263,10 +263,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
   // Returns a name that doesn't conflict with any existing theme name
   const uniqueThemeName = (base: string): string => {
-    if (!themes.some(t => t.name.toLowerCase() === base.toLowerCase())) return base;
-    let i = 2;
-    while (themes.some(t => t.name.toLowerCase() === `${base} (${i})`.toLowerCase())) i++;
-    return `${base} (${i})`;
+    const stripped = base.replace(/\(\d+\)$/, "").trimEnd();
+    if (!themes.some(t => t.name.toLowerCase() === stripped.toLowerCase())) return stripped;
+    let i = 1;
+    while (themes.some(t => t.name.toLowerCase() === `${stripped}(${i})`.toLowerCase())) i++;
+    return `${stripped}(${i})`;
   };
 
   // Usage count helper
@@ -317,7 +318,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
     const doDuplicate = async () => {
       try {
         const theme = await api.themes.create({
-          name: uniqueThemeName(`Copy of ${selectedTheme.name}`),
+          name: uniqueThemeName(selectedTheme.name),
           variables: selectedTheme.variables,
           dark_variables: selectedTheme.dark_variables,
           author: "",
@@ -769,6 +770,13 @@ export function Themes({ onSelectToken }: ThemesProps) {
                     onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                   />
                 </>
+              )}
+
+              {selectedTheme.custom_fonts?.length > 0 && (
+                <div className="row" style={{ gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <span className="badge badge-accent">Bundled Font</span>
+                  <span className="muted fs-12">{selectedTheme.custom_fonts.map(f => f.family).join(", ")}</span>
+                </div>
               )}
 
               {!selectedTheme.is_bundled && (
