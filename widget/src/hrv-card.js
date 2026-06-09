@@ -26,7 +26,7 @@ import { applyErrorState }      from "./error-states.js";
 import { ThemeLoader }          from "./theme-loader.js";
 import { I18n }                 from "./i18n.js";
 import { lookupRenderer }       from "./renderers/index.js";
-import { getPageConfig }        from "./page-config.js";
+import { getPageConfig, onPageConfigChange } from "./page-config.js";
 
 // Re-exported so existing harvest-entry.js imports continue to work.
 export { config, getPageConfig } from "./page-config.js";
@@ -77,6 +77,7 @@ export class HrvCard extends HTMLElement {
   /** @type {Map<string, object>} */ #lastCompanionDefs   = new Map();
   /** @type {{points:object[], hours:number}|null} */ #lastHistoryData = null;
   /** @type {object|null} */ #lastTheme = null;
+  /** @type {(() => void)|null} */ #pageConfigUnsubscribe = null;
 
   // -------------------------------------------------------------------------
   // Observed attributes
@@ -119,11 +120,7 @@ export class HrvCard extends HTMLElement {
 
     // Validate required config before connecting.
     if (!this.#config.haUrl || !this.#config.tokenId) {
-      console.error(
-        "[HArvest] <hrv-card> missing required ha-url or token. " +
-        "Set them as attributes, inside an <hrv-group>, or via HArvest.config().",
-      );
-      this.setErrorState("HRV_AUTH_FAILED");
+      this.#waitForPageConfig();
       return;
     }
 
@@ -177,6 +174,7 @@ export class HrvCard extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.#stopWaitingForPageConfig();
     if (this.shadowRoot) ThemeLoader.detach(this.shadowRoot);
     clearTimeout(this.#optimisticTimer);
     this.#optimisticTimer = null;
@@ -785,6 +783,29 @@ export class HrvCard extends HTMLElement {
   // -------------------------------------------------------------------------
   // Config resolution
   // -------------------------------------------------------------------------
+
+  /**
+   * Retry connection setup when a later HArvest.config() call supplies the
+   * missing page-level connection values. Connected cards never subscribe,
+   * so changing page defaults does not disturb active explicit/group config.
+   */
+  #waitForPageConfig() {
+    if (this.#pageConfigUnsubscribe) return;
+    this.#pageConfigUnsubscribe = onPageConfigChange(() => {
+      if (!this.isConnected) return;
+      this.#resolveConfig();
+      if (!this.#config.haUrl || !this.#config.tokenId) return;
+
+      this.#stopWaitingForPageConfig();
+      this.style.removeProperty("display");
+      this.connectedCallback();
+    });
+  }
+
+  #stopWaitingForPageConfig() {
+    this.#pageConfigUnsubscribe?.();
+    this.#pageConfigUnsubscribe = null;
+  }
 
   /**
    * Resolve configuration from (in priority order):

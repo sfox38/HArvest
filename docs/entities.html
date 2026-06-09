@@ -90,7 +90,7 @@
               </tr>
               <tr>
                 <td><span class="badge badge-grey">Tier 2</span></td>
-                <td>Generic card - shows icon, entity name, and current state text. Includes a basic toggle where the domain supports it. Any domain not in Tier 1 or 3 lands here.</td>
+                <td>Generic display-only card - shows icon, entity name, and current state text. Any domain not in Tier 1 or 3 lands here.</td>
               </tr>
               <tr>
                 <td><span class="badge badge-red">Tier 3</span></td>
@@ -110,7 +110,7 @@
               <tr><td><code>cover</code></td><td>Controls garage doors, gates, and motorized blinds</td></tr>
               <tr><td><code>script</code></td><td>Executes arbitrary HA script logic</td></tr>
               <tr><td><code>automation</code></td><td>Triggers, enables, or disables HA automations</td></tr>
-              <tr><td><code>button</code></td><td>One-shot press actions, often wired to scripts or scenes</td></tr>
+              <tr><td><code>button</code>, <code>input_button</code></td><td>One-shot press actions, often wired to scripts or scenes. Both domains are controlled by the Button sensitive-domain setting.</td></tr>
             </tbody>
           </table>
         </div>
@@ -153,7 +153,7 @@
         <p><strong>Display settings:</strong> HVAC modes, presets, fan mode, and swing mode can each be individually toggled on or off.</p>
 
         <h3>cover</h3>
-        <p>Open, stop, and close buttons. Position slider (0-100%). Controls are shown or hidden based on device capabilities (some covers are open/close only with no position support).</p>
+        <p>Open, stop, and close buttons. Position and tilt sliders (0-100%) are shown when the cover supports the corresponding feature. Controls are shown or hidden based on device capabilities and display settings.</p>
         <p><strong>Display settings:</strong> position slider and tilt control can be individually toggled.</p>
 
         <h3>media_player</h3>
@@ -175,11 +175,13 @@
         <p>Countdown display. Start/resume, pause, cancel, and finish buttons. State-aware: shows relevant buttons for current state (idle, active, paused).</p>
 
         <h3>remote</h3>
-        <p>Activity chip grid (selectable activities), raw command input with a send button. Power toggle. Shows the device's configured activity list.</p>
+        <p>Explicit on/off power control. When the remote exposes an <code>activity_list</code>, the card also shows an activity dropdown and highlights <code>current_activity</code>. Selecting an activity calls <code>remote.turn_on</code> with that activity. Arbitrary <code>remote.send_command</code> actions are available through configured gestures and custom renderers, not through a raw command field in the built-in card.</p>
 
         <h3>weather</h3>
-        <p>Read-only. Displays current conditions: a large condition icon paired with the temperature, condition label, and a detail row showing humidity, wind speed, and pressure. A 5-day forecast strip appears below, showing day name, condition icon, and high/low temperatures for each day.</p>
-        <p>Forecast data is fetched directly from HA's <code>weather/subscribe_forecast</code> API and pushed to the widget automatically. This works correctly on HA 2024.4+ where the <code>forecast</code> state attribute was removed.</p>
+        <p>Read-only. Displays current conditions by default: a large condition icon paired with the temperature, condition label, and a detail row showing humidity, wind speed, and pressure.</p>
+        <p>Forecasts are optional and disabled by default. Enable <strong>Show forecast</strong> in the weather entity's display settings to fetch and display forecast data. When enabled, HArvest fetches available daily and hourly forecasts directly from HA and subscribes to later forecast updates. The card shows a 5-day strip for daily forecasts and lets visitors switch between daily and hourly views when both are available.</p>
+        <p>This forecast integration works with HA 2024.4+ where forecast data is no longer provided as a weather entity state attribute.</p>
+        <p><strong>Display settings:</strong> Show forecast enables or disables forecast fetching, subscriptions, and display for this entity.</p>
         <p><strong>History graph:</strong> not supported.</p>
 
         <h3>lock</h3>
@@ -190,8 +192,8 @@
         <h3>person</h3>
         <p>Read-only. Displays the person's presence state: Home, Away, or the name of the zone they are in.</p>
 
-        <h3>button</h3>
-        <p>A single full-width Press button. No ongoing state is tracked. The button is disabled when the entity is unavailable.</p>
+        <h3>button and input_button</h3>
+        <p>Both domains use the same dedicated renderer: a single full-width Press button. No ongoing state is tracked. The button is disabled when the entity is unavailable.</p>
 
         <h3>number</h3>
         <p>Range slider spanning the entity's min/max, with current value display. Functionally identical to <code>input_number</code>. Used by integrations such as smart thermostats and LED controllers.</p>
@@ -218,12 +220,11 @@
           <li>Domain icon (MDI, best-match for the domain)</li>
           <li>Entity friendly name</li>
           <li>Current state as text</li>
-          <li>A basic toggle, if the domain supports <code>turn_on</code> / <code>turn_off</code></li>
         </ul>
 
         <p>Some examples of Tier 2 domains: <code>text</code>, <code>date</code>, <code>time</code>, <code>event</code>, <code>calendar</code>.</p>
 
-        <p>By default, Tier 2 domains are display-only. However, admins can enable commands for any Tier 2 domain by registering its allowed services in the panel under <strong>Settings &gt; Custom Domains</strong>. See the <a href="#custom-domains">Custom domains</a> section for details.</p>
+        <p>Tier 2 domains remain display-only in the generic card. Admins can register allowed services under <strong>Settings &gt; Custom Domains</strong> so configured gestures or a custom renderer can send commands, but this does not add controls to the generic card. See the <a href="#custom-domains">Custom domains</a> section for details.</p>
         </section>
 
         <section>
@@ -293,7 +294,7 @@
               <tr><td><code>switch</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
               <tr><td><code>input_boolean</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
               <tr><td><code>fan</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code>, <code>set_percentage</code>, <code>oscillate</code>, <code>set_direction</code>, <code>set_preset_mode</code>, <code>increase_speed</code>, <code>decrease_speed</code></td></tr>
-              <tr><td><code>cover</code></td><td><code>open_cover</code>, <code>close_cover</code>, <code>stop_cover</code>, <code>set_cover_position</code></td></tr>
+              <tr><td><code>cover</code></td><td><code>open_cover</code>, <code>close_cover</code>, <code>stop_cover</code>, <code>set_cover_position</code>, <code>set_cover_tilt_position</code></td></tr>
               <tr><td><code>climate</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>set_temperature</code>, <code>set_hvac_mode</code>, <code>set_fan_mode</code>, <code>set_preset_mode</code>, <code>set_swing_mode</code></td></tr>
               <tr><td><code>input_number</code></td><td><code>set_value</code></td></tr>
               <tr><td><code>input_select</code></td><td><code>select_option</code></td></tr>
@@ -302,6 +303,7 @@
               <tr><td><code>remote</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>send_command</code></td></tr>
               <tr><td><code>lock</code></td><td><code>lock</code>, <code>unlock</code>, <code>open</code></td></tr>
               <tr><td><code>button</code></td><td><code>press</code></td></tr>
+              <tr><td><code>input_button</code></td><td><code>press</code></td></tr>
               <tr><td><code>number</code></td><td><code>set_value</code></td></tr>
               <tr><td><code>select</code></td><td><code>select_option</code></td></tr>
               <tr><td><code>script</code></td><td><code>turn_on</code></td></tr>
@@ -314,24 +316,39 @@
         <section>
         <h2 id="custom-domains">Custom domains</h2>
 
-        <p>The built-in allowed services table covers Tier 1 domains only. For any Tier 2 domain, admins can register allowed services in the HArvest panel under <strong>Settings &gt; Custom Domains</strong>. This is useful when a developer builds a custom card renderer (via <code>HArvest.registerRenderer()</code>) for a domain like <code>vacuum</code>, <code>humidifier</code>, or <code>valve</code> and needs commands to work.</p>
+        <p>The built-in allowed services table covers Tier 1 domains only. For a Tier 2 domain, an admin can register specific allowed services in the HArvest panel under <strong>Settings &gt; Custom Domains</strong>. This is useful when a configured gesture or custom renderer needs to control a domain such as <code>vacuum</code>, <code>humidifier</code>, or <code>valve</code>.</p>
+
+        <p>Custom domain registration is a global server setting. It permits the selected services for all HArvest widgets, but only when the target entity is included in the widget's token with <strong>Control</strong> access. It does not add entities to tokens, change Read only entities to Control, or add controls to the generic card.</p>
 
         <p>To register a custom domain:</p>
         <ol>
           <li>Open the HArvest panel and go to <strong>Settings &gt; Custom Domains</strong>.</li>
-          <li>Select a domain from the dropdown. Only Tier 2 domains appear here; Tier 1 domains already have built-in service lists and Tier 3 domains are blocked entirely.</li>
-          <li>Toggle on the specific HA services you want to allow for that domain.</li>
-          <li>Save. Commands for those services are now permitted for entities in that domain.</li>
+          <li>Select a domain from the dropdown. It lists Tier 2 domains that currently have at least one entity and registered HA service. Tier 1 domains already have built-in service lists, and Tier 3 domains cannot be added.</li>
+          <li>Select only the HA services that the gesture or renderer needs.</li>
+          <li>Click <strong>Add</strong>. The allowlist takes effect immediately, including for active widget sessions.</li>
         </ol>
+
+        <p>To change the allowed services later, remove the domain and add it again with the new selection. Removing a domain immediately rejects later commands for it, but does not disconnect active widget sessions.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Custom Domains changes</th><th>Custom Domains does not change</th></tr></thead>
+            <tbody>
+              <tr><td>Which services the HArvest server will accept for a Tier 2 domain</td><td>Which entities are included in a token</td></tr>
+              <tr><td>Whether configured gestures and custom renderers can send those services</td><td>An entity's Badge, Read only, or Control access</td></tr>
+              <tr><td>The allowlist used by all current and future widget sessions</td><td>The display-only behavior of the built-in generic card</td></tr>
+            </tbody>
+          </table>
+        </div>
 
         <div class="callout callout-warn">
           <span class="callout-label">Important</span>
-          <p>Registering a custom domain only opens the server-side command whitelist. You still need a custom renderer (registered via <code>HArvest.registerRenderer()</code>) to provide the UI controls that send those commands. Without a custom renderer, the domain's entities will continue to use the generic card, which only shows state and a basic toggle.</p>
+          <p>A permitted custom-domain command must pass every HArvest check: the entity must belong to the token, its access must be Control, the service must be selected in Custom Domains, and the command must remain within the token's rate limits. HArvest filters service data against the service schema registered in HA and silently removes unknown data keys.</p>
         </div>
 
         <div class="callout callout-tip">
           <span class="callout-label">Tip</span>
-          <p>Only enable the services your renderer actually uses. Each allowed service is a potential action a visitor can trigger, so keep the list minimal.</p>
+          <p>Only enable services your widget actually uses. Each allowed service is a potential action a visitor with a qualifying widget can trigger. Display-only Tier 2 cards do not need Custom Domains registration.</p>
         </div>
         </section>
 

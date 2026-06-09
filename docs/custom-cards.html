@@ -436,12 +436,12 @@
         <ol>
           <li>Open the HArvest panel in Home Assistant and go to <strong>Settings</strong>.</li>
           <li>Scroll to the <strong>Custom Domains</strong> card.</li>
-          <li>Select the domain from the dropdown (e.g. <code>vacuum</code>). The list shows all Tier 2 domains that have entities in your HA instance.</li>
+          <li>Select the domain from the dropdown (e.g. <code>vacuum</code>). The list shows Tier 2 domains that currently have at least one entity and registered HA service.</li>
           <li>Toggle on the services your renderer needs (e.g. <code>start</code>, <code>stop</code>, <code>pause</code>, <code>return_to_base</code>). The available services come directly from HA's service registry for that domain.</li>
           <li>Click <strong>Add</strong>. The domain and its allowed services are saved immediately.</li>
         </ol>
 
-        <p>Once registered, commands for those services are accepted by the server. Commands for services that were not toggled on are still rejected with <code>HRV_PERMISSION_DENIED</code>.</p>
+        <p>Once registered, commands for those services can pass the server allowlist. Commands for services that were not selected are still rejected with <code>HRV_PERMISSION_DENIED</code>. The target entity must also be included in the widget token with Control access. To change the service selection, remove the domain and add it again.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Security note</span>

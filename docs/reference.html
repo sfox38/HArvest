@@ -72,6 +72,7 @@
             <li><a href="#token-fields">Token fields</a></li>
             <li><a href="#entity-settings">Per-entity settings</a></li>
             <li><a href="#global-settings">Global settings</a></li>
+            <li><a href="#custom-domains">Custom domains</a></li>
             <li><a href="#css-vars">CSS variables</a></li>
             <li><a href="#theme-json">Theme JSON schema</a></li>
             <li><a href="#error-codes">Error codes</a></li>
@@ -247,6 +248,27 @@
             </tbody>
           </table>
         </div>
+
+        <h3 id="custom-domains">Custom domains</h3>
+
+        <p><strong>Settings &gt; Custom Domains</strong> defines the global service allowlist for Tier 2 domains. Each entry has this shape:</p>
+
+<pre><code class="language-json">{
+  "domain": "vacuum",
+  "allowed_services": ["start", "stop", "return_to_base"]
+}</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Rules</th></tr></thead>
+            <tbody>
+              <tr><td><code>domain</code></td><td>string</td><td>Lowercase HA domain name. Must not be a built-in Tier 1 domain or blocked Tier 3 domain.</td></tr>
+              <tr><td><code>allowed_services</code></td><td>string[]</td><td>One or more HA service names permitted for the domain. The panel lists services currently registered in HA.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The allowlist is read for every command, so additions and removals take effect immediately for active sessions. Registration alone never permits a command. The target entity must also belong to the token with <code>read-write</code> capability, the command must pass rate limits, and the service data is filtered against HA's registered service schema. Unknown service data keys are silently removed.</p>
 
         <h2 id="css-vars">CSS variables (summary)</h2>
 

@@ -337,110 +337,112 @@ nunito.woff2</code></pre>
 
         <h2 id="parts">Named parts (::part() selectors)</h2>
 
-        <p>Use <code>hrv-card::part(name)</code> in your host page CSS to target elements inside the Shadow DOM. Parts that aren't listed below are implementation details and may change between versions.</p>
+        <p>Use <code>hrv-card::part(name)</code> in your host page CSS to target elements inside the Shadow DOM. This inventory is derived directly from the built-in renderer source. A part is present only when the active renderer, capability, feature set, display mode, or card configuration emits its element.</p>
 
-        <h3>Universal parts - all renderers</h3>
+        <h3>Shared regular-card parts</h3>
+        <p>These shell and helper parts are used across regular card renderers. Badge cards use their own shell.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Part name</th><th>Element</th></tr></thead>
             <tbody>
               <tr><td><code>card</code></td><td>Outer card container</td></tr>
               <tr><td><code>card-header</code></td><td>Name and icon row</td></tr>
-              <tr><td><code>card-name</code></td><td>Entity friendly name text</td></tr>
-              <tr><td><code>card-icon</code></td><td>Primary entity icon (SVG)</td></tr>
-              <tr><td><code>card-body</code></td><td>Controls area below the header</td></tr>
-              <tr><td><code>state-label</code></td><td>Current state text</td></tr>
-              <tr><td><code>stale-indicator</code></td><td>Offline/stale full-card overlay</td></tr>
-              <tr><td><code>error-message</code></td><td>Error text container</td></tr>
-              <tr><td><code>companion-zone</code></td><td>Container for companion entity pills</td></tr>
-              <tr><td><code>companion-icon</code></td><td>Individual companion entity icon</td></tr>
-              <tr><td><code>history-graph</code></td><td>SVG graph container (sensor entities)</td></tr>
+              <tr><td><code>card-name</code></td><td>Entity friendly name</td></tr>
+              <tr><td><code>card-icon</code></td><td>Primary entity icon</td></tr>
+              <tr><td><code>card-body</code></td><td>Main controls or state area</td></tr>
+              <tr><td><code>state-label</code></td><td>Current state text, when the renderer displays one</td></tr>
+              <tr><td><code>stale-indicator</code></td><td>Stale or offline overlay</td></tr>
+              <tr><td><code>a11y-announce</code></td><td>Visually hidden live region for screen-reader updates</td></tr>
+              <tr><td><code>control</code></td><td>Fallback part assigned to a gesture target that has no explicit part</td></tr>
+              <tr><td><code>companion-zone</code></td><td>Companion container, when companions are configured</td></tr>
+              <tr><td><code>companion</code></td><td>Individual companion pill</td></tr>
+              <tr><td><code>companion-icon</code></td><td>Companion icon</td></tr>
+              <tr><td><code>companion-state</code></td><td>Companion state text</td></tr>
+              <tr><td><code>history-graph</code></td><td>History graph container, when graph display is enabled</td></tr>
+              <tr><td><code>history-svg</code></td><td>SVG element inside the history graph</td></tr>
             </tbody>
           </table>
         </div>
 
-        <h3>Light and switch renderer</h3>
+        <h3>Row-layout parts</h3>
+        <p>These parts appear only in renderers that provide a compact row representation for <code>&lt;hrv-entities-block&gt;</code>.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Part name</th><th>Element</th></tr></thead>
             <tbody>
-              <tr><td><code>toggle-button</code></td><td>On/off toggle</td></tr>
-              <tr><td><code>brightness-slider</code></td><td>Brightness range input (0-255)</td></tr>
-              <tr><td><code>color-temp-slider</code></td><td>Color temperature range input</td></tr>
+              <tr><td><code>row-control</code></td><td>Row-mode control or value container</td></tr>
+              <tr><td><code>row-toggle</code></td><td>Row-mode toggle used by light, switch, input boolean, fan, and lock cards</td></tr>
+              <tr><td><code>row-state</code></td><td>Row-mode read-only state used by light, switch, input boolean, fan, cover, and lock cards</td></tr>
+              <tr><td><code>row-value</code></td><td>Row-mode value used by sensors, binary sensors, person, and generic cards</td></tr>
+              <tr><td><code>row-press-btn</code></td><td>Row-mode Press button used by button and input button cards</td></tr>
+              <tr><td><code>row-run-btn</code></td><td>Row-mode Run button used by script cards</td></tr>
+              <tr><td><code>row-trigger-btn</code></td><td>Row-mode Trigger button used by automation cards</td></tr>
+              <tr><td><code>row-enable-btn</code></td><td>Row-mode enable toggle used by automation cards</td></tr>
             </tbody>
           </table>
         </div>
 
-        <h3>Fan renderer</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
-            <tbody>
-              <tr><td><code>fan-icon</code></td><td>Fan SVG icon (spins when the Animate display setting is enabled and entity is on)</td></tr>
-              <tr><td><code>speed-slider</code></td><td>Speed percentage range input</td></tr>
-              <tr><td><code>oscillate-button</code></td><td>Oscillate on/off button</td></tr>
-              <tr><td><code>direction-buttons</code></td><td>Container for forward/reverse buttons</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Climate renderer</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
-            <tbody>
-              <tr><td><code>mode-buttons</code></td><td>Container for HVAC mode button row</td></tr>
-              <tr><td><code>mode-button</code></td><td>Individual HVAC mode button</td></tr>
-              <tr><td><code>current-temp</code></td><td>Current temperature read-only display</td></tr>
-              <tr><td><code>target-temp</code></td><td>Target temperature numeric display</td></tr>
-              <tr><td><code>temp-up-button</code></td><td>Increase target temperature</td></tr>
-              <tr><td><code>temp-down-button</code></td><td>Decrease target temperature</td></tr>
-              <tr><td><code>fan-mode-select</code></td><td>Fan mode dropdown</td></tr>
-              <tr><td><code>preset-select</code></td><td>Preset mode dropdown</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Cover renderer</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
-            <tbody>
-              <tr><td><code>open-button</code></td><td>Open action button</td></tr>
-              <tr><td><code>close-button</code></td><td>Close action button</td></tr>
-              <tr><td><code>stop-button</code></td><td>Stop action button</td></tr>
-              <tr><td><code>position-slider</code></td><td>Position range input (0-100)</td></tr>
-              <tr><td><code>cover-controls</code></td><td>Row container for the three action buttons</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Media player renderer</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
-            <tbody>
-              <tr><td><code>track-title</code></td><td>Current track title</td></tr>
-              <tr><td><code>track-artist</code></td><td>Current track artist</td></tr>
-              <tr><td><code>track-source</code></td><td>Current source/input</td></tr>
-              <tr><td><code>play-button</code></td><td>Play/pause toggle</td></tr>
-              <tr><td><code>next-button</code></td><td>Next track</td></tr>
-              <tr><td><code>previous-button</code></td><td>Previous track</td></tr>
-              <tr><td><code>volume-slider</code></td><td>Volume range input</td></tr>
-              <tr><td><code>mute-button</code></td><td>Mute toggle</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Other renderers</h3>
+        <h3>Renderer-specific parts</h3>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Renderer</th><th>Part names</th></tr></thead>
             <tbody>
-              <tr><td>Input number</td><td><code>value-display</code>, <code>number-slider</code></td></tr>
-              <tr><td>Input select</td><td><code>option-select</code></td></tr>
-              <tr><td>Remote</td><td><code>activity-buttons</code>, <code>activity-button</code>, <code>command-input</code>, <code>send-button</code></td></tr>
-              <tr><td>Timer</td><td><code>timer-display</code>, <code>state-label</code>, <code>start-button</code>, <code>pause-button</code>, <code>cancel-button</code>, <code>finish-button</code></td></tr>
+              <tr><td>Light</td><td><code>toggle-button</code>, <code>brightness-slider</code>, <code>brightness-value</code>, <code>color-slider</code>, <code>color-temp-slider</code>, <code>color-temp-value</code></td></tr>
+              <tr><td>Switch and input boolean</td><td><code>toggle-button</code></td></tr>
+              <tr><td>Fan</td><td><code>toggle-button</code>, <code>speed-slider</code>, <code>speed-value</code>, <code>cycle-button</code>, <code>preset-button</code>, <code>oscillate-button</code>, <code>direction-select</code></td></tr>
+              <tr><td>Cover</td><td><code>cover-controls</code>, <code>open-button</code>, <code>close-button</code>, <code>stop-button</code>, <code>position-slider</code>, <code>position-value</code>, <code>tilt-slider</code>, <code>tilt-value</code></td></tr>
+              <tr><td>Climate</td><td><code>current-temp</code>, <code>mode-select</code>, <code>target-temp-input</code>, <code>target-temp-low-input</code>, <code>target-temp-high-input</code>, <code>fan-mode-label</code>, <code>fan-mode-select</code>, <code>preset-label</code>, <code>preset-select</code>, <code>swing-label</code>, <code>swing-select</code></td></tr>
+              <tr><td>Media player</td><td><code>media-title</code>, <code>media-artist</code>, <code>play-button</code>, <code>prev-button</code>, <code>next-button</code>, <code>volume-slider</code>, <code>mute-button</code>, <code>source-select</code></td></tr>
+              <tr><td>Input number</td><td><code>value-slider</code>, <code>value-input</code></td></tr>
+              <tr><td>Input select and select</td><td><code>option-grid</code>, <code>option-pill</code>, <code>option-trigger</code>, <code>option-trigger-label</code>, <code>option-trigger-arrow</code>, <code>option-menu</code>, <code>option-menu-item</code></td></tr>
+              <tr><td>Remote</td><td><code>power-toggle</code>, <code>activity-select</code>, <code>current-activity</code></td></tr>
+              <tr><td>Timer</td><td><code>timer-display</code>, <code>playpause-button</code>, <code>cancel-button</code>, <code>finish-button</code></td></tr>
+              <tr><td>Sensor</td><td><code>sensor-value</code>, <code>sensor-unit</code></td></tr>
+              <tr><td>Battery sensor</td><td><code>battery-icon-wrap</code>, <code>sensor-value</code>, <code>sensor-unit</code></td></tr>
+              <tr><td>Lock</td><td><code>lock-button</code></td></tr>
+              <tr><td>Button and input button</td><td><code>press-button</code></td></tr>
+              <tr><td>Script</td><td><code>run-button</code></td></tr>
+              <tr><td>Automation</td><td><code>trigger-button</code>, <code>enable-toggle</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Binary sensor, person, and generic display-only cards add no renderer-specific parts beyond the shared and applicable row-layout parts.</p>
+
+        <h3>Weather renderer parts</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
+            <tbody>
+              <tr><td><code>weather-main</code></td><td>Current-condition layout container</td></tr>
+              <tr><td><code>weather-icon</code></td><td>Current-condition icon</td></tr>
+              <tr><td><code>weather-temp</code></td><td>Current temperature value and unit container</td></tr>
+              <tr><td><code>weather-temp-unit</code></td><td>Temperature unit suffix</td></tr>
+              <tr><td><code>weather-condition</code></td><td>Translated condition text</td></tr>
+              <tr><td><code>weather-details</code></td><td>Current-condition statistics container</td></tr>
+              <tr><td><code>weather-stat</code></td><td>Individual humidity, wind, or pressure statistic</td></tr>
+              <tr><td><code>forecast-toggle</code></td><td>Daily and hourly forecast mode toggle, when both modes are available</td></tr>
+              <tr><td><code>forecast-strip</code></td><td>Daily or hourly forecast container</td></tr>
+              <tr><td><code>forecast-day</code></td><td>Individual forecast item</td></tr>
+              <tr><td><code>forecast-day-name</code></td><td>Day or hour label</td></tr>
+              <tr><td><code>forecast-temps</code></td><td>Forecast temperature values</td></tr>
+              <tr><td><code>forecast-temp-low</code></td><td>Daily low-temperature value</td></tr>
+              <tr><td><code>forecast-scroll-track</code></td><td>Custom scrollbar track for hourly forecasts</td></tr>
+              <tr><td><code>forecast-scroll-thumb</code></td><td>Custom scrollbar thumb for hourly forecasts</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Badge renderer parts</h3>
+        <p>Badge cards use a different shell from regular cards.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
+            <tbody>
+              <tr><td><code>badge</code></td><td>Outer badge pill</td></tr>
+              <tr><td><code>badge-icon</code></td><td>Badge icon</td></tr>
+              <tr><td><code>badge-text</code></td><td>Badge text container</td></tr>
+              <tr><td><code>badge-name</code></td><td>Friendly name</td></tr>
+              <tr><td><code>badge-state</code></td><td>State text</td></tr>
             </tbody>
           </table>
         </div>

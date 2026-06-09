@@ -38,6 +38,7 @@ export const DOMAIN_FEATURES: Record<string, FeatureOption[]> = {
   ],
   cover: [
     { key: "current_position", label: "Position slider", default: true },
+    { key: "current_tilt_position", label: "Tilt slider", default: true },
     { key: "buttons", label: "Open / Stop / Close", default: true },
   ],
   climate: [
@@ -137,7 +138,7 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   switch:         { domain: "switch",         label: "Switch",         friendly_name: "Pump Motor",       state: "on",       attributes: {} },
   sensor:         { domain: "sensor",         label: "Sensor",         friendly_name: "Temperature",      state: "22.4",     unit: "°C", attributes: { device_class: "temperature", state_class: "measurement" } },
   climate:        { domain: "climate",        label: "Climate",        friendly_name: "Living Room",      state: "heat",     attributes: { current_temperature: 21.5, temperature: 22, hvac_modes: ["off", "heat", "cool", "auto"] } },
-  cover:          { domain: "cover",          label: "Cover",          friendly_name: "Blinds",           state: "open",     attributes: { current_position: 65 } },
+  cover:          { domain: "cover",          label: "Cover",          friendly_name: "Blinds",           state: "open",     attributes: { current_position: 65, current_tilt_position: 35 } },
   fan:            { domain: "fan",            label: "Fan",            friendly_name: "Ceiling Fan",      state: "on",       attributes: { percentage: 65, oscillating: false, direction: "forward", preset_mode: "normal", preset_modes: ["normal", "nature", "sleep", "auto"] } },
   binary_sensor:  { domain: "binary_sensor",  label: "Binary Sensor",  friendly_name: "Motion Sensor",    state: "on",       attributes: { device_class: "motion" } },
   input_boolean:  { domain: "input_boolean",  label: "Input Boolean",  friendly_name: "Guest Mode",       state: "on",       attributes: {} },
@@ -150,7 +151,7 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   button:         { domain: "button",         label: "Button",         friendly_name: "Restart Server",   state: "unknown",  attributes: {} },
   script:         { domain: "script",         label: "Script",         friendly_name: "Goodnight",        state: "off",      attributes: {} },
   automation:     { domain: "automation",     label: "Automation",     friendly_name: "Motion Lights",    state: "on",       attributes: {} },
-  remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: {} },
+  remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: { supported_features: 4, current_activity: "Watch TV", activity_list: ["Watch TV", "Apple TV", "PlayStation 5", "Nintendo Switch", "Listen to Music"] } },
   timer:          { domain: "timer",          label: "Timer",          friendly_name: "Oven Timer",       state: "idle",     attributes: { duration: "0:25:00", remaining: "0:25:00" } },
   weather:        { domain: "weather",        label: "Weather",        friendly_name: "Weather",          state: "sunny",    attributes: { temperature: 24, temperature_unit: "°C", humidity: 45, wind_speed: 12, wind_speed_unit: "km/h", pressure: 1013, pressure_unit: "hPa", forecast_daily: [
     { datetime: "2026-05-02", condition: "partlycloudy", temperature: 22, templow: 14 },

@@ -200,6 +200,7 @@
               <tr><td>climate</td><td>Show HVAC modes, Show presets, Show fan mode, Show swing mode</td></tr>
               <tr><td>cover</td><td>Show position slider, Show tilt control</td></tr>
               <tr><td>media_player</td><td>Show transport controls, Show volume, Show source selector</td></tr>
+              <tr><td>weather</td><td>Show forecast (disabled by default)</td></tr>
               <tr><td>sensor, binary_sensor</td><td>Graph type (None, Line, Bar), Hours (1-168), Period (1-60 min)</td></tr>
               <tr><td>input_number</td><td>Display mode (Slider, Buttons), Graph settings</td></tr>
             </tbody>
@@ -385,7 +386,7 @@
         </div>
 
         <h4>Sensitive domains</h4>
-        <p>Five Tier 1 domains are disabled by default because their actions carry higher real-world risk. Each can be enabled or disabled independently here. When disabled, entities from that domain are hidden from the entity picker, rejected at token creation, and silently dropped from active sessions.</p>
+        <p>Six Tier 1 domains are disabled by default because their actions carry higher real-world risk. Five settings control them: the Button setting governs both <code>button</code> and <code>input_button</code>. When disabled, entities from the affected domain are hidden from the entity picker, rejected at token creation, and silently dropped from active sessions.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Domain</th><th>Default</th><th>Risk if enabled</th></tr></thead>
@@ -394,9 +395,22 @@
               <tr><td><code>cover</code></td><td>Disabled</td><td>Garage doors, gates, motorized blinds</td></tr>
               <tr><td><code>script</code></td><td>Disabled</td><td>Arbitrary HA script execution</td></tr>
               <tr><td><code>automation</code></td><td>Disabled</td><td>Trigger, enable, or disable HA automations</td></tr>
-              <tr><td><code>button</code></td><td>Disabled</td><td>One-shot press actions</td></tr>
+              <tr><td><code>button</code>, <code>input_button</code></td><td>Disabled</td><td>One-shot press actions, controlled together by the Button setting</td></tr>
             </tbody>
           </table>
+        </div>
+
+        <h4>Custom domains</h4>
+        <p>The Custom domains card extends HArvest's server-side service allowlist for Tier 2 domains, such as third-party integration domains. It is a global setting shared by all widgets. It does not add controls to the generic card or grant Control access to an entity.</p>
+        <ol>
+          <li>Select a domain. The dropdown only lists non-built-in, non-blocked domains that currently have at least one entity and registered HA service.</li>
+          <li>Select the specific services that HArvest widgets may call.</li>
+          <li>Click <strong>Add</strong>. The allowlist applies immediately to current and future sessions.</li>
+        </ol>
+        <p>To change a domain's services, remove it and add it again. Removing it immediately blocks later commands without disconnecting active sessions. Commands still require the entity to be included in the widget token with Control access, and must be sent by a configured gesture or custom renderer.</p>
+        <div class="callout callout-warn">
+          <span class="callout-label">Security note</span>
+          <p>Custom Domains permits actions globally. Enable only the services your widgets require. Tier 1 domains use HArvest's built-in allowlist, and Tier 3 domains cannot be added.</p>
         </div>
 
         <h3>Rate limiting</h3>

@@ -149,7 +149,7 @@ class Harvest_Settings {
         // src would execute attacker-controlled code under the embed
         // page's origin.
         $lower = strtolower( $url );
-        if ( str_starts_with( $lower, 'javascript:' ) || str_starts_with( $lower, 'data:' ) || str_starts_with( $lower, 'vbscript:' ) ) {
+        if ( strncmp( $lower, 'javascript:', 11 ) === 0 || strncmp( $lower, 'data:', 5 ) === 0 || strncmp( $lower, 'vbscript:', 9 ) === 0 ) {
             return '';
         }
 
@@ -231,9 +231,9 @@ class Harvest_Settings {
             ] );
         }
         $lower = strtolower( $raw );
-        if ( str_starts_with( $lower, 'javascript:' )
-            || str_starts_with( $lower, 'data:' )
-            || str_starts_with( $lower, 'vbscript:' ) ) {
+        if ( strncmp( $lower, 'javascript:', 11 ) === 0
+            || strncmp( $lower, 'data:', 5 ) === 0
+            || strncmp( $lower, 'vbscript:', 9 ) === 0 ) {
             wp_send_json_success( [
                 'ok'      => false,
                 'status'  => 0,

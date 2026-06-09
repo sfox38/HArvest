@@ -2286,6 +2286,9 @@
     #slider = null;
     #sliderCover = null;
     #sliderView = null;
+    #tiltSlider = null;
+    #tiltSliderCover = null;
+    #tiltPosition = 0;
     #btnView = null;
     #openBtn = null;
     #stopBtn = null;
@@ -2295,10 +2298,12 @@
     #lastState = "closed";
     #lastAttrs = {};
     #sendDebounce;
+    #sendTiltDebounce;
 
     constructor(def, root, config, i18n) {
       super(def, root, config, i18n);
       this.#sendDebounce = _debounce(this.#doSendPosition.bind(this), 300);
+      this.#sendTiltDebounce = _debounce(this.#doSendTilt.bind(this), 300);
     }
 
     render() {
@@ -2306,8 +2311,9 @@
       const isWritable = this.def.capabilities === "read-write";
       const hints = this.config.displayHints ?? {};
       const hasPosition = hints.show_position !== false && this.def.supported_features?.includes("set_position");
+      const hasTilt = hints.show_tilt !== false && this.def.supported_features?.includes("set_tilt_position");
       const hasButtons = !this.def.supported_features || this.def.supported_features.includes("buttons");
-      const showControls = isWritable && (hasPosition || hasButtons);
+      const showControls = isWritable && (hasPosition || hasTilt || hasButtons);
 
       this.root.innerHTML = /* html */`
         <style>${COVER_STYLES}</style>
@@ -2320,6 +2326,7 @@
             </div>
           </div>
           ${showControls ? /* html */`
+            ${hasPosition || hasButtons ? /* html */`
             <div class="shroom-cover-bar">
               ${hasPosition ? /* html */`
                 <div class="shroom-cover-slider-view">
@@ -2327,7 +2334,7 @@
                     <div class="shroom-slider-bg shroom-cover-slider-bg"></div>
                     <div class="shroom-slider-cover" style="left:0%"></div>
                     <div class="shroom-slider-edge" style="left:0%"></div>
-                    <input type="range" class="shroom-slider-input" min="0" max="100"
+                    <input part="position-slider" type="range" class="shroom-slider-input" min="0" max="100"
                       step="1" value="0"
                       aria-label="${_esc(this.def.friendly_name)} position"
                       aria-valuetext="0%">
@@ -2357,6 +2364,23 @@
                 </button>
               ` : ""}
             </div>
+            ` : ""}
+            ${hasTilt ? /* html */`
+              <div class="shroom-cover-bar">
+                <div class="shroom-cover-slider-view">
+                  <div class="shroom-slider-wrap">
+                    <div class="shroom-slider-bg shroom-cover-slider-bg"></div>
+                    <div class="shroom-slider-cover shroom-cover-tilt-cover" style="left:0%"></div>
+                    <div class="shroom-slider-edge shroom-cover-tilt-edge" style="left:0%"></div>
+                    <input part="tilt-slider" type="range" class="shroom-slider-input shroom-cover-tilt-slider"
+                      min="0" max="100" step="1" value="0"
+                      aria-label="${_esc(this.def.friendly_name)} tilt"
+                      aria-valuetext="0%">
+                    <div class="shroom-slider-focus-ring"></div>
+                  </div>
+                </div>
+              </div>
+            ` : ""}
           ` : ""}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
@@ -2366,8 +2390,10 @@
 
       this.#iconEl = this.root.querySelector(".shroom-icon-shape");
       this.#secondaryEl = this.root.querySelector(".shroom-secondary");
-      this.#slider = this.root.querySelector(".shroom-slider-input");
+      this.#slider = this.root.querySelector("[part=position-slider]");
       this.#sliderCover = this.root.querySelector(".shroom-slider-cover");
+      this.#tiltSlider = this.root.querySelector("[part=tilt-slider]");
+      this.#tiltSliderCover = this.root.querySelector(".shroom-cover-tilt-cover");
       this.#sliderView = this.root.querySelector(".shroom-cover-slider-view");
       this.#btnView = this.root.querySelector(".shroom-cover-btn-view");
       this.#openBtn = this.root.querySelector("[data-action=open]");
@@ -2382,6 +2408,14 @@
           this.#sendDebounce();
         });
         this.guardSlider(this.#slider, this.#sendDebounce);
+      }
+      if (this.#tiltSlider) {
+        this.#tiltSlider.addEventListener("input", () => {
+          this.#tiltPosition = parseInt(this.#tiltSlider.value, 10);
+          this.#syncTiltSlider();
+          this.#sendTiltDebounce();
+        });
+        this.guardSlider(this.#tiltSlider, this.#sendTiltDebounce);
       }
 
       [this.#openBtn, this.#stopBtn, this.#closeBtn].forEach(btn => {
@@ -2426,6 +2460,16 @@
       this.config.card?.sendCommand("set_cover_position", { position: this.#position });
     }
 
+    #syncTiltSlider() {
+      if (this.#tiltSliderCover) this.#tiltSliderCover.style.left = `${this.#tiltPosition}%`;
+      const edge = this.root.querySelector(".shroom-cover-tilt-edge");
+      if (edge) edge.style.left = `${this.#tiltPosition}%`;
+    }
+
+    #doSendTilt() {
+      this.config.card?.sendCommand("set_cover_tilt_position", { tilt_position: this.#tiltPosition });
+    }
+
     applyState(state, attributes) {
       this.#lastState = state;
       this.#lastAttrs = { ...attributes };
@@ -2452,6 +2496,13 @@
         }
         this.#syncSlider();
       }
+      if (attributes.current_tilt_position !== undefined) {
+        this.#tiltPosition = attributes.current_tilt_position;
+        if (this.#tiltSlider && !this.isSliderActive(this.#tiltSlider)) {
+          this.#tiltSlider.value = String(this.#tiltPosition);
+        }
+        this.#syncTiltSlider();
+      }
 
       this.announceState(`${this.def.friendly_name}, ${state}`);
     }
@@ -2473,6 +2524,10 @@
         attrs.current_position = data.position;
         return { state: data.position > 0 ? "open" : "closed", attributes: attrs };
       }
+      if (action === "set_cover_tilt_position" && data.tilt_position !== undefined) {
+        attrs.current_tilt_position = data.tilt_position;
+        return { state: this.#lastState, attributes: attrs };
+      }
       return null;
     }
   }
@@ -2489,6 +2544,7 @@
   class RemoteCard extends BaseCard {
     #iconEl = null;
     #secondaryEl = null;
+    #isOn = false;
 
     render() {
       _applyLayout(this);
@@ -2518,15 +2574,12 @@
 
       const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
-        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Send command`);
+        _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Toggle power`);
         this._attachGestureHandlers(stateItem, {
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
             if (tap) { this._runAction(tap); return; }
-            const cmd = this.config.tapAction?.data?.command ?? "power";
-            const device = this.config.tapAction?.data?.device ?? undefined;
-            const data = device ? { command: cmd, device } : { command: cmd };
-            this.config.card?.sendCommand("send_command", data);
+            this.config.card?.sendCommand(this.#isOn ? "turn_off" : "turn_on", {});
           },
         });
       }
@@ -2537,6 +2590,7 @@
 
     applyState(state, _attributes) {
       const isOn = state === "on";
+      this.#isOn = isOn;
       _applyIconColor(this.#iconEl, "remote", isOn);
 
       if (this.#secondaryEl) {
@@ -4195,12 +4249,30 @@
   const AUTOMATION_STYLES = /* css */`
     ${SHROOM_STATE_ITEM}
     ${SHROOM_COMPANIONS}
+    [part=enable-toggle] {
+      width: 100%;
+      margin-top: 8px;
+      padding: 6px 12px;
+      border: none;
+      border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
+      background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+      color: var(--hrv-color-text-secondary, #757575);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    [part=enable-toggle][aria-pressed=true] {
+      background: color-mix(in srgb, var(--hrv-color-primary, #1976d2) 20%, transparent);
+      color: var(--hrv-color-primary, #1976d2);
+    }
+    [part=enable-toggle]:disabled { opacity: 0.4; cursor: not-allowed; }
   `;
 
   class AutomationCard extends BaseCard {
     static staleOnMount = false;
     #iconEl = null;
     #secondaryEl = null;
+    #enableToggle = null;
 
     render() {
       _applyLayout(this);
@@ -4217,6 +4289,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          ${isWritable ? `<button part="enable-toggle" type="button"></button>` : ""}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -4225,6 +4298,7 @@
 
       this.#iconEl = this.root.querySelector(".shroom-icon-shape");
       this.#secondaryEl = this.root.querySelector(".shroom-secondary");
+      this.#enableToggle = this.root.querySelector("[part=enable-toggle]");
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:robot"), "card-icon");
       _applyIconColor(this.#iconEl, "automation", false);
 
@@ -4236,6 +4310,12 @@
             const tap = this.config.gestureConfig?.tap;
             if (tap) { this._runAction(tap); return; }
             this.config.card?.sendCommand("trigger", {});
+          },
+        });
+        this._attachGestureHandlers(this.#enableToggle, {
+          onTap: () => {
+            const isOn = this.#enableToggle?.getAttribute("aria-pressed") === "true";
+            this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
           },
         });
       }
@@ -4253,11 +4333,23 @@
           ? (this.i18n.t("state.on") !== "state.on" ? this.i18n.t("state.on") : "Enabled")
           : _capitalize(state);
       }
+      if (this.#enableToggle) {
+        this.#enableToggle.disabled = state === "unavailable" || state === "unknown";
+        this.#enableToggle.textContent = isOn ? "Enabled" : "Disabled";
+        this.#enableToggle.setAttribute("aria-pressed", String(isOn));
+        this.#enableToggle.setAttribute("aria-label", `${this.def.friendly_name} - ${isOn ? "Disable" : "Enable"}`);
+      }
 
       const defaultIcon = isOn ? "mdi:robot" : "mdi:robot-off";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
       this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
       this.announceState(`${this.def.friendly_name}, ${state === "on" ? "enabled" : "disabled"}`);
+    }
+
+    predictState(action, _data) {
+      if (action === "turn_on") return { state: "on", attributes: {} };
+      if (action === "turn_off") return { state: "off", attributes: {} };
+      return null;
     }
   }
 

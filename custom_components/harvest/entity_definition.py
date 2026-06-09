@@ -128,7 +128,7 @@ FEATURE_FLAGS: dict[str, dict[int, str]] = {
         1: "play_pause", 2: "next_track", 4: "previous_track",
         8: "volume_set", 16: "volume_step", 128: "turn_on", 256: "turn_off",
     },
-    "remote": {1: "learn_command", 2: "delete_command"},
+    "remote": {1: "learn_command", 2: "delete_command", 4: "activity"},
 }
 
 # Attributes blocked from state_update messages. All other attributes are

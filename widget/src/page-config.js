@@ -6,16 +6,24 @@
  * imports getOrCreateClient from harvest-client).
  *
  * Public exports:
- *   config(options)   - Merge options into the page-level config.
- *   getPageConfig()   - Return the shared page-config object.
+ *   config(options)           - Merge options into the page-level config.
+ *   getPageConfig()           - Return the shared page-config object.
+ *   onPageConfigChange(fn)    - Subscribe to page-config changes.
  */
 
 const _pageConfig = {};
+const _listeners = new Set();
 
 export function config(options) {
   Object.assign(_pageConfig, options);
+  for (const listener of [..._listeners]) listener(_pageConfig);
 }
 
 export function getPageConfig() {
   return _pageConfig;
+}
+
+export function onPageConfigChange(listener) {
+  _listeners.add(listener);
+  return () => _listeners.delete(listener);
 }

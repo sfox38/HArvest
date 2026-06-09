@@ -2460,6 +2460,23 @@
     .hrv-cover-slider-wrap {
       padding: 16px 8px 20px;
     }
+    .hrv-cover-tilt-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px 20px;
+      color: var(--hrv-color-text, #fff);
+      font-size: var(--hrv-font-size-xs, 12px);
+    }
+    [part=tilt-slider] {
+      flex: 1;
+      accent-color: var(--hrv-color-primary, #1976d2);
+      cursor: pointer;
+    }
+    [part=tilt-slider]:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
     .hrv-cover-slider-track {
       position: relative;
       height: 6px;
@@ -2567,21 +2584,26 @@
     /** @type {HTMLButtonElement|null} */ #openBtn      = null;
     /** @type {HTMLButtonElement|null} */ #stopBtn      = null;
     /** @type {HTMLButtonElement|null} */ #closeBtn     = null;
+    /** @type {HTMLInputElement|null}  */ #tiltSlider   = null;
+    /** @type {HTMLElement|null}       */ #tiltValue    = null;
     /** @type {boolean}               */ #dragging     = false;
     /** @type {number}                */ #position     = 0;
     /** @type {string}                */ #lastState    = "closed";
     /** @type {object}                */ #lastAttrs    = {};
     /** @type {Function}              */ #sendDebounce;
+    /** @type {Function}              */ #sendTiltDebounce;
 
     constructor(def, root, config, i18n) {
       super(def, root, config, i18n);
       this.#sendDebounce = _debounce(this.#doSendPosition.bind(this), 300);
+      this.#sendTiltDebounce = _debounce(this.#doSendTilt.bind(this), 300);
     }
 
     render() {
       const isWritable  = this.def.capabilities === "read-write";
       const hints       = this.config.displayHints ?? {};
       const hasPosition = hints.show_position !== false && this.def.supported_features?.includes("set_position");
+      const hasTilt     = hints.show_tilt !== false && this.def.supported_features?.includes("set_tilt_position");
       const hasButtons  = !this.def.supported_features || this.def.supported_features.includes("buttons");
 
       this.root.innerHTML = /* html */`
@@ -2607,6 +2629,15 @@
                 </div>
               </div>
             ` : ""}
+            ${hasTilt ? /* html */`
+              <label class="hrv-cover-tilt-wrap">
+                <span>Tilt</span>
+                <input part="tilt-slider" type="range" min="0" max="100" step="1" value="0"
+                  ${!isWritable ? "disabled" : ""}
+                  aria-label="${_esc(this.def.friendly_name)} tilt">
+                <span part="tilt-value">0%</span>
+              </label>
+            ` : ""}
             ${isWritable && hasButtons ? /* html */`
               <div class="hrv-cover-btns">
                 <button class="hrv-cover-btn" data-action="open" type="button"
@@ -2630,6 +2661,8 @@
       this.#openBtn     = this.root.querySelector("[data-action=open]");
       this.#stopBtn     = this.root.querySelector("[data-action=stop]");
       this.#closeBtn    = this.root.querySelector("[data-action=close]");
+      this.#tiltSlider  = this.root.querySelector("[part=tilt-slider]");
+      this.#tiltValue   = this.root.querySelector("[part=tilt-value]");
 
       const roIconEl = this.root.querySelector("[part=cover-ro-icon]");
       if (roIconEl) roIconEl.innerHTML = COVER_ICON_CLOSE;
@@ -2665,6 +2698,13 @@
         this.#sliderThumb.addEventListener("pointerup", onUp);
         this.#sliderThumb.addEventListener("pointercancel", onUp);
       }
+      if (this.#tiltSlider && isWritable) {
+        this.#tiltSlider.addEventListener("input", () => {
+          if (this.#tiltValue) this.#tiltValue.textContent = `${this.#tiltSlider.value}%`;
+          this.#sendTiltDebounce();
+        });
+        this.guardSlider(this.#tiltSlider, this.#sendTiltDebounce);
+      }
 
       [this.#openBtn, this.#stopBtn, this.#closeBtn].forEach(btn => {
         if (!btn) return;
@@ -2695,6 +2735,11 @@
       this.config.card?.sendCommand("set_cover_position", { position: this.#position });
     }
 
+    #doSendTilt() {
+      const tiltPosition = parseInt(this.#tiltSlider?.value ?? 0, 10);
+      this.config.card?.sendCommand("set_cover_tilt_position", { tilt_position: tiltPosition });
+    }
+
     applyState(state, attributes) {
       this.#lastState = state;
       this.#lastAttrs = { ...attributes };
@@ -2709,6 +2754,10 @@
         this.#position = attributes.current_position;
         if (this.#sliderFill) this.#sliderFill.style.width = `${this.#position}%`;
         if (this.#sliderThumb) this.#sliderThumb.style.left = `${this.#position}%`;
+      }
+      if (attributes.current_tilt_position !== undefined && this.#tiltSlider && !this.isSliderActive(this.#tiltSlider)) {
+        this.#tiltSlider.value = String(attributes.current_tilt_position);
+        if (this.#tiltValue) this.#tiltValue.textContent = `${attributes.current_tilt_position}%`;
       }
 
       const roIconEl = this.root.querySelector("[part=cover-ro-icon]");
@@ -2737,6 +2786,10 @@
       if (action === "set_cover_position" && data.position !== undefined) {
         attrs.current_position = data.position;
         return { state: data.position > 0 ? "open" : "closed", attributes: attrs };
+      }
+      if (action === "set_cover_tilt_position" && data.tilt_position !== undefined) {
+        attrs.current_tilt_position = data.tilt_position;
+        return { state: this.#lastState, attributes: attrs };
       }
       return null;
     }
@@ -3859,10 +3912,10 @@
 
   class RemoteCard extends BaseCard {
     /** @type {HTMLButtonElement|null} */ #btn = null;
+    /** @type {boolean} */ #isOn = false;
 
     render() {
       const isWritable = this.def.capabilities === "read-write";
-      const commandLabel = this.config.tapAction?.data?.command ?? "power";
 
       this.root.innerHTML = /* html */`
         <style>${REMOTE_STYLES}${COMPANION_DOT_STYLES}</style>
@@ -3872,8 +3925,8 @@
           </div>
           <div part="card-body">
             <button class="hrv-remote-circle" type="button"
-              title="${isWritable ? _esc(commandLabel) : "Read-only"}"
-              aria-label="${_esc(this.def.friendly_name)} - ${_esc(commandLabel)}"
+              title="${isWritable ? "Toggle power" : "Read-only"}"
+              aria-label="${_esc(this.def.friendly_name)} - Toggle power"
               ${!isWritable ? "disabled" : ""}>
               <span part="remote-icon" aria-hidden="true"></span>
             </button>
@@ -3894,10 +3947,7 @@
           onTap: () => {
             const tap = this.config.gestureConfig?.tap;
             if (tap) { this._runAction(tap); return; }
-            const cmd    = this.config.tapAction?.data?.command ?? "power";
-            const device = this.config.tapAction?.data?.device ?? undefined;
-            const data   = device ? { command: cmd, device } : { command: cmd };
-            this.config.card?.sendCommand("send_command", data);
+            this.config.card?.sendCommand(this.#isOn ? "turn_off" : "turn_on", {});
           },
         });
       }
@@ -3907,6 +3957,7 @@
     }
 
     applyState(state, _attributes) {
+      this.#isOn = state === "on";
       const iconName = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:remote";
       this.renderIcon(this.resolveIcon(iconName, "mdi:remote"), "remote-icon");
 
@@ -5242,6 +5293,22 @@
       height: 52px;
       color: var(--hrv-color-on-primary, #fff);
     }
+    [part=enable-toggle] {
+      width: 100%;
+      margin-top: 10px;
+      padding: 6px 12px;
+      border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.12));
+      border-radius: var(--hrv-radius-m, 10px);
+      background: var(--hrv-color-surface-alt, rgba(0,0,0,0.04));
+      color: var(--hrv-color-text, #212121);
+      font: inherit;
+      cursor: pointer;
+    }
+    [part=enable-toggle][aria-pressed=true] {
+      background: var(--hrv-color-primary, #1976d2);
+      color: var(--hrv-color-on-primary, #fff);
+    }
+    [part=enable-toggle]:disabled { opacity: 0.3; cursor: not-allowed; }
 
     @media (prefers-reduced-motion: reduce) {
       .hrv-action-icon-btn { transition: none; }
@@ -5316,6 +5383,7 @@
   class AutomationCard extends BaseCard {
     static staleOnMount = false;
     /** @type {HTMLButtonElement|null} */ #iconBtn = null;
+    /** @type {HTMLButtonElement|null} */ #enableToggle = null;
     /** @type {string}                 */ #currentState = "unknown";
 
     render() {
@@ -5333,6 +5401,7 @@
               ${!isWritable ? "disabled" : ""}>
               <span part="card-icon" aria-hidden="true"></span>
             </button>
+            ${isWritable ? `<button part="enable-toggle" type="button"></button>` : ""}
           </div>
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
@@ -5341,6 +5410,7 @@
       `;
 
       this.#iconBtn = this.root.querySelector(".hrv-action-icon-btn");
+      this.#enableToggle = this.root.querySelector("[part=enable-toggle]");
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:robot"), "card-icon");
 
       if (isWritable && this.#iconBtn) {
@@ -5349,6 +5419,12 @@
             const tap = this.config.gestureConfig?.tap;
             if (tap) { this._runAction(tap); return; }
             this.config.card?.sendCommand("trigger", {});
+          },
+        });
+        this._attachGestureHandlers(this.#enableToggle, {
+          onTap: () => {
+            const isOn = this.#enableToggle?.getAttribute("aria-pressed") === "true";
+            this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
           },
         });
       }
@@ -5362,10 +5438,22 @@
       const isWritable = this.def.capabilities === "read-write";
       const isDisabled = !isWritable || state === "unavailable" || state === "unknown";
       if (this.#iconBtn) this.#iconBtn.disabled = isDisabled;
+      if (this.#enableToggle) {
+        this.#enableToggle.disabled = isDisabled;
+        this.#enableToggle.textContent = state === "on" ? "Enabled" : "Disabled";
+        this.#enableToggle.setAttribute("aria-pressed", String(state === "on"));
+        this.#enableToggle.setAttribute("aria-label", `${this.def.friendly_name} - ${state === "on" ? "Disable" : "Enable"}`);
+      }
       const defaultIcon = state === "on" ? "mdi:robot" : "mdi:robot-off";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
       this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
       this.announceState(`${this.def.friendly_name}, ${state === "on" ? "enabled" : "disabled"}`);
+    }
+
+    predictState(action, _data) {
+      if (action === "turn_on") return { state: "on", attributes: {} };
+      if (action === "turn_off") return { state: "off", attributes: {} };
+      return null;
     }
   }
 

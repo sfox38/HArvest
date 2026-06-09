@@ -1,7 +1,7 @@
 /**
  * renderers/automation-card.js - Renderer for the "automation" domain.
  *
- * Single full-width Trigger button, matching the script card pattern.
+ * Trigger button plus a state-aware enable/disable toggle.
  * staleOnMount is false: authoritative state required before rendering.
  */
 
@@ -11,6 +11,9 @@ import { esc as _esc } from "../_utils/esc.js";
 const AUTOMATION_CARD_STYLES = /* css */`
   [part=card-body] {
     margin-top: var(--hrv-spacing-xs);
+    display: flex;
+    flex-direction: column;
+    gap: var(--hrv-spacing-s);
   }
 
   [part=state-label] {
@@ -25,7 +28,8 @@ const AUTOMATION_CARD_STYLES = /* css */`
     text-align: center;
   }
 
-  [part=trigger-button] {
+  [part=trigger-button],
+  [part=enable-toggle] {
     width: 100%;
     padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
     border: none;
@@ -42,10 +46,28 @@ const AUTOMATION_CARD_STYLES = /* css */`
   [part=trigger-button]:active { opacity: 0.75; transform: scale(0.98); }
   [part=trigger-button]:disabled { opacity: 0.45; cursor: not-allowed; }
 
+  [part=enable-toggle] {
+    background: var(--hrv-color-state-off);
+    color: var(--hrv-color-text);
+  }
+  [part=enable-toggle][aria-pressed=true] {
+    background: var(--hrv-color-primary);
+    color: var(--hrv-color-on-primary);
+  }
+  [part=enable-toggle]:hover  { opacity: 0.88; }
+  [part=enable-toggle]:active { opacity: 0.75; transform: scale(0.98); }
+  [part=enable-toggle]:disabled { opacity: 0.45; cursor: not-allowed; }
+
 `;
 
 const AUTOMATION_ROW_STYLES = /* css */`
-  [part=row-trigger-btn] {
+  [part=row-control] {
+    display: flex;
+    gap: var(--hrv-spacing-xs);
+  }
+
+  [part=row-trigger-btn],
+  [part=row-enable-btn] {
     padding: 2px var(--hrv-spacing-s);
     border: none;
     border-radius: var(--hrv-radius-s);
@@ -60,6 +82,17 @@ const AUTOMATION_ROW_STYLES = /* css */`
   [part=row-trigger-btn]:hover  { opacity: 0.88; }
   [part=row-trigger-btn]:active { opacity: 0.75; }
   [part=row-trigger-btn]:disabled { opacity: 0.4; cursor: not-allowed; }
+  [part=row-enable-btn][aria-pressed=true] {
+    background: var(--hrv-color-primary);
+    color: var(--hrv-color-on-primary);
+  }
+  [part=row-enable-btn][aria-pressed=false] {
+    background: var(--hrv-color-state-off);
+    color: var(--hrv-color-text);
+  }
+  [part=row-enable-btn]:hover  { opacity: 0.88; }
+  [part=row-enable-btn]:active { opacity: 0.75; }
+  [part=row-enable-btn]:disabled { opacity: 0.4; cursor: not-allowed; }
 `;
 
 
@@ -68,6 +101,8 @@ export class AutomationCard extends BaseCard {
 
   /** @type {HTMLButtonElement|null} */ #triggerBtn    = null;
   /** @type {HTMLButtonElement|null} */ #rowTriggerBtn = null;
+  /** @type {HTMLButtonElement|null} */ #enableToggle  = null;
+  /** @type {HTMLButtonElement|null} */ #rowEnableBtn   = null;
   /** @type {HTMLElement|null}       */ #stateLabel    = null;
 
   render() {
@@ -82,10 +117,10 @@ export class AutomationCard extends BaseCard {
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
-          ${isWritable ? `<span part="row-control"><button part="row-trigger-btn" type="button">${_esc(triggerLabel)}</button></span>` : ""}
+          ${isWritable ? `<span part="row-control"><button part="row-trigger-btn" type="button">${_esc(triggerLabel)}</button><button part="row-enable-btn" type="button"></button></span>` : ""}
         </div>
         <div part="card-body">
-          ${isWritable ? `<button part="trigger-button" type="button">${_esc(triggerLabel)}</button>` : `<span part="state-label"></span>`}
+          ${isWritable ? `<button part="trigger-button" type="button">${_esc(triggerLabel)}</button><button part="enable-toggle" type="button"></button>` : `<span part="state-label"></span>`}
         </div>
         ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
@@ -95,6 +130,8 @@ export class AutomationCard extends BaseCard {
 
     this.#triggerBtn    = this.root.querySelector("[part=trigger-button]");
     this.#rowTriggerBtn = this.root.querySelector("[part=row-trigger-btn]");
+    this.#enableToggle  = this.root.querySelector("[part=enable-toggle]");
+    this.#rowEnableBtn  = this.root.querySelector("[part=row-enable-btn]");
     this.#stateLabel    = this.root.querySelector("[part=state-label]");
 
     if (!isWritable) {
@@ -110,14 +147,28 @@ export class AutomationCard extends BaseCard {
     };
     if (this.#triggerBtn)    this._attachGestureHandlers(this.#triggerBtn, { onTap: onTrigger });
     if (this.#rowTriggerBtn) this._attachGestureHandlers(this.#rowTriggerBtn, { onTap: onTrigger });
+    const onEnableToggle = () => {
+      const isOn = (this.#enableToggle ?? this.#rowEnableBtn)?.getAttribute("aria-pressed") === "true";
+      this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
+    };
+    if (this.#enableToggle) this._attachGestureHandlers(this.#enableToggle, { onTap: onEnableToggle });
+    if (this.#rowEnableBtn) this._attachGestureHandlers(this.#rowEnableBtn, { onTap: onEnableToggle });
 
     this.renderCompanions();
   }
 
   applyState(state, _attributes) {
     const isUnavailable = state === "unavailable" || state === "unknown";
+    const isOn = state === "on";
     if (this.#triggerBtn)    this.#triggerBtn.disabled    = isUnavailable;
     if (this.#rowTriggerBtn) this.#rowTriggerBtn.disabled = isUnavailable;
+    for (const button of [this.#enableToggle, this.#rowEnableBtn]) {
+      if (!button) continue;
+      button.disabled = isUnavailable;
+      button.textContent = isOn ? "Enabled" : "Disabled";
+      button.setAttribute("aria-pressed", String(isOn));
+      button.setAttribute("aria-label", `${this.def.friendly_name} - ${isOn ? "Disable" : "Enable"}`);
+    }
 
     if (this.#stateLabel) {
       this.#stateLabel.textContent = this.formatStateLabel(state);
@@ -128,5 +179,11 @@ export class AutomationCard extends BaseCard {
     this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${state === "on" ? "enabled" : "disabled"}`);
+  }
+
+  predictState(action, _data) {
+    if (action === "turn_on") return { state: "on", attributes: {} };
+    if (action === "turn_off") return { state: "off", attributes: {} };
+    return null;
   }
 }

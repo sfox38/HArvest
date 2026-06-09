@@ -57,9 +57,9 @@ class Harvest_Csp {
         // The widget at harvest-client.js maps http -> ws and https -> wss.
         // CSP must mirror that mapping or the WS handshake is blocked on
         // http:// HA installs (e.g. local LAN deployments).
-        if ( str_starts_with( $ha_url, 'https://' ) ) {
+        if ( strncmp( $ha_url, 'https://', 8 ) === 0 ) {
             $ws_url = 'wss://' . substr( $ha_url, 8 );
-        } elseif ( str_starts_with( $ha_url, 'http://' ) ) {
+        } elseif ( strncmp( $ha_url, 'http://', 7 ) === 0 ) {
             $ws_url = 'ws://' . substr( $ha_url, 7 );
         } else {
             // Unknown scheme - fall back to the original behavior.

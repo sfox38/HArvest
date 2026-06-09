@@ -1,8 +1,8 @@
 /**
  * renderers/cover-card.js - Renderer for the "cover" domain.
  *
- * Renders open/stop/close buttons and, when supported, a position slider.
- * The position slider is debounced at 300ms.
+ * Renders open/stop/close buttons and, when supported, position and tilt sliders.
+ * Slider commands are debounced at 300ms.
  */
 
 import { BaseCard } from "./base-card.js";
@@ -38,7 +38,8 @@ const COVER_STYLES = /* css */`
   .hrv-cover-btn:active { opacity: 0.6; }
   .hrv-cover-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-  [part=position-slider] {
+  [part=position-slider],
+  [part=tilt-slider] {
     width: 100%;
     accent-color: var(--hrv-color-primary);
     cursor: pointer;
@@ -76,20 +77,25 @@ export class CoverCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #closeBtn       = null;
   /** @type {HTMLInputElement|null}  */ #positionSlider = null;
   /** @type {HTMLElement|null}       */ #positionValue  = null;
+  /** @type {HTMLInputElement|null}  */ #tiltSlider     = null;
+  /** @type {HTMLElement|null}       */ #tiltValue      = null;
   /** @type {HTMLElement|null}       */ #stateLabel     = null;
   /** @type {Function}               */ #positionDebounce;
+  /** @type {Function}               */ #tiltDebounce;
   /** @type {string} */ #lastState = "";
   /** @type {object} */ #lastAttrs = {};
 
   constructor(def, root, config, i18n) {
     super(def, root, config, i18n);
     this.#positionDebounce = this.debounce(this.#sendPosition.bind(this), 300);
+    this.#tiltDebounce = this.debounce(this.#sendTilt.bind(this), 300);
   }
 
   render() {
     const isWritable   = this.def.capabilities === "read-write";
     const hints        = this.config.displayHints ?? {};
     const hasPosition  = hints.show_position !== false && this.def.supported_features?.includes("set_position");
+    const hasTilt      = hints.show_tilt !== false && this.def.supported_features?.includes("set_tilt_position");
     const hasButtons   = !this.def.supported_features || this.def.supported_features.includes("buttons");
 
     this.root.innerHTML = /* html */`
@@ -103,7 +109,7 @@ export class CoverCard extends BaseCard {
         <div part="card-body">
           ${!isWritable ? `<span part="state-label"></span>` : ""}
           ${isWritable && hasButtons ? /* html */`
-            <div class="hrv-cover-controls">
+            <div part="cover-controls" class="hrv-cover-controls">
               <button part="open-button" class="hrv-cover-btn" type="button"
                 aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("cover.open"))}">
                 ${_esc(this.i18n.t("cover.open"))}
@@ -128,6 +134,16 @@ export class CoverCard extends BaseCard {
                 aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("cover.position"))}">
             </div>
           ` : ""}
+          ${isWritable && hasTilt ? /* html */`
+            <div>
+              <div class="hrv-slider-label">
+                <span>${_esc(this.i18n.t("cover.tilt"))}</span>
+                <span part="tilt-value">-</span>
+              </div>
+              <input part="tilt-slider" type="range" min="0" max="100"
+                aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("cover.tilt"))}">
+            </div>
+          ` : ""}
         </div>
         ${this.renderAriaLiveHTML()}
         ${this.renderCompanionZoneHTML()}
@@ -140,6 +156,8 @@ export class CoverCard extends BaseCard {
     this.#closeBtn       = this.root.querySelector("[part=close-button]");
     this.#positionSlider = this.root.querySelector("[part=position-slider]");
     this.#positionValue  = this.root.querySelector("[part=position-value]");
+    this.#tiltSlider     = this.root.querySelector("[part=tilt-slider]");
+    this.#tiltValue      = this.root.querySelector("[part=tilt-value]");
     this.#stateLabel     = this.root.querySelector("[part=state-label]");
 
     if (!isWritable) {
@@ -158,6 +176,12 @@ export class CoverCard extends BaseCard {
       this.#positionDebounce(val);
     });
     this.guardSlider(this.#positionSlider, this.#positionDebounce);
+    this.#tiltSlider?.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (this.#tiltValue) this.#tiltValue.textContent = `${val}%`;
+      this.#tiltDebounce(val);
+    });
+    this.guardSlider(this.#tiltSlider, this.#tiltDebounce);
 
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -181,6 +205,10 @@ export class CoverCard extends BaseCard {
     if (this.#positionSlider && !this.isSliderActive(this.#positionSlider) && attributes.current_position !== undefined) {
       this.#positionSlider.value = String(attributes.current_position);
       if (this.#positionValue) this.#positionValue.textContent = `${attributes.current_position}%`;
+    }
+    if (this.#tiltSlider && !this.isSliderActive(this.#tiltSlider) && attributes.current_tilt_position !== undefined) {
+      this.#tiltSlider.value = String(attributes.current_tilt_position);
+      if (this.#tiltValue) this.#tiltValue.textContent = `${attributes.current_tilt_position}%`;
     }
 
     const defaultIcon = _coverIcon(state, attributes);
@@ -207,11 +235,19 @@ export class CoverCard extends BaseCard {
       attrs.current_position = data.position;
       return { state: data.position > 0 ? "open" : "closed", attributes: attrs };
     }
+    if (action === "set_cover_tilt_position" && data.tilt_position !== undefined) {
+      attrs.current_tilt_position = data.tilt_position;
+      return { state: this.#lastState, attributes: attrs };
+    }
     return null;
   }
 
   #sendPosition(value) {
     this.config.card?.sendCommand("set_cover_position", { position: value });
+  }
+
+  #sendTilt(value) {
+    this.config.card?.sendCommand("set_cover_tilt_position", { tilt_position: value });
   }
 }
 
