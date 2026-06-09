@@ -280,7 +280,7 @@
       &lt;div part="card"&gt;
         &lt;div part="card-header"&gt;
           &lt;span part="card-icon" aria-hidden="true"&gt;&lt;/span&gt;
-          &lt;span part="card-name"&gt;${this._esc(this.def.friendly_name)}&lt;/span&gt;
+          &lt;span part="card-name"&gt;${HArvest.esc(this.def.friendly_name)}&lt;/span&gt;
         &lt;/div&gt;
         &lt;div part="card-body"&gt;
           &lt;span part="status"&gt;&lt;/span&gt;
@@ -335,13 +335,6 @@
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 
-  _esc(str) {
-    return String(str ?? "")
-      .replace(/&amp;/g, "&amp;amp;")
-      .replace(/&lt;/g, "&amp;lt;")
-      .replace(/&gt;/g, "&amp;gt;")
-      .replace(/"/g, "&amp;quot;");
-  }
 }</code></pre>
 
         <h3>Key patterns</h3>
@@ -352,7 +345,7 @@
           <li><strong>Use <code>part</code> attributes</strong> - every meaningful element should have a <code>part="..."</code> attribute so theme authors can target it with <code>::part()</code> selectors.</li>
           <li><strong>Include the standard zones</strong> - your template should include <code>renderAriaLiveHTML()</code>, <code>renderCompanionZoneHTML()</code>, and a <code>&lt;div part="stale-indicator"&gt;</code>. These enable accessibility, companion pills, and the stale-data indicator.</li>
           <li><strong>Call <code>renderCompanions()</code></strong> - at the end of <code>render()</code>, this populates the companion zone.</li>
-          <li><strong>Escape user text</strong> - always escape <code>friendly_name</code> and other user-provided strings before inserting into HTML.</li>
+          <li><strong>Escape user text</strong> - use <code>HArvest.esc(value)</code> for <code>friendly_name</code> and other user-provided strings before inserting them into an HTML template. Values assigned through <code>textContent</code> do not need escaping.</li>
           <li><strong>Guard slider updates</strong> - in <code>applyState()</code>, use <code>this.isFocused(element)</code> before updating slider values to avoid overwriting while the user is dragging.</li>
         </ul>
         </section>
@@ -390,9 +383,6 @@
 
   HArvest._renderers[_rendererKey] = {
     "vacuum": VacuumCard,
-    _capabilities: {
-      vacuum: { features: ["start", "stop", "fan_speed"] },
-    },
   };
 })();</code></pre>
 
@@ -402,9 +392,23 @@
           <li>The renderer key (<code>_rendererKey</code>) is resolved automatically by the widget from the theme ID. Use the boilerplate above as-is.</li>
           <li>Each entry maps a domain key (e.g. <code>"vacuum"</code>) to a renderer class. Register multiple domains in one file.</li>
           <li>You can also register for a specific device class: <code>"sensor.temperature": MyTempCard</code>.</li>
-          <li>The <code>_capabilities</code> object declares what features the renderers support. The server uses this to populate <code>supported_features</code> in the entity definition.</li>
+          <li>Optional renderer capability metadata belongs in <code>theme.json</code>, not <code>renderer.js</code>. The panel uses it to hide display settings that the renderer does not support.</li>
+          <li>The entity definition's <code>supported_features</code> comes from the actual Home Assistant entity and token configuration. Theme metadata does not add entity features or permit commands.</li>
           <li>Registration is last-write-wins. If the key matches a built-in renderer, the override takes priority for tokens using this theme.</li>
         </ul>
+
+        <h3>Optional capability metadata</h3>
+
+        <p>If your renderer replaces a domain for which the panel offers domain-specific display settings, add a <code>capabilities</code> object to <code>theme.json</code>. The panel uses this metadata only to decide which display-setting controls to show. Omit it when the renderer supports the built-in options or when the domain has no domain-specific display settings, as with the vacuum example.</p>
+
+<pre><code class="language-json">{
+  "name": "Custom Light Theme",
+  "has_renderer": true,
+  "capabilities": {
+    "light": { "features": ["brightness", "color_temp"] }
+  },
+  "variables": {}
+}</code></pre>
 
         <h3>Importing the renderer</h3>
 
@@ -670,7 +674,16 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
         <section>
         <h2 id="complete-example">Complete example: vacuum card</h2>
 
-        <p>This is a full, working vacuum card packaged as a renderer override. It displays state, battery level, and fan speed, with start, stop, and return-to-base buttons. Save this code in a file named exactly <code>renderer.js</code>, create a <code>theme.json</code> alongside it, zip them together (e.g. <code>vacuum-theme.zip</code>), and import the zip via the Themes tab.</p>
+        <p>This is a full, working vacuum card packaged as a renderer override. It displays state, battery level, and fan speed, with start, stop, and return-to-base buttons. Save the following two files as <code>theme.json</code> and <code>renderer.js</code>, zip them together (e.g. <code>vacuum-theme.zip</code>), and import the zip via the Themes tab. The vacuum renderer does not need a <code>capabilities</code> entry because the panel has no vacuum-specific display settings to filter.</p>
+
+<pre><code class="language-json">{
+  "name": "Vacuum Card",
+  "author": "Your Name",
+  "version": "1.0",
+  "harvest_version": 1,
+  "has_renderer": true,
+  "variables": {}
+}</code></pre>
 
 <pre><code class="language-javascript">/**
  * vacuum-renderer.js - HArvest renderer override for robot vacuums.
@@ -690,12 +703,6 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
     return;
   }
   const BaseCard = HArvest.renderers.BaseCard;
-
-  function esc(str) {
-    return String(str ?? "")
-      .replace(/&amp;/g, "&amp;amp;").replace(/&lt;/g, "&amp;lt;")
-      .replace(/&gt;/g, "&amp;gt;").replace(/"/g, "&amp;quot;");
-  }
 
   const STYLES = `
     [part=card-body] {
@@ -776,7 +783,7 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
         &lt;div part="card"&gt;
           &lt;div part="card-header"&gt;
             &lt;span part="card-icon" aria-hidden="true"&gt;&lt;/span&gt;
-            &lt;span part="card-name"&gt;${esc(this.def.friendly_name)}&lt;/span&gt;
+            &lt;span part="card-name"&gt;${HArvest.esc(this.def.friendly_name)}&lt;/span&gt;
           &lt;/div&gt;
           &lt;div part="card-body"&gt;
             &lt;div part="status-row"&gt;
@@ -884,9 +891,6 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
 
   HArvest._renderers[_rendererKey] = {
     "vacuum": VacuumCard,
-    _capabilities: {
-      vacuum: { features: ["start", "stop", "return_to_base", "fan_speed"] },
-    },
   };
 })();</code></pre>
 
@@ -930,9 +934,10 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
               <tr><td>Accessibility</td><td><code>renderAriaLiveHTML()</code> in template, <code>announceState()</code> called in <code>applyState()</code>, interactive elements have <code>aria-label</code>.</td></tr>
               <tr><td>Stale indicator</td><td><code>&lt;div part="stale-indicator"&gt;</code> included in template.</td></tr>
               <tr><td>Reduced motion</td><td>Animations are disabled when <code>prefers-reduced-motion: reduce</code> is set.</td></tr>
-              <tr><td>HTML escaping</td><td>User-provided strings (friendly name, state text) are escaped before insertion.</td></tr>
+              <tr><td>HTML escaping</td><td>User-provided strings inserted into HTML templates are escaped with <code>HArvest.esc(value)</code>. Values assigned through <code>textContent</code> do not need escaping.</td></tr>
               <tr><td>Slider focus guard</td><td>If you have sliders, <code>isFocused()</code> is checked in <code>applyState()</code> before updating values.</td></tr>
-              <tr><td>Renderer format</td><td>Renderer is wrapped in the IIFE format with proper <code>_rendererKey</code> resolution and <code>_capabilities</code> declaration.</td></tr>
+              <tr><td>Renderer format</td><td>Renderer is wrapped in the IIFE format with proper <code>_rendererKey</code> resolution.</td></tr>
+              <tr><td>Capability metadata</td><td>If the renderer changes which panel-defined display options it supports, those options are declared in the <code>capabilities</code> object in <code>theme.json</code>.</td></tr>
               <tr><td>Custom domain registered</td><td>Admin has registered the domain's services in Settings if the card sends commands.</td></tr>
               <tr><td>CSS custom properties</td><td>Colours, spacing, and typography use <code>--hrv-*</code> variables, not hardcoded values.</td></tr>
             </tbody>

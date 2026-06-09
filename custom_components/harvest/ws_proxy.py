@@ -740,6 +740,8 @@ class HarvestWsView(HomeAssistantView):
                 defn = build_entity_definition(self._hass, real_id, ea, companions=companion_refs)
             if defn is not None:
                 defn = dict(defn)
+                if token.entities_block:
+                    defn["gesture_config"] = {}
                 defn["type"] = "entity_definition"
                 defn["entity_id"] = outgoing_id
                 defn["capabilities"] = ea.capabilities if ea else "read"

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Panel Guide - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
@@ -190,19 +191,19 @@
 
         <p><strong>Badge settings:</strong> when Access is set to Badge, domain-specific controls, companions, and gestures are hidden. In their place, badge-specific settings appear: <strong>Show icon</strong>, <strong>Show name</strong>, and <strong>Show state</strong> toggles, plus an <strong>Icon color</strong> picker with color swatches (Auto, Red, Orange, Amber, Yellow, Green, Teal, Cyan, Blue, Indigo, Purple, Pink, Grey). Auto derives the color from the entity's domain.</p>
 
-        <p><strong>Domain-specific controls</strong> appear based on the entity's domain and what the active theme's renderer override supports. If the current theme has no renderer override, only universal settings are shown. These controls are hidden when Access is Badge.</p>
+        <p><strong>Domain-specific controls</strong> appear based on the entity's domain. By default, the panel shows all display options supported by the built-in renderer. A theme's optional capability metadata can filter these controls to show only the options its renderer override supports. These controls are hidden when Access is Badge or the widget uses entities block mode.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Domain</th><th>Available controls</th></tr></thead>
             <tbody>
-              <tr><td>light</td><td>Show brightness, Show color temperature, Show RGB color</td></tr>
-              <tr><td>fan</td><td>Animate fan icon, Display mode (Auto, On-Off, Continuous, Stepped, Cycle)</td></tr>
-              <tr><td>climate</td><td>Show HVAC modes, Show presets, Show fan mode, Show swing mode</td></tr>
-              <tr><td>cover</td><td>Show position slider, Show tilt control</td></tr>
-              <tr><td>media_player</td><td>Show transport controls, Show volume, Show source selector</td></tr>
-              <tr><td>weather</td><td>Show forecast (disabled by default)</td></tr>
-              <tr><td>sensor, binary_sensor</td><td>Graph type (None, Line, Bar), Hours (1-168), Period (1-60 min)</td></tr>
-              <tr><td>input_number</td><td>Display mode (Slider, Buttons), Graph settings</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> light</td><td>Show brightness, Show color temperature, Show RGB color</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> fan</td><td>Animate fan icon, Display mode (Auto, On-Off, Continuous, Stepped, Cycle)</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-thermostat"></span> climate</td><td>Show HVAC modes, Show presets, Show fan mode, Show swing mode</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> cover</td><td>Show position slider, Show tilt control</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> media_player</td><td>Show transport controls, Show volume, Show source selector</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-weather-partly-cloudy"></span> weather</td><td>Show forecast (disabled by default)</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> sensor, <span class="mdi mdi-radiobox-marked"></span> binary_sensor</td><td>Graph type (None, Line, Bar), Hours (1-168), Period (1-60 min)</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-ray-vertex"></span> input_number</td><td>Display mode (Slider, Buttons), Graph settings</td></tr>
             </tbody>
           </table>
         </div>
@@ -226,6 +227,7 @@
 
         <h4>Entities block settings</h4>
         <p>When a widget is configured as an entities block, the entity list shows a virtual "Entities Block" header row at the top. Selecting it shows block-level settings that apply to the entire block:</p>
+        <p>Gestures are unavailable in entities block mode. Existing gesture settings remain stored but inactive, and become active again if entities block mode is disabled. The API rejects attempts to add or change gestures while entities block mode is enabled.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
@@ -335,16 +337,16 @@
         </div>
 
         <h3>Theme picker strip</h3>
-        <p>The theme card at the top of the Entities tab's right panel shows a horizontal scrollable strip of theme thumbnails. Bundled themes are marked with a <span class="badge badge-grey">System</span> badge. Themes that include a renderer override are marked with a <span class="badge badge-amber">☆</span> badge. A text filter below the strip narrows results by theme name or ID.</p>
+        <p>The theme card at the top of the Entities tab's right panel shows a horizontal scrollable strip of theme thumbnails. Bundled themes are marked with a <span class="badge badge-grey">System</span> badge. Three indicators can appear overlaid on a theme thumbnail: a <span class="badge badge-amber">★</span> badge when the theme includes a renderer override (shown as <span class="badge badge-amber">⚠</span> if the renderer JS file is missing), and an <span class="badge badge-grey">F</span> badge when the theme bundles a custom font (hovering shows the font family names). A text filter below the strip narrows results by theme name or ID.</p>
 
         <h3>Renderer overrides</h3>
         <p>Some themes include a renderer override, which replaces the default card renderers with custom designs. When a theme with a renderer is active, the domain-specific controls in the entity settings card are filtered to show only options the renderer supports. Switching between themes preserves your display settings; options the new theme does not support are hidden but kept in storage.</p>
 
         <h3>Custom themes</h3>
-        <p>Custom themes are created and managed in the Themes tab. The theme JSON editor lets you modify CSS variables, preview changes in real time, and export themes as JSON files. See the <a href="theming.html">Theming page</a> for the full theme JSON format and variable reference.</p>
+        <p>Custom themes are created and managed in the Themes tab. The theme JSON editor lets you modify CSS variables and preview changes in real time. Themes are exported as <code>.zip</code> files. See the <a href="theming.html">Theming page</a> for the full theme JSON format and variable reference.</p>
 
         <h3>Sharing themes</h3>
-        <p>Any theme can be exported as a JSON file. Custom themes can be imported on any HArvest instance. This is how third-party themes are distributed: the theme author exports their JSON file and shares it, and other users import it.</p>
+        <p>Any theme can be exported as a <code>.zip</code> file. Custom themes can be imported on any HArvest instance. This is how third-party themes are distributed: the theme author exports the zip and shares it, and other users import it via the Themes tab.</p>
 
         <h2 id="settings">Settings</h2>
 
@@ -394,11 +396,11 @@
           <table>
             <thead><tr><th>Domain</th><th>Default</th><th>Risk if enabled</th></tr></thead>
             <tbody>
-              <tr><td><code>lock</code></td><td>Disabled</td><td>Physical lock/unlock control</td></tr>
-              <tr><td><code>cover</code></td><td>Disabled</td><td>Garage doors, gates, motorized blinds</td></tr>
-              <tr><td><code>script</code></td><td>Disabled</td><td>Arbitrary HA script execution</td></tr>
-              <tr><td><code>automation</code></td><td>Disabled</td><td>Trigger, enable, or disable HA automations</td></tr>
-              <tr><td><code>button</code>, <code>input_button</code></td><td>Disabled</td><td>One-shot press actions, controlled together by the Button setting</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> <code>lock</code></td><td>Disabled</td><td>Physical lock/unlock control</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> <code>cover</code></td><td>Disabled</td><td>Garage doors, gates, motorized blinds</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-script-text"></span> <code>script</code></td><td>Disabled</td><td>Arbitrary HA script execution</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-robot"></span> <code>automation</code></td><td>Disabled</td><td>Trigger, enable, or disable HA automations</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>button</code>, <code>input_button</code></td><td>Disabled</td><td>One-shot press actions, controlled together by the Button setting</td></tr>
             </tbody>
           </table>
         </div>

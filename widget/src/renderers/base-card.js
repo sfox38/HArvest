@@ -85,7 +85,7 @@ const _BINARY_SENSOR_DC_LABELS = {
 // ---------------------------------------------------------------------------
 // Shared CSS custom property defaults
 // These values are overridden by the theme system (ThemeLoader.apply()) when
-// a theme-url or inline theme is configured. They serve as safe fallbacks
+// the server pushes a token theme. They serve as safe fallbacks
 // when no theme is applied, targeting a clean neutral appearance.
 // ---------------------------------------------------------------------------
 
@@ -953,10 +953,13 @@ export class BaseCard {
   _attachGestureHandlers(element, callbacks = {}, actionConfig = null) {
     if (!element) return;
     const cfg = actionConfig !== null ? actionConfig : this.config;
+    const gestureConfig = this.config.layout === "row"
+      ? {}
+      : (cfg.gestureConfig ?? {});
 
-    const onTap       = callbacks.onTap       ?? (() => { const t = cfg.gestureConfig?.tap;        if (t) this._runAction(t); });
-    const onHold      = callbacks.onHold      ?? (() => { const h = cfg.gestureConfig?.hold;       if (h) this._runAction(h); });
-    const onDoubleTap = callbacks.onDoubleTap ?? (() => { const d = cfg.gestureConfig?.double_tap; if (d) this._runAction(d); });
+    const onTap       = callbacks.onTap       ?? (() => { const t = gestureConfig.tap;        if (t) this._runAction(t); });
+    const onHold      = callbacks.onHold      ?? (() => { const h = gestureConfig.hold;       if (h) this._runAction(h); });
+    const onDoubleTap = callbacks.onDoubleTap ?? (() => { const d = gestureConfig.double_tap; if (d) this._runAction(d); });
 
     let holdTimer = null;
     let tapTimer  = null;
@@ -969,9 +972,9 @@ export class BaseCard {
     };
 
     const hasGesture = Object.keys(callbacks).length > 0 ||
-      !!cfg.gestureConfig?.tap ||
-      !!cfg.gestureConfig?.hold ||
-      !!cfg.gestureConfig?.double_tap;
+      !!gestureConfig.tap ||
+      !!gestureConfig.hold ||
+      !!gestureConfig.double_tap;
     if (hasGesture && !element.matches(interactiveSelector)) {
       if (!element.hasAttribute("tabindex")) element.tabIndex = 0;
       if (!element.hasAttribute("role")) element.setAttribute("role", "button");
@@ -1014,12 +1017,12 @@ export class BaseCard {
       element.removeAttribute("data-gesture-hold");
 
       const now = Date.now();
-      if (cfg.gestureConfig?.double_tap && (now - lastTapAt) < DOUBLE_TAP_MS) {
+      if (gestureConfig.double_tap && (now - lastTapAt) < DOUBLE_TAP_MS) {
         clearTimeout(tapTimer);
         tapTimer  = null;
         lastTapAt = 0;
         onDoubleTap();
-      } else if (cfg.gestureConfig?.double_tap) {
+      } else if (gestureConfig.double_tap) {
         lastTapAt = now;
         tapTimer  = setTimeout(() => { tapTimer = null; onTap(); }, DOUBLE_TAP_MS);
       } else {
@@ -1031,7 +1034,7 @@ export class BaseCard {
     element.addEventListener("pointerleave",  cancel);
     element.addEventListener("pointercancel", cancel);
     element.addEventListener("contextmenu", (e) => {
-      if (cfg.gestureConfig?.hold) e.preventDefault();
+      if (gestureConfig.hold) e.preventDefault();
     });
     element.addEventListener("keydown", (e) => {
       if (isNestedInteractive(e.target)) return;

@@ -2283,9 +2283,8 @@ button.entity-setting-group-title:focus-visible {
    never blocks save. */
 .hrv-url-indicator {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
-  margin-top: 4px;
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-secondary);
@@ -2659,34 +2658,30 @@ button.entity-setting-group-title:focus-visible {
   position: absolute;
   top: 3px;
   left: 5px;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   color: var(--paper);
-  filter: drop-shadow(0 0 1.5px rgba(15, 26, 20, 0.85)) drop-shadow(0 0 1px rgba(15, 26, 20, 0.85));
-  pointer-events: none;
+  -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.8);
+  paint-order: stroke fill;
   user-select: none;
+  pointer-events: none;
 }
 .theme-renderer-star.renderer-missing {
   color: var(--warn);
-  font-size: 15px;
-  background: rgba(0, 0, 0, 0.75);
-  border-radius: 4px;
-  padding: 2px 5px;
-  line-height: 1.2;
-  filter: none;
 }
 .theme-font-badge {
   position: absolute;
-  top: 3px;
-  right: 5px;
-  font-size: 11px;
+  top: 5px;
+  right: 8px;
+  font-size: 12px;
   font-weight: 700;
   font-style: italic;
   line-height: 1;
   color: var(--paper);
-  filter: drop-shadow(0 0 1.5px rgba(15, 26, 20, 0.85)) drop-shadow(0 0 1px rgba(15, 26, 20, 0.85));
-  pointer-events: none;
+  -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.8);
+  paint-order: stroke fill;
   user-select: none;
+  cursor: default;
 }
 
 .theme-strip-meta {

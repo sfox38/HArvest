@@ -352,9 +352,11 @@ export class HrvCard extends HTMLElement {
    *
    * @param {string} state
    * @param {object} attributes
-   * @param {string} _lastUpdated - ISO 8601 timestamp (used by client for ordering)
+   * @param {string} lastUpdated - ISO 8601 timestamp (used by client for ordering)
    */
-  receiveStateUpdate(state, attributes, _lastUpdated) {
+  receiveStateUpdate(state, attributes, lastUpdated) {
+    const previousState = this.#lastState;
+    const previousAttributes = this.#lastAttributes;
     this.#lastState = state;
     this.#lastAttributes = attributes;
     // Cancel any pending optimistic revert.
@@ -392,6 +394,20 @@ export class HrvCard extends HTMLElement {
     if (this.#currentState !== "live") {
       this.setErrorState("live");
     }
+
+    const entityRef = this.#entityId || this.#alias;
+    this.dispatchEvent(new CustomEvent("hrv-state-change", {
+      bubbles: true,
+      composed: true,
+      detail: {
+        entityId: entityRef,
+        state,
+        attributes,
+        previousState,
+        previousAttributes,
+        lastUpdated,
+      },
+    }));
   }
 
   /**
@@ -841,8 +857,6 @@ export class HrvCard extends HTMLElement {
       entityRef:    entityAttr || aliasAttr || "",
       layout:       layoutAttr,
       lang:         "auto",
-      themeUrl:     null,
-      theme:        null,
       onOffline:    "last-state",
       onError:      "message",
       offlineText:  "",

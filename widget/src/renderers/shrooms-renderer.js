@@ -4596,15 +4596,5 @@
     "event":                EventCard,
     "number":               InputNumberCard,
     "badge":                null,
-    _capabilities: {
-      fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
-      input_number: { display_modes: ["slider", "buttons"] },
-      input_select: { display_modes: ["pills", "dropdown"] },
-      select:       { display_modes: ["pills", "dropdown"] },
-      light:        { features: ["brightness", "color_temp", "rgb"] },
-      climate:      { features: ["hvac_modes", "presets", "fan_mode", "swing_mode"] },
-      cover:        { features: ["position", "tilt"] },
-      media_player: { features: ["transport", "volume", "source"] },
-    },
   };
 })();

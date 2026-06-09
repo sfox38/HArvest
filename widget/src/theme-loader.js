@@ -1,8 +1,5 @@
 /**
- * theme-loader.js - Theme JSON fetch, in-memory cache, and CSS variable injection.
- *
- * Theme objects are fetched once per URL and cached for the lifetime of the
- * page session. Multiple cards sharing the same theme-url share one fetch.
+ * theme-loader.js - Theme CSS variable injection.
  *
  * Theme JSON format (theming.md):
  * {
@@ -28,20 +25,6 @@
  */
 
 /**
- * In-memory cache: theme URL -> ThemeObject (or null on fetch failure).
- * Null entries are cached so a bad URL is not retried on every card mount.
- * @type {Map<string, object|null>}
- */
-const _cache = new Map();
-
-/**
- * In-flight fetches: URL -> Promise<object|null>.
- * Prevents duplicate concurrent requests for the same URL.
- * @type {Map<string, Promise<object|null>>}
- */
-const _inflight = new Map();
-
-/**
  * Shared dark-mode listener. All themed cards register a callback here
  * instead of each attaching its own matchMedia listener.
  * @type {Set<() => void>}
@@ -54,61 +37,6 @@ let _darkMq = null;
 // ---------------------------------------------------------------------------
 
 export class ThemeLoader {
-
-  /**
-   * Resolve a theme for the given card config. Returns:
-   *   - The inline theme object if config.theme is set (no fetch needed).
-   *   - A fetched ThemeObject if config.themeUrl is set.
-   *   - null if neither is set or the fetch fails.
-   *
-   * @param {{ theme?: object, themeUrl?: string }} config
-   * @returns {Promise<object|null>}
-   */
-  static async resolve(config) {
-    if (config.theme) return config.theme;
-    if (config.themeUrl) return this.fetch(config.themeUrl);
-    return null;
-  }
-
-  /**
-   * Fetch a theme JSON from the given URL. Results are cached in memory.
-   * Concurrent requests for the same URL share one in-flight Promise.
-   * Null is cached on failure so the URL is not retried every card mount.
-   *
-   * @param {string} url
-   * @returns {Promise<object|null>}
-   */
-  static async fetch(url) {
-    // Cache hit.
-    if (_cache.has(url)) return _cache.get(url);
-
-    // In-flight dedup.
-    if (_inflight.has(url)) return _inflight.get(url);
-
-    const promise = (async () => {
-      try {
-        const res = await globalThis.fetch(url);
-        if (!res.ok) {
-          console.warn(`[HArvest] Theme fetch failed (${res.status}):`, url);
-          _cache.set(url, null);
-          return null;
-        }
-        const json = await res.json();
-        json._sourceUrl = url;
-        _cache.set(url, json);
-        return json;
-      } catch (err) {
-        console.warn("[HArvest] Failed to load theme from", url, err);
-        _cache.set(url, null);
-        return null;
-      } finally {
-        _inflight.delete(url);
-      }
-    })();
-
-    _inflight.set(url, promise);
-    return promise;
-  }
 
   /**
    * Apply a theme object to a shadow root by setting CSS custom properties on
@@ -238,11 +166,9 @@ export class ThemeLoader {
   }
 
   /**
-   * Clear the in-memory URL cache. Intended for testing only.
+   * Reset shared dark-mode state. Intended for testing only.
    */
   static _clearCache() {
-    _cache.clear();
-    _inflight.clear();
     _darkCallbacks.clear();
     _darkMq = null;
   }

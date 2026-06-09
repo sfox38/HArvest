@@ -111,8 +111,6 @@ function mountGroup(el) {
   if (el.dataset.token)       group.setAttribute("token",        el.dataset.token);
   if (el.dataset.haUrl)       group.setAttribute("ha-url",       el.dataset.haUrl);
   if (el.dataset.tokenSecret) group.setAttribute("token-secret", el.dataset.tokenSecret);
-  if (el.dataset.themeUrl)    group.setAttribute("theme-url",    el.dataset.themeUrl);
-  if (el.dataset.lang)        group.setAttribute("lang",         el.dataset.lang);
 
   // Move existing children into the group element.
   while (el.firstChild) group.appendChild(el.firstChild);

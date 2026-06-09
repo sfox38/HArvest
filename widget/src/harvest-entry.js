@@ -80,8 +80,6 @@ function create(cardConfig) {
   if (haUrl)             card.setAttribute("ha-url",   haUrl);
   if (cardConfig.entity) card.setAttribute("entity",   cardConfig.entity);
   if (cardConfig.alias)  card.setAttribute("alias",    cardConfig.alias);
-  if (cardConfig.lang)   card.setAttribute("lang",     cardConfig.lang);
-  if (cardConfig.themeUrl) card.setAttribute("theme-url", cardConfig.themeUrl);
 
   if (cardConfig.targetId) {
     const target = document.getElementById(cardConfig.targetId);
@@ -192,6 +190,7 @@ window.HArvest = {
     RemoteCard:           Renderers.RemoteCard,
     TemperatureSensorCard:Renderers.TemperatureSensorCard,
     HumiditySensorCard:   Renderers.HumiditySensorCard,
+    BatterySensorCard:    Renderers.BatterySensorCard,
     GenericSensorCard:    Renderers.GenericSensorCard,
     BinarySensorCard:     Renderers.BinarySensorCard,
     InputBooleanCard:     Renderers.InputBooleanCard,
@@ -199,7 +198,13 @@ window.HArvest = {
     InputSelectCard:      Renderers.InputSelectCard,
     TimerCard:            Renderers.TimerCard,
     WeatherCard:          Renderers.WeatherCard,
+    LockCard:             Renderers.LockCard,
+    PersonCard:           Renderers.PersonCard,
+    ButtonCard:           Renderers.ButtonCard,
+    ScriptCard:           Renderers.ScriptCard,
+    AutomationCard:       Renderers.AutomationCard,
     GenericCard:          Renderers.GenericCard,
+    BadgeCard:            Renderers.BadgeCard,
   },
   track: {
     anyState,

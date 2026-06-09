@@ -57,9 +57,9 @@ interface EntitiesEditorProps {
   setSavedMsg?: (msg: string) => void;
 }
 
-const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor"]);
+const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor", "lock"]);
 const ENTITIES_BLOCK_DOMAINS = new Set(["light", "switch", "fan", "input_boolean", "binary_sensor", "lock", "cover", "sensor"]);
-const HISTORY_DOMAINS = new Set(["sensor", "input_number", "binary_sensor"]);
+const HISTORY_DOMAINS = new Set(["sensor", "input_number", "number", "binary_sensor"]);
 const NUMERIC_STATE_DOMAINS = new Set(["sensor", "input_number", "counter", "number"]);
 const HOURS_OPTIONS = [1, 6, 12, 24, 48, 72, 168];
 

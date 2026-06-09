@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Theming - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
@@ -387,22 +388,22 @@ nunito.woff2</code></pre>
           <table>
             <thead><tr><th>Renderer</th><th>Part names</th></tr></thead>
             <tbody>
-              <tr><td>Light</td><td><code>toggle-button</code>, <code>brightness-slider</code>, <code>brightness-value</code>, <code>color-slider</code>, <code>color-temp-slider</code>, <code>color-temp-value</code></td></tr>
-              <tr><td>Switch and input boolean</td><td><code>toggle-button</code></td></tr>
-              <tr><td>Fan</td><td><code>toggle-button</code>, <code>speed-slider</code>, <code>speed-value</code>, <code>cycle-button</code>, <code>preset-button</code>, <code>oscillate-button</code>, <code>direction-select</code></td></tr>
-              <tr><td>Cover</td><td><code>cover-controls</code>, <code>open-button</code>, <code>close-button</code>, <code>stop-button</code>, <code>position-slider</code>, <code>position-value</code>, <code>tilt-slider</code>, <code>tilt-value</code></td></tr>
-              <tr><td>Climate</td><td><code>current-temp</code>, <code>mode-select</code>, <code>target-temp-input</code>, <code>target-temp-low-input</code>, <code>target-temp-high-input</code>, <code>fan-mode-label</code>, <code>fan-mode-select</code>, <code>preset-label</code>, <code>preset-select</code>, <code>swing-label</code>, <code>swing-select</code></td></tr>
-              <tr><td>Media player</td><td><code>media-title</code>, <code>media-artist</code>, <code>play-button</code>, <code>prev-button</code>, <code>next-button</code>, <code>volume-slider</code>, <code>mute-button</code>, <code>source-select</code></td></tr>
-              <tr><td>Input number</td><td><code>value-slider</code>, <code>value-input</code></td></tr>
-              <tr><td>Input select and select</td><td><code>option-grid</code>, <code>option-pill</code>, <code>option-trigger</code>, <code>option-trigger-label</code>, <code>option-trigger-arrow</code>, <code>option-menu</code>, <code>option-menu-item</code></td></tr>
-              <tr><td>Remote</td><td><code>power-toggle</code>, <code>activity-select</code>, <code>current-activity</code></td></tr>
-              <tr><td>Timer</td><td><code>timer-display</code>, <code>playpause-button</code>, <code>cancel-button</code>, <code>finish-button</code></td></tr>
-              <tr><td>Sensor</td><td><code>sensor-value</code>, <code>sensor-unit</code></td></tr>
-              <tr><td>Battery sensor</td><td><code>battery-icon-wrap</code>, <code>sensor-value</code>, <code>sensor-unit</code></td></tr>
-              <tr><td>Lock</td><td><code>lock-button</code></td></tr>
-              <tr><td>Button and input button</td><td><code>press-button</code></td></tr>
-              <tr><td>Script</td><td><code>run-button</code></td></tr>
-              <tr><td>Automation</td><td><code>trigger-button</code>, <code>enable-toggle</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> Light</td><td><code>toggle-button</code>, <code>brightness-slider</code>, <code>brightness-value</code>, <code>color-slider</code>, <code>color-temp-slider</code>, <code>color-temp-value</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch"></span> Switch and input boolean</td><td><code>toggle-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> Fan</td><td><code>toggle-button</code>, <code>speed-slider</code>, <code>speed-value</code>, <code>cycle-button</code>, <code>preset-button</code>, <code>oscillate-button</code>, <code>direction-select</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> Cover</td><td><code>cover-controls</code>, <code>open-button</code>, <code>close-button</code>, <code>stop-button</code>, <code>position-slider</code>, <code>position-value</code>, <code>tilt-slider</code>, <code>tilt-value</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-thermostat"></span> Climate</td><td><code>current-temp</code>, <code>mode-select</code>, <code>target-temp-input</code>, <code>target-temp-low-input</code>, <code>target-temp-high-input</code>, <code>fan-mode-label</code>, <code>fan-mode-select</code>, <code>preset-label</code>, <code>preset-select</code>, <code>swing-label</code>, <code>swing-select</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> Media player</td><td><code>media-title</code>, <code>media-artist</code>, <code>play-button</code>, <code>prev-button</code>, <code>next-button</code>, <code>volume-slider</code>, <code>mute-button</code>, <code>source-select</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-ray-vertex"></span> Input number</td><td><code>value-slider</code>, <code>value-input</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-form-select"></span> Input select and select</td><td><code>option-grid</code>, <code>option-pill</code>, <code>option-trigger</code>, <code>option-trigger-label</code>, <code>option-trigger-arrow</code>, <code>option-menu</code>, <code>option-menu-item</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> Remote</td><td><code>power-toggle</code>, <code>activity-select</code>, <code>current-activity</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-timer-outline"></span> Timer</td><td><code>timer-display</code>, <code>playpause-button</code>, <code>cancel-button</code>, <code>finish-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> Sensor</td><td><code>sensor-value</code>, <code>sensor-unit</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-battery"></span> Battery sensor</td><td><code>battery-icon-wrap</code>, <code>sensor-value</code>, <code>sensor-unit</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> Lock</td><td><code>lock-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> Button and input button</td><td><code>press-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-script-text"></span> Script</td><td><code>run-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-robot"></span> Automation</td><td><code>trigger-button</code>, <code>enable-toggle</code></td></tr>
             </tbody>
           </table>
         </div>
@@ -581,7 +582,7 @@ HArvest.registerRenderer("light", MyLightCard);</code></pre>
         }
       &lt;/style&gt;
       &lt;div part="card"&gt;
-        &lt;div part="card-name" class="name"&gt;${this.def.friendly_name}&lt;/div&gt;
+        &lt;div part="card-name" class="name"&gt;${HArvest.esc(this.def.friendly_name)}&lt;/div&gt;
         &lt;button part="toggle-button" type="button"&gt;Toggle&lt;/button&gt;
       &lt;/div&gt;
     `;
@@ -616,6 +617,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
             <thead><tr><th>Method / Property</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td><code>this.config.card?.sendCommand(action, data)</code></td><td>Send a service call to HA via the WebSocket. Data is merged with entity_id automatically.</td></tr>
+              <tr><td><code>HArvest.esc(value)</code></td><td>Escape user-provided text before inserting it into an HTML template. It is not needed when assigning through <code>textContent</code>.</td></tr>
               <tr><td><code>this.renderIcon(mdiIconPath, partName)</code></td><td>Render an MDI SVG icon path into a <code>[part=partName]</code> element.</td></tr>
               <tr><td><code>this.renderCompanionZoneHTML()</code></td><td>Returns HTML string for the companion entity zone container.</td></tr>
               <tr><td><code>this.renderCompanions()</code></td><td>Populates the companion zone after <code>render()</code> has run.</td></tr>

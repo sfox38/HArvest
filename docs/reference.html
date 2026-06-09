@@ -115,10 +115,12 @@
             <tbody>
               <tr><td><code>HArvest.config(options)</code></td><td>Set page-level defaults. Merges on repeated calls. See <a href="#pageconfig-options">PageConfig options</a>.</td></tr>
               <tr><td><code>HArvest.create(config)</code></td><td>Programmatically create and mount an HrvCard. Returns the element.</td></tr>
-              <tr><td><code>HArvest.getCard(entityId)</code></td><td>Get the HrvCard instance for an entity ID, or null.</td></tr>
+              <tr><td><code>HArvest.getCard(entityId)</code></td><td>Get the most recently registered HrvCard for an entity ID or alias on the page-level client, or null.</td></tr>
               <tr><td><code>HArvest.registerRenderer(key, Class)</code></td><td>Register a custom renderer for a domain or domain.device_class. Last write wins.</td></tr>
               <tr><td><code>HArvest.renderers</code></td><td>Object containing all built-in renderer classes for extension.</td></tr>
-              <tr><td><code>HArvest.track.anyState(callback)</code></td><td>Register a callback for all entity state changes on the page.</td></tr>
+              <tr><td><code>HArvest.esc(value)</code></td><td>Escape a value for safe insertion into an HTML string. Use this for user-provided text such as entity friendly names inside renderer templates.</td></tr>
+              <tr><td><code>HArvest.track.anyState(callback)</code></td><td>Register a callback for every state update on the page-level client configured by <code>HArvest.config()</code>.</td></tr>
+              <tr><td><code>hrv-state-change</code> event</td><td>Bubbling event dispatched by an <code>&lt;hrv-card&gt;</code> after each confirmed state update. Detail contains current and previous state and attributes.</td></tr>
               <tr><td><code>HArvest._renderers</code> <span class="badge badge-grey">internal</span></td><td>Renderer override namespace. Used by renderer override authors to register alternative card renderers. Not part of the public API; may change between versions.</td></tr>
             </tbody>
           </table>

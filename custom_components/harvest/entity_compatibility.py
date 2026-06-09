@@ -86,6 +86,8 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
 COMPANION_ALLOWED_DOMAINS: frozenset[str] = frozenset({
     "light", "switch", "binary_sensor",
     "input_boolean", "cover", "remote", "fan", "sensor", "lock",
+    "button", "input_button", "number", "input_number",
+    "person", "timer", "weather",
 })
 
 # Tier 1 domains that are disabled by default. Admins must explicitly enable

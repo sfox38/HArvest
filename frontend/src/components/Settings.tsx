@@ -322,7 +322,7 @@ function WidgetScriptSourceField({ value, overrideHost, externalPort, onScriptUr
         <div className="col" style={{ gap: 10 }}>
           {/* Active URL + reachability */}
           {activeUrl && (
-            <div className="col" style={{ gap: 2 }}>
+            <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <div className="mono fs-12" style={{ overflowWrap: "anywhere", color: "var(--text-secondary)" }}>{activeUrl}</div>
               <UrlReachabilityIndicator url={reachUrl} triggerKey={reachTrigger} />
             </div>

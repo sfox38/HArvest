@@ -415,6 +415,23 @@ def _parse_entities(
     return entities
 
 
+def _introduces_or_changes_gestures(
+    existing: list[EntityAccess],
+    proposed: list[EntityAccess],
+) -> bool:
+    """Return whether proposed entities add or change a non-empty gesture config.
+
+    Existing gesture configs may pass through unchanged while an entities-block
+    token is edited, and clearing a stored gesture config is allowed.
+    """
+    existing_gestures = {ea.entity_id: ea.gesture_config for ea in existing}
+    return any(
+        ea.gesture_config
+        and ea.gesture_config != existing_gestures.get(ea.entity_id, {})
+        for ea in proposed
+    )
+
+
 _LABEL_ILLEGAL = re.compile(r"[\x00-\x1f<>\"&]")
 
 
@@ -680,6 +697,8 @@ class HarvestTokensView(_HarvestView):
             entities_block = body.get("entities_block", False)
             if not isinstance(entities_block, bool):
                 raise ValueError("entities_block must be a boolean.")
+            if entities_block and any(ea.gesture_config for ea in entities):
+                raise ValueError("Gestures cannot be configured in entities block mode.")
         except (KeyError, TypeError, ValueError) as exc:
             raise web.HTTPBadRequest(reason=f"Invalid request body: {exc}")
 
@@ -879,6 +898,8 @@ class HarvestTokenDetailView(_HarvestView):
                 if defn is None:
                     continue
                 defn = dict(defn)
+                if token.entities_block:
+                    defn["gesture_config"] = {}
                 defn["type"] = "entity_definition"
                 defn["entity_id"] = out_id
                 defn["capabilities"] = ea.capabilities
@@ -1167,6 +1188,16 @@ class HarvestTokenDetailView(_HarvestView):
                     reason='token_secret must be "generate" or null.'
                 )
 
+        effective_entities_block = updates.get("entities_block", token.entities_block)
+        if (
+            effective_entities_block
+            and "entities" in updates
+            and _introduces_or_changes_gestures(token.entities, updates["entities"])
+        ):
+            raise web.HTTPBadRequest(
+                reason="Gestures cannot be configured in entities block mode."
+            )
+
         old_ea_map = {ea.entity_id: ea for ea in token.entities} if "entities" in updates else {}
 
         try:
@@ -1202,6 +1233,8 @@ class HarvestTokenDetailView(_HarvestView):
                     if old_ea.companion_of:
                         changed.add(old_ea.companion_of)
             await self._push_entity_definitions_to_sessions(token_id, changed or None)
+        elif "entities_block" in updates:
+            await self._push_entity_definitions_to_sessions(token_id)
 
         if "theme_url" in updates:
             await self._push_theme_to_sessions(token_id)

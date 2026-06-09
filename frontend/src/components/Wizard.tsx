@@ -75,7 +75,7 @@ interface WizardProps {
 
 const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Design", "Origin", "Expiry", "Done"];
-const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor"]);
+const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor", "lock"]);
 
 const DOMAIN_ICON: Record<string, string> = {
   light: "lightbulb", switch: "power", input_boolean: "power",
