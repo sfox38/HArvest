@@ -4592,7 +4592,10 @@
     "button":               ButtonCard,
     "input_button":         ButtonCard,
     "person":               PersonCard,
+    "device_tracker":       PersonCard,
     "event":                EventCard,
+    "number":               InputNumberCard,
+    "badge":                null,
     _capabilities: {
       fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
       input_number: { display_modes: ["slider", "buttons"] },

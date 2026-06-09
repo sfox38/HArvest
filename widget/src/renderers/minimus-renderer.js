@@ -5594,12 +5594,6 @@
     }
   }
 
-  // Note: badge rendering is provided by the built-in widget BadgeCard (see
-  // widget/src/renderers/badge-card.js). This pack does not register a "badge"
-  // entry; the renderer-lookup chain in hrv-card.js falls through to the
-  // built-in. Remove this comment and add a `class BadgeCard` + a "badge"
-  // registration entry below if/when minimus wants visually-distinct badges.
-
   // ---------------------------------------------------------------------------
   // Register all renderers into the renderer-scoped registry
   // ---------------------------------------------------------------------------
@@ -5607,31 +5601,35 @@
   HArvest._renderers = HArvest._renderers || {};
   const _rendererKey = (document.currentScript && document.currentScript.dataset.rendererId) || "minimus";
   HArvest._renderers[_rendererKey] = {
-    "light":          DialLightCard,
-    "fan":            FanCard,
-    "lock":           LockCard,
-    "script":         ScriptCard,
-    "automation":     AutomationCard,
-    "button":         ButtonCard,
-    "input_button":   ButtonCard,
-    "climate":        ClimateCard,
-    "binary_sensor":  BinarySensorCard,
-    "cover":          CoverCard,
-    "input_boolean":  SwitchCard,
-    "input_number":   InputNumberCard,
-    "input_select":   InputSelectCard,
-    "select":         InputSelectCard,
-    "media_player":   MediaPlayerCard,
-    "remote":         RemoteCard,
+    "light":               DialLightCard,
+    "fan":                 FanCard,
+    "lock":                LockCard,
+    "script":              ScriptCard,
+    "automation":          AutomationCard,
+    "button":              ButtonCard,
+    "input_button":        ButtonCard,
+    "climate":             ClimateCard,
+    "binary_sensor":       BinarySensorCard,
+    "cover":               CoverCard,
+    "input_boolean":       SwitchCard,
+    "input_number":        InputNumberCard,
+    "number":              InputNumberCard,
+    "input_select":        InputSelectCard,
+    "select":              InputSelectCard,
+    "media_player":        MediaPlayerCard,
+    "remote":              RemoteCard,
     "sensor":              SensorCard,
     "sensor.temperature":  SensorCard,
     "sensor.humidity":     SensorCard,
     "sensor.battery":      SensorCard,
-    "switch":         SwitchCard,
-    "person":         PersonCard,
-    "timer":          TimerCard,
-    "weather":        WeatherCard,
-    "generic":        GenericCard,
+    "switch":              SwitchCard,
+    "person":              PersonCard,
+    "device_tracker":      PersonCard,
+    "event":               GenericCard,
+    "timer":               TimerCard,
+    "weather":             WeatherCard,
+    "generic":             GenericCard,
+    "badge":               null,
     _capabilities: {
       fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
       input_number: { display_modes: ["slider", "buttons"] },
