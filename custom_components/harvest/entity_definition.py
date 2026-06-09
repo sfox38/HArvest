@@ -511,7 +511,7 @@ def build_icon_state_map(
     per-state icons.
     """
     # User-customised icon from entity registry overrides everything.
-    user_icon: str | None = entry.icon if entry is not None else None
+    user_icon: str | None = (entry.icon or entry.original_icon) if entry is not None else None
     if user_icon:
         # Apply user icon to all known states for this domain plus a "*" fallback.
         known_states = list(_DOMAIN_ICON_DEFAULTS.get(domain, {}).keys())
