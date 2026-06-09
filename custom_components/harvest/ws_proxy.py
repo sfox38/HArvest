@@ -406,7 +406,6 @@ class HarvestWsView(HomeAssistantView):
         #     increment both, because a failed auth is a real signal at both
         #     levels.
         #
-        # This asymmetry is feature, not bug. Audit reviewers: see issue #51.
 
         # Per-IP auth rate limit check (single-IP brute-force protection).
         if not self._rate_limiter.check_auth_for_ip(source_ip):

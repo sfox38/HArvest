@@ -1,5 +1,5 @@
 /**
- * shrooms-pack.js - HArvest Shrooms renderer pack.
+ * shrooms-renderer.js - HArvest Shrooms renderer pack.
  *
  * Inspired by Mushroom Cards by Paul Bottein. Horizontal state-item layout,
  * circular colored icon shapes, pill-shaped sliders, collapsible controls.
@@ -1193,7 +1193,7 @@
     }
     get #isStepped() { return this.#percentageStep > 1; }
     get #speedSteps() {
-      // Exact step values - see lesson #46 in tools/THEME-PACK-CONVERTING.md.
+      // Exact step values preserve HA's range-mapping bucket boundaries.
       const step = this.#percentageStep;
       const steps = [];
       for (let i = 1; i * step <= 100.001; i++) {
@@ -1320,7 +1320,7 @@
 
       if (this.#slider) {
         this.#slider.addEventListener("input", () => {
-          // Number() not parseInt() - preserves fractional step (lesson #47).
+          // Number() not parseInt() - preserves fractional step values.
           const val = Number(this.#slider.value);
           this.#percentage = val;
           this.#slider.setAttribute("aria-valuetext", `${Math.round(val)}%`);
@@ -3286,7 +3286,7 @@
       const minW = Math.max(140, Math.round(r.width));
       this.#dropdown.style.left = `${Math.round(r.left)}px`;
       this.#dropdown.style.minWidth = `${minW}px`;
-      // Drop-up detection (lesson #34).
+      // Drop-up: position above trigger when there is more space above than below.
       if (spaceBelow < dropH + 8 && spaceAbove > spaceBelow) {
         this.#dropdown.style.top = `${Math.max(8, Math.round(r.top - dropH - 6))}px`;
       } else {

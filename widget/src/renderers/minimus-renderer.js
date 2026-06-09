@@ -1,5 +1,5 @@
 /**
- * minimus-pack.js - HArvest minimus renderer pack.
+ * minimus-renderer.js - HArvest minimus renderer pack.
  *
  * A collection of alternative renderers that override built-in widgets.
  * Loaded at runtime via script injection; references window.HArvest globals.
@@ -1257,7 +1257,7 @@
     get #isStepped()      { return this.#percentageStep > 1; }
     get #isCycleFan()     { return this.#isStepped && this.#presets.length > 0; }
     get #speedSteps() {
-      // Exact step values - see lesson #46 in tools/THEME-PACK-CONVERTING.md.
+      // Exact step values preserve HA's range-mapping bucket boundaries.
       const step = this.#percentageStep;
       const steps = [];
       for (let i = 1; i * step <= 100.001; i++) {
@@ -2165,9 +2165,8 @@
       const minW = Math.max(140, Math.round(r.width));
       this.#dropdown.style.left = `${Math.round(r.left)}px`;
       this.#dropdown.style.minWidth = `${minW}px`;
-      // Drop-up detection (lesson #34). The original minimus dropdown
-      // always opened above; preserve that as the default-when-tied so the
-      // visual feel is unchanged unless there's not enough space.
+      // Drop-up: default to opening above (matching original minimus behaviour);
+      // fall back to below only when there is more space below than above.
       if (spaceAbove >= dropH + 8 || spaceAbove > spaceBelow) {
         this.#dropdown.style.top = `${Math.max(8, Math.round(r.top - dropH - 6))}px`;
       } else {

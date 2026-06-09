@@ -201,7 +201,6 @@ export class FanCard extends BaseCard {
     // boundaries. A 6-speed fan has step = 100/6 = 16.6666... and HA's
     // valid percentages are exactly [16.6666..., 33.3333..., ...]. Sending
     // a rounded value like 16.6 or 17 makes HA snap to the wrong speed.
-    // See lesson #46 in tools/THEME-PACK-CONVERTING.md.
     const step = this.#percentageStep;
     const steps = [];
     for (let i = 1; i * step <= 100.001; i++) {
@@ -319,7 +318,7 @@ export class FanCard extends BaseCard {
     if (this.#speedSlider) {
       this.#speedSlider.addEventListener("input", (e) => {
         // Number() not parseInt() - preserves fractional step values
-        // (e.g. 16.6666... for a 6-speed fan). See lesson #47.
+        // (e.g. 16.6666... for a 6-speed fan).
         const val = Number(e.target.value);
         if (this.#speedValue) this.#speedValue.textContent = `${Math.round(val)}%`;
         this.#speedDebounce(val);
