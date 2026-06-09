@@ -686,6 +686,13 @@ class HarvestTokensView(_HarvestView):
         if label_err:
             raise web.HTTPBadRequest(reason=label_err)
 
+        theme_url = str(body.get("theme_url", ""))
+        renderer_pack = ""
+        if self._theme_manager:
+            theme_id = theme_url_to_id(theme_url)
+            theme_def = self._theme_manager.get(theme_id)
+            renderer_pack = theme_id if theme_def and theme_def.has_renderer else ""
+
         try:
             token = await self._token_manager.create(
                 label=raw_label.strip(),
@@ -701,7 +708,8 @@ class HarvestTokensView(_HarvestView):
                 allowed_ips=_parse_allowed_ips(body.get("allowed_ips", [])),
                 embed_mode=embed_mode,
                 entities_block=entities_block,
-                theme_url=str(body.get("theme_url", "")),
+                theme_url=theme_url,
+                renderer_pack=renderer_pack,
             )
         except ValueError as exc:
             raise web.HTTPBadRequest(reason=str(exc))
@@ -891,11 +899,12 @@ class HarvestTokenDetailView(_HarvestView):
                                 filtered["forecast_daily"] = fc["daily"]
                             if fc.get("hourly"):
                                 filtered["forecast_hourly"] = fc["hourly"]
+                    from .ws_proxy import _round_state
                     try:
                         await session.ws.send_json({
                             "type": "state_update",
                             "entity_id": out_id,
-                            "state": state.state,
+                            "state": _round_state(state.state, ea),
                             "attributes": filtered,
                             "last_updated": state.last_updated.isoformat(),
                             "initial": True,
@@ -916,10 +925,11 @@ class HarvestTokenDetailView(_HarvestView):
                 filtered = self._token_manager.filter_attributes(
                     comp_id, token, dict(state.attributes)
                 )
+                from .ws_proxy import _round_state
                 update: dict[str, Any] = {
                     "type": "state_update",
                     "entity_id": out_id,
-                    "state": state.state,
+                    "state": _round_state(state.state, ea),
                     "attributes": filtered,
                     "msg_id": None,
                 }
@@ -1082,6 +1092,17 @@ class HarvestTokenDetailView(_HarvestView):
             if bwb is not None and bwb not in ("inner", "outer", "none"):
                 raise web.HTTPBadRequest(reason="block_widget_border must be 'inner', 'outer', 'none', or null.")
             updates["block_widget_border"] = bwb
+        _VALID_BLOCK_MODES = {"override", "per_entity"}
+        if "block_access_mode" in body:
+            bam = body["block_access_mode"]
+            if bam not in _VALID_BLOCK_MODES:
+                raise web.HTTPBadRequest(reason="block_access_mode must be 'override' or 'per_entity'.")
+            updates["block_access_mode"] = bam
+        if "block_color_mode" in body:
+            bcm = body["block_color_mode"]
+            if bcm not in _VALID_BLOCK_MODES:
+                raise web.HTTPBadRequest(reason="block_color_mode must be 'override' or 'per_entity'.")
+            updates["block_color_mode"] = bcm
         if "theme_url" in body:
             new_theme_url = str(body["theme_url"] or "")
             updates["theme_url"] = new_theme_url
@@ -1301,7 +1322,7 @@ class HarvestTokenDuplicateView(_HarvestView):
         for field_name in (
             "block_label", "block_icon", "block_show_label",
             "block_highlight_rows", "block_show_icons", "block_widget_border",
-            "renderer_pack",
+            "block_access_mode", "block_color_mode", "renderer_pack",
             "lang", "a11y", "color_scheme", "custom_messages",
             "on_offline", "on_error", "offline_text", "error_text",
         ):
@@ -2912,9 +2933,10 @@ class HarvestEntityDefinitionView(_HarvestView):
         filtered_attrs = filter_attributes(dict(state.attributes))
         definition["capabilities"] = entity_access.capabilities
 
+        from .ws_proxy import _round_state
         return self.json({
             "definition": definition,
-            "state": state.state,
+            "state": _round_state(state.state, entity_access),
             "attributes": filtered_attrs,
         })
 

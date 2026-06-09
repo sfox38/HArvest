@@ -183,6 +183,7 @@
               <tr><td>Display name</td><td>text input</td><td>Overrides the entity's Home Assistant friendly name. Leave blank to use the HA name.</td></tr>
               <tr><td>Force color scheme</td><td>Auto, Light, Dark</td><td>Forces the widget card to render in that color scheme regardless of the visitor's system settings. Auto follows the page's color scheme.</td></tr>
               <tr><td>Access</td><td>Badge, Read only, Read + Control</td><td>Badge renders a compact pill indicator (icon, name, state) with no controls, companions, or gestures. Read only displays a full card without controls. Read + Control displays a full card that can send commands (e.g. toggle a light).</td></tr>
+              <tr><td>Decimal rounding</td><td>0-6, or None</td><td>Rounds the entity's numeric state to a fixed number of decimal places. Available for sensor, input_number, counter, and number entities. Set to 0 for integer values, or leave as None for the raw HA value. Rounding is applied server-side so all themes display the same precision.</td></tr>
             </tbody>
           </table>
         </div>
@@ -214,12 +215,31 @@
           <table>
             <thead><tr><th>Gesture</th><th>Available actions</th></tr></thead>
             <tbody>
-              <tr><td>Tap</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
-              <tr><td>Hold</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
-              <tr><td>Double tap</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
+              <tr><td>Tap</td><td>Default, Toggle, Perform action, None (disable)</td></tr>
+              <tr><td>Hold</td><td>Default, Toggle, Perform action, None (disable)</td></tr>
+              <tr><td>Double tap</td><td>Default, Toggle, Perform action, None (disable)</td></tr>
             </tbody>
           </table>
         </div>
+        <p>"Perform action" calls a Home Assistant service (e.g. <code>light.turn_on</code>) with optional service data in JSON format. The service must be in the entity domain's allowed service list.</p>
+
+        <h4>Entities block settings</h4>
+        <p>When a widget is configured as an entities block, the entity list shows a virtual "Entities Block" header row at the top. Selecting it shows block-level settings that apply to the entire block:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Display name</td><td>icon picker + text</td><td>Sets the block header label and icon. Leave empty for no header.</td></tr>
+              <tr><td>Access</td><td>View only, Control, Per entity</td><td>View only and Control override all entities to that level. Per entity allows each entity to have its own access setting (View only or Control, no Badge in block mode).</td></tr>
+              <tr><td>Always use</td><td>Auto, Light, Dark, Per entity</td><td>Sets the color scheme for the whole block. Per entity allows each entity to choose its own color scheme.</td></tr>
+              <tr><td>Display header</td><td>toggle</td><td>Show or hide the block header bar.</td></tr>
+              <tr><td>Highlight rows</td><td>toggle</td><td>Alternating row highlights for readability.</td></tr>
+              <tr><td>Show entity icons</td><td>toggle</td><td>Show or hide the icon on each entity row.</td></tr>
+              <tr><td>Widget border</td><td>Outer, None</td><td>Outer shows a border around the entire block container.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>When Access or Always use is set to "Per entity", selecting an individual entity in the list shows that entity's own Access or color scheme toggle. Each entity can also have its own decimal rounding setting for numeric domains.</p>
 
         <h3>Embed tab</h3>
         <p>Ready-to-paste embed snippets that update in real time as you change entity or alias settings. The snippet panel has two tabs (HTML and WordPress) and a toggle to switch between <code>entity=</code> and <code>alias=</code> format. The alias format is useful when you don't want entity IDs visible in your page source.</p>
@@ -294,7 +314,7 @@
           <li>Tier 3 entities (cameras, alarm panels, device trackers, scenes, updates) are excluded for security.</li>
           <li>Visual styling is not copied from Lovelace; cards use the selected HArvest theme instead.</li>
           <li>Bubble Card sub-buttons are auto-detected as companions, but other companion relationships are not. You can add companions manually after conversion.</li>
-          <li>Gestures and tap actions are not converted.</li>
+          <li>Gesture actions that HArvest supports (toggle, none, call-service / perform-action) are converted. Other Lovelace actions (more-info, navigate, url) have no HArvest equivalent and are skipped.</li>
           <li>Conditional card logic is dropped (the inner card is included unconditionally).</li>
         </ul>
 

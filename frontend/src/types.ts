@@ -91,6 +91,8 @@ export interface Token {
   block_highlight_rows: boolean;
   block_show_icons: boolean;
   block_widget_border: string | null;
+  block_access_mode: "override" | "per_entity";
+  block_color_mode: "override" | "per_entity";
   theme_url: string;
   renderer_pack: string;
   lang: string;

@@ -153,6 +153,7 @@ const SHARED_CSS_VARS = /* css */`
     position: relative;
     min-width: min(var(--hrv-card-min-width, 180px), 100%);
     overflow: hidden;
+    border-radius: var(--hrv-card-radius);
     box-sizing: border-box;
     contain: inline-size;
     content-visibility: auto;
@@ -295,6 +296,8 @@ const CARD_BASE_CSS = /* css */`
    * ------------------------------------------------------------------ */
   :host([layout=row]) {
     min-width: unset;
+    border-radius: 0;
+    overflow: visible;
   }
 
   :host([layout=row]) [part=card] {
@@ -305,6 +308,11 @@ const CARD_BASE_CSS = /* css */`
     display: flex;
     align-items: center;
     gap: 0;
+  }
+
+  /* When a row has an explicit color scheme set, show its own surface so the color is visible. */
+  :host([layout=row][data-color-scheme]) [part=card] {
+    background: var(--hrv-color-surface);
   }
 
   :host([layout=row]) [part=card-header] {

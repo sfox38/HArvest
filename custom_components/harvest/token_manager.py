@@ -154,6 +154,8 @@ class Token:
     block_highlight_rows: bool = False
     block_show_icons: bool = True
     block_widget_border: str | None = None     # "inner" | "outer" | None (outer default)
+    block_access_mode: str = "override"        # "override" | "per_entity"
+    block_color_mode: str = "override"         # "override" | "per_entity"
     theme_url: str = ""                    # bundled theme URL or custom theme URL; empty means default
     renderer_pack: str = ""                # "" = none; derived from theme_id when theme has a pack
     lang: str = "auto"                     # BCP 47 language tag or "auto"
@@ -288,6 +290,7 @@ class TokenManager:
         embed_mode: str = "single",
         entities_block: bool = False,
         theme_url: str = "",
+        renderer_pack: str = "",
     ) -> Token:
         """Create, persist, and return a new token.
 
@@ -336,6 +339,7 @@ class TokenManager:
             embed_mode=embed_mode,
             entities_block=entities_block,
             theme_url=theme_url,
+            renderer_pack=renderer_pack,
         )
         self._tokens[token.token_id] = token
         await self.save()
@@ -495,7 +499,8 @@ class TokenManager:
             "rate_limits", "session", "max_sessions", "allowed_ips",
             "active_schedule", "paused", "embed_mode", "entities_block",
             "block_label", "block_icon", "block_show_label", "block_highlight_rows",
-            "block_show_icons", "block_widget_border", "theme_url",
+            "block_show_icons", "block_widget_border",
+            "block_access_mode", "block_color_mode", "theme_url",
             "renderer_pack", "lang", "a11y", "color_scheme", "custom_messages",
             "on_offline", "on_error", "offline_text", "error_text",
         }
@@ -943,6 +948,8 @@ class TokenManager:
             block_highlight_rows=d.get("block_highlight_rows", False),
             block_show_icons=d.get("block_show_icons", True),
             block_widget_border=d.get("block_widget_border"),
+            block_access_mode=d.get("block_access_mode", "override"),
+            block_color_mode=d.get("block_color_mode", "override"),
             theme_url=d.get("theme_url", ""),
             renderer_pack=d.get("renderer_pack", ""),
             lang=d.get("lang", "auto"),

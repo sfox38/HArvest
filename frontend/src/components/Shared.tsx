@@ -1104,13 +1104,38 @@ interface ThemeStripProps {
 
 export function ThemeStrip({ themes, selectedId, onSelect, thumbRefreshKey, renderMeta, ariaLabel }: ThemeStripProps) {
   const thumbUrls = useThemeThumbs(themes, thumbRefreshKey);
-  const stripRef = useDragScroll<HTMLDivElement>();
+  const dragRef = useDragScroll<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !selectedId) return;
+    const selected = el.querySelector(".theme-strip-item.selected") as HTMLElement | null;
+    if (selected) {
+      // Scroll only within the strip (horizontal). Avoid scrollIntoView which
+      // also scrolls vertical ancestors and jumps the page.
+      const itemLeft = selected.offsetLeft;
+      const itemRight = itemLeft + selected.offsetWidth;
+      const visLeft = el.scrollLeft;
+      const visRight = visLeft + el.clientWidth;
+      if (itemLeft < visLeft) {
+        el.scrollLeft = itemLeft;
+      } else if (itemRight > visRight) {
+        el.scrollLeft = itemRight - el.clientWidth;
+      }
+    }
+  }, [selectedId, themes.length]);
+
+  const setRefs = useCallback((el: HTMLDivElement | null) => {
+    containerRef.current = el;
+    dragRef(el);
+  }, [dragRef]);
 
   if (themes.length === 0) return null;
 
   return (
     <div
-      ref={stripRef}
+      ref={setRefs}
       className="theme-strip"
       {...(ariaLabel ? { role: "radiogroup", "aria-label": ariaLabel } : {})}
     >

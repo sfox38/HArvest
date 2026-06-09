@@ -66,12 +66,24 @@ export { TIER3_DOMAINS, READ_ONLY_DOMAINS };
 // Types
 // ---------------------------------------------------------------------------
 
+export interface ExtractedGesture {
+  action: string;
+  data?: Record<string, unknown>;
+}
+
+export interface ExtractedGestureConfig {
+  tap?: ExtractedGesture;
+  hold?: ExtractedGesture;
+  double_tap?: ExtractedGesture;
+}
+
 export interface ExtractedEntity {
   entity_id: string;
   domain: string;
   source_card_type: string;
   display_hints: Record<string, unknown>;
   companion_of?: string;
+  gesture_config?: ExtractedGestureConfig;
 }
 
 export interface ExtractedCard {
@@ -97,7 +109,7 @@ export interface ViewData {
 
 export interface TokenSpec {
   label: string;
-  entities: { entity_id: string; capabilities: string; display_hints?: Record<string, unknown>; companion_of?: string }[];
+  entities: { entity_id: string; capabilities: string; display_hints?: Record<string, unknown>; companion_of?: string; gesture_config?: ExtractedGestureConfig }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +183,53 @@ function badgeDisplayHints(config: Record<string, unknown>, isHeading = false): 
   }
   if (config.color) hints.badge_icon_color = config.color;
   return hints;
+}
+
+function convertLovelaceAction(action: Record<string, unknown>): ExtractedGesture | null {
+  const type = action.action as string | undefined;
+  if (!type) return null;
+
+  switch (type) {
+    case "toggle":
+      return { action: "toggle" };
+    case "none":
+      return { action: "none" };
+    case "call-service":
+    case "perform-action": {
+      const svc = (action.perform_action ?? action.service) as string | undefined;
+      if (!svc) return null;
+      const svcData = (action.data ?? action.service_data) as Record<string, unknown> | undefined;
+      const gesture: ExtractedGesture = { action: "call-service", data: { service: svc } };
+      if (svcData && Object.keys(svcData).length > 0) {
+        gesture.data!.service_data = svcData;
+      }
+      return gesture;
+    }
+    default:
+      return null;
+  }
+}
+
+function extractGestureConfig(card: Record<string, unknown>): ExtractedGestureConfig | undefined {
+  const gc: ExtractedGestureConfig = {};
+  let hasAny = false;
+
+  for (const [lovelaceKey, harvestKey] of [
+    ["tap_action", "tap"],
+    ["hold_action", "hold"],
+    ["double_tap_action", "double_tap"],
+  ] as const) {
+    const raw = card[lovelaceKey] as Record<string, unknown> | undefined;
+    if (raw && typeof raw === "object") {
+      const converted = convertLovelaceAction(raw);
+      if (converted) {
+        gc[harvestKey as keyof ExtractedGestureConfig] = converted;
+        hasAny = true;
+      }
+    }
+  }
+
+  return hasAny ? gc : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,10 +310,10 @@ export function extractCard(card: Record<string, unknown>): ExtractedCard {
     const eid = card.entity as string | undefined;
     if (eid && eid.includes(".")) {
       const domain = eid.split(".")[0];
-      return makeCard({
-        card_type: cardType,
-        entities: [{ entity_id: eid, domain, source_card_type: cardType, display_hints: {} }],
-      });
+      const gc = extractGestureConfig(card);
+      const ent: ExtractedEntity = { entity_id: eid, domain, source_card_type: cardType, display_hints: {} };
+      if (gc) ent.gesture_config = gc;
+      return makeCard({ card_type: cardType, entities: [ent] });
     }
     return makeCard({ card_type: cardType, is_supported: false, raw_config: card });
   }
@@ -290,7 +349,10 @@ export function extractCard(card: Record<string, unknown>): ExtractedCard {
     const eid = card.entity as string | undefined;
     if (eid && eid.includes(".")) {
       const domain = eid.split(".")[0];
-      entities.push({ entity_id: eid, domain, source_card_type: cardType, display_hints: {} });
+      const gc = extractGestureConfig(card);
+      const ent: ExtractedEntity = { entity_id: eid, domain, source_card_type: cardType, display_hints: {} };
+      if (gc) ent.gesture_config = gc;
+      entities.push(ent);
       extractBubbleSubButtons(card, eid, entities);
     }
     if (entities.length > 0) {
@@ -358,7 +420,12 @@ export function extractCard(card: Record<string, unknown>): ExtractedCard {
         const eid = extractEntityId(item);
         if (eid) {
           const domain = eid.split(".")[0];
-          entities.push({ entity_id: eid, domain, source_card_type: cardType, display_hints: {} });
+          const ent: ExtractedEntity = { entity_id: eid, domain, source_card_type: cardType, display_hints: {} };
+          if (item && typeof item === "object") {
+            const gc = extractGestureConfig(item as Record<string, unknown>);
+            if (gc) ent.gesture_config = gc;
+          }
+          entities.push(ent);
         }
       }
     }
@@ -369,10 +436,10 @@ export function extractCard(card: Record<string, unknown>): ExtractedCard {
     const eid = card.entity as string | undefined;
     if (eid && eid.includes(".")) {
       const domain = eid.split(".")[0];
-      return makeCard({
-        card_type: cardType,
-        entities: [{ entity_id: eid, domain, source_card_type: cardType, display_hints: {} }],
-      });
+      const gc = extractGestureConfig(card);
+      const ent: ExtractedEntity = { entity_id: eid, domain, source_card_type: cardType, display_hints: {} };
+      if (gc) ent.gesture_config = gc;
+      return makeCard({ card_type: cardType, entities: [ent] });
     }
   }
 
@@ -505,6 +572,9 @@ export function buildTokenSpecs(
       }
       if (e.companion_of) {
         d.companion_of = e.companion_of;
+      }
+      if (e.gesture_config) {
+        d.gesture_config = e.gesture_config;
       }
       return d;
     });

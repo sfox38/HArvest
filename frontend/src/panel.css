@@ -643,6 +643,7 @@ a.nav-item { text-decoration: none; color: var(--ink-3); }
 
 .entity-preview-stage {
   min-width: 0;
+  min-height: 80px;
   overflow: hidden;
 }
 

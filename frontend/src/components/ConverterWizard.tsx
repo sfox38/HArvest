@@ -482,11 +482,16 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
     setError(null);
     setStep(3);
 
+    const themeUrl = state.themeUrl;
+    const capMode = state.capMode;
+    const originMode = state.originMode;
+    const originUrl = state.originUrl;
+
     const errors: string[] = [];
     const createdIds: string[] = [];
 
     try {
-      const specs = buildTokenSpecs(selectedViews, state.capMode, maxPerToken);
+      const specs = buildTokenSpecs(selectedViews, capMode, maxPerToken);
       if (specs.length === 0) {
         setError("No entities to convert.");
         setStep(2);
@@ -539,8 +544,8 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
         // Create token
         patchState({ generateProgress: `Creating widget ${i + 1} of ${specs.length}...` });
         try {
-          const origins = state.originMode === "specific" && state.originUrl
-            ? { allow_any: false, allowed: [state.originUrl] }
+          const origins = originMode === "specific" && originUrl
+            ? { allow_any: false, allowed: [originUrl] }
             : { allow_any: true, allowed: [] as string[] };
 
           const payload: Record<string, unknown> = {
@@ -548,8 +553,8 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
             entities: spec.entities,
             embed_mode: "page",
             origins,
+            theme_url: themeUrl,
           };
-          if (state.themeUrl) payload.theme_url = state.themeUrl;
 
           const token = await api.tokens.create(payload);
           const tokenId = token.token_id;
@@ -562,8 +567,8 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
       }
 
       // Save origin
-      if (state.originMode === "specific" && state.originUrl) {
-        addKnownOrigin(state.originUrl);
+      if (originMode === "specific" && originUrl) {
+        addKnownOrigin(originUrl);
       }
 
       // Generate HTML only if at least one token was created

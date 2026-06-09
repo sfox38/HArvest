@@ -10,7 +10,7 @@
  * snapshot stale state.
  */
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail } from "../types";
 import { api } from "../api";
 import { ConfirmDialog, Card, Spinner, EntityAutocomplete, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
@@ -60,6 +60,7 @@ interface EntitiesEditorProps {
 const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor"]);
 const ENTITIES_BLOCK_DOMAINS = new Set(["light", "switch", "fan", "input_boolean", "binary_sensor", "lock", "cover", "sensor"]);
 const HISTORY_DOMAINS = new Set(["sensor", "input_number", "binary_sensor"]);
+const NUMERIC_STATE_DOMAINS = new Set(["sensor", "input_number", "counter", "number"]);
 const HOURS_OPTIONS = [1, 6, 12, 24, 48, 72, 168];
 
 const ATTR_HINT_MAP: Record<string, Record<string, string>> = {
@@ -85,7 +86,7 @@ function hasFeature(cap: ThemeCapabilities | null, domain: string, feature: stri
   return list.includes(feature);
 }
 
-function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowLabel, blockHighlightRows, blockShowIcons, blockWidgetBorder, colorScheme }: {
+function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowLabel, blockHighlightRows, blockShowIcons, blockWidgetBorder, colorScheme, perEntityColor }: {
   entities: Token["entities"];
   theme: ThemeDefinition | null;
   blockLabel: string | null;
@@ -95,6 +96,7 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
   blockShowIcons: boolean;
   blockWidgetBorder: string | null;
   colorScheme: "auto" | "light" | "dark";
+  perEntityColor?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const blockRef = useRef<HTMLElement | null>(null);
@@ -113,17 +115,21 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
       .catch(() => setLoadError(true));
   }, [packId]);
 
-  const defDepKey = primaries.map(e => `${e.entity_id}:${e.capabilities}:${e.name_override}:${e.icon_override}:${colorScheme}`).join(",");
+  const defDepKey = primaries.map(e => {
+    const cs = perEntityColor ? e.color_scheme : colorScheme;
+    return `${e.entity_id}:${e.capabilities}:${e.name_override}:${e.icon_override}:${cs}`;
+  }).join(",");
   useEffect(() => {
     for (const e of primaries) {
-      const cacheKey = `${e.capabilities}:${colorScheme}`;
+      const cs = perEntityColor ? e.color_scheme : colorScheme;
+      const cacheKey = `${e.capabilities}:${cs}`;
       const cached = defs[e.entity_id];
       if (cached && cached._key === cacheKey) continue;
       api.entities.getDefinition(e.entity_id, {
         capabilities: e.capabilities,
         name_override: e.name_override ?? undefined,
         icon_override: e.icon_override ?? undefined,
-        color_scheme: colorScheme,
+        color_scheme: cs,
       }).then(result => {
         setDefs(prev => ({ ...prev, [e.entity_id]: { ...result, _key: cacheKey } }));
       }).catch(() => {});
@@ -135,14 +141,18 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
     return { variables: theme.variables ?? {}, dark_variables: theme.dark_variables ?? {} };
   }, [theme?.theme_id]);
 
-  const cardKey = primaries.map(e => `${e.entity_id}:${e.capabilities}:${defs[e.entity_id]?.state ?? ""}:${defs[e.entity_id]?._key ?? ""}`).join("|")
-    + `:${theme?.theme_id ?? ""}:${blockLabel}:${blockShowLabel}:${blockHighlightRows}:${blockShowIcons}:${blockIcon}:${blockWidgetBorder}:${colorScheme}`;
+  const cardKey = primaries.map(e => {
+    const cs = perEntityColor ? e.color_scheme : colorScheme;
+    return `${e.entity_id}:${e.capabilities}:${cs}:${defs[e.entity_id]?.state ?? ""}:${defs[e.entity_id]?._key ?? ""}`;
+  }).join("|")
+    + `:${theme?.theme_id ?? ""}:${blockLabel}:${blockShowLabel}:${blockHighlightRows}:${blockShowIcons}:${blockIcon}:${blockWidgetBorder}:${colorScheme}:${perEntityColor}`;
 
-  useEffect(() => {
-    if (!ready || !containerRef.current || !window.HArvest) return;
+  useLayoutEffect(() => {
+    if (!ready || !defsReady || !containerRef.current || !window.HArvest) return;
     const container = containerRef.current;
 
-    // Clean up previous block safely (avoid innerHTML which fights React)
+    // Remove old block only immediately before building a new one so the
+    // container never has a gap (which would cause the panel to scroll up).
     if (blockRef.current && blockRef.current.parentNode === container) {
       container.removeChild(blockRef.current);
     }
@@ -190,25 +200,33 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
       if (!blockShowIcons) {
         card.style.setProperty("--hrv-icon-display", "none");
       }
-      if (colorScheme === "light" || colorScheme === "dark") {
-        card.setAttribute("data-color-scheme", colorScheme);
+      const cardCs = perEntityColor ? e.color_scheme : colorScheme;
+      if (cardCs === "light" || cardCs === "dark") {
+        card.setAttribute("data-color-scheme", cardCs);
       }
       cardRefs.current.push(card);
     }
 
     block.applyPreviewTheme?.(themeObj);
+    // No cleanup return here - the old block is only removed when a new one
+    // is about to replace it (above). This prevents the preview from going
+    // blank between renders and causing the panel to scroll to top.
+  }, [ready, cardKey]);
 
+  // Unmount-only cleanup.
+  useLayoutEffect(() => {
     return () => {
-      if (blockRef.current && blockRef.current.parentNode === container) {
+      const container = containerRef.current;
+      if (blockRef.current && container && blockRef.current.parentNode === container) {
         container.removeChild(blockRef.current);
       }
       blockRef.current = null;
       cardRefs.current = [];
     };
-  }, [ready, cardKey]);
+  }, []);
 
   const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const block = blockRef.current as (HTMLElement & { applyPreviewTheme?: (v: Record<string, unknown>) => void }) | null;
     if (block?.applyPreviewTheme) block.applyPreviewTheme(themeObj);
     for (const card of cardRefs.current) {
@@ -220,14 +238,17 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   const defsReady = primaries.every(e => {
     const cached = defs[e.entity_id];
-    return cached && cached._key === `${e.capabilities}:${colorScheme}`;
+    const cs = perEntityColor ? e.color_scheme : colorScheme;
+    return cached && cached._key === `${e.capabilities}:${cs}`;
   });
-  if (!ready || !defsReady) {
-    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 80, padding: 12 }}><Spinner size={20} /></div>;
-  }
+  // Always render the container so the DOM ref is live and height is stable.
+  // Only show a spinner on the very first load (no block element yet).
+  const showSpinner = !ready || (!defsReady && !blockRef.current);
   return (
     <div ref={containerRef} className="theme-preview-widget" role="region" aria-label="Entities block preview"
-      style={{ display: "flex", justifyContent: "center", padding: "12px 0" }} />
+      style={{ display: "flex", justifyContent: "center", padding: "12px 0", minHeight: 80 }}>
+      {showSpinner && <div style={{ display: "flex", justifyContent: "center", alignItems: "center", flex: 1 }}><Spinner size={20} /></div>}
+    </div>
   );
 }
 
@@ -254,6 +275,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const [attrLoading, setAttrLoading] = useState<Set<string>>(new Set());
   const [entityDetail, setEntityDetail] = useState<Record<string, HAEntityDetail>>({});
   const configPanelRef = useRef<HTMLDivElement>(null);
+
   const agreeDialogRef = useRef<HTMLDivElement>(null);
   const previousDialogFocus = useRef<HTMLElement | null>(null);
   const [localEntities, setLocalEntities] = useState<Token["entities"] | null>(null);
@@ -611,7 +633,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
     ));
   };
 
-  const updateGestureSetting = (entityId: string, gesture: "tap" | "hold" | "double_tap", action: string, targetEntityId?: string) => {
+  const updateGestureSetting = (entityId: string, gesture: "tap" | "hold" | "double_tap", action: string, targetEntityId?: string, data?: Record<string, unknown>) => {
     if (!canEdit) return;
     patchEntities(entities.map(en => {
       if (en.entity_id !== entityId) return en;
@@ -619,6 +641,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
       if (action) {
         const entry: import("../types").GestureAction = { action };
         if (targetEntityId) entry.entity_id = targetEntityId;
+        if (data && Object.keys(data).length > 0) entry.data = data;
         gc[gesture] = entry;
       } else {
         delete gc[gesture];
@@ -856,6 +879,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   blockShowIcons={blockShowIcons}
                   blockWidgetBorder={token.block_widget_border}
                   colorScheme={token.color_scheme}
+                  perEntityColor={token.block_color_mode === "per_entity"}
                 />
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
@@ -977,50 +1001,69 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             <div className="entity-setting-row">
               <label className="entity-setting-label">Access</label>
               <div className="segmented-toggle" role="group" aria-label="Access level" style={{ marginLeft: "auto" }}>
-                <button
-                  className={entities[0]?.capabilities === "read" ? "active" : ""}
-                  aria-pressed={entities[0]?.capabilities === "read"}
-                  onClick={() => {
-                    if (!canEdit) return;
-                    patchEntities(entities.map(en => en.companion_of ? en : { ...en, capabilities: "read" }));
-                  }}
-                  disabled={!canEdit}
-                  type="button"
-                >View only</button>
-                <button
-                  className={entities[0]?.capabilities === "read-write" ? "active" : ""}
-                  aria-pressed={entities[0]?.capabilities === "read-write"}
-                  onClick={() => {
-                    if (!canEdit) return;
-                    patchEntities(entities.map(en => en.companion_of ? en : { ...en, capabilities: "read-write" }));
-                  }}
-                  disabled={!canEdit}
-                  type="button"
-                >Control</button>
+                {([["read", "View only"], ["read-write", "Control"], ["per_entity", "Per entity"]] as const).map(([mode, label]) => {
+                  const isActive = mode === "per_entity"
+                    ? token.block_access_mode === "per_entity"
+                    : token.block_access_mode !== "per_entity" && entities[0]?.capabilities === mode;
+                  return (
+                    <button
+                      key={mode}
+                      className={isActive ? "active" : ""}
+                      aria-pressed={isActive}
+                      onClick={async (ev) => {
+                        if (!canEdit) return;
+                        if (mode === "per_entity") {
+                          try {
+                            const updated = await api.tokens.update(token.token_id, { block_access_mode: "per_entity" });
+                            setToken(updated);
+                          } catch (e) { setError(String(e)); }
+                        } else {
+                          try {
+                            const updated = await api.tokens.update(token.token_id, { block_access_mode: "override" });
+                            setToken(updated);
+                          } catch (e) { setError(String(e)); }
+                          patchEntities(entities.map(en => en.companion_of ? en : { ...en, capabilities: mode }));
+                        }
+                      }}
+                      disabled={!canEdit}
+                      type="button"
+                    >{label}</button>
+                  );
+                })}
               </div>
             </div>
 
             <div className="entity-setting-row">
               <label className="entity-setting-label">Always use</label>
               <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
-                {(["auto", "light", "dark"] as const).map(scheme => (
-                  <button
-                    key={scheme}
-                    className={token.color_scheme === scheme ? "active" : ""}
-                    aria-pressed={token.color_scheme === scheme}
-                    onClick={async () => {
-                      if (!canEdit) return;
-                      try {
-                        const updated = await api.tokens.update(token.token_id, { color_scheme: scheme });
-                        setToken(updated);
-                      } catch (e) { setError(String(e)); }
-                    }}
-                    disabled={!canEdit}
-                    type="button"
-                  >
-                    {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
-                  </button>
-                ))}
+                {(["auto", "light", "dark", "per_entity"] as const).map(scheme => {
+                  const isPerEntity = token.block_color_mode === "per_entity";
+                  const isActive = scheme === "per_entity" ? isPerEntity : !isPerEntity && token.color_scheme === scheme;
+                  const label = scheme === "per_entity" ? "Per entity" : scheme.charAt(0).toUpperCase() + scheme.slice(1);
+                  return (
+                    <button
+                      key={scheme}
+                      className={isActive ? "active" : ""}
+                      aria-pressed={isActive}
+                      onClick={async (ev) => {
+                        if (!canEdit) return;
+                        try {
+                          if (scheme === "per_entity") {
+                            const updated = await api.tokens.update(token.token_id, { color_scheme: "auto", block_color_mode: "per_entity" });
+                            setToken(updated);
+                          } else {
+                            const updated = await api.tokens.update(token.token_id, { color_scheme: scheme, block_color_mode: "override" });
+                            setToken(updated);
+                          }
+                        } catch (e) { setError(String(e)); }
+                      }}
+                      disabled={!canEdit}
+                      type="button"
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1243,10 +1286,11 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               </div>
             </div>
 
-            {!token.entities_block && (
+            {(!token.entities_block || token.block_access_mode === "per_entity") && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Access</label>
               <div className="segmented-toggle" role="group" aria-label="Access level" style={{ marginLeft: "auto" }}>
+                {!token.entities_block && (
                 <button
                   className={selectedEntity.capabilities === "badge" ? "active" : ""}
                   aria-pressed={selectedEntity.capabilities === "badge"}
@@ -1254,13 +1298,14 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   disabled={!canEdit}
                   type="button"
                 >Badge</button>
+                )}
                 <button
                   className={selectedEntity.capabilities === "read" ? "active" : ""}
                   aria-pressed={selectedEntity.capabilities === "read"}
                   onClick={() => toggleCap(selectedEntity.entity_id, "read")}
                   disabled={!canEdit}
                   type="button"
-                >Read only</button>
+                >{token.entities_block ? "View only" : "Read only"}</button>
                 <button
                   className={selectedEntity.capabilities === "read-write" ? "active" : ""}
                   aria-pressed={selectedEntity.capabilities === "read-write"}
@@ -1272,7 +1317,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
             )}
 
-            {!token.entities_block && (
+            {(!token.entities_block || token.block_color_mode === "per_entity") && (
             <div className="entity-setting-row">
               <label className="entity-setting-label">Always use</label>
               <div className="segmented-toggle" role="group" aria-label="Color scheme" style={{ marginLeft: "auto" }}>
@@ -1289,6 +1334,34 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   </button>
                 ))}
               </div>
+            </div>
+            )}
+
+            {NUMERIC_STATE_DOMAINS.has(selectedDomain) && (
+            <div className="entity-setting-row">
+              <label className="entity-setting-label">Decimal rounding</label>
+              <input
+                type="number"
+                className="input"
+                style={{ width: 96, marginLeft: "auto", textAlign: "center" }}
+                min={0}
+                max={6}
+                step={1}
+                placeholder="None"
+                value={(selectedEntity.display_hints?.decimal_places as number | undefined) ?? ""}
+                onChange={ev => {
+                  const raw = ev.target.value;
+                  if (raw === "") {
+                    updateDisplayHint(selectedEntity.entity_id, "decimal_places", null);
+                    return;
+                  }
+                  const v = parseInt(raw, 10);
+                  if (isFinite(v) && v >= 0 && v <= 6) {
+                    updateDisplayHint(selectedEntity.entity_id, "decimal_places", v);
+                  }
+                }}
+                disabled={!canEdit}
+              />
             </div>
             )}
 
@@ -1863,22 +1936,68 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 {(["tap", "hold", "double_tap"] as const).map(gesture => {
                   const label = gesture === "double_tap" ? "Double-tap" : gesture.charAt(0).toUpperCase() + gesture.slice(1);
                   const gc = selectedEntity.gesture_config ?? {};
-                  const currentAction = gc[gesture]?.action ?? "";
+                  const entry = gc[gesture];
+                  const currentAction = entry?.action ?? "";
+                  const isCallService = currentAction === "call-service";
+                  const svcName = isCallService ? (entry?.data?.service as string ?? "") : "";
+                  const svcDataRaw = isCallService ? (entry?.data?.service_data as Record<string, unknown> | undefined) : undefined;
+                  const svcDataStr = svcDataRaw ? JSON.stringify(svcDataRaw, null, 2) : "";
                   return (
-                    <div key={gesture} style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 12, color: "var(--ink-3)", minWidth: 68 }}>{label}</span>
-                      <select
-                        value={currentAction}
-                        onChange={ev => {
-                          updateGestureSetting(selectedEntity.entity_id, gesture, ev.target.value);
-                        }}
-                        disabled={!canEdit}
-                        className="input entity-graph-select"
-                      >
-                        <option value="">Default</option>
-                        <option value="toggle">Toggle</option>
-                        <option value="none">None (disable)</option>
-                      </select>
+                    <div key={gesture} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ fontSize: 12, color: "var(--ink-3)", minWidth: 68 }}>{label}</span>
+                        <select
+                          value={currentAction}
+                          onChange={ev => {
+                            const val = ev.target.value;
+                            if (val === "call-service") {
+                              updateGestureSetting(selectedEntity.entity_id, gesture, val, undefined, { service: "" });
+                            } else {
+                              updateGestureSetting(selectedEntity.entity_id, gesture, val);
+                            }
+                          }}
+                          disabled={!canEdit}
+                          className="input entity-graph-select"
+                        >
+                          <option value="">Default</option>
+                          <option value="toggle">Toggle</option>
+                          <option value="call-service">Perform action</option>
+                          <option value="none">None (disable)</option>
+                        </select>
+                      </div>
+                      {isCallService && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 72 }}>
+                          <input
+                            type="text"
+                            className="input"
+                            placeholder="light.turn_on"
+                            value={svcName}
+                            disabled={!canEdit}
+                            onChange={ev => {
+                              const d: Record<string, unknown> = { service: ev.target.value };
+                              if (svcDataRaw) d.service_data = svcDataRaw;
+                              updateGestureSetting(selectedEntity.entity_id, gesture, "call-service", undefined, d);
+                            }}
+                            style={{ fontSize: 12 }}
+                          />
+                          <textarea
+                            className="input"
+                            placeholder='{"brightness": 255}'
+                            value={svcDataStr}
+                            disabled={!canEdit}
+                            rows={2}
+                            onChange={ev => {
+                              const d: Record<string, unknown> = { service: svcName };
+                              const raw = ev.target.value.trim();
+                              if (raw) {
+                                try { d.service_data = JSON.parse(raw); } catch { d.service_data = raw; }
+                              }
+                              updateGestureSetting(selectedEntity.entity_id, gesture, "call-service", undefined, d);
+                            }}
+                            style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical" }}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}

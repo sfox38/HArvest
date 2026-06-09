@@ -1467,6 +1467,7 @@ class HarvestWsView(HomeAssistantView):
         Updates session.last_sent_attributes after building.
         """
         ea = _find_entity_access(real_id, token)
+        state_val = _round_state(state.state, ea)
         if ea is not None and ea.capabilities == "badge":
             badge_attrs: dict = {}
             uom = state.attributes.get("unit_of_measurement")
@@ -1475,7 +1476,7 @@ class HarvestWsView(HomeAssistantView):
             return {
                 "type": "state_update",
                 "entity_id": outgoing_id,
-                "state": state.state,
+                "state": state_val,
                 "attributes": badge_attrs,
                 "initial": is_initial,
                 "msg_id": None,
@@ -1507,7 +1508,7 @@ class HarvestWsView(HomeAssistantView):
             msg = {
                 "type": "state_update",
                 "entity_id": outgoing_id,
-                "state": state.state,
+                "state": state_val,
                 "attributes": attrs,
                 "last_changed": last_changed,
                 "last_updated": last_updated,
@@ -1530,7 +1531,7 @@ class HarvestWsView(HomeAssistantView):
         msg = {
             "type": "state_update",
             "entity_id": outgoing_id,
-            "state": state.state,
+            "state": state_val,
             "last_changed": last_changed,
             "last_updated": last_updated,
             "initial": False,
@@ -1871,6 +1872,23 @@ def _find_entity_access(entity_id: str, token: Token) -> EntityAccess | None:
         if ea.entity_id == entity_id:
             return ea
     return None
+
+
+def _round_state(state_val: str, ea: EntityAccess | None) -> str:
+    """Round a numeric state value if decimal_places is set in display_hints."""
+    if ea is None:
+        return state_val
+    dp = ea.display_hints.get("decimal_places")
+    if dp is None:
+        return state_val
+    try:
+        n = int(dp)
+        rounded = round(float(state_val), n)
+        if n <= 0:
+            return str(int(rounded))
+        return f"{rounded:.{n}f}"
+    except (ValueError, TypeError, OverflowError):
+        return state_val
 
 
 def _get_companion_ids(primary_entity_id: str, token: Token) -> list[str]:
