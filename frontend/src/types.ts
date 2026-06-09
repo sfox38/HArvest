@@ -280,6 +280,38 @@ export interface AvailableDomain {
   services: string[];
 }
 
+export interface ServiceFieldSelector {
+  number?: { min?: number; max?: number; step?: number; unit_of_measurement?: string; mode?: string };
+  boolean?: Record<string, unknown>;
+  text?: Record<string, unknown>;
+  select?: { options?: (string | { value: string; label: string })[]; translation_key?: string };
+  color_rgb?: Record<string, unknown>;
+  color_temp?: { unit?: string; min?: number; max?: number };
+  object?: Record<string, unknown>;
+  constant?: { value: unknown; label?: string };
+  state?: Record<string, unknown>;
+}
+
+export interface ServiceFieldSchema {
+  name?: string;
+  description?: string;
+  required?: boolean;
+  example?: unknown;
+  selector?: ServiceFieldSelector;
+  advanced?: boolean;
+  filter?: Record<string, unknown>;
+  fields?: Record<string, ServiceFieldSchema>;
+  collapsed?: boolean;
+}
+
+export interface ServiceDescription {
+  domain: string;
+  service: string;
+  name: string;
+  description: string;
+  fields: Record<string, ServiceFieldSchema>;
+}
+
 export interface IntegrationConfig {
   auth_timeout_seconds: number;
   max_entities_per_token: number;

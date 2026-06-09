@@ -2388,6 +2388,27 @@ button.entity-setting-group-title:focus-visible {
   flex-shrink: 0;
 }
 
+/* Service data fields (gesture "Perform action") */
+.svc-data-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.svc-data-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.svc-data-field-label {
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: capitalize;
+}
+.svc-json-fallback summary {
+  font-size: 11px;
+  user-select: none;
+}
+
 /* ============================================================
    Nav label
    ============================================================ */

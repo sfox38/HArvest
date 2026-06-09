@@ -13,7 +13,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail } from "../types";
 import { api } from "../api";
-import { ConfirmDialog, Card, Spinner, EntityAutocomplete, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
+import { ConfirmDialog, Card, Spinner, EntityAutocomplete, ActionPicker, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { doCopy, groupEntities } from "./CodeSection";
@@ -1942,6 +1942,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   const svcName = isCallService ? (entry?.data?.service as string ?? "") : "";
                   const svcDataRaw = isCallService ? (entry?.data?.service_data as Record<string, unknown> | undefined) : undefined;
                   const svcDataStr = svcDataRaw ? JSON.stringify(svcDataRaw, null, 2) : "";
+                  const [svcDomain, svcAction] = svcName.includes(".") ? svcName.split(".", 2) : ["", ""];
+                  const entityDomain = selectedEntity.entity_id.split(".")[0];
                   return (
                     <div key={gesture} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1966,36 +1968,53 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                         </select>
                       </div>
                       {isCallService && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 3, paddingLeft: 72 }}>
-                          <input
-                            type="text"
-                            className="input"
-                            placeholder="light.turn_on"
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 72 }}>
+                          <ActionPicker
                             value={svcName}
-                            disabled={!canEdit}
-                            onChange={ev => {
-                              const d: Record<string, unknown> = { service: ev.target.value };
-                              if (svcDataRaw) d.service_data = svcDataRaw;
-                              updateGestureSetting(selectedEntity.entity_id, gesture, "call-service", undefined, d);
-                            }}
-                            style={{ fontSize: 12 }}
-                          />
-                          <textarea
-                            className="input"
-                            placeholder='{"brightness": 255}'
-                            value={svcDataStr}
-                            disabled={!canEdit}
-                            rows={2}
-                            onChange={ev => {
-                              const d: Record<string, unknown> = { service: svcName };
-                              const raw = ev.target.value.trim();
-                              if (raw) {
-                                try { d.service_data = JSON.parse(raw); } catch { d.service_data = raw; }
+                            onChange={newAction => {
+                              const d: Record<string, unknown> = { service: newAction };
+                              if (newAction !== svcName) {
+                                // Clear service_data when action changes
+                              } else if (svcDataRaw) {
+                                d.service_data = svcDataRaw;
                               }
                               updateGestureSetting(selectedEntity.entity_id, gesture, "call-service", undefined, d);
                             }}
-                            style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical" }}
+                            disabled={!canEdit}
+                            entityDomain={entityDomain}
                           />
+                          {svcDomain && svcAction && (
+                            <ServiceDataFields
+                              domain={svcDomain}
+                              service={svcAction}
+                              data={svcDataRaw ?? {}}
+                              onChange={newData => {
+                                const d: Record<string, unknown> = { service: svcName };
+                                if (Object.keys(newData).length > 0) d.service_data = newData;
+                                updateGestureSetting(selectedEntity.entity_id, gesture, "call-service", undefined, d);
+                              }}
+                              disabled={!canEdit}
+                            />
+                          )}
+                          <details className="svc-json-fallback">
+                            <summary className="muted fs-11" style={{ cursor: "pointer" }}>JSON</summary>
+                            <textarea
+                              className="input"
+                              placeholder='{"brightness": 255}'
+                              value={svcDataStr}
+                              disabled={!canEdit}
+                              rows={2}
+                              onChange={ev => {
+                                const d: Record<string, unknown> = { service: svcName };
+                                const raw = ev.target.value.trim();
+                                if (raw) {
+                                  try { d.service_data = JSON.parse(raw); } catch { d.service_data = raw; }
+                                }
+                                updateGestureSetting(selectedEntity.entity_id, gesture, "call-service", undefined, d);
+                              }}
+                              style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical", marginTop: 4 }}
+                            />
+                          </details>
                         </div>
                       )}
                     </div>

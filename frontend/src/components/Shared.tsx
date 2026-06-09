@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef, useMemo, useId } from "react";
-import type { TokenStatus, ActivityEvent, HAEntity, ThemeDefinition } from "../types";
+import type { TokenStatus, ActivityEvent, HAEntity, ThemeDefinition, AvailableDomain, ServiceDescription, ServiceFieldSchema } from "../types";
 import { Icon } from "./Icon";
 import { api, isOffline } from "../api";
 import { useEntityCache, loadEntityCache } from "../entityCache";
@@ -1028,6 +1028,430 @@ export function EntityAutocomplete({ value, onChange, onSelect, disabled, filter
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// ActionPicker - searchable dropdown for domain.service actions
+// ---------------------------------------------------------------------------
+
+interface ActionPickerProps {
+  value: string;
+  onChange: (action: string) => void;
+  disabled?: boolean;
+  entityDomain?: string;
+}
+
+export function ActionPicker({ value, onChange, disabled, entityDomain }: ActionPickerProps) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const [domains, setDomains] = useState<AvailableDomain[]>([]);
+  const [dropdownRect, setDropdownRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
+
+  useEffect(() => {
+    api.ha.availableDomains().then(setDomains).catch(() => {});
+  }, []);
+
+  const allActions = useMemo(() => {
+    const ALLOWED_SERVICES: Record<string, string[]> = {
+      light: ["turn_on", "turn_off", "toggle"],
+      switch: ["turn_on", "turn_off", "toggle"],
+      fan: ["turn_on", "turn_off", "toggle", "set_percentage", "oscillate", "set_direction", "set_preset_mode", "increase_speed", "decrease_speed"],
+      cover: ["open_cover", "close_cover", "stop_cover", "set_cover_position", "set_cover_tilt_position"],
+      climate: ["turn_on", "turn_off", "set_temperature", "set_hvac_mode", "set_fan_mode", "set_preset_mode", "set_swing_mode"],
+      input_boolean: ["turn_on", "turn_off", "toggle"],
+      input_number: ["set_value"],
+      input_select: ["select_option"],
+      select: ["select_option"],
+      timer: ["start", "pause", "cancel", "finish"],
+      media_player: ["media_play_pause", "media_next_track", "media_previous_track", "volume_up", "volume_down", "volume_set", "volume_mute", "select_source", "turn_on", "turn_off"],
+      remote: ["turn_on", "turn_off", "send_command"],
+      lock: ["lock", "unlock", "open"],
+      button: ["press"],
+      input_button: ["press"],
+      number: ["set_value"],
+      script: ["turn_on"],
+      automation: ["trigger", "turn_on", "turn_off"],
+    };
+
+    const actions: { action: string; domain: string; service: string }[] = [];
+
+    for (const [domain, services] of Object.entries(ALLOWED_SERVICES)) {
+      for (const svc of services) {
+        actions.push({ action: `${domain}.${svc}`, domain, service: svc });
+      }
+    }
+
+    for (const d of domains) {
+      if (ALLOWED_SERVICES[d.domain]) continue;
+      for (const svc of d.services) {
+        actions.push({ action: `${d.domain}.${svc}`, domain: d.domain, service: svc });
+      }
+    }
+
+    return actions;
+  }, [domains]);
+
+  const matches = useMemo(() => {
+    const q = (query || value).toLowerCase().trim();
+    if (!q) {
+      if (entityDomain) {
+        return allActions.filter(a => a.domain === entityDomain).slice(0, 12);
+      }
+      return allActions.slice(0, 12);
+    }
+    const words = q.split(/[\s.]+/).filter(Boolean);
+    return allActions
+      .filter(a => {
+        const hay = a.action.toLowerCase();
+        return words.every(w => hay.includes(w));
+      })
+      .sort((a, b) => {
+        if (entityDomain) {
+          const aDomain = a.domain === entityDomain ? 1 : 0;
+          const bDomain = b.domain === entityDomain ? 1 : 0;
+          if (aDomain !== bDomain) return bDomain - aDomain;
+        }
+        return a.action.length - b.action.length;
+      })
+      .slice(0, 12);
+  }, [query, value, allActions, entityDomain]);
+
+  useEffect(() => { setHighlighted(0); }, [matches.length]);
+
+  useEffect(() => {
+    if (!open || matches.length === 0 || !inputRef.current) {
+      setDropdownRect(null);
+      return;
+    }
+    const calc = () => {
+      if (!inputRef.current) return;
+      const r = inputRef.current.getBoundingClientRect();
+      const vvH = window.visualViewport?.height ?? window.innerHeight;
+      const spaceBelow = vvH - r.bottom - 8;
+      const minW = Math.min(Math.max(r.width, 300), window.innerWidth - r.left - 8);
+      if (spaceBelow >= 80) {
+        setDropdownRect({ top: r.bottom + 2, left: r.left, width: minW, maxHeight: Math.min(280, spaceBelow) });
+      } else {
+        const maxH = Math.min(280, r.top - 8);
+        setDropdownRect(maxH > 40 ? { top: r.top - maxH - 2, left: r.left, width: minW, maxHeight: maxH } : null);
+      }
+    };
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, [open, matches.length]);
+
+  const select = (action: string) => {
+    onChange(action);
+    setQuery("");
+    setOpen(false);
+  };
+
+  const displayValue = open ? query : value;
+
+  return (
+    <div style={{ flex: 1, position: "relative" }}>
+      <input
+        ref={inputRef}
+        value={displayValue}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => { setQuery(value ? "" : ""); setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={e => {
+          if (!open || matches.length === 0) return;
+          if (e.key === "ArrowDown") { setHighlighted(h => Math.min(h + 1, matches.length - 1)); e.preventDefault(); }
+          else if (e.key === "ArrowUp") { setHighlighted(h => Math.max(h - 1, 0)); e.preventDefault(); }
+          else if (e.key === "Enter") { select(matches[highlighted].action); e.preventDefault(); }
+          else if (e.key === "Escape") { setOpen(false); }
+        }}
+        disabled={disabled}
+        placeholder="Search actions..."
+        className="input"
+        style={{ width: "100%", boxSizing: "border-box", fontSize: 12 }}
+        role="combobox"
+        aria-label="Search actions"
+        aria-autocomplete="list"
+        aria-expanded={open && matches.length > 0}
+        aria-controls={listboxId}
+        aria-activedescendant={open && matches.length > 0 ? `${listboxId}-${highlighted}` : undefined}
+      />
+      {open && dropdownRect && matches.length > 0 && (
+        <div
+          className="autocomplete-dropdown"
+          style={{ top: dropdownRect.top, left: dropdownRect.left, width: dropdownRect.width, maxHeight: dropdownRect.maxHeight }}
+          role="listbox"
+          id={listboxId}
+        >
+          {matches.map((m, i) => (
+            <div
+              key={m.action}
+              id={`${listboxId}-${i}`}
+              onMouseDown={() => select(m.action)}
+              onMouseEnter={() => setHighlighted(i)}
+              className={`autocomplete-item${i === highlighted ? " highlighted" : ""}`}
+              role="option"
+              aria-selected={i === highlighted}
+            >
+              <span className="badge badge-neutral" style={{ fontSize: 10 }}>{m.domain}</span>
+              <span className="mono" style={{ fontSize: 12 }}>{m.service}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// ServiceDataFields - renders dynamic form inputs from HA field schemas
+// ---------------------------------------------------------------------------
+
+interface ServiceDataFieldsProps {
+  domain: string;
+  service: string;
+  data: Record<string, unknown>;
+  onChange: (data: Record<string, unknown>) => void;
+  disabled?: boolean;
+}
+
+export function ServiceDataFields({ domain, service, data, onChange, disabled }: ServiceDataFieldsProps) {
+  const [schema, setSchema] = useState<ServiceDescription | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    if (!domain || !service) { setSchema(null); return; }
+    setLoading(true);
+    setError("");
+    api.services.getFields(domain, service)
+      .then(s => { setSchema(s); setLoading(false); })
+      .catch(e => { setError(String(e)); setLoading(false); setSchema(null); });
+  }, [domain, service]);
+
+  if (!domain || !service) return null;
+  if (loading) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Loading fields...</div>;
+  if (error) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Could not load field schema. Use JSON below.</div>;
+  if (!schema || Object.keys(schema.fields).length === 0) return null;
+
+  const setField = (key: string, val: unknown) => {
+    const next = { ...data };
+    if (val === undefined || val === null || val === "") {
+      delete next[key];
+    } else {
+      next[key] = val;
+    }
+    onChange(next);
+  };
+
+  const renderField = (key: string, field: ServiceFieldSchema) => {
+    const sel = field.selector;
+    if (!sel) {
+      return (
+        <input
+          key={key}
+          type="text"
+          className="input"
+          placeholder={field.example != null ? String(field.example) : key}
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        />
+      );
+    }
+
+    if (sel.number) {
+      const n = sel.number;
+      return (
+        <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="number"
+            className="input"
+            min={n.min}
+            max={n.max}
+            step={n.step ?? 1}
+            placeholder={field.example != null ? String(field.example) : undefined}
+            value={data[key] != null ? String(data[key]) : ""}
+            onChange={e => {
+              const v = e.target.value;
+              setField(key, v === "" ? undefined : Number(v));
+            }}
+            disabled={disabled}
+            style={{ fontSize: 12, flex: 1 }}
+          />
+          {n.unit_of_measurement && (
+            <span className="muted fs-11">{n.unit_of_measurement}</span>
+          )}
+        </div>
+      );
+    }
+
+    if (sel.boolean) {
+      return (
+        <label key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <input
+            type="checkbox"
+            checked={!!data[key]}
+            onChange={e => setField(key, e.target.checked || undefined)}
+            disabled={disabled}
+          />
+          {key.replace(/_/g, " ")}
+        </label>
+      );
+    }
+
+    if (sel.select) {
+      const options = sel.select.options ?? [];
+      return (
+        <select
+          key={key}
+          className="input entity-graph-select"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        >
+          <option value="">--</option>
+          {options.map(o => {
+            const val = typeof o === "string" ? o : o.value;
+            const label = typeof o === "string" ? o.replace(/_/g, " ") : (o.label || o.value);
+            return <option key={val} value={val}>{label}</option>;
+          })}
+        </select>
+      );
+    }
+
+    if (sel.color_rgb) {
+      const rgb = data[key] as number[] | undefined;
+      const hex = rgb && rgb.length >= 3
+        ? `#${rgb.slice(0, 3).map(c => Math.max(0, Math.min(255, c)).toString(16).padStart(2, "0")).join("")}`
+        : "#ffffff";
+      return (
+        <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="color"
+            value={hex}
+            onChange={e => {
+              const h = e.target.value;
+              const r = parseInt(h.slice(1, 3), 16);
+              const g = parseInt(h.slice(3, 5), 16);
+              const b = parseInt(h.slice(5, 7), 16);
+              setField(key, [r, g, b]);
+            }}
+            disabled={disabled}
+            style={{ width: 32, height: 24, padding: 0, border: "1px solid var(--divider)", borderRadius: 4 }}
+          />
+          <span className="muted mono fs-11">{rgb ? `[${rgb.join(", ")}]` : ""}</span>
+        </div>
+      );
+    }
+
+    if (sel.color_temp) {
+      const ct = sel.color_temp;
+      return (
+        <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="number"
+            className="input"
+            min={ct.min}
+            max={ct.max}
+            placeholder={`${ct.min ?? 2000}-${ct.max ?? 6500}`}
+            value={data[key] != null ? String(data[key]) : ""}
+            onChange={e => {
+              const v = e.target.value;
+              setField(key, v === "" ? undefined : Number(v));
+            }}
+            disabled={disabled}
+            style={{ fontSize: 12, flex: 1 }}
+          />
+          <span className="muted fs-11">{ct.unit ?? "K"}</span>
+        </div>
+      );
+    }
+
+    if (sel.constant) {
+      return (
+        <label key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <input
+            type="checkbox"
+            checked={data[key] != null}
+            onChange={e => setField(key, e.target.checked ? sel.constant!.value : undefined)}
+            disabled={disabled}
+          />
+          {sel.constant.label ?? key.replace(/_/g, " ")}
+        </label>
+      );
+    }
+
+    return (
+      <input
+        key={key}
+        type="text"
+        className="input"
+        placeholder={field.example != null ? String(field.example) : key}
+        value={data[key] != null ? String(data[key]) : ""}
+        onChange={e => setField(key, e.target.value || undefined)}
+        disabled={disabled}
+        style={{ fontSize: 12 }}
+      />
+    );
+  };
+
+  const mainFields: [string, ServiceFieldSchema][] = [];
+  const advancedFields: [string, ServiceFieldSchema][] = [];
+
+  for (const [key, field] of Object.entries(schema.fields)) {
+    if (key === "advanced_fields" && field.fields) {
+      for (const [k, f] of Object.entries(field.fields)) {
+        advancedFields.push([k, f]);
+      }
+    } else if (field.advanced) {
+      advancedFields.push([key, field]);
+    } else {
+      mainFields.push([key, field]);
+    }
+  }
+
+  return (
+    <div className="svc-data-fields">
+      {mainFields.map(([key, field]) => (
+        <div key={key} className="svc-data-field-row">
+          <label className="svc-data-field-label">
+            {key.replace(/_/g, " ")}
+            {field.required && <span style={{ color: "var(--red)" }}> *</span>}
+          </label>
+          {renderField(key, field)}
+        </div>
+      ))}
+      {advancedFields.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="btn-link fs-11"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            style={{ padding: "2px 0", alignSelf: "flex-start" }}
+          >
+            {showAdvanced ? "Hide" : "Show"} advanced fields ({advancedFields.length})
+          </button>
+          {showAdvanced && advancedFields.map(([key, field]) => (
+            <div key={key} className="svc-data-field-row">
+              <label className="svc-data-field-label">
+                {key.replace(/_/g, " ")}
+                {field.required && <span style={{ color: "var(--red)" }}> *</span>}
+              </label>
+              {renderField(key, field)}
+            </div>
+          ))}
+        </>
       )}
     </div>
   );

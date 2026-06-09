@@ -83,6 +83,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestEntitiesView,
         HarvestEntityDefinitionView,
         HarvestScriptFieldsView,
+        HarvestServiceFieldsView,
         HarvestPanelJsView,
         HarvestLovelaceDashboardsView,
         HarvestLovelaceConfigView,
@@ -2970,6 +2971,97 @@ class HarvestScriptFieldsView(_HarvestView):
 
         fields = state.attributes.get("fields", {})
         return self.json({"entity_id": entity_id, "fields": fields})
+
+
+class HarvestServiceFieldsView(_HarvestView):
+    """GET /api/harvest/services/{domain}/{service}
+
+    Returns the HA-defined field schema for a specific service action.
+    Used by the gesture "Perform action" UI to render dynamic input fields
+    instead of a raw JSON textarea.
+
+    Response: {"domain": "light", "service": "turn_on", "fields": {...}}
+    Fields use HA's selector format (number, boolean, select, text, etc.).
+    Only fields whose keys are in _ALLOWED_DATA_KEYS (from ws_proxy) are
+    returned, so the UI cannot configure keys the proxy would strip.
+    """
+
+    url = "/api/harvest/services/{domain}/{service}"
+    name = "api:harvest:service:fields"
+
+    async def get(self, request: web.Request, domain: str, service: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+
+        from .entity_compatibility import ALLOWED_SERVICES, TIER3_DOMAINS
+
+        # Hard block: Tier 3 domains must never be actionable, even via
+        # custom_domains settings (which should not list them either, but
+        # belt-and-suspenders).
+        if domain in TIER3_DOMAINS:
+            raise web.HTTPForbidden(
+                text=f"Domain '{domain}' is blocked (Tier 3)."
+            )
+
+        allowed_actions = ALLOWED_SERVICES.get(domain)
+        custom_domains: list[dict] = []
+        try:
+            data = get_entry_data(self._hass, self._entry_id)
+            if data:
+                custom_domains = (
+                    data.get("custom_domains")
+                    or data.get("options", {}).get("custom_domains", [])
+                )
+        except Exception:
+            pass
+
+        is_allowed = False
+        if allowed_actions is not None:
+            is_allowed = service in allowed_actions
+        else:
+            for entry in custom_domains:
+                if entry.get("domain") == domain:
+                    is_allowed = service in entry.get("allowed_services", [])
+                    break
+
+        if not is_allowed:
+            raise web.HTTPNotFound(
+                text=f"Action {domain}.{service} not in allowlist"
+            )
+
+        from homeassistant.helpers.service import async_get_all_descriptions
+        descriptions = await async_get_all_descriptions(self._hass)
+        svc_desc = descriptions.get(domain, {}).get(service, {})
+
+        raw_fields = svc_desc.get("fields", {})
+
+        from .ws_proxy import _ALLOWED_DATA_KEYS
+        allowed_keys = _ALLOWED_DATA_KEYS.get(domain)
+
+        def _filter_fields(fields: dict) -> dict:
+            out: dict = {}
+            for key, schema in fields.items():
+                if key == "advanced_fields":
+                    nested = schema.get("fields", {})
+                    filtered = _filter_fields(nested)
+                    if filtered:
+                        out[key] = {**schema, "fields": filtered}
+                    continue
+                if allowed_keys is not None and key not in allowed_keys:
+                    continue
+                out[key] = schema
+            return out
+
+        filtered = _filter_fields(raw_fields) if allowed_keys is not None else raw_fields
+
+        return self.json({
+            "domain": domain,
+            "service": service,
+            "name": svc_desc.get("name", f"{domain}.{service}"),
+            "description": svc_desc.get("description", ""),
+            "fields": filtered,
+        })
 
 
 # ---------------------------------------------------------------------------

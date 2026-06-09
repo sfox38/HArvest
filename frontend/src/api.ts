@@ -565,6 +565,15 @@ export const api = {
   },
 
   // ---------------------------------------------------------------------------
+  // Service field schemas (for gesture "Perform action" UI)
+  // ---------------------------------------------------------------------------
+
+  services: {
+    getFields: (domain: string, service: string): Promise<import("./types").ServiceDescription> =>
+      _get(`/services/${encodeURIComponent(domain)}/${encodeURIComponent(service)}`),
+  },
+
+  // ---------------------------------------------------------------------------
   // HA native states (for picking entities outside the harvest tier filter)
   // ---------------------------------------------------------------------------
 
