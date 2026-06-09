@@ -1220,27 +1220,64 @@ interface ServiceDataFieldsProps {
   data: Record<string, unknown>;
   onChange: (data: Record<string, unknown>) => void;
   disabled?: boolean;
+  preloadedFields?: Record<string, ServiceFieldSchema> | null;
 }
 
-export function ServiceDataFields({ domain, service, data, onChange, disabled }: ServiceDataFieldsProps) {
+export function ServiceDataFields({ domain, service, data, onChange, disabled, preloadedFields }: ServiceDataFieldsProps) {
   const [schema, setSchema] = useState<ServiceDescription | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [registries, setRegistries] = useState<import("../types").HARegistries | null>(null);
 
   useEffect(() => {
+    if (preloadedFields !== undefined) return;
     if (!domain || !service) { setSchema(null); return; }
     setLoading(true);
     setError("");
     api.services.getFields(domain, service)
       .then(s => { setSchema(s); setLoading(false); })
       .catch(e => { setError(String(e)); setLoading(false); setSchema(null); });
-  }, [domain, service]);
+  }, [domain, service, preloadedFields]);
 
-  if (!domain || !service) return null;
-  if (loading) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Loading fields...</div>;
-  if (error) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Could not load field schema. Use JSON below.</div>;
-  if (!schema || Object.keys(schema.fields).length === 0) return null;
+  const fields = preloadedFields !== undefined
+    ? (preloadedFields ?? {})
+    : (schema?.fields ?? {});
+
+  const needsRegistries = Object.values(fields).some(f => {
+    const s = f.selector;
+    return s && (s.area !== undefined || s.floor !== undefined || s.device !== undefined || s.label !== undefined || s.entity !== undefined || s.target !== undefined);
+  });
+
+  useEffect(() => {
+    if (!needsRegistries || registries) return;
+    api.registries.getAll().then(setRegistries).catch(() => {});
+  }, [needsRegistries, registries]);
+
+  const entityList = useEntityCache();
+  const TIER3 = useMemo(() => new Set(["alarm_control_panel", "device_tracker", "camera", "scene", "update"]), []);
+
+  if (preloadedFields === undefined) {
+    if (!domain || !service) return null;
+    if (loading) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Loading fields...</div>;
+    if (error) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Could not load field schema. Use JSON below.</div>;
+  }
+  if (Object.keys(fields).length === 0) return null;
+
+  // Pre-fill defaults for fields that have a default and no current value.
+  const fieldsJson = JSON.stringify(fields);
+  useEffect(() => {
+    const defaults: Record<string, unknown> = {};
+    let any = false;
+    for (const [key, field] of Object.entries(fields)) {
+      if (field.default != null && data[key] == null) {
+        defaults[key] = field.default;
+        any = true;
+      }
+    }
+    if (any) onChange({ ...data, ...defaults });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldsJson]);
 
   const setField = (key: string, val: unknown) => {
     const next = { ...data };
@@ -1254,15 +1291,22 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled }:
 
   const renderField = (key: string, field: ServiceFieldSchema) => {
     const sel = field.selector;
+
+    // No selector: infer type from example value.
     if (!sel) {
+      const ex = field.example;
+      const isNumeric = ex != null && !isNaN(Number(ex)) && String(ex).trim() !== "";
       return (
         <input
           key={key}
-          type="text"
+          type={isNumeric ? "number" : "text"}
           className="input"
-          placeholder={field.example != null ? String(field.example) : key}
+          placeholder={ex != null ? String(ex) : key}
           value={data[key] != null ? String(data[key]) : ""}
-          onChange={e => setField(key, e.target.value || undefined)}
+          onChange={e => {
+            const v = e.target.value;
+            setField(key, v === "" ? undefined : isNumeric ? Number(v) : v);
+          }}
           disabled={disabled}
           style={{ fontSize: 12 }}
         />
@@ -1274,7 +1318,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled }:
       return (
         <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <input
-            type="number"
+            type={n.mode === "slider" ? "range" : "number"}
             className="input"
             min={n.min}
             max={n.max}
@@ -1288,6 +1332,9 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled }:
             disabled={disabled}
             style={{ fontSize: 12, flex: 1 }}
           />
+          {n.mode === "slider" && data[key] != null && (
+            <span className="mono fs-11">{String(data[key])}</span>
+          )}
           {n.unit_of_measurement && (
             <span className="muted fs-11">{n.unit_of_measurement}</span>
           )}
@@ -1295,7 +1342,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled }:
       );
     }
 
-    if (sel.boolean) {
+    if (sel.boolean !== undefined) {
       return (
         <label key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
           <input
@@ -1327,6 +1374,337 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled }:
             return <option key={val} value={val}>{label}</option>;
           })}
         </select>
+      );
+    }
+
+    // text selector: respect multiline and type hints.
+    if (sel.text !== undefined) {
+      const t = sel.text;
+      const suffix = t?.suffix;
+      const prefix = t?.prefix;
+      if (t?.multiline) {
+        return (
+          <div key={key} style={{ display: "flex", alignItems: "flex-start", gap: 4 }}>
+            {prefix && <span className="muted fs-11" style={{ paddingTop: 4 }}>{prefix}</span>}
+            <textarea
+              className="input"
+              placeholder={field.example != null ? String(field.example) : key}
+              value={data[key] != null ? String(data[key]) : ""}
+              onChange={e => setField(key, e.target.value || undefined)}
+              disabled={disabled}
+              rows={3}
+              style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical", flex: 1 }}
+            />
+            {suffix && <span className="muted fs-11" style={{ paddingTop: 4 }}>{suffix}</span>}
+          </div>
+        );
+      }
+      const inputType = t?.type === "password" ? "password"
+        : t?.type === "email" ? "email"
+        : t?.type === "url" ? "url"
+        : "text";
+      return (
+        <div key={key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {prefix && <span className="muted fs-11">{prefix}</span>}
+          <input
+            key={key}
+            type={inputType}
+            className="input"
+            placeholder={field.example != null ? String(field.example) : key}
+            value={data[key] != null ? String(data[key]) : ""}
+            onChange={e => setField(key, e.target.value || undefined)}
+            disabled={disabled}
+            style={{ fontSize: 12, flex: 1 }}
+          />
+          {suffix && <span className="muted fs-11">{suffix}</span>}
+        </div>
+      );
+    }
+
+    if (sel.entity !== undefined) {
+      const ent = sel.entity;
+      const domainFilter = ent?.domain
+        ? new Set(Array.isArray(ent.domain) ? ent.domain : [ent.domain])
+        : null;
+      const filtered = entityList.filter(e => {
+        if (TIER3.has(e.domain)) return false;
+        return domainFilter ? domainFilter.has(e.domain) : true;
+      });
+      return (
+        <select
+          key={key}
+          className="input entity-graph-select"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        >
+          <option value="">--</option>
+          {filtered.map(e => (
+            <option key={e.entity_id} value={e.entity_id}>
+              {e.friendly_name ? `${e.friendly_name} (${e.entity_id})` : e.entity_id}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (sel.target !== undefined) {
+      const domainFilter = sel.target?.entity?.domain
+        ? new Set(Array.isArray(sel.target.entity.domain) ? sel.target.entity.domain : [sel.target.entity.domain])
+        : null;
+      const filtered = entityList.filter(e => {
+        if (TIER3.has(e.domain)) return false;
+        return domainFilter ? domainFilter.has(e.domain) : true;
+      });
+      return (
+        <select
+          key={key}
+          className="input entity-graph-select"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        >
+          <option value="">--</option>
+          {filtered.map(e => (
+            <option key={e.entity_id} value={e.entity_id}>
+              {e.friendly_name ? `${e.friendly_name} (${e.entity_id})` : e.entity_id}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (sel.area !== undefined) {
+      const areas = registries?.areas ?? [];
+      return (
+        <select
+          key={key}
+          className="input entity-graph-select"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        >
+          <option value="">--</option>
+          {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      );
+    }
+
+    if (sel.device !== undefined) {
+      const devices = registries?.devices ?? [];
+      return (
+        <select
+          key={key}
+          className="input entity-graph-select"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        >
+          <option value="">--</option>
+          {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+      );
+    }
+
+    if (sel.floor !== undefined) {
+      const floors = (registries?.floors ?? []).slice().sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
+      return (
+        <select
+          key={key}
+          className="input entity-graph-select"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        >
+          <option value="">--</option>
+          {floors.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+      );
+    }
+
+    if (sel.label !== undefined) {
+      const labels = registries?.labels ?? [];
+      return (
+        <select
+          key={key}
+          className="input entity-graph-select"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        >
+          <option value="">--</option>
+          {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+      );
+    }
+
+    if (sel.location !== undefined) {
+      return (
+        <input
+          key={key}
+          type="text"
+          className="input"
+          placeholder={field.example != null ? String(field.example) : "latitude, longitude"}
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        />
+      );
+    }
+
+    if (sel.attribute !== undefined) {
+      return (
+        <input
+          key={key}
+          type="text"
+          className="input"
+          placeholder={field.example != null ? String(field.example) : "attribute name"}
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        />
+      );
+    }
+
+    if (sel.time !== undefined) {
+      return (
+        <input
+          key={key}
+          type="time"
+          className="input"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        />
+      );
+    }
+
+    if (sel.date !== undefined) {
+      return (
+        <input
+          key={key}
+          type="date"
+          className="input"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        />
+      );
+    }
+
+    if (sel.datetime !== undefined) {
+      return (
+        <input
+          key={key}
+          type="datetime-local"
+          className="input"
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        />
+      );
+    }
+
+    if (sel.duration !== undefined) {
+      const dur = sel.duration;
+      const showDay = dur?.enable_day === true;
+      const showMs = dur?.enable_millisecond === true;
+      const raw = (data[key] ?? {}) as Record<string, unknown>;
+      const sign = raw._negative ? "-" : "+";
+      const val = raw as Record<string, number>;
+      const setDur = (unit: string, v: string) => {
+        const next = { ...val };
+        if (v === "" || v === undefined) { delete next[unit]; } else { next[unit] = Number(v); }
+        const hasValues = Object.keys(next).some(k => k !== "_negative" && next[k]);
+        setField(key, hasValues || next._negative ? next : undefined);
+      };
+      const setSign = (neg: boolean) => {
+        const next = { ...val };
+        if (neg) { next._negative = 1 as never; } else { delete (next as Record<string, unknown>)._negative; }
+        setField(key, Object.keys(next).length > 0 ? next : undefined);
+      };
+      const units: [string, string][] = [];
+      if (showDay) units.push(["days", "d"]);
+      units.push(["hours", "h"], ["minutes", "m"], ["seconds", "s"]);
+      if (showMs) units.push(["milliseconds", "ms"]);
+      return (
+        <div key={key} className="svc-duration-row">
+          <div className="svc-duration-unit svc-duration-sign">
+            <select
+              className="input"
+              value={sign}
+              onChange={e => setSign(e.target.value === "-")}
+              disabled={disabled}
+            >
+              <option value="+">+</option>
+              <option value="-">-</option>
+            </select>
+          </div>
+          {units.map(([unit, label]) => (
+            <div key={unit} className="svc-duration-unit">
+              <input
+                type="number"
+                className="input"
+                min={0}
+                max={99}
+                value={val[unit] != null ? String(val[unit]) : ""}
+                placeholder="0"
+                onChange={e => setDur(unit, e.target.value)}
+                disabled={disabled}
+              />
+              <span className="svc-duration-label">{label}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // template selector: multiline monospace textarea.
+    if (sel.template !== undefined) {
+      return (
+        <textarea
+          key={key}
+          className="input"
+          placeholder={field.example != null ? String(field.example) : "{{ value }}"}
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          rows={3}
+          style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical" }}
+        />
+      );
+    }
+
+    // object selector: JSON textarea.
+    if (sel.object !== undefined) {
+      const raw = data[key];
+      const strVal = raw != null ? (typeof raw === "string" ? raw : JSON.stringify(raw, null, 2)) : "";
+      return (
+        <textarea
+          key={key}
+          className="input"
+          placeholder={field.example != null ? JSON.stringify(field.example, null, 2) : "{}"}
+          value={strVal}
+          onChange={e => {
+            const v = e.target.value.trim();
+            if (!v) { setField(key, undefined); return; }
+            try { setField(key, JSON.parse(v)); } catch { setField(key, v); }
+          }}
+          disabled={disabled}
+          rows={3}
+          style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical" }}
+        />
       );
     }
 
@@ -1392,24 +1770,44 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled }:
       );
     }
 
+    // state selector: plain text fallback.
+    if (sel.state !== undefined) {
+      return (
+        <input
+          key={key}
+          type="text"
+          className="input"
+          placeholder={field.example != null ? String(field.example) : key}
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        />
+      );
+    }
+
+    // Unknown selector type: show the type name and a text fallback.
+    const selectorType = Object.keys(sel).find(k => sel[k as keyof typeof sel] !== undefined) ?? "unknown";
     return (
-      <input
-        key={key}
-        type="text"
-        className="input"
-        placeholder={field.example != null ? String(field.example) : key}
-        value={data[key] != null ? String(data[key]) : ""}
-        onChange={e => setField(key, e.target.value || undefined)}
-        disabled={disabled}
-        style={{ fontSize: 12 }}
-      />
+      <div key={key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <span className="muted fs-11">"{selectorType}" selector not supported visually; enter a value manually</span>
+        <input
+          type="text"
+          className="input"
+          placeholder={field.example != null ? String(field.example) : key}
+          value={data[key] != null ? String(data[key]) : ""}
+          onChange={e => setField(key, e.target.value || undefined)}
+          disabled={disabled}
+          style={{ fontSize: 12 }}
+        />
+      </div>
     );
   };
 
   const mainFields: [string, ServiceFieldSchema][] = [];
   const advancedFields: [string, ServiceFieldSchema][] = [];
 
-  for (const [key, field] of Object.entries(schema.fields)) {
+  for (const [key, field] of Object.entries(fields)) {
     if (key === "advanced_fields" && field.fields) {
       for (const [k, f] of Object.entries(field.fields)) {
         advancedFields.push([k, f]);
@@ -1421,17 +1819,24 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled }:
     }
   }
 
-  return (
-    <div className="svc-data-fields">
-      {mainFields.map(([key, field]) => (
-        <div key={key} className="svc-data-field-row">
-          <label className="svc-data-field-label">
-            {key.replace(/_/g, " ")}
-            {field.required && <span style={{ color: "var(--red)" }}> *</span>}
-          </label>
+  const renderFieldRow = (key: string, field: ServiceFieldSchema) => {
+    const label = field.name || key.replace(/_/g, " ");
+    return (
+      <div key={key} className="svc-data-field-row">
+        <label className="svc-data-field-label">
+          {label}
+          {field.required && <span style={{ color: "var(--danger)", cursor: "help" }} title="Required by this script"> *</span>}
+        </label>
+        <div className="svc-data-field-input">
           {renderField(key, field)}
         </div>
-      ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="svc-data-fields">
+      {mainFields.map(([key, field]) => renderFieldRow(key, field))}
       {advancedFields.length > 0 && (
         <>
           <button
@@ -1442,15 +1847,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled }:
           >
             {showAdvanced ? "Hide" : "Show"} advanced fields ({advancedFields.length})
           </button>
-          {showAdvanced && advancedFields.map(([key, field]) => (
-            <div key={key} className="svc-data-field-row">
-              <label className="svc-data-field-label">
-                {key.replace(/_/g, " ")}
-                {field.required && <span style={{ color: "var(--red)" }}> *</span>}
-              </label>
-              {renderField(key, field)}
-            </div>
-          ))}
+          {showAdvanced && advancedFields.map(([key, field]) => renderFieldRow(key, field))}
         </>
       )}
     </div>

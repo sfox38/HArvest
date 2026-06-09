@@ -272,6 +272,9 @@
         <h3>Live preview</h3>
         <p>Step 1 shows a live preview of your selected entity as you configure it. The preview updates in real time when you change the permission level, select a different entity, or pick a theme. Companions also appear in the preview.</p>
 
+        <h3>Script variables</h3>
+        <p>When you add a <code>script</code> entity with <strong>View and control</strong> permission, the wizard shows a form for the script's input variables (if any are defined in the script's YAML <code>fields:</code> config). Each variable renders as a typed input matching its HA selector: dropdowns for areas, floors, devices, entities, and select lists; number inputs with min/max constraints; checkboxes for booleans; and text inputs for everything else. Default values from the script definition are pre-filled. These values are baked into the widget and sent automatically when a visitor clicks Run. The same form is available in the widget detail editor under <strong>Script variables</strong>.</p>
+
         <h3>Alias toggle (Step 4)</h3>
         <p>The code snippet in Step 4 (Done) has an <strong>Aliases</strong> toggle. When enabled, the snippet uses 8-character random aliases instead of real entity IDs in the embed code. Both formats work - aliases are just privacy aliases, not a different access mechanism. Aliases for each entity are generated when you select the entity in Step 1 and are stored with the widget permanently.</p>
 

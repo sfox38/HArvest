@@ -7,10 +7,10 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { Token, ThemeDefinition } from "../types";
+import type { Token, ThemeDefinition, ServiceFieldSchema } from "../types";
 import { validateLabel as validateLabelWiz } from "../types";
 import { api } from "../api";
-import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
+import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { loadWidgetScript, loadRendererScript } from "./WidgetPreview";
@@ -45,7 +45,7 @@ interface SelectedEntity {
   entity_id: string;
   alias: string | null;
   companions: { entity_id: string; alias: string | null; read_only?: boolean }[];
-  service_data?: Record<string, string>;
+  service_data?: Record<string, unknown>;
 }
 
 interface WizardState {
@@ -450,18 +450,12 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
 // ScriptVarsForm - variable configuration for script entities
 // ---------------------------------------------------------------------------
 
-interface ScriptField {
-  description?: string;
-  example?: unknown;
-  selector?: Record<string, unknown>;
-}
-
 function ScriptVarsForm({ entityId, serviceData, onChange }: {
   entityId: string;
-  serviceData: Record<string, string>;
-  onChange: (data: Record<string, string>) => void;
+  serviceData: Record<string, unknown>;
+  onChange: (data: Record<string, unknown>) => void;
 }) {
-  const [fields, setFields] = useState<Record<string, ScriptField> | null>(null);
+  const [fields, setFields] = useState<Record<string, ServiceFieldSchema> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -480,27 +474,14 @@ function ScriptVarsForm({ entityId, serviceData, onChange }: {
 
   return (
     <div className="col" style={{ gap: 6, paddingTop: 6 }}>
-      <span className="label-strong" style={{ fontSize: 11 }}>Script variables (optional)</span>
-      {Object.entries(fields).map(([key, field]) => {
-        const isNumber = field.selector && ("number" in field.selector || "text" in (field.selector as Record<string, unknown>) === false && "number" in (field.selector as Record<string, unknown>));
-        const inputType = isNumber ? "number" : "text";
-        return (
-          <div key={key} className="col" style={{ gap: 2 }}>
-            <label className="muted" style={{ fontSize: 11 }}>
-              {key}
-              {field.description && <span style={{ marginLeft: 4 }}>- {field.description}</span>}
-            </label>
-            <input
-              type={inputType}
-              className="text-input"
-              value={serviceData[key] ?? ""}
-              placeholder={field.example !== undefined ? String(field.example) : ""}
-              onChange={ev => onChange({ ...serviceData, [key]: ev.target.value })}
-              style={{ fontSize: 12, padding: "4px 6px" }}
-            />
-          </div>
-        );
-      })}
+      <span className="label-strong" style={{ fontSize: 11 }}>Script variables</span>
+      <ServiceDataFields
+        domain="script"
+        service={entityId.split(".", 2)[1]}
+        data={serviceData}
+        onChange={onChange}
+        preloadedFields={fields}
+      />
     </div>
   );
 }
@@ -609,7 +590,7 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
     onChange({ entities: state.entities.map(e => e.entity_id === entityId ? { ...e, companions } : e) });
   };
 
-  const updateServiceData = (entityId: string, data: Record<string, string>) => {
+  const updateServiceData = (entityId: string, data: Record<string, unknown>) => {
     onChange({ entities: state.entities.map(e => e.entity_id === entityId ? { ...e, service_data: data } : e) });
   };
 

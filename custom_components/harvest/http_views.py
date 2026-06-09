@@ -84,6 +84,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestEntityDefinitionView,
         HarvestScriptFieldsView,
         HarvestServiceFieldsView,
+        HarvestRegistriesView,
         HarvestPanelJsView,
         HarvestLovelaceDashboardsView,
         HarvestLovelaceConfigView,
@@ -2969,7 +2970,15 @@ class HarvestScriptFieldsView(_HarvestView):
         if state is None:
             raise web.HTTPNotFound(text=f"Entity {entity_id} not found")
 
-        fields = state.attributes.get("fields", {})
+        domain = entity_id.split(".")[0]
+        if domain != "script":
+            return self.json({"entity_id": entity_id, "fields": {}})
+
+        service_name = entity_id.split(".", 1)[1]
+        from homeassistant.helpers.service import async_get_all_descriptions
+        descriptions = await async_get_all_descriptions(self._hass)
+        svc_desc = descriptions.get("script", {}).get(service_name, {})
+        fields = svc_desc.get("fields", {})
         return self.json({"entity_id": entity_id, "fields": fields})
 
 
@@ -3061,6 +3070,55 @@ class HarvestServiceFieldsView(_HarvestView):
             "name": svc_desc.get("name", f"{domain}.{service}"),
             "description": svc_desc.get("description", ""),
             "fields": filtered,
+        })
+
+
+class HarvestRegistriesView(_HarvestView):
+    """GET /api/harvest/registries
+
+    Returns HA registry data (areas, floors, devices, labels) for use in
+    service-data field selectors. Entities are available via the existing
+    /api/harvest/entities endpoint and the panel entity cache.
+    """
+
+    url = "/api/harvest/registries"
+    name = "api:harvest:registries"
+
+    async def get(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+
+        from homeassistant.helpers import (
+            area_registry as ar,
+            floor_registry as fr,
+            device_registry as dr,
+            label_registry as lr,
+        )
+
+        areas = ar.async_get(self._hass)
+        floors = fr.async_get(self._hass)
+        devices = dr.async_get(self._hass)
+        labels = lr.async_get(self._hass)
+
+        return self.json({
+            "areas": [
+                {"id": a.id, "name": a.name, "floor_id": a.floor_id}
+                for a in areas.async_list_areas()
+            ],
+            "floors": [
+                {"id": f.floor_id, "name": f.name, "level": f.level}
+                for f in floors.async_list_floors()
+            ],
+            "devices": [
+                {"id": d.id, "name": d.name_by_user or d.name or d.id, "area_id": d.area_id}
+                for d in devices.devices.values()
+                if not d.disabled_by
+            ],
+            "labels": [
+                {"id": la.label_id, "name": la.name}
+                for la in labels.async_list_labels()
+            ],
         })
 
 

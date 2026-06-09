@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
-import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail } from "../types";
+import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail, ServiceFieldSchema } from "../types";
 import { api } from "../api";
 import { ConfirmDialog, Card, Spinner, EntityAutocomplete, ActionPicker, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
@@ -84,6 +84,41 @@ function hasFeature(cap: ThemeCapabilities | null, domain: string, feature: stri
   const list = dc.features ?? dc.display_modes;
   if (!list) return true;
   return list.includes(feature);
+}
+
+function ScriptVarsEditor({ entityId, serviceData, onChange, disabled }: {
+  entityId: string;
+  serviceData: Record<string, unknown>;
+  onChange: (data: Record<string, unknown>) => void;
+  disabled?: boolean;
+}) {
+  const [fields, setFields] = useState<Record<string, ServiceFieldSchema> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    api.entities.getScriptFields(entityId)
+      .then(r => { setFields(r.fields); })
+      .catch(() => setError("Could not load script variables."))
+      .finally(() => setLoading(false));
+  }, [entityId]);
+
+  if (loading) return <div className="muted fs-11" style={{ padding: "4px 0" }}><Spinner size={12} /> Loading script variables...</div>;
+  if (error) return <div className="muted fs-11" style={{ color: "var(--warning)" }}>{error}</div>;
+  if (!fields || Object.keys(fields).length === 0) return null;
+
+  return (
+    <ServiceDataFields
+      domain="script"
+      service={entityId.split(".", 2)[1]}
+      data={serviceData}
+      onChange={onChange}
+      disabled={disabled}
+      preloadedFields={fields}
+    />
+  );
 }
 
 function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowLabel, blockHighlightRows, blockShowIcons, blockWidgetBorder, colorScheme, perEntityColor }: {
@@ -1929,6 +1964,22 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
             )}
 
+            {selectedDomain === "script" && selectedEntity.capabilities === "read-write" && (
+            <div className="entity-setting-group">
+              <div className="entity-setting-group-title">Script variables</div>
+              <ScriptVarsEditor
+                entityId={selectedEntity.entity_id}
+                serviceData={selectedEntity.service_data ?? {}}
+                onChange={data => {
+                  patchEntities(entities.map(en =>
+                    en.entity_id === selectedEntity.entity_id ? { ...en, service_data: data } : en
+                  ));
+                }}
+                disabled={!canEdit}
+              />
+            </div>
+            )}
+
             {selectedEntity.capabilities !== "badge" && !token.entities_block && (
             <div className="entity-setting-group">
               <div className="entity-setting-group-title">Gestures</div>
@@ -1947,7 +1998,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   return (
                     <div key={gesture} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ fontSize: 12, color: "var(--ink-3)", minWidth: 68 }}>{label}</span>
+                        <span style={{ fontSize: 12, color: "var(--ink-3)", minWidth: 90 }}>{label}</span>
                         <select
                           value={currentAction}
                           onChange={ev => {

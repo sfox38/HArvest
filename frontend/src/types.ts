@@ -60,6 +60,7 @@ export interface EntityAccess {
   icon_override: string | null;
   color_scheme: "auto" | "light" | "dark";
   display_hints: Record<string, unknown>;
+  service_data?: Record<string, unknown>;
 }
 
 export type TokenStatus = "active" | "inactive" | "expiring_soon" | "expired" | "revoked";
@@ -283,19 +284,33 @@ export interface AvailableDomain {
 export interface ServiceFieldSelector {
   number?: { min?: number; max?: number; step?: number; unit_of_measurement?: string; mode?: string };
   boolean?: Record<string, unknown>;
-  text?: Record<string, unknown>;
+  text?: { multiline?: boolean; type?: string; suffix?: string; prefix?: string } | null;
   select?: { options?: (string | { value: string; label: string })[]; translation_key?: string };
   color_rgb?: Record<string, unknown>;
   color_temp?: { unit?: string; min?: number; max?: number };
   object?: Record<string, unknown>;
   constant?: { value: unknown; label?: string };
   state?: Record<string, unknown>;
+  entity?: { domain?: string | string[]; integration?: string; device_class?: string | string[] } | null;
+  target?: { entity?: { domain?: string | string[] }; device?: Record<string, unknown> } | null;
+  time?: Record<string, unknown> | null;
+  date?: Record<string, unknown> | null;
+  datetime?: Record<string, unknown> | null;
+  template?: Record<string, unknown> | null;
+  area?: Record<string, unknown> | null;
+  floor?: Record<string, unknown> | null;
+  device?: Record<string, unknown> | null;
+  label?: Record<string, unknown> | null;
+  attribute?: { entity_id?: string } | null;
+  location?: Record<string, unknown> | null;
+  duration?: { enable_day?: boolean; enable_millisecond?: boolean } | null;
 }
 
 export interface ServiceFieldSchema {
   name?: string;
   description?: string;
   required?: boolean;
+  default?: unknown;
   example?: unknown;
   selector?: ServiceFieldSelector;
   advanced?: boolean;
@@ -383,6 +398,13 @@ export interface HAEntityDetail {
   entity_id: string;
   state: string;
   attributes: Record<string, unknown>;
+}
+
+export interface HARegistries {
+  areas: { id: string; name: string; floor_id: string | null }[];
+  floors: { id: string; name: string; level: number | null }[];
+  devices: { id: string; name: string; area_id: string | null }[];
+  labels: { id: string; name: string }[];
 }
 
 // ---------------------------------------------------------------------------

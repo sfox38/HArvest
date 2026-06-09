@@ -2392,17 +2392,59 @@ button.entity-setting-group-title:focus-visible {
 .svc-data-fields {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
 }
 .svc-data-field-row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--divider);
 }
+.svc-data-field-row:last-child { border-bottom: none; }
 .svc-data-field-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink-3);
   text-transform: capitalize;
+  min-width: 90px;
+  flex-shrink: 0;
+  padding-top: 4px;
+  line-height: 1.3;
+}
+.svc-data-field-input { flex: 1; min-width: 0; }
+.svc-duration-row {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+.svc-duration-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.svc-duration-unit input {
+  width: 54px;
+  text-align: center;
+  font-size: 12px;
+  padding: 3px 0;
+  -moz-appearance: textfield;
+}
+.svc-duration-unit input::-webkit-inner-spin-button,
+.svc-duration-unit input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.svc-duration-sign select {
+  width: 42px;
+  font-size: 12px;
+  padding: 3px 2px;
+  text-align: center;
+}
+.svc-duration-label {
+  font-size: 10px;
+  color: var(--ink-4);
+  font-weight: 500;
 }
 .svc-json-fallback summary {
   font-size: 11px;

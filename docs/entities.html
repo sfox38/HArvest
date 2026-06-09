@@ -203,7 +203,7 @@
         <p>Dropdown selector showing all available options. Functionally identical to <code>input_select</code>. Used by integrations such as AV receivers and tuners.</p>
 
         <h3>script</h3>
-        <p>Run button that triggers the script. Variables are pre-configured by the widget owner at token creation time in the wizard and baked into the token - visitors cannot change them. The card shows a pulse animation while the script is running.</p>
+        <p>Run button that triggers the script. If the script defines input variables (via <code>fields:</code> in the YAML config), the wizard and token editor show a typed form for each variable - number inputs, dropdowns, entity pickers, area selectors, and more, matching the field's HA selector type. Default values are pre-filled. These values are baked into the token at creation time; visitors cannot change them. The card shows a pulse animation while the script is running.</p>
         <p><strong>States:</strong> off (idle), on (running).</p>
 
         <h3>automation</h3>

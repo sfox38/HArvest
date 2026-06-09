@@ -23,6 +23,8 @@ import type {
   RenderersResponse,
   WarningsState,
   UrlCheckResult,
+  ServiceFieldSchema,
+  HARegistries,
 } from "./types";
 
 const BASE = "/api/harvest";
@@ -560,7 +562,7 @@ export const api = {
       return _get(`/preview/definition/${encodeURIComponent(entityId)}`, Object.keys(p).length ? p : undefined);
     },
 
-    getScriptFields: (entityId: string): Promise<{ entity_id: string; fields: Record<string, { description?: string; example?: unknown; selector?: Record<string, unknown> }> }> =>
+    getScriptFields: (entityId: string): Promise<{ entity_id: string; fields: Record<string, ServiceFieldSchema> }> =>
       _get(`/entities/${encodeURIComponent(entityId)}/script_fields`),
   },
 
@@ -571,6 +573,14 @@ export const api = {
   services: {
     getFields: (domain: string, service: string): Promise<import("./types").ServiceDescription> =>
       _get(`/services/${encodeURIComponent(domain)}/${encodeURIComponent(service)}`),
+  },
+
+  // ---------------------------------------------------------------------------
+  // HA registries (areas, floors, devices, labels)
+  // ---------------------------------------------------------------------------
+
+  registries: {
+    getAll: (): Promise<HARegistries> => _get("/registries"),
   },
 
   // ---------------------------------------------------------------------------
