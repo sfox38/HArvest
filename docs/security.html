@@ -173,7 +173,7 @@
   - 172.16.0.0/12    # Docker network
   - 104.16.0.0/12    # Cloudflare edge (if Cloudflare is in front)</code></pre>
 
-        <p>For multi-hop deployments (e.g. Cloudflare &rarr; nginx &rarr; HA), list <strong>every</strong> intermediate proxy. HArvest walks <code>X-Forwarded-For</code> from right to left, skipping trusted hops, and uses the first untrusted entry as the real client IP. If any intermediate hop is missing from the trusted list, HArvest stops at that hop and treats it as the client.</p>
+        <p>For multi-hop deployments (e.g. Cloudflare to nginx to HA), list <strong>every</strong> intermediate proxy. HArvest walks <code>X-Forwarded-For</code> from right to left, skipping trusted hops, and uses the first untrusted entry as the real client IP. If any intermediate hop is missing from the trusted list, HArvest stops at that hop and treats it as the client.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Without trusted_proxies configured</span>

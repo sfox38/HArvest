@@ -205,7 +205,11 @@ nunito.woff2</code></pre>
 
         <div class="callout callout-tip">
           <span class="callout-label">Finding free fonts</span>
-          <p><a href="https://fonts.google.com" target="_blank">Google Fonts</a> has thousands of freely licensed fonts. To get a WOFF2 URL, request the CSS with a browser user-agent:<br><code>curl -H "User-Agent: Mozilla/5.0" "https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&amp;display=swap"</code><br>The response contains direct download URLs. For variable fonts not available as WOFF2, download the TTF from the font's GitHub repo and convert with <code>fonttools</code> (Python: <code>pip install fonttools brotli</code>).</p>
+          <p><a href="https://fonts.google.com" target="_blank">Google Fonts</a> has thousands of freely licensed fonts. To get the WOFF2 URL, request the CSS, as in this example:</p>
+
+            <p><code>curl -H "User-Agent: Mozilla/5.0" "https://fonts.googleapis.com/css2?family=Font-name:wght@400;700&amp;display=swap"</code></p>
+
+            <p>The response will contain the direct download URLs for your font.</p>
         </div>
 
         <p>If your theme needs separate files for different styles (e.g. regular and italic), add multiple entries to the array. Each gets its own <code>@font-face</code> rule.</p>
@@ -232,7 +236,7 @@ nunito.woff2</code></pre>
 
         <div class="callout callout-info">
           <span class="callout-label">Bundled vs. Google Fonts</span>
-          <p><strong>Bundled fonts</strong> are self-contained - the theme works offline and on any site without extra setup. <strong>Google Fonts</strong> are lighter to distribute (no woff2 in the zip) but require an internet connection and a page-level <code>&lt;link&gt;</code> tag on every site that uses the theme. Bundled fonts are recommended for shared themes; Google Fonts work well for personal use on sites you control.</p>
+          <p><strong>Bundled fonts</strong> are self-contained - these themes will work offline and on any site without extra setup. <strong>Google Fonts</strong> are lighter to distribute (no woff2 in the zip) but require an internet connection and a page-level <code>&lt;link&gt;</code> tag on every site that uses the theme. Bundled fonts are recommended for shared themes; Google Fonts work well for personal use on sites you control.</p>
         </div>
 
         <h2 id="css-variables">CSS variable reference</h2>

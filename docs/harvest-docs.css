@@ -339,6 +339,7 @@ img { max-width: 100%; height: auto; border-radius: var(--radius-lg); }
   line-height: 1.15;
   color: var(--text);
   margin-bottom: 12px;
+  text-wrap: balance;
 }
 
 .page-header .lead {
@@ -380,6 +381,7 @@ h2 {
   margin: 48px 0 14px;
   padding-top: 0;
   scroll-margin-top: 32px;
+  text-wrap: balance;
 }
 
 
@@ -391,6 +393,7 @@ h3 {
   color: var(--text);
   margin: 32px 0 10px;
   scroll-margin-top: 20px;
+  text-wrap: balance;
 }
 
 h4 {
@@ -401,9 +404,10 @@ h4 {
   margin: 24px 0 8px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  scroll-margin-top: 20px;
 }
 
-p { margin-bottom: 14px; color: var(--text); }
+p { margin-bottom: 14px; color: var(--text); text-wrap: pretty; }
 
 ul, ol {
   padding-left: 22px;
@@ -421,6 +425,10 @@ strong { font-weight: 650; color: var(--text); }
 
 /* Section rhythm */
 section + section { margin-top: clamp(48px, 5vw, 72px); }
+
+/* Extra breathing room when a code block precedes a heading */
+pre + h2 { margin-top: 56px; }
+pre + h3 { margin-top: 40px; }
 
 /* Horizontal rule as section divider */
 hr {
@@ -571,6 +579,7 @@ td code { font-size: 12.5px; }
 .callout p:last-child { margin-bottom: 0; }
 
 .callout-tip     { background: var(--tip-bg);    border-color: var(--tip-border);    color: var(--tip-text); }
+.callout-info    { background: var(--tip-bg);    border-color: var(--tip-border);    color: var(--tip-text); }
 .callout-warn    { background: var(--warn-bg);   border-color: var(--warn-border);   color: var(--warn-text); }
 .callout-danger  { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
 
@@ -587,6 +596,7 @@ td code { font-size: 12.5px; }
 }
 
 .callout-tip .callout-label    { background: var(--tip-border); }
+.callout-info .callout-label   { background: var(--tip-border); }
 .callout-warn .callout-label   { background: var(--warn-border); }
 .callout-danger .callout-label { background: var(--danger-border); }
 
@@ -642,6 +652,16 @@ td code { font-size: 12.5px; }
   max-width: 100%;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* Bare content images (not in .screenshot, .hero-img, or sidebar) */
+section > img,
+.content-inner > img:not(.hero-img) {
+  display: block;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  margin: 20px 0 24px;
 }
 
 .screenshot-aside {
