@@ -5382,8 +5382,8 @@
     [part=row-trigger-btn] {
       -webkit-appearance: none;
       appearance: none;
-      width: 28px;
-      height: 28px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
       background: var(--hrv-color-primary, #1976d2);
       border: none;

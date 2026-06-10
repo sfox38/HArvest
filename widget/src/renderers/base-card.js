@@ -308,6 +308,7 @@ const CARD_BASE_CSS = /* css */`
     border-radius: 0;
     box-shadow: none;
     padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
+    min-height: var(--hrv-row-height, 40px);
     display: flex;
     align-items: center;
     gap: 0;
