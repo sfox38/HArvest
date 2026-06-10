@@ -316,6 +316,30 @@
     :host([data-layout=vertical]) .shroom-info {
       align-items: center;
     }
+
+    :host([layout=row]) [part=card] > *:not(.shroom-state-item):not([part=row-control]) {
+      display: none !important;
+    }
+    :host([layout=row]) .shroom-state-item {
+      flex: 1;
+      min-width: 0;
+      padding: 0;
+    }
+    :host([layout=row]) .shroom-secondary,
+    :host([layout=row]) .shroom-press-btn {
+      display: none;
+    }
+    :host([layout=row]) .shroom-icon-shape {
+      width: 24px;
+      height: 24px;
+      min-width: 24px;
+      border-radius: 50%;
+      background: none !important;
+    }
+    :host([layout=row]) .shroom-icon-shape svg {
+      width: 18px;
+      height: 18px;
+    }
   `;
 
   // ---------------------------------------------------------------------------
@@ -535,6 +559,9 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          ${isWritable
+            ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>`
+            : `<span part="row-control"><span part="row-state"></span></span>`}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -552,13 +579,14 @@
       const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
         _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Toggle`);
-        this._attachGestureHandlers(stateItem, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("toggle", {});
-          },
-        });
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("toggle", {});
+        };
+        this._attachGestureHandlers(stateItem, { onTap });
+        const rowToggle = this.root.querySelector("[part=row-toggle]");
+        if (rowToggle) this._attachGestureHandlers(rowToggle, { onTap });
       }
 
       this.renderCompanions();
@@ -579,6 +607,14 @@
       if (stateItem?.hasAttribute("role")) {
         stateItem.setAttribute("aria-pressed", String(this.#isOn));
       }
+
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) {
+        rowToggle.setAttribute("aria-pressed", String(this.#isOn));
+        rowToggle.disabled = state === "unavailable" || state === "unknown";
+      }
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       const iconName = this.#isOn
         ? this.resolveIcon(this.def.icon, "mdi:toggle-switch")
@@ -726,6 +762,9 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          ${isWritable
+            ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>`
+            : `<span part="row-control"><span part="row-state"></span></span>`}
           ${showControls ? /* html */`
             <div class="shroom-controls-shell" data-collapsed="true">
               <div class="shroom-light-controls-row">
@@ -773,13 +812,14 @@
       const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
         _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Toggle`);
-        this._attachGestureHandlers(stateItem, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("toggle", {});
-          },
-        });
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("toggle", {});
+        };
+        this._attachGestureHandlers(stateItem, { onTap });
+        const rowToggle = this.root.querySelector("[part=row-toggle]");
+        if (rowToggle) this._attachGestureHandlers(rowToggle, { onTap });
       }
 
       for (const btn of this.#modeButtons) {
@@ -855,6 +895,14 @@
       if (stateItem?.hasAttribute("role")) {
         stateItem.setAttribute("aria-pressed", String(this.#isOn));
       }
+
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) {
+        rowToggle.setAttribute("aria-pressed", String(this.#isOn));
+        rowToggle.disabled = state === "unavailable" || state === "unknown";
+      }
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       if (this.#slider) {
         const mode = LIGHT_MODES[this.#mode] ?? "brightness";
@@ -1010,6 +1058,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          <span part="row-control"><span part="row-value"></span></span>
           ${this.renderHistoryZoneHTML()}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
@@ -1057,6 +1106,17 @@
         if (this.#iconEl) {
           this.#iconEl.style.background = `color-mix(in srgb, ${accent} 20%, transparent)`;
           this.#iconEl.style.color = accent;
+        }
+      }
+
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) {
+        if (isNumeric) {
+          const precision = attributes.suggested_display_precision;
+          const display = precision != null ? numVal.toFixed(precision) : String(Math.round(numVal * 10) / 10);
+          rowValue.textContent = unit ? `${display} ${unit}` : display;
+        } else {
+          rowValue.textContent = _capitalize(state);
         }
       }
 
@@ -1244,6 +1304,9 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          ${isWritable
+            ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>`
+            : `<span part="row-control"><span part="row-state"></span></span>`}
           ${showSlider || showFeats ? /* html */`
             <div class="shroom-controls-shell" data-collapsed="true">
               <div class="shroom-fan-controls">
@@ -1309,13 +1372,14 @@
       const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
         _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Toggle`);
-        this._attachGestureHandlers(stateItem, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("toggle", {});
-          },
-        });
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("toggle", {});
+        };
+        this._attachGestureHandlers(stateItem, { onTap });
+        const rowToggle = this.root.querySelector("[part=row-toggle]");
+        if (rowToggle) this._attachGestureHandlers(rowToggle, { onTap });
       }
 
       if (this.#slider) {
@@ -1430,6 +1494,14 @@
       this.#applyStepDotsState();
       this.#applyFeatureState();
 
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) {
+        rowToggle.setAttribute("aria-pressed", String(this.#isOn));
+        rowToggle.disabled = state === "unavailable" || state === "unknown";
+      }
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
+
       this.announceState(
         `${this.def.friendly_name}, ${state}` +
         (this.#percentage > 0 && !this.#stateless ? `, ${Math.round(this.#percentage)}%` : ""),
@@ -1532,6 +1604,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          <span part="row-control"><span part="row-value"></span></span>
           ${this.renderHistoryZoneHTML()}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
@@ -1562,6 +1635,9 @@
       if (this.#secondaryEl) {
         this.#secondaryEl.textContent = label;
       }
+
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) rowValue.textContent = label;
 
       const bsDefault = isOn ? "mdi:radiobox-marked" : "mdi:radiobox-blank";
       const bsRawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? bsDefault;
@@ -1638,6 +1714,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          <span part="row-control"><span part="row-value"></span></span>
           ${isWritable ? /* html */`
             <button class="shroom-generic-toggle" type="button" data-on="false"
               title="Toggle" aria-label="${_esc(this.def.friendly_name)} - Toggle"
@@ -1676,6 +1753,9 @@
       if (this.#secondaryEl) {
         this.#secondaryEl.textContent = _capitalize(state);
       }
+
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) rowValue.textContent = _capitalize(state);
 
       const domain = this.def.domain ?? "generic";
       _applyIconColor(this.#iconEl, domain, this.#isOn);
@@ -2325,6 +2405,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          <span part="row-control"><span part="row-state"></span></span>
           ${showControls ? /* html */`
             ${hasPosition || hasButtons ? /* html */`
             <div class="shroom-cover-bar">
@@ -2482,6 +2563,9 @@
         const stateLabel = _capitalize(state);
         this.#secondaryEl.textContent = pos !== undefined ? `${stateLabel} - ${pos}%` : stateLabel;
       }
+
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       const isMoving = state === "opening" || state === "closing";
       const pos = attributes.current_position;
@@ -4116,6 +4200,9 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          ${isWritable
+            ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>`
+            : `<span part="row-control"><span part="row-state"></span></span>`}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -4133,13 +4220,14 @@
       const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
         _makeAccessibleButton(stateItem, `${this.def.friendly_name} - Lock/Unlock`);
-        this._attachGestureHandlers(stateItem, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand(this.#isLocked ? "unlock" : "lock", {});
-          },
-        });
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand(this.#isLocked ? "unlock" : "lock", {});
+        };
+        this._attachGestureHandlers(stateItem, { onTap });
+        const rowToggle = this.root.querySelector("[part=row-toggle]");
+        if (rowToggle) this._attachGestureHandlers(rowToggle, { onTap });
       }
 
       this.renderCompanions();
@@ -4161,6 +4249,14 @@
       if (stateItem?.hasAttribute("role")) {
         stateItem.setAttribute("aria-pressed", String(this.#isLocked));
       }
+
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) {
+        rowToggle.setAttribute("aria-pressed", String(this.#isLocked));
+        rowToggle.disabled = state === "unavailable" || state === "unknown";
+      }
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       const defaultIcon = isJammed ? "mdi:lock-alert" : this.#isLocked ? "mdi:lock" : "mdi:lock-open";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
@@ -4205,6 +4301,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          ${isWritable ? `<span part="row-control"><button part="row-run-btn" type="button" aria-label="${_esc(this.def.friendly_name)} - ${_esc(runLabel)}">${_esc(runLabel)}</button></span>` : ""}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -4218,14 +4315,15 @@
 
       const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("turn_on", this.def.service_data ?? {});
+        };
         _makeAccessibleButton(stateItem, `${this.def.friendly_name} - ${runLabel}`);
-        this._attachGestureHandlers(stateItem, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("turn_on", this.def.service_data ?? {});
-          },
-        });
+        this._attachGestureHandlers(stateItem, { onTap });
+        const rowRunBtn = this.root.querySelector("[part=row-run-btn]");
+        if (rowRunBtn) this._attachGestureHandlers(rowRunBtn, { onTap });
       }
 
       this.renderCompanions();
@@ -4241,6 +4339,9 @@
           ? (this.i18n.t("state.running") !== "state.running" ? this.i18n.t("state.running") : "Running")
           : _capitalize(state);
       }
+
+      const rowRunBtn = this.root.querySelector("[part=row-run-btn]");
+      if (rowRunBtn) rowRunBtn.disabled = state === "unavailable" || state === "unknown";
 
       const defaultIcon = isRunning ? "mdi:script-text" : "mdi:script-text-play";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
@@ -4297,6 +4398,7 @@
             </div>
           </div>
           ${isWritable ? `<button part="enable-toggle" type="button"></button>` : ""}
+          ${isWritable ? `<span part="row-control"><button part="row-trigger-btn" type="button" aria-label="${_esc(this.def.friendly_name)} - ${_esc(triggerLabel)}">${_esc(triggerLabel)}</button></span>` : ""}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -4311,14 +4413,15 @@
 
       const stateItem = this.root.querySelector(".shroom-state-item");
       if (isWritable) {
+        const onTrigger = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("trigger", {});
+        };
         _makeAccessibleButton(stateItem, `${this.def.friendly_name} - ${triggerLabel}`);
-        this._attachGestureHandlers(stateItem, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("trigger", {});
-          },
-        });
+        this._attachGestureHandlers(stateItem, { onTap: onTrigger });
+        const rowTriggerBtn = this.root.querySelector("[part=row-trigger-btn]");
+        if (rowTriggerBtn) this._attachGestureHandlers(rowTriggerBtn, { onTap: onTrigger });
         this._attachGestureHandlers(this.#enableToggle, {
           onTap: () => {
             const isOn = this.#enableToggle?.getAttribute("aria-pressed") === "true";
@@ -4346,6 +4449,9 @@
         this.#enableToggle.setAttribute("aria-pressed", String(isOn));
         this.#enableToggle.setAttribute("aria-label", `${this.def.friendly_name} - ${isOn ? "Disable" : "Enable"}`);
       }
+
+      const rowTriggerBtn = this.root.querySelector("[part=row-trigger-btn]");
+      if (rowTriggerBtn) rowTriggerBtn.disabled = state === "unavailable" || state === "unknown";
 
       const defaultIcon = isOn ? "mdi:robot" : "mdi:robot-off";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
@@ -4410,6 +4516,7 @@
                 : /* html */`<span class="shroom-secondary">-</span>`}
             </div>
           </div>
+          ${isWritable ? `<span part="row-control"><button part="row-press-btn" type="button" aria-label="${_esc(this.def.friendly_name)} - ${_esc(pressLabel)}">${_esc(pressLabel)}</button></span>` : ""}
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -4422,14 +4529,15 @@
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:gesture-tap-button"), "card-icon");
       _applyIconColor(this.#iconEl, "button", false);
 
-      if (this.#pressBtn) {
-        this._attachGestureHandlers(this.#pressBtn, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("press", {});
-          },
-        });
+      if (isWritable) {
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("press", {});
+        };
+        if (this.#pressBtn) this._attachGestureHandlers(this.#pressBtn, { onTap });
+        const rowPressBtn = this.root.querySelector("[part=row-press-btn]");
+        if (rowPressBtn) this._attachGestureHandlers(rowPressBtn, { onTap });
       }
 
       this.renderCompanions();
@@ -4446,6 +4554,9 @@
       if (this.#secondaryEl) {
         this.#secondaryEl.textContent = isUnavailable ? _capitalize(state) : this.formatStateLabel(state);
       }
+
+      const rowPressBtn = this.root.querySelector("[part=row-press-btn]");
+      if (rowPressBtn) rowPressBtn.disabled = isUnavailable;
 
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:gesture-tap-button";
       this.renderIcon(this.resolveIcon(rawIcon, "mdi:gesture-tap-button"), "card-icon");
@@ -4480,6 +4591,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          <span part="row-control"><span part="row-value"></span></span>
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -4499,12 +4611,15 @@
       const isHome = state === "home";
       _applyIconColor(this.#iconEl, "person", isHome);
 
+      const displayState = state === "not_home" ? "Away"
+        : state === "home" ? "Home"
+        : _capitalize(state);
+
       if (this.#secondaryEl) {
-        const displayState = state === "not_home" ? "Away"
-          : state === "home" ? "Home"
-          : _capitalize(state);
         this.#secondaryEl.textContent = displayState;
       }
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) rowValue.textContent = displayState;
 
       const defaultIcon = state === "not_home" ? "mdi:account-off" : "mdi:account";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
@@ -4539,6 +4654,7 @@
               <span class="shroom-secondary">-</span>
             </div>
           </div>
+          <span part="row-control"><span part="row-value"></span></span>
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
           <div part="stale-indicator" aria-hidden="true"></div>
@@ -4560,6 +4676,8 @@
       if (this.#secondaryEl) {
         this.#secondaryEl.textContent = _capitalize(state);
       }
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) rowValue.textContent = _capitalize(state);
 
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:eye";
       this.renderIcon(this.resolveIcon(rawIcon, "mdi:eye"), "card-icon");

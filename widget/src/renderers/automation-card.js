@@ -61,13 +61,7 @@ const AUTOMATION_CARD_STYLES = /* css */`
 `;
 
 const AUTOMATION_ROW_STYLES = /* css */`
-  [part=row-control] {
-    display: flex;
-    gap: var(--hrv-spacing-xs);
-  }
-
-  [part=row-trigger-btn],
-  [part=row-enable-btn] {
+  [part=row-trigger-btn] {
     padding: 2px var(--hrv-spacing-s);
     border: none;
     border-radius: var(--hrv-radius-s);
@@ -82,17 +76,6 @@ const AUTOMATION_ROW_STYLES = /* css */`
   [part=row-trigger-btn]:hover  { opacity: 0.88; }
   [part=row-trigger-btn]:active { opacity: 0.75; }
   [part=row-trigger-btn]:disabled { opacity: 0.4; cursor: not-allowed; }
-  [part=row-enable-btn][aria-pressed=true] {
-    background: var(--hrv-color-primary);
-    color: var(--hrv-color-on-primary);
-  }
-  [part=row-enable-btn][aria-pressed=false] {
-    background: var(--hrv-color-state-off);
-    color: var(--hrv-color-text);
-  }
-  [part=row-enable-btn]:hover  { opacity: 0.88; }
-  [part=row-enable-btn]:active { opacity: 0.75; }
-  [part=row-enable-btn]:disabled { opacity: 0.4; cursor: not-allowed; }
 `;
 
 
@@ -102,7 +85,6 @@ export class AutomationCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #triggerBtn    = null;
   /** @type {HTMLButtonElement|null} */ #rowTriggerBtn = null;
   /** @type {HTMLButtonElement|null} */ #enableToggle  = null;
-  /** @type {HTMLButtonElement|null} */ #rowEnableBtn   = null;
   /** @type {HTMLElement|null}       */ #stateLabel    = null;
 
   render() {
@@ -117,7 +99,7 @@ export class AutomationCard extends BaseCard {
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
-          ${isWritable ? `<span part="row-control"><button part="row-trigger-btn" type="button">${_esc(triggerLabel)}</button><button part="row-enable-btn" type="button"></button></span>` : ""}
+          ${isWritable ? `<span part="row-control"><button part="row-trigger-btn" type="button">${_esc(triggerLabel)}</button></span>` : ""}
         </div>
         <div part="card-body">
           ${isWritable ? `<button part="trigger-button" type="button">${_esc(triggerLabel)}</button><button part="enable-toggle" type="button"></button>` : `<span part="state-label"></span>`}
@@ -131,7 +113,6 @@ export class AutomationCard extends BaseCard {
     this.#triggerBtn    = this.root.querySelector("[part=trigger-button]");
     this.#rowTriggerBtn = this.root.querySelector("[part=row-trigger-btn]");
     this.#enableToggle  = this.root.querySelector("[part=enable-toggle]");
-    this.#rowEnableBtn  = this.root.querySelector("[part=row-enable-btn]");
     this.#stateLabel    = this.root.querySelector("[part=state-label]");
 
     if (!isWritable) {
@@ -148,11 +129,10 @@ export class AutomationCard extends BaseCard {
     if (this.#triggerBtn)    this._attachGestureHandlers(this.#triggerBtn, { onTap: onTrigger });
     if (this.#rowTriggerBtn) this._attachGestureHandlers(this.#rowTriggerBtn, { onTap: onTrigger });
     const onEnableToggle = () => {
-      const isOn = (this.#enableToggle ?? this.#rowEnableBtn)?.getAttribute("aria-pressed") === "true";
+      const isOn = this.#enableToggle?.getAttribute("aria-pressed") === "true";
       this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
     };
     if (this.#enableToggle) this._attachGestureHandlers(this.#enableToggle, { onTap: onEnableToggle });
-    if (this.#rowEnableBtn) this._attachGestureHandlers(this.#rowEnableBtn, { onTap: onEnableToggle });
 
     this.renderCompanions();
   }
@@ -162,12 +142,11 @@ export class AutomationCard extends BaseCard {
     const isOn = state === "on";
     if (this.#triggerBtn)    this.#triggerBtn.disabled    = isUnavailable;
     if (this.#rowTriggerBtn) this.#rowTriggerBtn.disabled = isUnavailable;
-    for (const button of [this.#enableToggle, this.#rowEnableBtn]) {
-      if (!button) continue;
-      button.disabled = isUnavailable;
-      button.textContent = isOn ? "Enabled" : "Disabled";
-      button.setAttribute("aria-pressed", String(isOn));
-      button.setAttribute("aria-label", `${this.def.friendly_name} - ${isOn ? "Disable" : "Enable"}`);
+    if (this.#enableToggle) {
+      this.#enableToggle.disabled = isUnavailable;
+      this.#enableToggle.textContent = isOn ? "Enabled" : "Disabled";
+      this.#enableToggle.setAttribute("aria-pressed", String(isOn));
+      this.#enableToggle.setAttribute("aria-label", `${this.def.friendly_name} - ${isOn ? "Disable" : "Enable"}`);
     }
 
     if (this.#stateLabel) {

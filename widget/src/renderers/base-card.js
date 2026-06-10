@@ -317,6 +317,9 @@ const CARD_BASE_CSS = /* css */`
   :host([layout=row][data-color-scheme]) [part=card] {
     background: var(--hrv-color-surface);
   }
+  :host([layout=row][data-color-scheme][data-highlight=even]) [part=card] {
+    background: var(--hrv-color-surface-alt);
+  }
 
   :host([layout=row]) [part=card-header] {
     display: flex;

@@ -1725,7 +1725,15 @@ class HarvestThemeImportView(_HarvestView):
             zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
         except zipfile.BadZipFile:
             raise web.HTTPBadRequest(reason="File is not a valid zip archive.")
-        members = zf.infolist()
+        members = [
+            m for m in zf.infolist()
+            if not m.filename.startswith("__MACOSX/")
+            and not m.filename.startswith(".")
+            and not m.filename.endswith("/.DS_Store")
+            and not m.filename.endswith("/Thumbs.db")
+            and not m.filename.endswith("/desktop.ini")
+            and m.filename not in (".DS_Store", "Thumbs.db", "desktop.ini")
+        ]
         allowed_top = {
             "theme.json", "renderer.js",
             "thumbnail.png", "thumbnail.jpg", "thumbnail.jpeg",

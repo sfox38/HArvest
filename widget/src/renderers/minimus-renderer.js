@@ -606,6 +606,9 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            ${isWritable
+              ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>`
+              : `<span part="row-control"><span part="row-state"></span></span>`}
           </div>
           <div part="card-body" class="${showDial ? "" : "hrv-no-dial"}">
             ${showDial ? /* html */`
@@ -686,18 +689,19 @@
       this.#tempSegs = this.root.querySelector(".hrv-dial-segs-temp");
       this.#modeSwitch = this.root.querySelector(".hrv-mode-switch");
 
+      const onToggle = () => {
+        const tap = this.config.gestureConfig?.tap;
+        if (tap) { this._runAction(tap); return; }
+        this.config.card?.sendCommand("toggle", {});
+      };
       if (this.#toggleBtn) {
         if (!showDial) {
           this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lightbulb"), "card-icon");
         }
-        this._attachGestureHandlers(this.#toggleBtn, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("toggle", {});
-          },
-        });
+        this._attachGestureHandlers(this.#toggleBtn, { onTap: onToggle });
       }
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) this._attachGestureHandlers(rowToggle, { onTap: onToggle });
 
       if (this.#dialSvg) {
         this.#dialSvg.addEventListener("pointerdown", this.#onPointerDown.bind(this));
@@ -947,6 +951,14 @@
           }
         }
       }
+
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) {
+        rowToggle.setAttribute("aria-pressed", String(this.#isOn));
+        rowToggle.disabled = state === "unavailable" || state === "unknown";
+      }
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       this.#switchDialImmediate();
     }
@@ -1294,6 +1306,9 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            ${isWritable
+              ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>`
+              : `<span part="row-control"><span part="row-state"></span></span>`}
           </div>
           <div part="card-body" class="${showDial ? (useHoriz ? "hrv-fan-horiz" : "") : "hrv-no-dial"}">
             ${showDial ? /* html */`
@@ -1388,13 +1403,14 @@
         this.renderIcon(this.resolveIcon(this.def.icon, "mdi:fan"), "fan-onoff-icon");
         this.#toggleBtn.setAttribute("data-animate", String(!!this.config.animate));
       }
-      this._attachGestureHandlers(this.#toggleBtn, {
-        onTap: () => {
-          const tap = this.config.gestureConfig?.tap;
-          if (tap) { this._runAction(tap); return; }
-          this.config.card?.sendCommand("toggle", {});
-        },
-      });
+      const onFanToggle = () => {
+        const tap = this.config.gestureConfig?.tap;
+        if (tap) { this._runAction(tap); return; }
+        this.config.card?.sendCommand("toggle", {});
+      };
+      this._attachGestureHandlers(this.#toggleBtn, { onTap: onFanToggle });
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) this._attachGestureHandlers(rowToggle, { onTap: onFanToggle });
       if (this.#dialSvg) {
         this.#dialSvg.addEventListener("pointerdown",   this.#onPointerDown.bind(this));
         this.#dialSvg.addEventListener("pointermove",   this.#onPointerMove.bind(this));
@@ -1499,6 +1515,14 @@
       if (roCircle) {
         roCircle.setAttribute("data-on", String(this.#isOn));
       }
+
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) {
+        rowToggle.setAttribute("aria-pressed", String(this.#isOn));
+        rowToggle.disabled = state === "unavailable" || state === "unknown";
+      }
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       if (this.#isStepped && !this.#presets.length) {
         this.#applyHorizontalState();
@@ -2382,6 +2406,7 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            <span part="row-control"><span part="row-value"></span></span>
           </div>
           <div part="card-body">
             <div class="hrv-bs-circle" data-on="false"
@@ -2416,6 +2441,9 @@
         this.#circle.setAttribute("data-on", String(isOn));
         this.#circle.setAttribute("aria-label", `${this.def.friendly_name}: ${label}`);
       }
+
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) rowValue.textContent = label;
 
       const bsDefault = isOn ? "mdi:radiobox-marked" : "mdi:radiobox-blank";
       const bsRawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? bsDefault;
@@ -2610,6 +2638,7 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            <span part="row-control"><span part="row-state"></span></span>
           </div>
           <div part="card-body">
             ${!isWritable ? /* html */`
@@ -2765,6 +2794,9 @@
         const isStopped = state === "opening" || state === "closing";
         roIconEl.innerHTML = isStopped ? COVER_ICON_STOP : isOpen ? COVER_ICON_OPEN : COVER_ICON_CLOSE;
       }
+
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       this.announceState(`${this.def.friendly_name}, ${state}`);
     }
@@ -4020,6 +4052,7 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            <span part="row-control"><span part="row-value"></span></span>
           </div>
           <div part="card-body" title="${_esc(this.def.friendly_name)}">
             <span class="hrv-sensor-val" aria-live="polite">-</span>
@@ -4049,6 +4082,9 @@
       const unit = attributes.unit_of_measurement ?? this.def.unit_of_measurement ?? "";
       const body = this.root.querySelector("[part=card-body]");
       if (body) body.title = `${state}${unit ? ` ${unit}` : ""}`;
+
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) rowValue.textContent = `${state}${unit ? ` ${unit}` : ""}`;
 
       this.announceState(`${this.def.friendly_name}, ${state}${unit ? ` ${unit}` : ""}`);
     }
@@ -4147,6 +4183,9 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            ${isWritable
+              ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>`
+              : `<span part="row-control"><span part="row-state"></span></span>`}
           </div>
           <div part="card-body">
             ${isWritable ? /* html */`
@@ -4167,14 +4206,15 @@
       this.#track   = this.root.querySelector(".hrv-switch-track");
       this.#roLabel = this.root.querySelector(".hrv-switch-ro");
 
-      if (this.#track && isWritable) {
-        this._attachGestureHandlers(this.#track, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("toggle", {});
-          },
-        });
+      if (isWritable) {
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("toggle", {});
+        };
+        if (this.#track) this._attachGestureHandlers(this.#track, { onTap });
+        const rowToggle = this.root.querySelector("[part=row-toggle]");
+        if (rowToggle) this._attachGestureHandlers(rowToggle, { onTap });
       }
 
       this.renderCompanions();
@@ -4194,6 +4234,14 @@
       if (this.#roLabel) {
         this.#roLabel.textContent = _capitalize(state);
       }
+
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) {
+        rowToggle.setAttribute("aria-pressed", String(this.#isOn));
+        rowToggle.disabled = isUnavailable;
+      }
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       this.announceState(`${this.def.friendly_name}, ${state}`);
     }
@@ -4555,6 +4603,7 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            <span part="row-control"><span part="row-value"></span></span>
           </div>
           <div part="card-body">
             <span class="hrv-generic-state" title="${_esc(this.def.friendly_name)}">-</span>
@@ -4607,6 +4656,9 @@
           this.#toggle.title = this.#isOn ? "On - click to turn off" : "Off - click to turn on";
         }
       }
+
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) rowValue.textContent = _capitalize(state);
 
       this.announceState(`${this.def.friendly_name}, ${state}`);
     }
@@ -5178,6 +5230,9 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            ${isWritable
+              ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>`
+              : `<span part="row-control"><span part="row-state"></span></span>`}
           </div>
           <div part="card-body">
             ${isWritable ? /* html */`
@@ -5204,14 +5259,15 @@
 
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lock"), "lock-icon");
 
-      if (this.#lockBtn && isWritable) {
-        this._attachGestureHandlers(this.#lockBtn, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand(this.#isLocked ? "unlock" : "lock", {});
-          },
-        });
+      if (isWritable) {
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand(this.#isLocked ? "unlock" : "lock", {});
+        };
+        if (this.#lockBtn) this._attachGestureHandlers(this.#lockBtn, { onTap });
+        const rowToggle = this.root.querySelector("[part=row-toggle]");
+        if (rowToggle) this._attachGestureHandlers(rowToggle, { onTap });
       }
 
       this.renderCompanions();
@@ -5232,6 +5288,14 @@
       if (this.#roCircle) {
         this.#roCircle.setAttribute("data-locked", String(this.#isLocked));
       }
+
+      const rowToggle = this.root.querySelector("[part=row-toggle]");
+      if (rowToggle) {
+        rowToggle.setAttribute("aria-pressed", String(this.#isLocked));
+        rowToggle.disabled = isDisabled;
+      }
+      const rowState = this.root.querySelector("[part=row-state]");
+      if (rowState) rowState.textContent = _capitalize(state);
 
       const defaultIcon = isJammed ? "mdi:lock-alert" : this.#isLocked ? "mdi:lock" : "mdi:lock-open";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
@@ -5313,8 +5377,37 @@
     }
     [part=enable-toggle]:disabled { opacity: 0.3; cursor: not-allowed; }
 
+    [part=row-run-btn],
+    [part=row-press-btn],
+    [part=row-trigger-btn] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--hrv-color-primary, #1976d2);
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      font-size: 0;
+      color: transparent;
+      transition: opacity var(--hrv-transition-speed, 0.2s);
+    }
+    [part=row-run-btn]:hover,
+    [part=row-press-btn]:hover,
+    [part=row-trigger-btn]:hover { opacity: 0.88; }
+    [part=row-run-btn]:active,
+    [part=row-press-btn]:active,
+    [part=row-trigger-btn]:active { opacity: 0.75; }
+    [part=row-run-btn]:disabled,
+    [part=row-press-btn]:disabled,
+    [part=row-trigger-btn]:disabled { opacity: 0.3; cursor: not-allowed; }
+
     @media (prefers-reduced-motion: reduce) {
-      .hrv-action-icon-btn { transition: none; }
+      .hrv-action-icon-btn,
+      [part=row-run-btn],
+      [part=row-press-btn],
+      [part=row-trigger-btn] { transition: none; }
     }
   `;
 
@@ -5331,6 +5424,7 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            ${isWritable ? `<span part="row-control"><button part="row-run-btn" type="button" aria-label="${_esc(this.def.friendly_name)} - Run">Run</button></span>` : ""}
           </div>
           <div part="card-body">
             <button class="hrv-action-icon-btn" type="button"
@@ -5348,14 +5442,15 @@
       this.#iconBtn = this.root.querySelector(".hrv-action-icon-btn");
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:script-text-play"), "card-icon");
 
-      if (isWritable && this.#iconBtn) {
-        this._attachGestureHandlers(this.#iconBtn, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("turn_on", this.def.service_data ?? {});
-          },
-        });
+      if (isWritable) {
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("turn_on", this.def.service_data ?? {});
+        };
+        if (this.#iconBtn) this._attachGestureHandlers(this.#iconBtn, { onTap });
+        const rowRunBtn = this.root.querySelector("[part=row-run-btn]");
+        if (rowRunBtn) this._attachGestureHandlers(rowRunBtn, { onTap });
       }
 
       this.renderCompanions();
@@ -5371,6 +5466,8 @@
         this.#iconBtn.disabled = isDisabled;
         this.#iconBtn.dataset.running = String(isRunning);
       }
+      const rowRunBtn = this.root.querySelector("[part=row-run-btn]");
+      if (rowRunBtn) rowRunBtn.disabled = isDisabled;
       const defaultIcon = isRunning ? "mdi:script-text" : "mdi:script-text-play";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
       this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
@@ -5397,6 +5494,7 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            ${isWritable ? `<span part="row-control"><button part="row-trigger-btn" type="button" aria-label="${_esc(this.def.friendly_name)} - Trigger">Trigger</button></span>` : ""}
           </div>
           <div part="card-body">
             <button class="hrv-action-icon-btn" type="button"
@@ -5416,14 +5514,15 @@
       this.#enableToggle = this.root.querySelector("[part=enable-toggle]");
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:robot"), "card-icon");
 
-      if (isWritable && this.#iconBtn) {
-        this._attachGestureHandlers(this.#iconBtn, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("trigger", {});
-          },
-        });
+      if (isWritable) {
+        const onTrigger = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("trigger", {});
+        };
+        if (this.#iconBtn) this._attachGestureHandlers(this.#iconBtn, { onTap: onTrigger });
+        const rowTriggerBtn = this.root.querySelector("[part=row-trigger-btn]");
+        if (rowTriggerBtn) this._attachGestureHandlers(rowTriggerBtn, { onTap: onTrigger });
         this._attachGestureHandlers(this.#enableToggle, {
           onTap: () => {
             const isOn = this.#enableToggle?.getAttribute("aria-pressed") === "true";
@@ -5447,6 +5546,8 @@
         this.#enableToggle.setAttribute("aria-pressed", String(state === "on"));
         this.#enableToggle.setAttribute("aria-label", `${this.def.friendly_name} - ${state === "on" ? "Disable" : "Enable"}`);
       }
+      const rowTriggerBtn = this.root.querySelector("[part=row-trigger-btn]");
+      if (rowTriggerBtn) rowTriggerBtn.disabled = isDisabled;
       const defaultIcon = state === "on" ? "mdi:robot" : "mdi:robot-off";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
       this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
@@ -5476,6 +5577,7 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            ${isWritable ? `<span part="row-control"><button part="row-press-btn" type="button" aria-label="${_esc(this.def.friendly_name)} - Press">Press</button></span>` : ""}
           </div>
           <div part="card-body">
             <button class="hrv-action-icon-btn" type="button"
@@ -5493,14 +5595,15 @@
       this.#iconBtn = this.root.querySelector(".hrv-action-icon-btn");
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:gesture-tap-button"), "card-icon");
 
-      if (isWritable && this.#iconBtn) {
-        this._attachGestureHandlers(this.#iconBtn, {
-          onTap: () => {
-            const tap = this.config.gestureConfig?.tap;
-            if (tap) { this._runAction(tap); return; }
-            this.config.card?.sendCommand("press", {});
-          },
-        });
+      if (isWritable) {
+        const onTap = () => {
+          const tap = this.config.gestureConfig?.tap;
+          if (tap) { this._runAction(tap); return; }
+          this.config.card?.sendCommand("press", {});
+        };
+        if (this.#iconBtn) this._attachGestureHandlers(this.#iconBtn, { onTap });
+        const rowPressBtn = this.root.querySelector("[part=row-press-btn]");
+        if (rowPressBtn) this._attachGestureHandlers(rowPressBtn, { onTap });
       }
 
       this.renderCompanions();
@@ -5511,6 +5614,8 @@
       const isWritable = this.def.capabilities === "read-write";
       const isDisabled = !isWritable || state === "unavailable" || state === "unknown";
       if (this.#iconBtn) this.#iconBtn.disabled = isDisabled;
+      const rowPressBtn = this.root.querySelector("[part=row-press-btn]");
+      if (rowPressBtn) rowPressBtn.disabled = isDisabled;
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? "mdi:gesture-tap-button";
       this.renderIcon(this.resolveIcon(rawIcon, "mdi:gesture-tap-button"), "card-icon");
       this.announceState(`${this.def.friendly_name}, ${state}`);
@@ -5568,6 +5673,7 @@
         <div part="card">
           <div part="card-header">
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
+            <span part="row-control"><span part="row-value"></span></span>
           </div>
           <div part="card-body">
             <div class="hrv-person-circle" data-home="false"
@@ -5590,6 +5696,13 @@
     applyState(state, _attributes) {
       const isHome = state === "home";
       if (this.#circle) this.#circle.setAttribute("data-home", String(isHome));
+
+      const displayState = state === "not_home" ? "Away"
+        : state === "home" ? "Home"
+        : _capitalize(state);
+      const rowValue = this.root.querySelector("[part=row-value]");
+      if (rowValue) rowValue.textContent = displayState;
+
       const defaultIcon = state === "not_home" ? "mdi:account-off" : "mdi:home-account";
       const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
       this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "person-icon");
