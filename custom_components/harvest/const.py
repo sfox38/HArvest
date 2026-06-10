@@ -145,6 +145,36 @@ ATTRIBUTE_DENYLIST_SUBSTRINGS: tuple[str, ...] = (
     "secret", "credentials", "private_key",
 )
 
+# Data tiers control payload granularity for entity_definition and state_update
+# messages. The tier is resolved from token.entities_block and ea.capabilities.
+DATA_TIER_BADGE = "badge"
+DATA_TIER_COMPACT = "compact"
+DATA_TIER_DISPLAY = "display"
+DATA_TIER_FULL = "full"
+
+# Per-domain attribute allowlists for DATA_TIER_DISPLAY (read-only cards).
+# Only these attributes (plus state and unit_of_measurement) are sent in
+# state_update messages. Domains not listed receive state + uom only.
+DISPLAY_TIER_ATTRIBUTES: dict[str, frozenset[str]] = {
+    "media_player": frozenset({
+        "media_artist", "media_title", "media_album_name",
+    }),
+    "climate": frozenset({
+        "current_temperature", "hvac_action",
+    }),
+    "weather": frozenset({
+        "temperature", "native_temperature", "temperature_unit",
+        "native_temperature_unit", "humidity", "wind_speed",
+        "wind_speed_unit", "pressure", "pressure_unit",
+    }),
+    "sensor": frozenset({
+        "unit_of_measurement",
+    }),
+    "timer": frozenset({
+        "remaining", "duration", "finishes_at",
+    }),
+}
+
 # Error codes (subset used server-side; full list in SPEC.md Section 6)
 ERR_TOKEN_INVALID = "HRV_TOKEN_INVALID"
 ERR_TOKEN_EXPIRED = "HRV_TOKEN_EXPIRED"

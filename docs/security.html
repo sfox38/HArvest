@@ -98,6 +98,7 @@
           <li>Tokens can be restricted to specific websites, IP ranges, and time windows</li>
           <li>All auth events and service calls are logged with session, origin, and entity details</li>
           <li>Tokens can be paused or revoked instantly, dropping all active connections</li>
+          <li>Server-side data minimization: badge and read-only entities receive only the data they need to render, and entities-block tokens receive compact payloads. Control metadata, feature configuration, and unused attributes are never sent to lower-privilege sessions.</li>
         </ul>
 
         <h2 id="limitations">What it doesn't protect</h2>

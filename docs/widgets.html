@@ -250,6 +250,8 @@ document.getElementById("sidebar").appendChild(card2);</code></pre>
         <p>The <code>&lt;hrv-entities-block&gt;</code> element automatically forces each child <code>&lt;hrv-card&gt;</code> into row layout mode, stripping the card's own background, shadow, and border-radius. Each card renders as a single horizontal row: icon, name, then the primary control or state value. The block container provides the shared card appearance, border-radius, and row separator lines. No extra CSS is needed.</p>
 
         <p>Each card in the block is still an independent <code>&lt;hrv-card&gt;</code> with its own entity subscription and state. Cards inside an entities block do not support companions or gestures. Existing gesture settings remain stored if entities block mode is enabled, but they are inactive until the token returns to normal card mode. New or changed gestures are rejected while entities block mode is enabled. The panel wizard generates the entities block snippet automatically when the "Entities block" option is enabled for a token.</p>
+
+        <p>Entities-block tokens are optimized server-side: each entity receives a compact data payload containing only the identity, icon, and state information needed for row rendering. Feature configuration, gesture configuration, companions, and service call metadata are not sent, reducing bandwidth and improving load time for large blocks.</p>
         </section>
 
         <section>

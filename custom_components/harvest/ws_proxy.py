@@ -33,6 +33,9 @@ from .const import (
     CONF_KEEPALIVE_INTERVAL,
     CONF_MAX_ENTITIES_HARD_CAP,
     CONF_MAX_INBOUND_BYTES,
+    DATA_TIER_BADGE,
+    DATA_TIER_COMPACT,
+    DATA_TIER_DISPLAY,
     DEFAULTS,
     DOMAIN,
     ERR_ENTITY_NOT_IN_TOKEN,
@@ -49,7 +52,13 @@ from .const import (
     WS_PATH,
 )
 from .entity_compatibility import COMPANION_INTERACTIVE_DOMAINS, get_custom_domains, validate_action
-from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes, get_blocked_data_keys
+from .entity_definition import (
+    build_entity_definition,
+    filter_attributes,
+    filter_attributes_for_tier,
+    get_blocked_data_keys,
+    resolve_data_tier,
+)
 from .event_bus import EventBus
 from .rate_limiter import RateLimiter
 from .session_manager import Session, SessionManager
@@ -706,8 +715,6 @@ class HarvestWsView(HomeAssistantView):
         If entity does not exist, send entity_removed instead.
         """
         for real_id in entity_ids:
-            # ea can be None if the token was edited between auth and this
-            # call (race). Safe to default to read-only in that case.
             ea = _find_entity_access(real_id, token)
             outgoing_id = outgoing_ids.get(real_id, real_id)
 
@@ -716,11 +723,12 @@ class HarvestWsView(HomeAssistantView):
                 await ws.send_json({"type": "entity_removed", "entity_id": outgoing_id, "msg_id": None})
                 continue
 
-            is_badge = ea is not None and ea.capabilities == "badge"
+            caps = ea.capabilities if ea else "read"
+            tier = resolve_data_tier(token.entities_block, caps)
 
-            # Fetch initial forecast only when show_forecast is explicitly enabled.
+            # Fetch initial forecast only for tiers that send weather attributes.
             if (
-                not is_badge
+                tier not in (DATA_TIER_BADGE, DATA_TIER_COMPACT)
                 and forecast_cache is not None
                 and real_id.startswith("weather.")
                 and ea is not None
@@ -728,23 +736,21 @@ class HarvestWsView(HomeAssistantView):
             ):
                 await self._fetch_initial_forecast(real_id, forecast_cache)
 
-            # entity_definition
-            if is_badge:
-                defn = build_badge_definition(self._hass, real_id, ea)
+            # entity_definition - tier controls which fields are included.
+            if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT):
+                defn = build_entity_definition(self._hass, real_id, ea, detail_level=tier)
             else:
                 companion_refs = [
                     outgoing_ids.get(comp_ea.entity_id, comp_ea.entity_id)
                     for comp_ea in token.entities
                     if comp_ea.companion_of == real_id
                 ]
-                defn = build_entity_definition(self._hass, real_id, ea, companions=companion_refs)
+                defn = build_entity_definition(self._hass, real_id, ea, companions=companion_refs, detail_level=tier)
             if defn is not None:
                 defn = dict(defn)
-                if token.entities_block:
-                    defn["gesture_config"] = {}
                 defn["type"] = "entity_definition"
                 defn["entity_id"] = outgoing_id
-                defn["capabilities"] = ea.capabilities if ea else "read"
+                defn["capabilities"] = caps
                 defn["msg_id"] = None
                 await ws.send_json(defn)
 
@@ -1482,20 +1488,75 @@ class HarvestWsView(HomeAssistantView):
         """
         ea = _find_entity_access(real_id, token)
         state_val = _round_state(state.state, ea)
-        if ea is not None and ea.capabilities == "badge":
-            badge_attrs: dict = {}
-            uom = state.attributes.get("unit_of_measurement")
-            if uom is not None:
-                badge_attrs["unit_of_measurement"] = uom
+        caps = ea.capabilities if ea else "read-write"
+        tier = resolve_data_tier(token.entities_block, caps)
+        domain = real_id.split(".")[0]
+
+        # Badge and compact tiers: minimal attributes, no delta mode.
+        if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT):
+            minimal_attrs = filter_attributes_for_tier(domain, dict(state.attributes), tier)
+            minimal_attrs = _safe_json_value(minimal_attrs)
             return {
                 "type": "state_update",
                 "entity_id": outgoing_id,
                 "state": state_val,
-                "attributes": badge_attrs,
+                "attributes": minimal_attrs,
                 "initial": is_initial,
                 "msg_id": None,
             }
 
+        # Display tier: domain-specific allowlist, supports delta mode.
+        if tier == DATA_TIER_DISPLAY:
+            display_attrs = filter_attributes_for_tier(domain, dict(state.attributes), tier)
+            display_attrs = _safe_json_value(display_attrs)
+
+            # Inject forecast data for weather entities.
+            if forecast_cache is not None and real_id in forecast_cache:
+                fc = forecast_cache[real_id]
+                daily = fc.get("daily")
+                hourly = fc.get("hourly")
+                if daily is not None:
+                    display_attrs["forecast_daily"] = _safe_json_value(daily)
+                if hourly is not None:
+                    display_attrs["forecast_hourly"] = _safe_json_value(hourly)
+
+            last_changed = state.last_changed.isoformat() if hasattr(state, "last_changed") else None
+            last_updated = state.last_updated.isoformat() if hasattr(state, "last_updated") else None
+
+            if is_initial:
+                msg = {
+                    "type": "state_update",
+                    "entity_id": outgoing_id,
+                    "state": state_val,
+                    "attributes": display_attrs,
+                    "last_changed": last_changed,
+                    "last_updated": last_updated,
+                    "initial": True,
+                    "msg_id": None,
+                }
+                if session is not None:
+                    session.last_sent_attributes[real_id] = display_attrs
+                return msg
+
+            prev = session.last_sent_attributes.get(real_id, {}) if session is not None else {}
+            changed = {k: v for k, v in display_attrs.items() if prev.get(k) != v}
+            removed = [k for k in prev if k not in display_attrs]
+            if session is not None:
+                session.last_sent_attributes[real_id] = display_attrs
+            msg = {
+                "type": "state_update",
+                "entity_id": outgoing_id,
+                "state": state_val,
+                "last_changed": last_changed,
+                "last_updated": last_updated,
+                "initial": False,
+                "msg_id": None,
+            }
+            if changed or removed:
+                msg["attributes_delta"] = {"changed": changed, "removed": removed}
+            return msg
+
+        # Full tier: existing behavior.
         raw_attrs = dict(state.attributes)
 
         # Filter via token denylist and per-entity exclusions.
@@ -1554,7 +1615,6 @@ class HarvestWsView(HomeAssistantView):
 
         if changed or removed:
             msg["attributes_delta"] = {"changed": changed, "removed": removed}
-        # If neither changed nor removed, attributes_delta is omitted entirely per spec.
 
         return msg
 

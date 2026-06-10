@@ -25,7 +25,12 @@ from .activity_store import ActivityStore, TokenLifecycleEvent
 from .const import ALIAS_LENGTH, BASE62_ALPHABET
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
-from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes
+from .entity_definition import (
+    build_entity_definition,
+    filter_attributes,
+    filter_attributes_for_tier,
+    resolve_data_tier,
+)
 from .event_bus import EventBus
 from .session_manager import SessionManager
 from .renderer_manager import RendererManager, renderer_to_api_dict
@@ -898,8 +903,9 @@ class HarvestTokenDetailView(_HarvestView):
                 if ea is None:
                     continue
                 out_id = session.outgoing_ids.get(real_id, ea.alias or real_id)
-                if ea.capabilities == "badge":
-                    defn = build_badge_definition(self._hass, real_id, ea)
+                tier = resolve_data_tier(token.entities_block, ea.capabilities)
+                if tier in ("badge", "compact"):
+                    defn = build_entity_definition(self._hass, real_id, ea, detail_level=tier)
                 else:
                     companion_refs = [
                         session.outgoing_ids.get(comp_ea.entity_id, comp_ea.alias or comp_ea.entity_id)
@@ -907,13 +913,11 @@ class HarvestTokenDetailView(_HarvestView):
                         if comp_ea.companion_of == real_id
                     ]
                     defn = build_entity_definition(
-                        self._hass, real_id, ea, companions=companion_refs
+                        self._hass, real_id, ea, companions=companion_refs, detail_level=tier
                     )
                 if defn is None:
                     continue
                 defn = dict(defn)
-                if token.entities_block:
-                    defn["gesture_config"] = {}
                 defn["type"] = "entity_definition"
                 defn["entity_id"] = out_id
                 defn["capabilities"] = ea.capabilities
@@ -925,10 +929,11 @@ class HarvestTokenDetailView(_HarvestView):
 
                 state = self._hass.states.get(real_id)
                 if state is not None:
-                    filtered = self._token_manager.filter_attributes(
-                        real_id, token, dict(state.attributes)
+                    domain = real_id.split(".")[0]
+                    filtered = filter_attributes_for_tier(
+                        domain, dict(state.attributes), tier
                     )
-                    if real_id.startswith("weather.") and ea.display_hints.get("show_forecast") is True:
+                    if tier not in ("badge", "compact") and real_id.startswith("weather.") and ea.display_hints.get("show_forecast") is True:
                         fc = await self._try_fetch_forecast(real_id)
                         if fc:
                             filtered = dict(filtered)
@@ -2979,7 +2984,7 @@ class HarvestEntityDefinitionView(_HarvestView):
         companion_ids = [c.strip() for c in companion_raw.split(",") if c.strip()] if companion_raw else None
 
         if entity_access.capabilities == "badge":
-            definition = build_badge_definition(self._hass, entity_id, entity_access)
+            definition = build_entity_definition(self._hass, entity_id, entity_access, detail_level="badge")
         else:
             definition = build_entity_definition(
                 self._hass, entity_id, entity_access, companions=companion_ids,

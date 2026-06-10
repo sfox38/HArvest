@@ -17,6 +17,13 @@ from homeassistant.components.remote import RemoteEntityFeature
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
 
+from .const import (
+    DATA_TIER_BADGE,
+    DATA_TIER_COMPACT,
+    DATA_TIER_DISPLAY,
+    DATA_TIER_FULL,
+    DISPLAY_TIER_ATTRIBUTES,
+)
 from .entity_compatibility import get_renderer_name, get_support_tier
 
 if TYPE_CHECKING:
@@ -334,19 +341,69 @@ _SENSOR_DC_ICONS: dict[str, str] = {
 }
 
 
+def resolve_data_tier(entities_block: bool, capabilities: str) -> str:
+    """Determine the data tier from token/entity context.
+
+    Returns one of DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_DISPLAY,
+    or DATA_TIER_FULL. Pure function with no HA dependencies so both
+    ws_proxy and http_views can import it.
+    """
+    if capabilities == "badge":
+        return DATA_TIER_BADGE
+    if entities_block:
+        return DATA_TIER_COMPACT
+    if capabilities == "read":
+        return DATA_TIER_DISPLAY
+    return DATA_TIER_FULL
+
+
+def filter_attributes_for_tier(
+    domain: str,
+    attributes: dict,
+    tier: str,
+) -> dict:
+    """Filter entity state attributes based on the data tier.
+
+    badge/compact: unit_of_measurement only.
+    display: unit_of_measurement + domain-specific allowlist.
+    full: delegates to the existing blocklist-based filter_attributes().
+    """
+    if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT):
+        result: dict = {}
+        uom = attributes.get("unit_of_measurement")
+        if uom is not None:
+            result["unit_of_measurement"] = uom
+        return result
+
+    if tier == DATA_TIER_DISPLAY:
+        allowed = DISPLAY_TIER_ATTRIBUTES.get(domain, frozenset())
+        result = {}
+        uom = attributes.get("unit_of_measurement")
+        if uom is not None:
+            result["unit_of_measurement"] = uom
+        for key in allowed:
+            if key in attributes:
+                result[key] = attributes[key]
+        return result
+
+    return filter_attributes(attributes)
+
+
 def build_entity_definition(
     hass: HomeAssistant,
     entity_id: str,
     entity_access: "EntityAccess",
     companions: list[str] | None = None,
+    detail_level: str = DATA_TIER_FULL,
 ) -> dict | None:
-    """Build a complete entity_definition message dict for a given entity.
+    """Build an entity_definition message dict at the requested detail level.
 
-    Reads current state and entity registry entry from HA.
-    Translates supported_features bitmask to string list.
-    Builds icon and icon_state_map from entity registry and domain defaults.
-    Builds feature_config with domain-specific range values.
-    Returns None if the entity does not exist in HA's state machine.
+    detail_level controls which fields are included and which expensive
+    computations are skipped:
+      badge   - identity, icon, unit, color_scheme, display_hints
+      compact - badge fields plus renderer and support_tier (no companions)
+      display - compact fields plus unit, display_hints, and companions
+      full    - all fields including features, config, gestures, service_data
     """
     state = hass.states.get(entity_id)
     if state is None:
@@ -355,18 +412,15 @@ def build_entity_definition(
     domain = entity_id.split(".")[0]
     attrs = state.attributes
 
-    # Entity registry - may be None for synthetic/virtual entities.
     registry = er.async_get(hass)
     entry = registry.async_get(entity_id)
 
-    # device_class: prefer registry override, fall back to state attribute.
     device_class: str | None = None
     if entry is not None:
         device_class = entry.device_class or entry.original_device_class
     if device_class is None:
         device_class = attrs.get("device_class")
 
-    # friendly_name: name_override takes priority, then state attribute, then registry.
     if entity_access.name_override:
         friendly_name: str = entity_access.name_override
     else:
@@ -374,14 +428,65 @@ def build_entity_definition(
         if not friendly_name and entry is not None:
             friendly_name = entry.name or entry.original_name or entity_id
 
-    # supported_features bitmask -> string list.
+    if entity_access.icon_override:
+        icon_state_map = {"*": entity_access.icon_override}
+        current_icon = entity_access.icon_override
+    else:
+        icon_state_map = build_icon_state_map(domain, state, entry, device_class)
+        current_icon = icon_state_map.get(state.state) or icon_state_map.get("*", "mdi:help-circle")
+
+    unit_of_measurement: str | None = attrs.get("unit_of_measurement")
+
+    if detail_level == DATA_TIER_BADGE:
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "device_class": device_class,
+            "friendly_name": friendly_name,
+            "icon": current_icon,
+            "icon_state_map": icon_state_map,
+            "unit_of_measurement": unit_of_measurement,
+            "color_scheme": entity_access.color_scheme,
+            "display_hints": entity_access.display_hints or {},
+        }
+
+    support_tier = int(get_support_tier(domain))
+    renderer = get_renderer_name(domain, device_class)
+
+    if detail_level == DATA_TIER_COMPACT:
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "device_class": device_class,
+            "friendly_name": friendly_name,
+            "icon": current_icon,
+            "icon_state_map": icon_state_map,
+            "color_scheme": entity_access.color_scheme,
+            "renderer": renderer,
+            "support_tier": support_tier,
+        }
+
+    if detail_level == DATA_TIER_DISPLAY:
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "device_class": device_class,
+            "friendly_name": friendly_name,
+            "icon": current_icon,
+            "icon_state_map": icon_state_map,
+            "unit_of_measurement": unit_of_measurement,
+            "color_scheme": entity_access.color_scheme,
+            "display_hints": entity_access.display_hints or {},
+            "companions": companions or [],
+            "renderer": renderer,
+            "support_tier": support_tier,
+        }
+
+    # Full tier: compute features, config, gestures, service_data.
     supported_features = decode_supported_features(
         domain, attrs.get("supported_features", 0)
     )
 
-    # Modern HA lights report capabilities via supported_color_modes rather than
-    # the supported_features bitmask. Augment the decoded feature list so that
-    # RGBW/color_temp lights get their sliders without needing the old bitmask.
     if domain == "light":
         color_modes = set(attrs.get("supported_color_modes", []))
         dimmable_modes = {"brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"}
@@ -403,22 +508,8 @@ def build_entity_definition(
         if raw_features & 2:
             supported_features.append("forecast_hourly")
 
-    # icon_state_map (includes the icon for the current state as default icon).
-    # icon_override replaces all state-specific icons with a single fixed icon.
-    if entity_access.icon_override:
-        icon_state_map = {"*": entity_access.icon_override}
-        current_icon = entity_access.icon_override
-    else:
-        icon_state_map = build_icon_state_map(domain, state, entry, device_class)
-        current_icon = icon_state_map.get(state.state) or icon_state_map.get("*", "mdi:help-circle")
-
-    # feature_config for domain-specific sliders / range controls.
     feature_config = build_feature_config(domain, state)
 
-    # unit_of_measurement from state attributes.
-    unit_of_measurement: str | None = attrs.get("unit_of_measurement")
-
-    # Apply exclude_attributes: remove suppressed features and config keys.
     if entity_access.exclude_attributes:
         suppressed = _features_to_suppress(entity_access.exclude_attributes)
         supported_features = [f for f in supported_features if f not in suppressed]
@@ -426,9 +517,6 @@ def build_entity_definition(
             k: v for k, v in feature_config.items()
             if not _is_config_key_excluded(k, entity_access.exclude_attributes)
         }
-
-    support_tier = int(get_support_tier(domain))
-    renderer = get_renderer_name(domain, device_class)
 
     return {
         "entity_id": entity_id,
@@ -457,57 +545,9 @@ def build_badge_definition(
 ) -> dict | None:
     """Build a minimal entity_definition for badge capability.
 
-    Returns only the fields needed for a compact badge display:
-    identity, icon, name, unit, color_scheme, and display hints.
-    Omits supported_features, feature_config, companions,
-    and gesture_config (badges do not support gestures).
+    Thin wrapper around build_entity_definition with detail_level="badge".
     """
-    state = hass.states.get(entity_id)
-    if state is None:
-        return None
-
-    domain = entity_id.split(".")[0]
-    attrs = state.attributes
-
-    registry = er.async_get(hass)
-    entry = registry.async_get(entity_id)
-
-    device_class: str | None = None
-    if entry is not None:
-        device_class = entry.device_class or entry.original_device_class
-    if device_class is None:
-        device_class = attrs.get("device_class")
-
-    if entity_access.name_override:
-        friendly_name: str = entity_access.name_override
-    else:
-        friendly_name = attrs.get("friendly_name") or ""
-        if not friendly_name and entry is not None:
-            friendly_name = entry.name or entry.original_name or entity_id
-
-    if entity_access.icon_override:
-        icon_state_map = {"*": entity_access.icon_override}
-        current_icon = entity_access.icon_override
-    else:
-        icon_state_map = build_icon_state_map(domain, state, entry, device_class)
-        current_icon = (
-            icon_state_map.get(state.state)
-            or icon_state_map.get("*", "mdi:help-circle")
-        )
-
-    unit_of_measurement: str | None = attrs.get("unit_of_measurement")
-
-    return {
-        "entity_id": entity_id,
-        "domain": domain,
-        "device_class": device_class,
-        "friendly_name": friendly_name,
-        "icon": current_icon,
-        "icon_state_map": icon_state_map,
-        "unit_of_measurement": unit_of_measurement,
-        "color_scheme": entity_access.color_scheme,
-        "display_hints": entity_access.display_hints or {},
-    }
+    return build_entity_definition(hass, entity_id, entity_access, detail_level=DATA_TIER_BADGE)
 
 
 def decode_supported_features(domain: str, bitmask: int) -> list[str]:
