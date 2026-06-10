@@ -1401,7 +1401,7 @@ Without this call in the template, the graph toggle in the preview does nothing 
 
 ### Hardcoded companion limit
 
-There is no per-card companion limit. The total entity count per token is capped at 50 (primaries plus companions combined).
+There is no per-card companion limit. Primaries and companions both count toward HArvest's internal 250-entity safety cap per token.
 
 ### Not guarding slider updates
 

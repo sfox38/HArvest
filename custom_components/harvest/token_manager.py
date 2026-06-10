@@ -26,8 +26,6 @@ from .const import (
     ATTRIBUTE_DENYLIST_SUBSTRINGS,
     BASE62_ALPHABET,
     CONF_ABSOLUTE_SESSION_LIFETIME,
-    CONF_MAX_ENTITIES_HARD_CAP,
-    CONF_MAX_ENTITIES_PER_TOKEN,
     DEFAULTS,
     ERR_ENTITY_INCOMPATIBLE,
     ERR_ENTITY_NOT_IN_TOKEN,
@@ -38,6 +36,7 @@ from .const import (
     ERR_TOKEN_INACTIVE,
     ERR_TOKEN_INVALID,
     ERR_TOKEN_REVOKED,
+    MAX_ENTITIES_HARD_CAP,
     SESSION_PREFIX,
     SESSION_ID_LENGTH,
     TOKEN_ID_LENGTH,
@@ -295,25 +294,15 @@ class TokenManager:
         """Create, persist, and return a new token.
 
         Validates entity count against hard cap before creating.
-        Raises ValueError if entity count exceeds max_entities_hard_cap.
+        Raises ValueError if entity count exceeds MAX_ENTITIES_HARD_CAP.
         Validates allow_paths entries (must start with /, no .., no query string or
         fragment, max 512 chars). Query strings in allow_paths entries are rejected
         at save time since they would never match after page_path normalisation.
         Raises ValueError for invalid path entries.
         """
-        soft_limit = self._config.get(
-            CONF_MAX_ENTITIES_PER_TOKEN, DEFAULTS[CONF_MAX_ENTITIES_PER_TOKEN]
-        )
-        hard_cap = self._config.get(
-            CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
-        )
-        if len(entities) > hard_cap:
+        if len(entities) > MAX_ENTITIES_HARD_CAP:
             raise ValueError(
-                f"Entity count {len(entities)} exceeds hard cap {hard_cap}."
-            )
-        if len(entities) > soft_limit:
-            raise ValueError(
-                f"Entity count {len(entities)} exceeds the configured limit {soft_limit}."
+                f"Entity count {len(entities)} exceeds hard cap {MAX_ENTITIES_HARD_CAP}."
             )
 
         self._validate_allow_paths(origins.allow_paths)
@@ -478,20 +467,10 @@ class TokenManager:
 
         # Validate entity count if entities are being updated.
         if "entities" in updates:
-            soft_limit = self._config.get(
-                CONF_MAX_ENTITIES_PER_TOKEN, DEFAULTS[CONF_MAX_ENTITIES_PER_TOKEN]
-            )
-            hard_cap = self._config.get(
-                CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
-            )
             new_entities: list[EntityAccess] = updates["entities"]
-            if len(new_entities) > hard_cap:
+            if len(new_entities) > MAX_ENTITIES_HARD_CAP:
                 raise ValueError(
-                    f"Entity count {len(new_entities)} exceeds hard cap {hard_cap}."
-                )
-            if len(new_entities) > soft_limit:
-                raise ValueError(
-                    f"Entity count {len(new_entities)} exceeds the configured limit {soft_limit}."
+                    f"Entity count {len(new_entities)} exceeds hard cap {MAX_ENTITIES_HARD_CAP}."
                 )
 
         _UPDATABLE_FIELDS = {

@@ -48,8 +48,6 @@ ACTIVITY_DB_FILENAME = "harvest_activity.db"
 
 # Global config option keys (stored in HA's config entry data)
 CONF_AUTH_TIMEOUT = "auth_timeout_seconds"
-CONF_MAX_ENTITIES_PER_TOKEN = "max_entities_per_token"
-CONF_MAX_ENTITIES_HARD_CAP = "max_entities_hard_cap"
 CONF_MAX_INBOUND_BYTES = "max_inbound_message_bytes"
 CONF_KEEPALIVE_INTERVAL = "keepalive_interval_seconds"
 CONF_KEEPALIVE_TIMEOUT = "keepalive_timeout_seconds"
@@ -70,11 +68,11 @@ CONF_CUSTOM_DOMAINS = "custom_domains"
 CONF_EXTERNAL_PORT = "external_port"
 CONF_SENSITIVE_DOMAINS = "sensitive_domains"
 
+MAX_ENTITIES_HARD_CAP = 250
+
 # Default values matching SPEC.md Section 19
 DEFAULTS: dict[str, object] = {
     CONF_AUTH_TIMEOUT: 10,
-    CONF_MAX_ENTITIES_PER_TOKEN: 50,
-    CONF_MAX_ENTITIES_HARD_CAP: 250,
     CONF_MAX_INBOUND_BYTES: 4096,
     CONF_KEEPALIVE_INTERVAL: 30,
     CONF_KEEPALIVE_TIMEOUT: 10,

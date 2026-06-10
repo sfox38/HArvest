@@ -329,7 +329,7 @@ export interface ServiceDescription {
 
 export interface IntegrationConfig {
   auth_timeout_seconds: number;
-  max_entities_per_token: number;
+  entity_hard_cap: number;
   keepalive_interval_seconds: number;
   keepalive_timeout_seconds: number;
   heartbeat_timeout_seconds: number;

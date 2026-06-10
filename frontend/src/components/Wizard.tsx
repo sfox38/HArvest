@@ -70,11 +70,21 @@ interface WizardProps {
   onClose: (newTokenId?: string) => void;
 }
 
+function countSelectedEntities(entities: SelectedEntity[]): number {
+  const entityIds = new Set<string>();
+  for (const entity of entities) {
+    entityIds.add(entity.entity_id);
+    for (const companion of entity.companions) entityIds.add(companion.entity_id);
+  }
+  return entityIds.size;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const TOTAL_STEPS = 4;
+const DEFAULT_ENTITY_HARD_CAP = 250;
 const STEP_LABELS = ["Design", "Origin", "Expiry", "Done"];
 const COMPANION_ALLOWED_DOMAINS = new Set([
   "light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor", "lock",
@@ -236,13 +246,14 @@ interface CompanionPickerProps {
   excludeIds: string[];
   parentCapability: "badge" | "read" | "read-write";
   onChange: (c: { entity_id: string; alias: string | null; read_only?: boolean }[]) => void;
+  canAdd: boolean;
+  maxEntities: number;
   blockedDomains?: Set<string>;
 }
 
-function CompanionPicker({ companions, excludeIds, parentCapability, onChange, blockedDomains }: CompanionPickerProps) {
+function CompanionPicker({ companions, excludeIds, parentCapability, onChange, canAdd, maxEntities, blockedDomains }: CompanionPickerProps) {
   const [input, setInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
-  const canAdd = true;
   const isInteractiveDomain = (entityId: string) => COMPANION_INTERACTIVE_DOMAINS.has(entityId.split(".")[0]);
 
   const addCompanion = async (entityId: string) => {
@@ -279,6 +290,11 @@ function CompanionPicker({ companions, excludeIds, parentCapability, onChange, b
           excludeDomains={blockedDomains}
           placeholder="Add companion entity..."
         />
+      )}
+      {!canAdd && (
+        <div className="muted fs-11" style={{ color: "var(--warning)" }}>
+          Maximum of {maxEntities} entities per token. Remove an entity before adding another companion.
+        </div>
       )}
       {loadingAlias && (
         <div className="row muted" style={{ gap: 6, fontSize: 11 }}>
@@ -553,11 +569,13 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
     if (entityCacheList.length === 0) loadEntityCache();
   }, []);
 
-  const atEntityLimit = state.mode !== "single" && state.entities.length >= maxEntities;
+  const selectedEntityCount = countSelectedEntities(state.entities);
+  const atEntityLimit = state.mode !== "single" && selectedEntityCount >= maxEntities;
+  const canAddCompanion = selectedEntityCount < maxEntities;
 
   const selectEntity = async (entityId: string) => {
     if (state.entities.some(e => e.entity_id === entityId)) return;
-    if (state.mode !== "single" && state.entities.length >= maxEntities) return;
+    if (state.mode !== "single" && selectedEntityCount >= maxEntities) return;
     setLoadingAlias(entityId);
     let alias: string | null = null;
     try {
@@ -568,6 +586,7 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
 
     const latest = entitiesRef.current;
     if (latest.some(e => e.entity_id === entityId)) return;
+    if (state.mode !== "single" && countSelectedEntities(latest) >= maxEntities) return;
 
     const entry: SelectedEntity = { entity_id: entityId, alias, companions: [] };
     const isFirst = latest.length === 0;
@@ -602,7 +621,9 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
   };
 
   const updateCompanions = (entityId: string, companions: { entity_id: string; alias: string | null; read_only?: boolean }[]) => {
-    onChange({ entities: state.entities.map(e => e.entity_id === entityId ? { ...e, companions } : e) });
+    const entities = state.entities.map(e => e.entity_id === entityId ? { ...e, companions } : e);
+    if (countSelectedEntities(entities) > maxEntities) return;
+    onChange({ entities });
   };
 
   const updateServiceData = (entityId: string, data: Record<string, unknown>) => {
@@ -745,6 +766,8 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
                     excludeIds={primaryIds}
                     parentCapability={state.capability}
                     onChange={cs => updateCompanions(e.entity_id, cs)}
+                    canAdd={canAddCompanion}
+                    maxEntities={maxEntities}
                     blockedDomains={blockedDomains}
                   />
                 )}
@@ -1305,7 +1328,7 @@ export function Wizard({ onClose }: WizardProps) {
   const [widgetScriptUrl,    setWidgetScriptUrl]    = useState("");
   const [externalPort,       setExternalPort]       = useState(0);
   const [existingLabels,     setExistingLabels]     = useState<string[]>([]);
-  const [maxEntities,        setMaxEntities]        = useState(50);
+  const [entityHardCap,      setEntityHardCap]      = useState(DEFAULT_ENTITY_HARD_CAP);
   const [blockedDomains,     setBlockedDomains]     = useState<Set<string>>(new Set());
   const [secretAcknowledged, setSecretAcknowledged] = useState(false);
   const wizardRef = useRef<HTMLDivElement>(null);
@@ -1341,7 +1364,7 @@ export function Wizard({ onClose }: WizardProps) {
       setOverrideHost(c.override_host || "");
       setWidgetScriptUrl(c.widget_script_url || "");
       setExternalPort(c.external_port ?? 0);
-      if (c.max_entities_per_token) setMaxEntities(c.max_entities_per_token);
+      if (c.entity_hard_cap > 0) setEntityHardCap(c.entity_hard_cap);
       const sd = c.sensitive_domains ?? {};
       setBlockedDomains(new Set(Object.keys(sd).filter(k => !sd[k])));
     }).catch(() => {});
@@ -1497,7 +1520,7 @@ export function Wizard({ onClose }: WizardProps) {
 
         {/* Body */}
         <div className="wizard-body">
-          {step === 1 && <Step1 state={wState} onChange={patchState} existingLabels={existingLabels} maxEntities={maxEntities} blockedDomains={blockedDomains} />}
+          {step === 1 && <Step1 state={wState} onChange={patchState} existingLabels={existingLabels} maxEntities={entityHardCap} blockedDomains={blockedDomains} />}
           {step === 2 && <Step2 state={wState} onChange={patchState} />}
           {step === 3 && <Step3 state={wState} onChange={patchState} />}
           {isDone && (

@@ -198,11 +198,4 @@ class Harvest_Assets {
         return $stripped . $separator . 'wp=' . rawurlencode( HARVEST_VERSION );
     }
 
-    /**
-     * Retained for compatibility with callers from earlier plugin versions.
-     * Asset loading is performed directly by the shortcode renderer.
-     */
-    public static function maybe_enqueue_from_footer(): void {
-    }
-
 }

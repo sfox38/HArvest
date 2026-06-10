@@ -955,9 +955,6 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
         title={<span className="row gap-8"><Icon name="shield" size={14} /> Security</span>}
       >
         <dl>
-          <NumberField label="Max entities per widget" value={config.max_entities_per_token} min={1} max={250}
-            hint="Maximum number of HA entities a single widget token can expose."
-            onChange={patchNum("max_entities_per_token")} />
           <NumberField label="Max auth attempts per widget / min" value={config.max_auth_attempts_per_token_per_minute} suffix="/ min" min={1}
             hint="How many failed login attempts a single widget allows per minute before blocking further tries."
             onChange={patchNum("max_auth_attempts_per_token_per_minute")} />

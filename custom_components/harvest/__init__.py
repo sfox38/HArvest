@@ -46,8 +46,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Schedules daily activity log purge and preview token cleanup.
     Stores all managers in hass.data[DOMAIN][entry.entry_id].
     """
+    retired_keys = {"max_entities_per_token", "max_entities_hard_cap"}
+    data = {key: value for key, value in entry.data.items() if key not in retired_keys}
+    options = {key: value for key, value in entry.options.items() if key not in retired_keys}
+    if data != dict(entry.data) or options != dict(entry.options):
+        hass.config_entries.async_update_entry(entry, data=data, options=options)
+
     # Build effective config: defaults < entry.data < entry.options.
-    config: dict = {**DEFAULTS, **entry.data, **entry.options}
+    config: dict = {**DEFAULTS, **data, **options}
 
     # --- Instantiate in dependency order ---
     activity_store = ActivityStore(hass, config)

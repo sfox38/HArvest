@@ -31,7 +31,6 @@ from .const import (
     CONF_AUTH_TIMEOUT,
     CONF_KILL_SWITCH,
     CONF_KEEPALIVE_INTERVAL,
-    CONF_MAX_ENTITIES_HARD_CAP,
     CONF_MAX_INBOUND_BYTES,
     DATA_TIER_BADGE,
     DATA_TIER_COMPACT,
@@ -40,6 +39,7 @@ from .const import (
     DOMAIN,
     ERR_ENTITY_NOT_IN_TOKEN,
     ERR_ORIGIN_DENIED,
+    MAX_ENTITIES_HARD_CAP,
     ERR_PERMISSION_DENIED,
     ERR_PROTOCOL_INCOMPATIBLE,
     ERR_RATE_LIMITED,
@@ -346,10 +346,7 @@ class HarvestWsView(HomeAssistantView):
         if not all(isinstance(r, str) for r in raw_entity_refs):
             await ws.close()
             return
-        max_refs = self._config.get(
-            CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
-        )
-        if len(raw_entity_refs) > max_refs:
+        if len(raw_entity_refs) > MAX_ENTITIES_HARD_CAP:
             await ws.close()
             return
         entity_refs: list[str] = raw_entity_refs
@@ -1008,12 +1005,9 @@ class HarvestWsView(HomeAssistantView):
         """
         msg_id = msg.get("msg_id")
         raw_refs = msg.get("entity_ids", [])
-        max_refs = self._config.get(
-            CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
-        )
         if (
             not isinstance(raw_refs, list)
-            or len(raw_refs) > max_refs
+            or len(raw_refs) > MAX_ENTITIES_HARD_CAP
             or not all(isinstance(ref, str) for ref in raw_refs)
         ):
             await ws.send_json({"type": "error", "code": "ERR_BAD_REQUEST", "msg_id": msg_id})
@@ -1067,12 +1061,9 @@ class HarvestWsView(HomeAssistantView):
         No response is sent.
         """
         raw_refs = msg.get("entity_ids", [])
-        max_refs = self._config.get(
-            CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
-        )
         if (
             not isinstance(raw_refs, list)
-            or len(raw_refs) > max_refs
+            or len(raw_refs) > MAX_ENTITIES_HARD_CAP
             or not all(isinstance(ref, str) for ref in raw_refs)
         ):
             return

@@ -2468,7 +2468,7 @@ class HarvestConfigView(_HarvestView):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
-        from .const import DOMAIN, DEFAULTS, PLATFORM_VERSION
+        from .const import DOMAIN, DEFAULTS, MAX_ENTITIES_HARD_CAP, PLATFORM_VERSION
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
             return self.json({})
@@ -2476,7 +2476,10 @@ class HarvestConfigView(_HarvestView):
         # Deep-merge stored values over defaults so nested objects like
         # default_session are always fully populated even after partial saves.
         merged = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
+        merged.pop("max_entities_per_token", None)
+        merged.pop("max_entities_hard_cap", None)
         merged["platform_version"] = PLATFORM_VERSION
+        merged["entity_hard_cap"] = MAX_ENTITIES_HARD_CAP
         from .entity_compatibility import TIER1_DOMAINS, TIER3_DOMAINS
         all_domains = {s.domain for s in self._hass.states.async_all()}
         available = sorted(all_domains - set(TIER1_DOMAINS) - set(TIER3_DOMAINS))
@@ -2631,6 +2634,8 @@ class HarvestConfigView(_HarvestView):
 
         # Deep-merge the incoming partial update over the current full config.
         current = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
+        current.pop("max_entities_per_token", None)
+        current.pop("max_entities_hard_cap", None)
         updated = _deep_merge(current, filtered)
         self._hass.config_entries.async_update_entry(entry, options=updated)
 
@@ -2650,8 +2655,9 @@ class HarvestConfigView(_HarvestView):
                 if not session.ws.closed:
                     self._hass.async_create_task(_close_ws_with_auth_failed(session.ws))
 
-        from .const import PLATFORM_VERSION
+        from .const import MAX_ENTITIES_HARD_CAP, PLATFORM_VERSION
         updated["platform_version"] = PLATFORM_VERSION
+        updated["entity_hard_cap"] = MAX_ENTITIES_HARD_CAP
         from .entity_compatibility import TIER1_DOMAINS, TIER3_DOMAINS
         all_domains = {s.domain for s in self._hass.states.async_all()}
         avail = sorted(all_domains - set(TIER1_DOMAINS) - set(TIER3_DOMAINS))

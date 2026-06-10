@@ -1052,7 +1052,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       key={mode}
                       className={isActive ? "active" : ""}
                       aria-pressed={isActive}
-                      onClick={async (ev) => {
+                      onClick={async () => {
                         if (!canEdit) return;
                         if (mode === "per_entity") {
                           try {
@@ -1087,7 +1087,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       key={scheme}
                       className={isActive ? "active" : ""}
                       aria-pressed={isActive}
-                      onClick={async (ev) => {
+                      onClick={async () => {
                         if (!canEdit) return;
                         try {
                           if (scheme === "per_entity") {

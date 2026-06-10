@@ -214,7 +214,7 @@
               <tr><td>Graph period</td><td>1-60</td><td>10</td><td>Aggregation period in minutes per data point. Stored in <code>display_hints.period</code>.</td></tr>
               <tr><td>Fan display mode</td><td>"auto" | "on-off" | "continuous" | "stepped" | "cycle"</td><td>"auto"</td><td>Controls which fan speed UI is shown. "auto" lets the renderer decide based on the entity's features. Stored in <code>display_hints.display_mode</code>. Only visible when the active theme renderer supports it.</td></tr>
               <tr><td>Animate fan</td><td>boolean</td><td>false</td><td>Spin the fan icon when entity is on. Stored in <code>display_hints.animate</code>.</td></tr>
-              <tr><td>Companions</td><td>entity list</td><td>-</td><td>Companion entities displayed inside this card. Managed in the Entity Settings card; do not appear in the entity list. 50-entity token budget applies. See <a href="entities.html#companions">companion eligibility</a>.</td></tr>
+              <tr><td>Companions</td><td>entity list</td><td>-</td><td>Companion entities displayed inside this card. Managed in the Entity Settings card; do not appear in the entity list. Primaries and companions count toward the internal 250-entity safety cap per token. See <a href="entities.html#companions">companion eligibility</a>.</td></tr>
               <tr><td>Badge: show icon</td><td>boolean</td><td>true</td><td>Show icon in badge pill. Only visible when capability is <code>"badge"</code>. Stored in <code>display_hints.badge_show_icon</code>.</td></tr>
               <tr><td>Badge: show name</td><td>boolean</td><td>true</td><td>Show name in badge pill. Stored in <code>display_hints.badge_show_name</code>.</td></tr>
               <tr><td>Badge: show state</td><td>boolean</td><td>true</td><td>Show state in badge pill. Stored in <code>display_hints.badge_show_state</code>.</td></tr>
@@ -239,7 +239,6 @@
               <tr><td>Auth timeout</td><td>10s</td><td>WebSocket auth must complete within this window.</td></tr>
               <tr><td>Keepalive interval</td><td>30s</td><td>Server-to-client ping frequency.</td></tr>
               <tr><td>Client heartbeat timeout</td><td>60s</td><td>Session dropped if no client message within this window.</td></tr>
-              <tr><td>Max entities per token</td><td>50</td><td>Hard cap on entities per token.</td></tr>
               <tr><td>Auth attempts per token/min</td><td>10</td><td>Failed attempts before token is temporarily blocked.</td></tr>
               <tr><td>Auth attempts per IP/min</td><td>20</td><td>Failed attempts per IP before blocking.</td></tr>
               <tr><td>Kill switch</td><td>Off</td><td>Drops all sessions globally and blocks new connections.</td></tr>
