@@ -171,11 +171,13 @@ function Step1Dashboard({
 // ---------------------------------------------------------------------------
 
 function Step2Configure({
-  state, onChange, themes,
+  state, onChange, themes, maxPerToken, onMaxPerTokenChange,
 }: {
   state: ConverterState;
   onChange: (patch: Partial<ConverterState>) => void;
   themes: ThemeDefinition[];
+  maxPerToken: number;
+  onMaxPerTokenChange: (v: number) => void;
 }) {
   const [knownOrigins] = useState(() => loadKnownOrigins());
 
@@ -202,7 +204,6 @@ function Step2Configure({
     .map(([d, c]) => `${d} (${c})`)
     .join(", ");
 
-  const maxPerToken = 50;
   const estimatedTokens = selectedViews.reduce((sum, v) => {
     const count = new Set(getAllEntities(v).filter(e => !TIER3_DOMAINS.has(e.domain)).map(e => e.entity_id)).size;
     return sum + Math.max(1, Math.ceil(count / maxPerToken));
@@ -327,6 +328,32 @@ function Step2Configure({
         )}
       </div>
 
+      {/* Max cards per group */}
+      <div className="col gap-6">
+        <div className="label-strong">Max cards per group</div>
+        <div className="row gap-10" style={{ alignItems: "center" }}>
+          <input
+            type="number"
+            className="input converter-max-input"
+            min={5}
+            max={100}
+            value={maxPerToken}
+            onChange={e => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v)) onMaxPerTokenChange(Math.max(5, Math.min(100, v)));
+            }}
+          />
+          <input
+            type="range"
+            className="converter-max-slider"
+            min={5}
+            max={100}
+            value={maxPerToken}
+            onChange={e => onMaxPerTokenChange(parseInt(e.target.value, 10))}
+          />
+        </div>
+      </div>
+
       {/* Summary */}
       <div className="converter-summary">
         <div className="label-strong-13">Summary</div>
@@ -419,7 +446,7 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
   const [loading, setLoading] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [themes, setThemes] = useState<ThemeDefinition[]>([]);
-  const [maxPerToken, setMaxPerToken] = useState(50);
+  const [maxPerToken, setMaxPerToken] = useState(40);
   const [overrideHost, setOverrideHost] = useState("");
   const [widgetScriptUrl, setWidgetScriptUrl] = useState("");
   const [externalPort, setExternalPort] = useState(0);
@@ -447,7 +474,6 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
   useEffect(() => {
     api.themes.list().then(setThemes).catch(() => {});
     api.config.get().then(c => {
-      setMaxPerToken(c.max_entities_per_token ?? 50);
       setOverrideHost(c.override_host ?? "");
       setWidgetScriptUrl(c.widget_script_url ?? "");
       setExternalPort(c.external_port ?? 0);
@@ -685,6 +711,8 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
               state={state}
               onChange={patchState}
               themes={themes}
+              maxPerToken={maxPerToken}
+              onMaxPerTokenChange={setMaxPerToken}
             />
           )}
           {step === 3 && <Step3Generate progress={state.generateProgress} />}

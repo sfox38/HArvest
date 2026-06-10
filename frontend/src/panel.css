@@ -3385,6 +3385,38 @@ button.entity-setting-group-title:focus-visible {
   accent-color: var(--accent);
 }
 
+.converter-max-input {
+  width: 4.5em;
+  text-align: center;
+  flex-shrink: 0;
+}
+.converter-max-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 4px;
+  background: var(--divider);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.converter-max-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+.converter-max-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+}
+
 .converter-summary {
   background: var(--bg);
   border: 1px solid var(--divider);
