@@ -29,11 +29,15 @@ from .compatibility import (
 )
 from .const import (
     CONF_AUTH_TIMEOUT,
-    CONF_KILL_SWITCH,
+    CONF_HEARTBEAT_TIMEOUT,
     CONF_KEEPALIVE_INTERVAL,
+    CONF_KEEPALIVE_TIMEOUT,
+    CONF_KILL_SWITCH,
     CONF_MAX_INBOUND_BYTES,
     DATA_TIER_BADGE,
     DATA_TIER_COMPACT,
+    DATA_TIER_COMPANION,
+    DATA_TIER_COMPANION_RW,
     DATA_TIER_DISPLAY,
     DEFAULTS,
     DOMAIN,
@@ -51,7 +55,14 @@ from .const import (
     ERR_TOKEN_REVOKED,
     WS_PATH,
 )
-from .entity_compatibility import COMPANION_INTERACTIVE_DOMAINS, get_custom_domains, validate_action
+from .entity_compatibility import (
+    COMPANION_INTERACTIVE_DOMAINS,
+    get_custom_domains,
+    get_sensitive_domains,
+    get_support_tier,
+    is_sensitive_domain_blocked,
+    validate_action,
+)
 from .entity_definition import (
     build_entity_definition,
     filter_attributes,
@@ -281,6 +292,11 @@ class HarvestWsView(HomeAssistantView):
         # the client is still alive (pong frames do not count as messages).
         max_bytes = self._config.get(CONF_MAX_INBOUND_BYTES, DEFAULTS[CONF_MAX_INBOUND_BYTES])
         ws = WebSocketResponse(heartbeat=keepalive, max_msg_size=max_bytes)
+        # aiohttp derives pong_heartbeat from heartbeat/2 with no separate parameter.
+        # Override directly so CONF_KEEPALIVE_TIMEOUT is honoured.
+        ws._pong_heartbeat = float(
+            self._config.get(CONF_KEEPALIVE_TIMEOUT, DEFAULTS[CONF_KEEPALIVE_TIMEOUT])
+        )
         await ws.prepare(request)
         await self._handle_connection(ws, request)
         return ws
@@ -478,7 +494,6 @@ class HarvestWsView(HomeAssistantView):
         real_entity_ids: list[str] = []
         outgoing_ids: dict[str, str] = {}  # real_entity_id -> outgoing id (alias or real)
 
-        from .entity_compatibility import get_sensitive_domains, is_sensitive_domain_blocked
         sensitive = get_sensitive_domains(self._hass)
         for ref in entity_refs:
             ea = self._resolve_entity_ref(ref, token)
@@ -488,7 +503,7 @@ class HarvestWsView(HomeAssistantView):
                 real_entity_ids.append(ea.entity_id)
                 outgoing_ids[ea.entity_id] = ref  # echo back whatever the client sent
 
-        real_entity_ids = _expand_with_companions(real_entity_ids, token, outgoing_ids)
+        real_entity_ids = _expand_with_companions(real_entity_ids, token, outgoing_ids, sensitive)
 
         session_id = self._token_manager.generate_session_id()
 
@@ -721,11 +736,12 @@ class HarvestWsView(HomeAssistantView):
                 continue
 
             caps = ea.capabilities if ea else "read"
-            tier = resolve_data_tier(token.entities_block, caps)
+            is_companion = ea is not None and ea.companion_of is not None
+            tier = resolve_data_tier(token.entities_block, caps, is_companion)
 
             # Fetch initial forecast only for tiers that send weather attributes.
             if (
-                tier not in (DATA_TIER_BADGE, DATA_TIER_COMPACT)
+                tier not in (DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW)
                 and forecast_cache is not None
                 and real_id.startswith("weather.")
                 and ea is not None
@@ -734,7 +750,7 @@ class HarvestWsView(HomeAssistantView):
                 await self._fetch_initial_forecast(real_id, forecast_cache)
 
             # entity_definition - tier controls which fields are included.
-            if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT):
+            if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW):
                 defn = build_entity_definition(self._hass, real_id, ea, detail_level=tier)
             else:
                 companion_refs = [
@@ -906,6 +922,14 @@ class HarvestWsView(HomeAssistantView):
         real_id = ea.entity_id
         domain = real_id.split(".")[0]
 
+        # Sensitive-domain gate: a Tier 1 domain disabled in global Settings
+        # refuses commands even for tokens that still list the entity. Mirrors
+        # the auth-time filter so closing a gate in Settings takes effect on
+        # every active token, not just on the next reconnect.
+        if is_sensitive_domain_blocked(domain, get_sensitive_domains(self._hass)):
+            await ack_error(ERR_PERMISSION_DENIED, f"Domain '{domain}' is disabled in Settings")
+            return
+
         # Capability check: must be read-write.
         if ea.capabilities != "read-write":
             await ack_error(ERR_PERMISSION_DENIED, f"Write not permitted for entity {entity_ref}")
@@ -1014,6 +1038,13 @@ class HarvestWsView(HomeAssistantView):
             return
         refs: list[str] = raw_refs
 
+        # Apply the same domain gates the auth path enforces. Without this a
+        # token holder could auth with an empty entity list and then subscribe
+        # past a gate the admin has closed (Tier 3 reclassification, or a
+        # sensitive Tier 1 domain disabled in Settings). Both are silently
+        # skipped so they simply never appear in the accepted refs.
+        sensitive = get_sensitive_domains(self._hass)
+
         accepted_refs: list[str] = []
         new_real_ids: list[str] = []
 
@@ -1023,6 +1054,11 @@ class HarvestWsView(HomeAssistantView):
                 continue
             if ea.entity_id in session.subscribed_entity_ids:
                 continue  # already subscribed
+            domain = ea.entity_id.split(".")[0]
+            if get_support_tier(domain) == 3:
+                continue
+            if is_sensitive_domain_blocked(domain, sensitive):
+                continue
             accepted_refs.append(ref)
             new_real_ids.append(ea.entity_id)
             outgoing_ids[ea.entity_id] = ref
@@ -1031,7 +1067,7 @@ class HarvestWsView(HomeAssistantView):
             await ws.send_json({"type": "subscribe_ok", "entity_ids": [], "msg_id": msg_id})
             return
 
-        new_real_ids = _expand_with_companions(new_real_ids, token, outgoing_ids)
+        new_real_ids = _expand_with_companions(new_real_ids, token, outgoing_ids, sensitive)
 
         self._session_manager.add_subscription(session.session_id, new_real_ids)
 
@@ -1480,7 +1516,8 @@ class HarvestWsView(HomeAssistantView):
         ea = _find_entity_access(real_id, token)
         state_val = _round_state(state.state, ea)
         caps = ea.capabilities if ea else "read-write"
-        tier = resolve_data_tier(token.entities_block, caps)
+        is_companion = ea is not None and ea.companion_of is not None
+        tier = resolve_data_tier(token.entities_block, caps, is_companion)
         domain = real_id.split(".")[0]
 
         # Badge and compact tiers: minimal attributes, no delta mode.
@@ -1492,6 +1529,22 @@ class HarvestWsView(HomeAssistantView):
                 "entity_id": outgoing_id,
                 "state": state_val,
                 "attributes": minimal_attrs,
+                "initial": is_initial,
+                "msg_id": None,
+            }
+
+        # Companion tiers: minimal attributes, no delta mode, but keep
+        # last_updated - the client uses it as the out-of-order discard key.
+        if tier in (DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW):
+            minimal_attrs = filter_attributes_for_tier(domain, dict(state.attributes), tier)
+            minimal_attrs = _safe_json_value(minimal_attrs)
+            return {
+                "type": "state_update",
+                "entity_id": outgoing_id,
+                "state": state_val,
+                "attributes": minimal_attrs,
+                "last_changed": state.last_changed.isoformat() if hasattr(state, "last_changed") else None,
+                "last_updated": state.last_updated.isoformat() if hasattr(state, "last_updated") else None,
                 "initial": is_initial,
                 "msg_id": None,
             }
@@ -1726,11 +1779,17 @@ class HarvestWsView(HomeAssistantView):
         at auth time) so that an admin pausing a token immediately stops
         data flow on existing sessions, not just blocking new connections.
         """
+        heartbeat_timeout = self._config.get(CONF_HEARTBEAT_TIMEOUT, DEFAULTS[CONF_HEARTBEAT_TIMEOUT])
         try:
             while not ws.closed:
                 await asyncio.sleep(interval)
                 if ws.closed:
                     break
+                if session is not None:
+                    elapsed = (datetime.now(tz=timezone.utc) - session.last_message_at).total_seconds()
+                    if elapsed > heartbeat_timeout:
+                        await ws.close()
+                        break
                 if self._is_kill_switch_active():
                     await ws.send_json({"type": "auth_failed", "code": ERR_TOKEN_INACTIVE, "msg_id": None})
                     await ws.close()
@@ -1975,17 +2034,25 @@ def _expand_with_companions(
     entity_ids: list[str],
     token: Token,
     outgoing_ids: dict[str, str],
+    sensitive: dict | None = None,
 ) -> list[str]:
     """Expand entity_ids to include auto-subscribed companions.
 
     Appends companions after primaries. Updates outgoing_ids with
-    companion mappings (alias or real_id).
+    companion mappings (alias or real_id). When a sensitive-domain config
+    is supplied, companions whose domain is a sensitive Tier 1 domain
+    currently disabled in Settings are skipped, mirroring the primary-entity
+    gate applied at auth and subscribe time.
     """
     expanded = list(entity_ids)
     seen = set(entity_ids)
     for real_id in entity_ids:
         for ea in token.entities:
             if ea.companion_of == real_id and ea.entity_id not in seen:
+                if sensitive is not None and is_sensitive_domain_blocked(
+                    ea.entity_id.split(".")[0], sensitive
+                ):
+                    continue
                 expanded.append(ea.entity_id)
                 seen.add(ea.entity_id)
                 outgoing_ids[ea.entity_id] = ea.alias or ea.entity_id

@@ -74,7 +74,11 @@ const BADGE_STYLES = /* css */`
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px 6px 8px;
+    /* Fixed height so every badge matches regardless of icon presence or
+       one vs two text rows. Vertical centering replaces vertical padding.
+       Themes can override via --hrv-badge-height. */
+    height: var(--hrv-badge-height, 42px);
+    padding: 0 12px 0 8px;
     border-radius: 14px;
     background: var(--hrv-card-background, var(--hrv-color-surface, #fff));
     box-shadow: var(--hrv-card-shadow, 0 1px 3px rgba(0,0,0,0.1));

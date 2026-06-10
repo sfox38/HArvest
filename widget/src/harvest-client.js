@@ -922,10 +922,36 @@ export class HarvestClient {
   #handleTheme(msg) {
     if (!("variables" in msg)) return;
     const isEmpty = !msg.variables || Object.keys(msg.variables).length === 0;
-    const theme = isEmpty ? null : { variables: msg.variables, dark_variables: msg.dark_variables ?? {} };
+    let theme = null;
+    if (!isEmpty) {
+      theme = { variables: msg.variables, dark_variables: msg.dark_variables ?? {} };
+      // Forward custom font faces so ThemeLoader can inject @font-face rules.
+      // The server sends root-relative URLs (/api/harvest/themes/.../fonts/...);
+      // absolutize them against the HA origin so the embedding page's own
+      // origin is not used as the base (which would 404 off-HA). Mirrors the
+      // renderer-script URL handling in #handleRenderer.
+      if (Array.isArray(msg.custom_fonts)) {
+        theme.custom_fonts = msg.custom_fonts.map((face) => ({
+          ...face,
+          url: this.#absoluteHaUrl(face.url),
+        }));
+      }
+    }
     for (const card of this.#cards.values()) {
       card.receiveTheme?.(theme);
     }
+  }
+
+  /**
+   * Resolve a possibly-root-relative URL against the HA origin. Absolute URLs
+   * (http(s)://, //, data:, blob:) pass through unchanged.
+   * @param {string} url
+   * @returns {string}
+   */
+  #absoluteHaUrl(url) {
+    if (typeof url !== "string" || url === "") return url;
+    if (/^(https?:|data:|blob:)/i.test(url) || url.startsWith("//")) return url;
+    return this.#haUrl + (url.startsWith("/") ? url : "/" + url);
   }
 
   #handleTokenConfig(msg) {

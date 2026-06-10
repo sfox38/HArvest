@@ -10,6 +10,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import type { Token, ThemeDefinition, HAEntityDetail } from "../types";
 import { api } from "../api";
+import { usePanelDark } from "../panelTheme";
 import { Spinner } from "./Shared";
 import { loadWidgetScript, loadRendererScript, isRendererLoaded, generateMockHistory } from "./WidgetPreview";
 
@@ -48,6 +49,7 @@ export function EntityPreview({
   const [loadError, setLoadError] = useState(false);
   const [serverDef, setServerDef] = useState<{ definition: Record<string, unknown>; state: string; attributes: Record<string, unknown> } | null>(null);
   const rendererId = theme?.has_renderer ? theme.theme_id : undefined;
+  const haDark = usePanelDark();
 
   useEffect(() => {
     if (rendererId && !isRendererLoaded(rendererId)) setReady(false);
@@ -83,7 +85,7 @@ export function EntityPreview({
     return { variables: theme.variables ?? {}, dark_variables: theme.dark_variables ?? {} };
   }, [theme?.theme_id]);
 
-  const cardKey = `${entity.entity_id}:${entity.state}:${defKey}:${theme?.theme_id ?? ""}`;
+  const cardKey = `${entity.entity_id}:${entity.state}:${defKey}:${theme?.theme_id ?? ""}:${haDark ? "dark" : "light"}`;
   const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
 
   useEffect(() => {
@@ -92,7 +94,16 @@ export function EntityPreview({
     container.innerHTML = "";
     cardRef.current = null;
     const domain = entity.entity_id.split(".")[0];
-    const entityDef: Record<string, unknown> = { ...serverDef.definition, capabilities: entityAccess.capabilities };
+    // Pin "auto" to the panel's effective theme (HArvest Theme setting,
+    // "auto" following HA) so the preview matches the panel instead of the
+    // OS prefers-color-scheme. An explicit per-entity light/dark choice
+    // still wins.
+    const explicitScheme = entityAccess.color_scheme === "light" || entityAccess.color_scheme === "dark";
+    const entityDef: Record<string, unknown> = {
+      ...serverDef.definition,
+      capabilities: entityAccess.capabilities,
+      color_scheme: explicitScheme ? entityAccess.color_scheme : (haDark ? "dark" : "light"),
+    };
 
     entityDef.preview_companions = companions.map(c => ({
       entity_id: c.entity_id,

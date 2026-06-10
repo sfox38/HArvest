@@ -8,8 +8,7 @@
  *
  * Options managed here:
  *   harvest_ha_url            - External HA URL used by every widget on the site
- *   harvest_widget_source     - "bundled" or "custom"
- *   harvest_widget_custom_url - URL used when source is "custom"
+ *   harvest_widget_url        - URL of the widget JS bundle served to visitors
  */
 
 defined( 'ABSPATH' ) || exit;

@@ -2101,7 +2101,7 @@
       this.#optionEls = [];
       this.#lastOptionsKey = "";
 
-      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:form-select"), "card-icon");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:format-list-bulleted"), "card-icon");
       _applyIconColor(this.#iconEl, "input_select", true);
 
       if (this.#selectedBtn && isWritable) {
@@ -3672,7 +3672,7 @@
       this.#slider = this.root.querySelector(".shroom-slider-input");
       this.#sliderCover = this.root.querySelector(".shroom-slider-cover");
 
-      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:speaker"), "card-icon");
+      this.renderIcon(this.resolveIcon(this.def.icon, "mdi:cast"), "card-icon");
       this.renderIcon("mdi:play", "play-icon");
       this.renderIcon("mdi:skip-previous", "prev-icon");
       this.renderIcon("mdi:skip-next", "next-icon");

@@ -18,6 +18,7 @@ import { Settings }    from "./components/Settings";
 import { Wizard }      from "./components/Wizard";
 import { ConverterWizard } from "./components/ConverterWizard";
 import { Icon }        from "./components/Icon";
+import { PanelThemeContext } from "./panelTheme";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -132,6 +133,7 @@ export function App() {
     : theme;
 
   return (
+    <PanelThemeContext.Provider value={dataTheme}>
     <div className="app" data-theme={dataTheme}>
 
       <header className="appbar">
@@ -251,5 +253,6 @@ export function App() {
         <ConverterWizard onClose={closeConverter} />
       )}
     </div>
+    </PanelThemeContext.Provider>
   );
 }

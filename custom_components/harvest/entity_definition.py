@@ -20,6 +20,8 @@ from homeassistant.helpers import entity_registry as er
 from .const import (
     DATA_TIER_BADGE,
     DATA_TIER_COMPACT,
+    DATA_TIER_COMPANION,
+    DATA_TIER_COMPANION_RW,
     DATA_TIER_DISPLAY,
     DATA_TIER_FULL,
     DISPLAY_TIER_ATTRIBUTES,
@@ -324,6 +326,21 @@ _BINARY_SENSOR_DC_ICONS: dict[str, dict[str, str]] = {
     "moisture":     {"on": "mdi:water", "*": "mdi:water-off"},
     "smoke":        {"on": "mdi:smoke-detector-variant-alert", "*": "mdi:smoke-detector-variant"},
     "presence":     {"on": "mdi:home", "*": "mdi:home-outline"},
+    "occupancy":    {"on": "mdi:home", "*": "mdi:home-outline"},
+    "garage_door":  {"on": "mdi:garage-open", "*": "mdi:garage"},
+    "battery":      {"on": "mdi:battery-alert", "*": "mdi:battery"},
+    "problem":      {"on": "mdi:alert-circle", "*": "mdi:alert-circle-outline"},
+    "plug":         {"on": "mdi:power-plug", "*": "mdi:power-plug-off"},
+    "power":        {"on": "mdi:flash", "*": "mdi:flash-off"},
+    "running":      {"on": "mdi:play-circle", "*": "mdi:stop-circle"},
+    "cold":         {"on": "mdi:snowflake", "*": "mdi:snowflake-off"},
+    "heat":         {"on": "mdi:fire", "*": "mdi:fire-off"},
+    "vibration":    {"on": "mdi:vibrate", "*": "mdi:vibrate-off"},
+    "gas":          {"on": "mdi:gas-cylinder", "*": "mdi:gas-cylinder"},
+    "opening":      {"on": "mdi:square-rounded", "*": "mdi:square-rounded-outline"},
+    "safety":       {"on": "mdi:shield-check", "*": "mdi:shield-alert"},
+    "tamper":       {"on": "mdi:shield-alert", "*": "mdi:shield"},
+    "update":       {"on": "mdi:package-up", "*": "mdi:package-variant"},
 }
 
 _SENSOR_DC_ICONS: dict[str, str] = {
@@ -341,15 +358,25 @@ _SENSOR_DC_ICONS: dict[str, str] = {
 }
 
 
-def resolve_data_tier(entities_block: bool, capabilities: str) -> str:
+def resolve_data_tier(
+    entities_block: bool, capabilities: str, is_companion: bool = False
+) -> str:
     """Determine the data tier from token/entity context.
 
-    Returns one of DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_DISPLAY,
-    or DATA_TIER_FULL. Pure function with no HA dependencies so both
-    ws_proxy and http_views can import it.
+    Returns one of DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_COMPANION,
+    DATA_TIER_COMPANION_RW, DATA_TIER_DISPLAY, or DATA_TIER_FULL. Pure
+    function with no HA dependencies so both ws_proxy and http_views can
+    import it.
+
+    Companions resolve before entities_block: the companion tiers are
+    smaller than compact, so the block flag adds nothing for them.
     """
     if capabilities == "badge":
         return DATA_TIER_BADGE
+    if is_companion:
+        if capabilities == "read-write":
+            return DATA_TIER_COMPANION_RW
+        return DATA_TIER_COMPANION
     if entities_block:
         return DATA_TIER_COMPACT
     if capabilities == "read":
@@ -364,11 +391,11 @@ def filter_attributes_for_tier(
 ) -> dict:
     """Filter entity state attributes based on the data tier.
 
-    badge/compact: unit_of_measurement only.
+    badge/compact/companion/companion_rw: unit_of_measurement only.
     display: unit_of_measurement + domain-specific allowlist.
     full: delegates to the existing blocklist-based filter_attributes().
     """
-    if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT):
+    if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW):
         result: dict = {}
         uom = attributes.get("unit_of_measurement")
         if uom is not None:
@@ -400,10 +427,13 @@ def build_entity_definition(
 
     detail_level controls which fields are included and which expensive
     computations are skipped:
-      badge   - identity, icon, unit, color_scheme, display_hints
-      compact - badge fields plus renderer and support_tier (no companions)
-      display - compact fields plus unit, display_hints, and companions
-      full    - all fields including features, config, gestures, service_data
+      badge     - identity, icon, unit, color_scheme, display_hints
+      companion - identity and icon only (companion pills consume nothing
+                  else; capabilities is injected by the sender). The
+                  companion_rw tier currently emits the same fields.
+      compact   - badge fields plus renderer and support_tier (no companions)
+      display   - compact fields plus unit, display_hints, and companions
+      full      - all fields including features, config, gestures, service_data
     """
     state = hass.states.get(entity_id)
     if state is None:
@@ -448,6 +478,16 @@ def build_entity_definition(
             "unit_of_measurement": unit_of_measurement,
             "color_scheme": entity_access.color_scheme,
             "display_hints": entity_access.display_hints or {},
+        }
+
+    if detail_level in (DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW):
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "device_class": device_class,
+            "friendly_name": friendly_name,
+            "icon": current_icon,
+            "icon_state_map": icon_state_map,
         }
 
     support_tier = int(get_support_tier(domain))
@@ -536,18 +576,6 @@ def build_entity_definition(
         "companions": companions or [],
         "service_data": entity_access.service_data or {},
     }
-
-
-def build_badge_definition(
-    hass: HomeAssistant,
-    entity_id: str,
-    entity_access: "EntityAccess",
-) -> dict | None:
-    """Build a minimal entity_definition for badge capability.
-
-    Thin wrapper around build_entity_definition with detail_level="badge".
-    """
-    return build_entity_definition(hass, entity_id, entity_access, detail_level=DATA_TIER_BADGE)
 
 
 def decode_supported_features(domain: str, bitmask: int) -> list[str]:

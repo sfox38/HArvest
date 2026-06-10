@@ -522,6 +522,7 @@ Renderer override badge implementations must follow these rules:
 - **Icon resolution:** Use `this.resolveIcon(iconName, fallback)` instead of passing icon names directly to `renderIcon`. The entity definition may contain HA registry icons that are not in the widget's MDI bundle. Provide a domain-specific fallback (e.g., `"mdi:lightbulb"` for light) so the badge shows a sensible icon when the bundled set lacks the exact name.
 - **Accessibility:** Always render name and state elements in the DOM, even when `badge_show_name` or `badge_show_state` is false. Use a `.sr-only` CSS class to visually hide them while keeping them available to screen readers. Add a `title` attribute on the `[part=badge]` element and update it in `applyState` with the current name and state for hover tooltips.
 - **State label i18n:** Try the domain-specific i18n key first (`this.i18n.t(\`${this.def.domain}.${state}\`)`), then fall back to the generic key (`state.${state}`), then the raw state string. Weather states (e.g., `partlycloudy`) use domain-specific keys like `weather.partlycloudy` rather than `state.*`.
+- **Uniform height:** Give `[part=badge]` a fixed height (`height: var(--hrv-badge-height, <your height>)`) with horizontal-only padding and `align-items: center`. Badge content varies (icon hidden, one or two text rows), and without a fixed height the pills come out at different heights on the same page. Each theme may pick its own height, but all badges within a theme must match.
 - **No gestures:** Do not call `this._attachGestureHandlers()`. The server omits `gesture_config` from badge definitions and the panel hides the gesture settings when badge is selected.
 
 Every non-badge card's `render()` method should follow this structure:
@@ -715,6 +716,8 @@ BaseCard provides a default companion rendering system:
 ### Custom companion rendering
 
 Renderer overrides can override `updateCompanionState()` to render companion data however they want. The companion system is a data pipeline: the framework delivers state updates for companion entities, but the renderer override decides how (or whether) to display them.
+
+The server sends companions a minimal payload. A companion's `entity_definition` carries identity and icon fields only (entity_id, domain, device_class, friendly_name, icon, icon_state_map, capabilities), and the `attributes` object passed to `updateCompanionState()` contains at most `unit_of_measurement`. Do not rely on richer companion attributes (brightness, current_temperature, and so on); if a design needs those values, the entity belongs on its own card rather than in a companion slot.
 
 Companions with `capabilities: "read"` must never have interactive controls or trigger commands.
 

@@ -167,9 +167,6 @@ class Token:
     error_text: str = ""
 
 
-_VALID_COLOR_SCHEMES = {"auto", "light", "dark"}
-
-
 def _migrate_display_hints(e: dict) -> dict:
     """Build display_hints from a stored entity dict.
 
@@ -811,13 +808,6 @@ class TokenManager:
                 raise ValueError(
                     f"allow_paths entry must not contain a query string or fragment: {path!r}"
                 )
-
-    @staticmethod
-    def _migrate_entity_dict(e: dict) -> dict:
-        """Strip legacy top-level fields that moved into display_hints."""
-        for key in ("graph", "hours", "period", "animate"):
-            e.pop(key, None)
-        return e
 
     def _token_to_dict(self, token: Token) -> dict:
         """Serialise a Token to a JSON-compatible dict for HA storage."""

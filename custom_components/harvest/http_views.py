@@ -819,6 +819,27 @@ class HarvestTokenDetailView(_HarvestView):
                 except Exception:
                     pass
 
+    def _filtered_push_attrs(
+        self,
+        real_id: str,
+        tier: str,
+        token: Token,
+        attributes: dict,
+    ) -> dict:
+        """Filter attributes for a panel-initiated state_update push.
+
+        Mirrors the live ws_proxy path (_build_state_update_message) so an
+        edit-triggered push never exposes attributes the live path would
+        strip. Badge/compact/companion/display tiers are allowlist-based and
+        already safe; the full tier applies the token denylist + per-entity
+        exclude_attributes, then the global blocklist + per-value size cap,
+        in that order.
+        """
+        if tier in ("badge", "compact", "companion", "companion_rw", "display"):
+            return filter_attributes_for_tier(real_id.split(".")[0], attributes, tier)
+        filtered = self._token_manager.filter_attributes(real_id, token, attributes)
+        return filter_attributes(filtered)
+
     async def _push_entity_definitions_to_sessions(
         self,
         token_id: str,
@@ -903,8 +924,10 @@ class HarvestTokenDetailView(_HarvestView):
                 if ea is None:
                     continue
                 out_id = session.outgoing_ids.get(real_id, ea.alias or real_id)
-                tier = resolve_data_tier(token.entities_block, ea.capabilities)
-                if tier in ("badge", "compact"):
+                tier = resolve_data_tier(
+                    token.entities_block, ea.capabilities, ea.companion_of is not None
+                )
+                if tier in ("badge", "compact", "companion", "companion_rw"):
                     defn = build_entity_definition(self._hass, real_id, ea, detail_level=tier)
                 else:
                     companion_refs = [
@@ -929,11 +952,10 @@ class HarvestTokenDetailView(_HarvestView):
 
                 state = self._hass.states.get(real_id)
                 if state is not None:
-                    domain = real_id.split(".")[0]
-                    filtered = filter_attributes_for_tier(
-                        domain, dict(state.attributes), tier
+                    filtered = self._filtered_push_attrs(
+                        real_id, tier, token, dict(state.attributes)
                     )
-                    if tier not in ("badge", "compact") and real_id.startswith("weather.") and ea.display_hints.get("show_forecast") is True:
+                    if tier not in ("badge", "compact", "companion", "companion_rw") and real_id.startswith("weather.") and ea.display_hints.get("show_forecast") is True:
                         fc = await self._try_fetch_forecast(real_id)
                         if fc:
                             filtered = dict(filtered)
@@ -964,8 +986,9 @@ class HarvestTokenDetailView(_HarvestView):
                 if state is None:
                     continue
                 out_id = ea.alias if ea.alias else comp_id
-                filtered = self._token_manager.filter_attributes(
-                    comp_id, token, dict(state.attributes)
+                tier = resolve_data_tier(token.entities_block, ea.capabilities, True)
+                filtered = self._filtered_push_attrs(
+                    comp_id, tier, token, dict(state.attributes)
                 )
                 from .ws_proxy import _round_state
                 update: dict[str, Any] = {
@@ -973,6 +996,11 @@ class HarvestTokenDetailView(_HarvestView):
                     "entity_id": out_id,
                     "state": _round_state(state.state, ea),
                     "attributes": filtered,
+                    # last_updated + initial mirror the primary-branch push and
+                    # the live ws_proxy path. Without last_updated the client
+                    # stores an Invalid Date as this companion's ordering key.
+                    "last_updated": state.last_updated.isoformat(),
+                    "initial": True,
                     "msg_id": None,
                 }
                 try:
@@ -3258,6 +3286,9 @@ class HarvestLovelaceDashboardsView(_HarvestView):
     name = "api:harvest:lovelace:dashboards"
 
     async def get(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         from homeassistant.components.lovelace import LOVELACE_DATA
 
         lovelace_data = self._hass.data.get(LOVELACE_DATA)
@@ -3285,6 +3316,9 @@ class HarvestLovelaceConfigView(_HarvestView):
     name = "api:harvest:lovelace:config"
 
     async def get(self, request: web.Request) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
         from homeassistant.components.lovelace import LOVELACE_DATA
 
         lovelace_data = self._hass.data.get(LOVELACE_DATA)

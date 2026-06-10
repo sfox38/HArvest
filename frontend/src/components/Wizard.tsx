@@ -10,6 +10,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { Token, ThemeDefinition, ServiceFieldSchema } from "../types";
 import { validateLabel as validateLabelWiz } from "../types";
 import { api } from "../api";
+import { usePanelDark } from "../panelTheme";
 import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
@@ -99,6 +100,9 @@ const DOMAIN_ICON: Record<string, string> = {
   binary_sensor: "bolt", sensor: "chart-line", media_player: "play",
   lock: "lock", timer: "clock", input_select: "list", input_number: "tune",
   fan: "fan", climate: "thermostat", cover: "chevDown",
+  select: "list", number: "tune", weather: "weather", person: "person",
+  remote: "remote", button: "tap-button", input_button: "tap-button",
+  script: "script", automation: "robot",
 };
 
 // ---------------------------------------------------------------------------
@@ -366,6 +370,7 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
   const [serverDef, setServerDef] = useState<{ definition: Record<string, unknown>; state: string; attributes: Record<string, unknown> } | null>(null);
   const renderedKeyRef = useRef<string>("");
   const rendererId = theme?.has_renderer ? theme.theme_id : undefined;
+  const haDark = usePanelDark();
 
   useEffect(() => {
     loadWidgetScript()
@@ -394,7 +399,7 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
     return { variables: theme.variables ?? {}, dark_variables: theme.dark_variables ?? {} };
   }, [theme?.theme_id]);
 
-  const cardKey = `${entityId}:${capability}:${companionIds.join(",")}:${theme?.theme_id ?? ""}`;
+  const cardKey = `${entityId}:${capability}:${companionIds.join(",")}:${theme?.theme_id ?? ""}:${haDark ? "dark" : "light"}`;
   const defMatchesEntity = serverDef?.definition?.entity_id === entityId;
   const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
 
@@ -406,7 +411,15 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
     container.innerHTML = "";
     cardRef.current = null;
     const domain = entityId.split(".")[0];
-    const entityDef: Record<string, unknown> = { ...serverDef.definition, capabilities: capability };
+    // Pin the preview to the panel's effective theme (the HArvest Theme
+    // setting, with "auto" following HA). Leaving color_scheme at "auto"
+    // makes the widget follow the OS prefers-color-scheme, which can
+    // disagree with the theme the panel is rendered in.
+    const entityDef: Record<string, unknown> = {
+      ...serverDef.definition,
+      capabilities: capability,
+      color_scheme: haDark ? "dark" : "light",
+    };
 
     if (companions.length > 0) {
       entityDef.preview_companions = companions.map(c => ({

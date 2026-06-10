@@ -144,11 +144,20 @@ ATTRIBUTE_DENYLIST_SUBSTRINGS: tuple[str, ...] = (
 )
 
 # Data tiers control payload granularity for entity_definition and state_update
-# messages. The tier is resolved from token.entities_block and ea.capabilities.
+# messages. The tier is resolved from token.entities_block, ea.capabilities,
+# and whether the entity is a companion (ea.companion_of is set).
 DATA_TIER_BADGE = "badge"
 DATA_TIER_COMPACT = "compact"
 DATA_TIER_DISPLAY = "display"
 DATA_TIER_FULL = "full"
+# Companion tiers: companion pills only consume identity fields (domain,
+# device_class, friendly_name, icon, icon_state_map) plus the state string,
+# so companions get a badge-sized payload. Unlike badge, companion
+# state_update messages keep last_updated (the client's out-of-order
+# discard key). Two constants so the read-write payload can diverge from
+# read-only later; they are currently identical.
+DATA_TIER_COMPANION = "companion"
+DATA_TIER_COMPANION_RW = "companion_rw"
 
 # Per-domain attribute allowlists for DATA_TIER_DISPLAY (read-only cards).
 # Only these attributes (plus state and unit_of_measurement) are sent in

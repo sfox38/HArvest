@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import type { ThemeDefinition, HAEntityDetail } from "../types";
 import { api, getHaDarkMode } from "../api";
+import { usePanelDark } from "../panelTheme";
 import { Toggle } from "./Toggle";
 import { EntityAutocomplete } from "./Shared";
 import { Icon } from "./Icon";
@@ -437,6 +438,11 @@ export function WidgetPreview({ variables, darkVariables, rendererId }: WidgetPr
     const stored = _ls.get("hrv_preview_color_mode");
     return (stored === "light" || stored === "dark" || stored === "auto") ? stored : "auto";
   });
+  const haDark = usePanelDark();
+  // "Auto" follows the panel's effective theme (HArvest Theme setting,
+  // "auto" following HA), not the OS. Resolve before handing the scheme to
+  // the widget, which would otherwise fall back to prefers-color-scheme.
+  const effectiveColorMode: "light" | "dark" = colorMode === "auto" ? (haDark ? "dark" : "light") : colorMode;
   const [bgGray, setBgGray] = useState<number | null>(null);
   const [features, setFeatures] = useState<Record<string, boolean>>(defaultFeatures(_initRenderer));
   const [graphType, setGraphType] = useState<GraphType>(() => {
@@ -606,7 +612,7 @@ export function WidgetPreview({ variables, darkVariables, rendererId }: WidgetPr
             background: bgGray == null ? undefined : `rgb(${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)})`,
           }}
         >
-          <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} rendererId={rendererId} colorScheme={colorMode} />
+          <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} rendererId={rendererId} colorScheme={effectiveColorMode} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
           <input

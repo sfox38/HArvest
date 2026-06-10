@@ -13,6 +13,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail, ServiceFieldSchema } from "../types";
 import { api } from "../api";
+import { usePanelDark } from "../panelTheme";
 import { ConfirmDialog, Card, Spinner, EntityAutocomplete, ActionPicker, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
@@ -46,6 +47,15 @@ const DOMAIN_ICON: Record<string, string> = {
   fan: "fan",
   climate: "thermostat",
   cover: "chevDown",
+  select: "list",
+  number: "tune",
+  weather: "weather",
+  person: "person",
+  remote: "remote",
+  button: "tap-button",
+  input_button: "tap-button",
+  script: "script",
+  automation: "robot",
 };
 
 interface EntitiesEditorProps {
@@ -147,6 +157,12 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
   const [loadError, setLoadError] = useState(false);
   const [defs, setDefs] = useState<Record<string, { definition: Record<string, unknown>; state: string; attributes: Record<string, unknown>; _key?: string }>>({});
   const primaries = entities.filter(e => !e.companion_of);
+  const haDark = usePanelDark();
+  // Pin "auto" to the panel's effective theme (HArvest Theme setting,
+  // "auto" following HA) so the preview matches the panel instead of the
+  // OS prefers-color-scheme. Explicit light/dark wins.
+  const resolveCs = (cs: string | null | undefined): "light" | "dark" =>
+    cs === "light" || cs === "dark" ? cs : (haDark ? "dark" : "light");
 
   const packId = theme?.has_renderer ? theme.theme_id : null;
   useEffect(() => {
@@ -187,7 +203,7 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
     const cs = perEntityColor ? e.color_scheme : colorScheme;
     return `${e.entity_id}:${e.capabilities}:${cs}:${defs[e.entity_id]?.state ?? ""}:${defs[e.entity_id]?._key ?? ""}`;
   }).join("|")
-    + `:${theme?.theme_id ?? ""}:${blockLabel}:${blockShowLabel}:${blockHighlightRows}:${blockShowIcons}:${blockIcon}:${blockWidgetBorder}:${colorScheme}:${perEntityColor}`;
+    + `:${theme?.theme_id ?? ""}:${blockLabel}:${blockShowLabel}:${blockHighlightRows}:${blockShowIcons}:${blockIcon}:${blockWidgetBorder}:${colorScheme}:${perEntityColor}:${haDark ? "dark" : "light"}`;
 
   useLayoutEffect(() => {
     if (!ready || !defsReady || !containerRef.current || !window.HArvest) return;
@@ -225,27 +241,21 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
 
     block.setAttribute("data-border", blockWidgetBorder ?? "outer");
 
-    if (colorScheme === "light" || colorScheme === "dark") {
-      block.setAttribute("data-color-scheme", colorScheme);
-    } else {
-      block.removeAttribute("data-color-scheme");
-    }
+    block.setAttribute("data-color-scheme", resolveCs(colorScheme));
 
     for (const e of primaries) {
       const def = defs[e.entity_id];
       if (!def) continue;
       const opts: Record<string, unknown> = {};
       if (packId) opts.rendererId = packId;
+      const cardCs = resolveCs(perEntityColor ? e.color_scheme : colorScheme);
       const card = window.HArvest!.preview(
-        block, def.definition, def.state, def.attributes, themeObj as never, opts,
+        block, { ...def.definition, color_scheme: cardCs }, def.state, def.attributes, themeObj as never, opts,
       );
       if (!blockShowIcons) {
         card.style.setProperty("--hrv-icon-display", "none");
       }
-      const cardCs = perEntityColor ? e.color_scheme : colorScheme;
-      if (cardCs === "light" || cardCs === "dark") {
-        card.setAttribute("data-color-scheme", cardCs);
-      }
+      card.setAttribute("data-color-scheme", cardCs);
       cardRefs.current.push(card);
     }
 

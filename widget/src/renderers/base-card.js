@@ -449,12 +449,6 @@ const HISTORY_CSS = /* css */`
 `;
 
 // ---------------------------------------------------------------------------
-// Gesture CSS
-// ---------------------------------------------------------------------------
-
-const GESTURE_CSS = ``;
-
-// ---------------------------------------------------------------------------
 // BaseCard
 // ---------------------------------------------------------------------------
 
@@ -478,7 +472,7 @@ function _getSharedSheet() {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(
       SHARED_CSS_VARS + CARD_BASE_CSS + getErrorStateStyles() +
-      COMPANION_CSS + HISTORY_CSS + GESTURE_CSS
+      COMPANION_CSS + HISTORY_CSS
     );
     _sharedSheet = sheet;
   } catch {
