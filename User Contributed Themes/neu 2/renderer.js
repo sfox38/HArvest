@@ -2254,12 +2254,14 @@
     render() {
       const isWritable = this.def.capabilities === "read-write";
       const features = this.def.supported_features ?? [];
-      const hasTransport = features.includes("play_pause");
-      const hasPrev = features.includes("previous_track");
-      const hasNext = features.includes("next_track");
-      const hasVolume = features.includes("volume_set") || features.includes("volume_step");
-      const hasMute = hasVolume;
-      const hasSource = true;
+      const hints = this.config.displayHints ?? {};
+      const hasPlay = hints.show_transport !== false && features.includes("play_pause");
+      const hasPrev = hints.show_transport !== false && features.includes("previous_track");
+      const hasNext = hints.show_transport !== false && features.includes("next_track");
+      const hasTransport = hasPlay || hasPrev || hasNext;
+      const hasVolume = hints.show_volume !== false && features.includes("volume_set");
+      const hasMute = hints.show_volume !== false && features.includes("volume_mute");
+      const hasSource = hints.show_source !== false && features.includes("select_source");
 
       this.root.innerHTML = /* html */`
         <style>
@@ -2391,18 +2393,18 @@
             ${isWritable && hasTransport ? /* html */`
               <div class="neu-transport">
                 ${hasPrev ? `<button class="neu-btn neu-btn-circle-sm" part="prev-button" type="button" aria-label="Previous"><span part="prev-icon"></span></button>` : ""}
-                <button class="neu-btn neu-btn-circle" part="play-button" type="button" aria-label="Play"><span part="play-icon"></span></button>
+                ${hasPlay ? `<button class="neu-btn neu-btn-circle" part="play-button" type="button" aria-label="Play"><span part="play-icon"></span></button>` : ""}
                 ${hasNext ? `<button class="neu-btn neu-btn-circle-sm" part="next-button" type="button" aria-label="Next"><span part="next-icon"></span></button>` : ""}
               </div>
             ` : ""}
-            ${isWritable && hasVolume ? /* html */`
+            ${isWritable && (hasVolume || hasMute) ? /* html */`
               <div class="neu-vol-row">
                 ${hasMute ? `<button class="neu-btn neu-btn-circle-sm" part="mute-button" type="button" aria-label="Mute" aria-pressed="false"><span part="mute-icon"></span></button>` : ""}
-                <div class="neu-slider-wrap" data-slider="volume">
+                ${hasVolume ? `<div class="neu-slider-wrap" data-slider="volume">
                   <div class="neu-slider-track"><div class="neu-slider-fill"></div></div>
                   <input part="volume-slider" type="range" min="0" max="1" step="0.01" value="0" aria-label="${_esc(this.def.friendly_name)} volume">
                   <div class="neu-slider-thumb"></div>
-                </div>
+                </div>` : ""}
               </div>
             ` : ""}
             ${isWritable && hasSource ? /* html */`

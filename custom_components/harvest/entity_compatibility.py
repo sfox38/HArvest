@@ -90,6 +90,10 @@ COMPANION_ALLOWED_DOMAINS: frozenset[str] = frozenset({
     "person", "timer", "weather",
 })
 
+COMPANION_INTERACTIVE_DOMAINS: frozenset[str] = frozenset({
+    "light", "switch", "input_boolean", "fan", "lock", "button", "input_button",
+})
+
 # Tier 1 domains that are disabled by default. Admins must explicitly enable
 # each one in Settings before tokens can include entities from that domain.
 SENSITIVE_DOMAINS: frozenset[str] = frozenset({

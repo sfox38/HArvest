@@ -16,6 +16,7 @@ import { Toggle } from "./Toggle";
 import { loadWidgetScript, loadRendererScript } from "./WidgetPreview";
 import { getEntityCache, loadEntityCache, useEntityCache } from "../entityCache";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
+import { READ_ONLY_DOMAINS } from "../lovelaceParser";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,7 +76,13 @@ interface WizardProps {
 
 const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Design", "Origin", "Expiry", "Done"];
-const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor", "lock"]);
+const COMPANION_ALLOWED_DOMAINS = new Set([
+  "light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor", "lock",
+  "button", "input_button", "number", "input_number", "person", "timer", "weather",
+]);
+const COMPANION_INTERACTIVE_DOMAINS = new Set([
+  "light", "switch", "input_boolean", "fan", "lock", "button", "input_button",
+]);
 
 const DOMAIN_ICON: Record<string, string> = {
   light: "lightbulb", switch: "power", input_boolean: "power",
@@ -236,6 +243,7 @@ function CompanionPicker({ companions, excludeIds, parentCapability, onChange, b
   const [input, setInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
   const canAdd = true;
+  const isInteractiveDomain = (entityId: string) => COMPANION_INTERACTIVE_DOMAINS.has(entityId.split(".")[0]);
 
   const addCompanion = async (entityId: string) => {
     if (companions.some(c => c.entity_id === entityId)) return;
@@ -259,7 +267,7 @@ function CompanionPicker({ companions, excludeIds, parentCapability, onChange, b
     <div className="col" style={{ gap: 6, paddingLeft: 12, borderLeft: "2px solid var(--divider)", marginTop: 2 }}>
       <div className="muted fs-11">
         Companions ({companions.length}) - secondary entities shown alongside this card.
-        Allowed domains: light, switch, cover, binary sensor, input boolean, remote, fan, sensor.
+        Interactive companions can toggle, lock/unlock, or press. Other eligible companions are display-only.
       </div>
       {canAdd && (
         <EntityAutocomplete
@@ -281,7 +289,7 @@ function CompanionPicker({ companions, excludeIds, parentCapability, onChange, b
         <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c.entity_id}</span>
           {c.alias && <span className="muted" style={{ fontSize: 10, flexShrink: 0 }}>alias: {c.alias}</span>}
-          {parentCapability === "read-write" && (
+          {parentCapability === "read-write" && isInteractiveDomain(c.entity_id) && (
           <label className="companion-read-only-toggle" style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 4 }}>
             <Toggle
               checked={c.read_only !== false}
@@ -573,6 +581,10 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
       updates.label = autoName.slice(0, 100);
     }
 
+    if (state.capability === "read-write" && newEntities.every(e => READ_ONLY_DOMAINS.has(e.entity_id.split(".")[0]))) {
+      updates.capability = "read";
+    }
+
     onChange(updates);
     setPreviewEntityId(entityId);
   };
@@ -583,6 +595,9 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
     const remaining = state.entities.filter(e => e.entity_id !== entityId);
     const updates: Partial<WizardState> = { entities: remaining };
     if (state.labelAutoset && remaining.length === 0) updates.label = "";
+    if (state.capability === "read-write" && remaining.length > 0 && remaining.every(e => READ_ONLY_DOMAINS.has(e.entity_id.split(".")[0]))) {
+      updates.capability = "read";
+    }
     onChange(updates);
   };
 
@@ -757,6 +772,7 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
       {/* Widget name + Permissions - same row */}
       {state.entities.length > 0 && (() => {
         const nameErr = validateLabelWiz(state.label, existingLabels);
+        const allReadOnly = state.entities.length > 0 && state.entities.every(e => READ_ONLY_DOMAINS.has(e.entity_id.split(".")[0]));
         return (
           <div className="row" style={{ gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div className="col" style={{ gap: 4, flex: 1, minWidth: 160 }}>
@@ -778,7 +794,9 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
                   <button aria-pressed={state.capability === "badge"} onClick={() => { onChange({ capability: "badge", entities: state.entities.map(e => ({ ...e, companions: [] })) }); saveMemory({ capability: "badge" }); }}>Badge</button>
                 )}
                 <button aria-pressed={state.capability === "read"} onClick={() => { onChange({ capability: "read", entities: state.entities.map(e => ({ ...e, companions: e.companions.map(c => ({ ...c, read_only: true })) })) }); saveMemory({ capability: "read" }); }}>View only</button>
-                <button aria-pressed={state.capability === "read-write"} onClick={() => { onChange({ capability: "read-write" }); saveMemory({ capability: "read-write" }); }}>Control</button>
+                {!allReadOnly && (
+                  <button aria-pressed={state.capability === "read-write"} onClick={() => { onChange({ capability: "read-write" }); saveMemory({ capability: "read-write" }); }}>Control</button>
+                )}
               </div>
             </div>
           </div>

@@ -3505,7 +3505,13 @@
       const isWritable = this.def.capabilities === "read-write";
       const features = this.def.supported_features ?? [];
       const hints = this.config.displayHints ?? {};
-      const hasPrevNext = features.includes("previous_track");
+      const hasPlay = features.includes("play_pause");
+      const hasPrevious = features.includes("previous_track");
+      const hasNext = features.includes("next_track");
+      const hasPower = features.includes("turn_on") || features.includes("turn_off");
+      const hasVolumeSet = hints.show_volume !== false && features.includes("volume_set");
+      const hasVolumeStep = hints.show_volume !== false && features.includes("volume_step");
+      const hasVolume = hasVolumeSet || hasVolumeStep;
 
       this.root.innerHTML = /* html */`
         <style>${MEDIA_PLAYER_STYLES}</style>
@@ -3520,31 +3526,31 @@
           ${isWritable ? /* html */`
             <div class="shroom-mp-bar" hidden>
               <div class="shroom-mp-transport-view">
-                <button class="shroom-mp-btn" data-role="power" type="button" title="Power" aria-label="Power">
+                ${hasPower ? `<button class="shroom-mp-btn" data-role="power" type="button" title="Power" aria-label="Power">
                   <span part="power-icon" aria-hidden="true"></span>
-                </button>
-                ${hasPrevNext ? /* html */`
+                </button>` : ""}
+                ${hasPrevious ? /* html */`
                   <button class="shroom-mp-btn" data-role="prev" type="button" title="Previous" aria-label="Previous track">
                     <span part="prev-icon" aria-hidden="true"></span>
                   </button>
                 ` : ""}
-                <button class="shroom-mp-btn" data-role="play" type="button" title="Play" aria-label="Play">
+                ${hasPlay ? `<button class="shroom-mp-btn" data-role="play" type="button" title="Play" aria-label="Play">
                   <span part="play-icon" aria-hidden="true"></span>
-                </button>
-                ${hasPrevNext ? /* html */`
+                </button>` : ""}
+                ${hasNext ? /* html */`
                   <button class="shroom-mp-btn" data-role="next" type="button" title="Next" aria-label="Next track">
                     <span part="next-icon" aria-hidden="true"></span>
                   </button>
                 ` : ""}
-                <button class="shroom-mp-btn" data-role="volume" type="button" title="Volume" aria-label="Volume controls">
+                ${hasVolume ? `<button class="shroom-mp-btn" data-role="volume" type="button" title="Volume" aria-label="Volume controls">
                   <span part="vol-icon" aria-hidden="true"></span>
-                </button>
+                </button>` : ""}
               </div>
               <div class="shroom-mp-volume-view" hidden>
-                  <button class="shroom-mp-btn" data-role="vol-down" type="button" title="Volume down" aria-label="Volume down">
+                  ${hasVolumeStep ? `<button class="shroom-mp-btn" data-role="vol-down" type="button" title="Volume down" aria-label="Volume down">
                     <svg viewBox="0 0 24 24"><path d="M3,9H7L12,4V20L7,15H3V9M14,11H22V13H14V11Z"/></svg>
-                  </button>
-                  <div class="shroom-slider-wrap">
+                  </button>` : ""}
+                  ${hasVolumeSet ? `<div class="shroom-slider-wrap">
                     <div class="shroom-slider-bg shroom-mp-slider-bg"></div>
                     <div class="shroom-slider-cover" style="left:0%"></div>
                     <input type="range" class="shroom-slider-input" min="0" max="100"
@@ -3552,10 +3558,10 @@
                       aria-label="${_esc(this.def.friendly_name)} volume"
                       aria-valuetext="0%">
                     <div class="shroom-slider-focus-ring"></div>
-                  </div>
-                  <button class="shroom-mp-btn" data-role="vol-up" type="button" title="Volume up" aria-label="Volume up">
+                  </div>` : ""}
+                  ${hasVolumeStep ? `<button class="shroom-mp-btn" data-role="vol-up" type="button" title="Volume up" aria-label="Volume up">
                     <svg viewBox="0 0 24 24"><path d="M3,9H7L12,4V20L7,15H3V9M14,11H17V8H19V11H22V13H19V16H17V13H14V11Z"/></svg>
-                  </button>
+                  </button>` : ""}
                   <button class="shroom-mp-back-btn" type="button" title="Controls" aria-label="Back to controls">
                     <svg viewBox="0 0 24 24"><path d="M8,5.14V19.14L19,12.14L8,5.14Z"/></svg>
                   </button>
@@ -3598,8 +3604,9 @@
         this.#nextBtn?.addEventListener("click", () =>
           this.config.card?.sendCommand("media_next_track", {}));
         this.#powerBtn?.addEventListener("click", () => {
-          const isActive = this.#lastState === "playing" || this.#lastState === "paused";
-          this.config.card?.sendCommand(isActive ? "turn_off" : "turn_on", {});
+          const isOff = ["off", "unavailable", "unknown"].includes(this.#lastState);
+          const action = isOff ? "turn_on" : "turn_off";
+          if (features.includes(action)) this.config.card?.sendCommand(action, {});
         });
         this.#volumeBtn?.addEventListener("click", () => {
           this.#showingVolume = true;
@@ -3652,7 +3659,7 @@
       _applyIconColor(this.#iconEl, "media_player", isActive);
 
       if (this.#barEl) {
-        this.#barEl.hidden = !isActive;
+        this.#barEl.hidden = !isActive && !this.def.supported_features?.includes("turn_on");
       }
 
       const title = attributes.media_title ?? "";

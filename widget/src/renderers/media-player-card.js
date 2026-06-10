@@ -118,13 +118,17 @@ export class MediaPlayerCard extends BaseCard {
   /** @type {HTMLButtonElement|null}  */ #playBtn      = null;
   /** @type {HTMLButtonElement|null}  */ #prevBtn      = null;
   /** @type {HTMLButtonElement|null}  */ #nextBtn      = null;
+  /** @type {HTMLButtonElement|null}  */ #powerBtn     = null;
   /** @type {HTMLButtonElement|null}  */ #muteBtn      = null;
+  /** @type {HTMLButtonElement|null}  */ #volumeDownBtn = null;
+  /** @type {HTMLButtonElement|null}  */ #volumeUpBtn   = null;
   /** @type {HTMLInputElement|null}   */ #volumeSlider = null;
   /** @type {HTMLSelectElement|null}  */ #sourceSelect = null;
   /** @type {HTMLElement|null}        */ #mediaArtistEl = null;
   /** @type {HTMLElement|null}        */ #mediaTitleEl  = null;
   /** @type {HTMLElement|null}        */ #stateLabel    = null;
   /** @type {boolean}                 */ #isMuted      = false;
+  /** @type {string}                  */ #lastState    = "";
   /** @type {Function}                */ #volumeDebounce;
 
   constructor(def, root, config, i18n) {
@@ -135,10 +139,19 @@ export class MediaPlayerCard extends BaseCard {
   render() {
     const isWritable  = this.def.capabilities === "read-write";
     const hints       = this.config.displayHints ?? {};
+    const features    = this.def.supported_features ?? [];
     const showTransport = hints.show_transport !== false;
-    const hasVolume   = hints.show_volume !== false && this.def.supported_features?.includes("volume_set");
-    const hasPrevNext = showTransport && this.def.supported_features?.includes("previous_track");
-    const hasSource   = hints.show_source !== false && this.def.supported_features?.includes("select_source");
+    const hasPlay     = showTransport && features.includes("play_pause");
+    const hasPrevious = showTransport && features.includes("previous_track");
+    const hasNext     = showTransport && features.includes("next_track");
+    const hasPower    = showTransport && (features.includes("turn_on") || features.includes("turn_off"));
+    const hasTransport = hasPlay || hasPrevious || hasNext || hasPower;
+    const showVolume  = hints.show_volume !== false;
+    const hasVolumeSet = showVolume && features.includes("volume_set");
+    const hasVolumeStep = showVolume && features.includes("volume_step");
+    const hasMute     = showVolume && features.includes("volume_mute");
+    const hasVolume   = hasVolumeSet || hasVolumeStep || hasMute;
+    const hasSource   = hints.show_source !== false && features.includes("select_source");
 
     this.root.innerHTML = /* html */`
       <style>${MEDIA_STYLES}</style>
@@ -152,20 +165,26 @@ export class MediaPlayerCard extends BaseCard {
           <span part="media-title"></span>
           <span part="state-label"></span>
           ${isWritable ? /* html */`
-            ${showTransport ? /* html */`
+            ${hasTransport ? /* html */`
             <div class="hrv-media-controls">
-              ${hasPrevNext ? /* html */`
+              ${hasPower ? /* html */`
+                <button part="power-button" class="hrv-media-btn" type="button"
+                  aria-label="${_esc(this.def.friendly_name)} - Power">
+                  ${renderIconSVG("mdi:power", "power-icon")}
+                </button>
+              ` : ""}
+              ${hasPrevious ? /* html */`
                 <button part="prev-button" class="hrv-media-btn" type="button"
                   aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.previous"))}">
                   ${renderIconSVG("mdi:skip-previous", "prev-icon")}
                 </button>
               ` : ""}
-              <button part="play-button" class="hrv-media-btn" type="button"
+              ${hasPlay ? /* html */`<button part="play-button" class="hrv-media-btn" type="button"
                 aria-pressed="false"
                 aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.play"))}">
                 ${renderIconSVG("mdi:play", "play-icon")}
-              </button>
-              ${hasPrevNext ? /* html */`
+              </button>` : ""}
+              ${hasNext ? /* html */`
                 <button part="next-button" class="hrv-media-btn" type="button"
                   aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.next"))}">
                   ${renderIconSVG("mdi:skip-next", "next-icon")}
@@ -175,13 +194,17 @@ export class MediaPlayerCard extends BaseCard {
             ` : ""}
             ${hasVolume ? /* html */`
               <div class="hrv-volume-row">
-                <button part="mute-button" class="hrv-media-btn" type="button"
+                ${hasMute ? `<button part="mute-button" class="hrv-media-btn" type="button"
                   style="width:40px;height:40px;border-radius:var(--hrv-radius-s)"
                   aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("action.mute"))}">
                   ${renderIconSVG("mdi:volume-high", "mute-icon")}
-                </button>
-                <input part="volume-slider" type="range" min="0" max="100"
-                  aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("media.volume"))}">
+                </button>` : ""}
+                ${hasVolumeStep ? `<button part="volume-down-button" class="hrv-media-btn" type="button"
+                  aria-label="${_esc(this.def.friendly_name)} - Volume down">-</button>` : ""}
+                ${hasVolumeSet ? `<input part="volume-slider" type="range" min="0" max="100"
+                  aria-label="${_esc(this.def.friendly_name)} - ${_esc(this.i18n.t("media.volume"))}">` : ""}
+                ${hasVolumeStep ? `<button part="volume-up-button" class="hrv-media-btn" type="button"
+                  aria-label="${_esc(this.def.friendly_name)} - Volume up">+</button>` : ""}
               </div>
             ` : ""}
             ${hasSource ? /* html */`
@@ -201,7 +224,10 @@ export class MediaPlayerCard extends BaseCard {
     this.#playBtn      = this.root.querySelector("[part=play-button]");
     this.#prevBtn      = this.root.querySelector("[part=prev-button]");
     this.#nextBtn      = this.root.querySelector("[part=next-button]");
+    this.#powerBtn     = this.root.querySelector("[part=power-button]");
     this.#muteBtn      = this.root.querySelector("[part=mute-button]");
+    this.#volumeDownBtn = this.root.querySelector("[part=volume-down-button]");
+    this.#volumeUpBtn   = this.root.querySelector("[part=volume-up-button]");
     this.#volumeSlider = this.root.querySelector("[part=volume-slider]");
     this.#sourceSelect = this.root.querySelector("[part=source-select]");
     this.#mediaArtistEl = this.root.querySelector("[part=media-artist]");
@@ -220,8 +246,19 @@ export class MediaPlayerCard extends BaseCard {
     this.#nextBtn?.addEventListener("click", () =>
       this.config.card?.sendCommand("media_next_track", {}));
 
+    this.#powerBtn?.addEventListener("click", () => {
+      const isOff = ["off", "unavailable", "unknown"].includes(this.#lastState);
+      const action = isOff ? "turn_on" : "turn_off";
+      if (features.includes(action)) this.config.card?.sendCommand(action, {});
+    });
+
     this.#muteBtn?.addEventListener("click", () =>
       this.config.card?.sendCommand("volume_mute", { is_volume_muted: !this.#isMuted }));
+
+    this.#volumeDownBtn?.addEventListener("click", () =>
+      this.config.card?.sendCommand("volume_down", {}));
+    this.#volumeUpBtn?.addEventListener("click", () =>
+      this.config.card?.sendCommand("volume_up", {}));
 
     this.#volumeSlider?.addEventListener("input", (e) =>
       this.#volumeDebounce(parseInt(e.target.value, 10) / 100));
@@ -238,6 +275,7 @@ export class MediaPlayerCard extends BaseCard {
   }
 
   applyState(state, attributes) {
+    this.#lastState = state;
     const isPlaying = state === "playing";
 
     if (this.#stateLabel) {
@@ -261,6 +299,13 @@ export class MediaPlayerCard extends BaseCard {
         `${this.def.friendly_name} - ${this.i18n.t(isPlaying ? "action.pause" : "action.play")}`);
       const iconName = isPlaying ? "mdi:pause" : "mdi:play";
       this.#playBtn.innerHTML = renderIconSVG(iconName, "play-icon");
+    }
+
+    if (this.#powerBtn) {
+      const isOff = ["off", "unavailable", "unknown"].includes(state);
+      const action = isOff ? "turn_on" : "turn_off";
+      this.#powerBtn.disabled = !this.def.supported_features?.includes(action);
+      this.#powerBtn.setAttribute("aria-label", `${this.def.friendly_name} - ${isOff ? "Turn on" : "Turn off"}`);
     }
 
     if (this.#volumeSlider && !this.isSliderActive(this.#volumeSlider) && attributes.volume_level !== undefined) {

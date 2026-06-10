@@ -48,6 +48,9 @@ const _DOMAIN_FALLBACK = {
   remote:         "mdi:remote",
   timer:          "mdi:timer-outline",
 };
+const _INTERACTIVE_COMPANION_DOMAINS = new Set([
+  "light", "switch", "input_boolean", "fan", "lock", "button", "input_button",
+]);
 const DOUBLE_TAP_MS = 250;
 
 // Device-class-aware on/off labels for binary_sensor entities.
@@ -708,19 +711,21 @@ export class BaseCard {
     zone.innerHTML = "";
 
     for (const companion of this.config.companions) {
-      const isInteractive = companion.capabilities === "read-write";
+      const isInteractive = companion.capabilities === "read-write"
+        && _INTERACTIVE_COMPANION_DOMAINS.has(companion.domain);
       const pill = document.createElement(isInteractive ? "button" : "div");
       pill.className = "hrv-companion";
       pill.setAttribute("part", "companion");
       pill.setAttribute("data-entity", companion.entityId);
       pill.setAttribute("aria-label", companion.entityId);
+      pill.dataset.domain = companion.domain ?? "";
 
       if (isInteractive) {
         pill.type = "button";
         pill.setAttribute("data-interactive", "true");
         this._attachGestureHandlers(pill, {
           onTap: () => {
-            this.config.card?._sendCompanionCommand(companion.entityId, "toggle", {});
+            this._sendCompanionTap(companion.entityId, pill);
           },
         }, {});
       }
@@ -750,7 +755,8 @@ export class BaseCard {
     const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
     if (!pill) return;
 
-    const shouldBeInteractive = (def.capabilities ?? "read") === "read-write";
+    const shouldBeInteractive = (def.capabilities ?? "read") === "read-write"
+      && _INTERACTIVE_COMPANION_DOMAINS.has(def.domain);
     const isCurrentlyInteractive = pill.hasAttribute("data-interactive");
 
     if (shouldBeInteractive !== isCurrentlyInteractive) {
@@ -785,13 +791,16 @@ export class BaseCard {
     if (!zone || !oldPill) return;
 
     const companion = this.config.companions?.find((c) => c.entityId === entityId);
-    const isInteractive = (def.capabilities ?? "read") === "read-write";
+    const isInteractive = (def.capabilities ?? "read") === "read-write"
+      && _INTERACTIVE_COMPANION_DOMAINS.has(def.domain);
     const pill = document.createElement(isInteractive ? "button" : "div");
     pill.className = "hrv-companion";
     pill.setAttribute("part", "companion");
     pill.setAttribute("data-entity", entityId);
     pill.dataset.domain = def.domain ?? "";
     pill.dataset.deviceClass = def.device_class ?? "";
+    if (oldPill.dataset.state) pill.dataset.state = oldPill.dataset.state;
+    if (oldPill.hasAttribute("data-on")) pill.setAttribute("data-on", oldPill.getAttribute("data-on"));
     if (def.icon_state_map) {
       pill.dataset.iconStateMap = JSON.stringify(def.icon_state_map);
     }
@@ -801,7 +810,7 @@ export class BaseCard {
       pill.setAttribute("data-interactive", "true");
       this._attachGestureHandlers(pill, {
         onTap: () => {
-          this.config.card?._sendCompanionCommand(entityId, "toggle", {});
+          this._sendCompanionTap(entityId, pill);
         },
       }, {});
     }
@@ -830,6 +839,17 @@ export class BaseCard {
     zone.replaceChild(pill, oldPill);
   }
 
+  _sendCompanionTap(entityId, pill) {
+    const domain = pill.dataset.domain ?? "";
+    let action = "toggle";
+    if (domain === "lock") {
+      action = pill.dataset.state === "locked" ? "unlock" : "lock";
+    } else if (domain === "button" || domain === "input_button") {
+      action = "press";
+    }
+    this.config.card?._sendCompanionCommand(entityId, action, {});
+  }
+
   /**
    * Update a companion's displayed state. Called by HrvCard when a state
    * update arrives for a companion entity ID.
@@ -849,6 +869,7 @@ export class BaseCard {
     const name = pill.getAttribute("aria-label")?.replace(/ - .*$/, "") ?? entityId;
     pill.setAttribute("aria-label", `${name} - ${label}`);
     pill.setAttribute("data-on", String(state === "on"));
+    pill.dataset.state = state;
     pill.title = `${name} - ${label}`;
 
     const iconStateMap = pill.dataset.iconStateMap ? JSON.parse(pill.dataset.iconStateMap) : null;
@@ -1105,7 +1126,7 @@ export class BaseCard {
    *
    * @param {Array<{t:string, s:string}>} points
    * @param {number} hours
-   * @param {string} graphType - "line" or "bar"
+   * @param {string} graphType - "line", "bar", or "step"
    */
   receiveHistoryData(points, hours, graphType) {
     this.#historyHours = hours || 24;
@@ -1113,13 +1134,8 @@ export class BaseCard {
 
     this.#historyPoints = [];
     for (const p of points) {
-      let v = parseFloat(p.s);
-      if (isNaN(v)) {
-        const lower = String(p.s).toLowerCase();
-        if (lower === "on" || lower === "true" || lower === "home") v = 1;
-        else if (lower === "off" || lower === "false" || lower === "not_home") v = 0;
-        else continue;
-      }
+      const v = historyValue(p.s);
+      if (v === null) continue;
       this.#historyPoints.push({ t: new Date(p.t).getTime(), s: v });
     }
 
@@ -1132,8 +1148,8 @@ export class BaseCard {
    * @param {string} stateValue
    */
   appendHistoryPoint(stateValue) {
-    const v = parseFloat(stateValue);
-    if (isNaN(v)) return;
+    const v = historyValue(stateValue);
+    if (v === null) return;
     if (this.#historyPoints.length === 0) return;
 
     const now = Date.now();
@@ -1243,6 +1259,16 @@ export class BaseCard {
       <path d="${path}" fill="none" stroke="var(--hrv-color-primary)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
     </svg>`;
   }
+}
+
+function historyValue(value) {
+  const numeric = parseFloat(value);
+  if (!isNaN(numeric)) return numeric;
+
+  const lower = String(value).toLowerCase();
+  if (lower === "on" || lower === "true" || lower === "home") return 1;
+  if (lower === "off" || lower === "false" || lower === "not_home") return 0;
+  return null;
 }
 
 // ---------------------------------------------------------------------------

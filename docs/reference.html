@@ -88,7 +88,7 @@
               <tr><td><code>entity</code></td><td>Yes*</td><td>HA entity ID. e.g. <code>light.bedroom_main</code>. Use either <code>entity</code> or <code>alias</code>.</td></tr>
               <tr><td><code>alias</code></td><td>Yes*</td><td>8-character random alias as assigned in the panel. Alternative to <code>entity</code>.</td></tr>
               <tr><td><code>token</code></td><td>No</td><td>Widget token ID. Inherits from group or <code>HArvest.config()</code> if not set.</td></tr>
-              <tr><td><code>ha-url</code></td><td>No</td><td>HA external HTTPS URL. Inherits from group or <code>HArvest.config()</code> if not set.</td></tr>
+              <tr><td><code>ha-url</code></td><td>No</td><td>HA URL reachable by widget visitors. Use HTTPS when the embedding page uses HTTPS. Inherits from group or <code>HArvest.config()</code> if not set.</td></tr>
               <tr><td><code>token-secret</code></td><td>No</td><td>HMAC signing secret. Required when the token has HMAC enabled.</td></tr>
             </tbody>
           </table>
@@ -131,7 +131,7 @@
           <table>
             <thead><tr><th>Option</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>haUrl</code></td><td>string</td><td>-</td><td>HA external HTTPS URL</td></tr>
+              <tr><td><code>haUrl</code></td><td>string</td><td>-</td><td>HA URL reachable by widget visitors. Use HTTPS when the embedding page uses HTTPS.</td></tr>
               <tr><td><code>token</code></td><td>string</td><td>-</td><td>Widget token ID</td></tr>
               <tr><td><code>tokenSecret</code></td><td>string</td><td>-</td><td>HMAC signing secret</td></tr>
               <tr><td><code>colorScheme</code></td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Page-level color scheme fallback. Token server setting takes priority.</td></tr>
@@ -209,7 +209,7 @@
               <tr><td>Capability</td><td>"badge" | "read" | "read-write"</td><td>"read-write"</td><td>"badge" renders a compact pill indicator with no controls, companions, or gestures. "read" is a full card, view only. "read-write" is a full card with control (service calls).</td></tr>
               <tr><td>Alias</td><td>string | null</td><td>null</td><td>8-character random alias. Generated in the wizard, or manually in the detail screen.</td></tr>
               <tr><td>Exclude attributes</td><td>string list</td><td>-</td><td>HA attribute names to strip before sending to widget. Bidirectionally linked with domain-specific display controls.</td></tr>
-              <tr><td>Graph type</td><td>"line" | "bar" | null</td><td>null</td><td>History graph for sensors and input_number. Null = no graph. Stored in <code>display_hints.graph</code>.</td></tr>
+              <tr><td>Graph type</td><td>"line" | "bar" | "step" | null</td><td>null</td><td>History graph for sensor, binary_sensor, input_number, and number. Step is available for binary_sensor. Null = no graph. Stored in <code>display_hints.graph</code>.</td></tr>
               <tr><td>Graph hours</td><td>1-168</td><td>24</td><td>Time window for history graph. Stored in <code>display_hints.hours</code>.</td></tr>
               <tr><td>Graph period</td><td>1-60</td><td>10</td><td>Aggregation period in minutes per data point. Stored in <code>display_hints.period</code>.</td></tr>
               <tr><td>Fan display mode</td><td>"auto" | "on-off" | "continuous" | "stepped" | "cycle"</td><td>"auto"</td><td>Controls which fan speed UI is shown. "auto" lets the renderer decide based on the entity's features. Stored in <code>display_hints.display_mode</code>. Only visible when the active theme renderer supports it.</td></tr>

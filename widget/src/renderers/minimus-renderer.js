@@ -3657,8 +3657,12 @@
       const features      = this.def.supported_features ?? [];
       const hints         = this.config.displayHints ?? {};
       const showTransport = hints.show_transport !== false;
-      const hasVolume     = hints.show_volume !== false && features.includes("volume_set");
-      const hasPrevNext   = features.includes("previous_track");
+      const hasPlay       = features.includes("play_pause");
+      const hasPrevious   = features.includes("previous_track");
+      const hasNext       = features.includes("next_track");
+      const hasVolumeSet  = hints.show_volume !== false && features.includes("volume_set");
+      const hasMute       = hints.show_volume !== false && features.includes("volume_mute");
+      const hasVolume     = hasVolumeSet || hasMute;
 
       this.root.innerHTML = /* html */`
         <style>${MEDIA_PLAYER_STYLES}${COMPANION_DOT_STYLES}</style>
@@ -3671,19 +3675,19 @@
               <div class="hrv-mp-artist" title="Artist"></div>
               <div class="hrv-mp-title" title="Title"></div>
             </div>
-            ${isWritable && showTransport ? /* html */`
+            ${isWritable && showTransport && (hasPlay || hasPrevious || hasNext) ? /* html */`
               <div class="hrv-mp-controls">
-                ${hasPrevNext ? /* html */`
+                ${hasPrevious ? /* html */`
                   <button class="hrv-mp-btn" data-role="prev" type="button"
                     title="Previous track">
                     <span part="prev-icon" aria-hidden="true"></span>
                   </button>
                 ` : ""}
-                <button class="hrv-mp-btn" data-role="play" type="button"
+                ${hasPlay ? `<button class="hrv-mp-btn" data-role="play" type="button"
                   title="Play">
                   <span part="play-icon" aria-hidden="true"></span>
-                </button>
-                ${hasPrevNext ? /* html */`
+                </button>` : ""}
+                ${hasNext ? /* html */`
                   <button class="hrv-mp-btn" data-role="next" type="button"
                     title="Next track">
                     <span part="next-icon" aria-hidden="true"></span>
@@ -3693,17 +3697,17 @@
             ` : ""}
             ${hasVolume ? /* html */`
               <div class="hrv-mp-volume" title="${isWritable ? "Volume" : "Read-only"}">
-                <button class="hrv-mp-mute" type="button"
+                ${hasMute ? `<button class="hrv-mp-mute" type="button"
                   title="${isWritable ? "Mute" : "Read-only"}"
                   ${!isWritable ? "disabled" : ""}>
                   <span part="mute-icon" aria-hidden="true"></span>
-                </button>
-                <div class="hrv-mp-slider-wrap">
+                </button>` : ""}
+                ${hasVolumeSet ? `<div class="hrv-mp-slider-wrap">
                   <div class="hrv-mp-slider-track" ${!isWritable ? 'data-readonly="true"' : ""}>
                     <div class="hrv-mp-slider-fill" style="width:0%"></div>
                     <div class="hrv-mp-slider-thumb" style="left:0%"></div>
                   </div>
-                </div>
+                </div>` : ""}
               </div>
             ` : ""}
           </div>

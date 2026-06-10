@@ -48,7 +48,7 @@ from .const import (
     ERR_TOKEN_REVOKED,
     WS_PATH,
 )
-from .entity_compatibility import get_custom_domains, validate_action
+from .entity_compatibility import COMPANION_INTERACTIVE_DOMAINS, get_custom_domains, validate_action
 from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes, get_blocked_data_keys
 from .event_bus import EventBus
 from .rate_limiter import RateLimiter
@@ -908,8 +908,9 @@ class HarvestWsView(HomeAssistantView):
             await ack_error(ERR_PERMISSION_DENIED, f"Write not permitted for entity {entity_ref}")
             return
 
-        # Companions with read capability are never allowed to send commands.
-        # (Checked above by capability check - read-only entities are blocked.)
+        if ea.companion_of is not None and domain not in COMPANION_INTERACTIVE_DOMAINS:
+            await ack_error(ERR_PERMISSION_DENIED, f"Companion domain '{domain}' is display-only")
+            return
 
         # Validate action against ALLOWED_SERVICES + custom domains.
         custom_domains = get_custom_domains(self._hass)
@@ -1282,21 +1283,33 @@ class HarvestWsView(HomeAssistantView):
                     real_id,
                     True,  # no_attributes - we only need state values
                 )
+                history_domain = real_id.partition(".")[0]
                 raw_points: list[tuple[float, float]] = []
                 for state_obj in states_dict.get(real_id, []):
                     s = state_obj.state
                     if s in ("unavailable", "unknown", ""):
                         continue
                     try:
+                        value = (
+                            {"off": 0.0, "on": 1.0}[s]
+                            if history_domain == "binary_sensor"
+                            else float(s)
+                        )
                         raw_points.append((
                             state_obj.last_changed.timestamp(),
-                            float(s),
+                            value,
                         ))
-                    except (ValueError, TypeError):
+                    except (KeyError, ValueError, TypeError):
                         continue
 
                 if raw_points:
-                    points = _aggregate_points(raw_points, start.timestamp(), end.timestamp(), period)
+                    points = _aggregate_points(
+                        raw_points,
+                        start.timestamp(),
+                        end.timestamp(),
+                        period,
+                        use_last=history_domain == "binary_sensor",
+                    )
 
             except Exception:
                 _LOGGER.warning("HArvest: failed to fetch history for %s", real_id, exc_info=True)
@@ -1830,11 +1843,16 @@ def _aggregate_points(
     start_ts: float,
     end_ts: float,
     period_minutes: int,
+    *,
+    use_last: bool = False,
 ) -> list[dict[str, str]]:
     """Aggregate raw (timestamp, value) pairs into period-sized buckets.
 
-    Each bucket spans period_minutes and contains the average value of all
-    raw points that fall within it. Empty buckets are skipped.
+    Each bucket spans period_minutes and contains the average value of all raw
+    points that fall within it. When use_last is true, each bucket contains the
+    last known value instead, preserving discrete state transitions and
+    carrying the state through buckets without a transition. Empty numeric
+    buckets and discrete buckets before the first known value are skipped.
     Returns list of dicts with ISO timestamp midpoint and string value.
     """
     from datetime import datetime, timezone
@@ -1843,6 +1861,7 @@ def _aggregate_points(
     bucket_start = start_ts
     result: list[dict[str, str]] = []
     idx = 0
+    last_value: float | None = None
     raw.sort(key=lambda p: p[0])
 
     while bucket_start < end_ts:
@@ -1853,13 +1872,16 @@ def _aggregate_points(
             if raw[idx][0] >= bucket_start:
                 total += raw[idx][1]
                 count += 1
+                last_value = raw[idx][1]
+            elif use_last:
+                last_value = raw[idx][1]
             idx += 1
 
-        if count > 0:
+        if count > 0 or (use_last and last_value is not None):
             mid_ts = bucket_start + period_secs / 2
             result.append({
                 "t": datetime.fromtimestamp(mid_ts, tz=timezone.utc).isoformat(),
-                "s": str(round(total / count, 2)),
+                "s": str(last_value if use_last else round(total / count, 2)),
             })
 
         bucket_start = bucket_end

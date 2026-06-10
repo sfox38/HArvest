@@ -315,7 +315,12 @@ def _parse_entities(
     sensitive_domains: dict | None = None,
     existing_ids: set | None = None,
 ) -> list[EntityAccess]:
-    from .entity_compatibility import get_support_tier, is_sensitive_domain_blocked
+    from .entity_compatibility import (
+        COMPANION_INTERACTIVE_DOMAINS,
+        get_support_tier,
+        is_companion_allowed,
+        is_sensitive_domain_blocked,
+    )
     if not isinstance(raw_list, list):
         raise ValueError("entities must be a list.")
     entities = []
@@ -388,6 +393,11 @@ def _parse_entities(
             raise ValueError(f"companion_of for {entity_id} must be an entity_id or null.")
         if cap == "badge" and companion_of is not None:
             raise ValueError(f"Badge entity {entity_id} cannot be a companion.")
+        if companion_of is not None:
+            if not is_companion_allowed(domain):
+                raise ValueError(f"Domain '{domain}' is not permitted as a companion.")
+            if domain not in COMPANION_INTERACTIVE_DOMAINS:
+                cap = "read"
 
         service_data = e.get("service_data", {})
         if not isinstance(service_data, dict):
@@ -406,12 +416,16 @@ def _parse_entities(
             display_hints=display_hints,
             service_data=dict(service_data),
         ))
-    primary_ids = {e.entity_id for e in entities if e.companion_of is None}
+    primaries = {e.entity_id: e for e in entities if e.companion_of is None}
     for entity in entities:
-        if entity.companion_of is not None and entity.companion_of not in primary_ids:
-            raise ValueError(
-                f"companion_of for {entity.entity_id} does not reference a primary entity."
-            )
+        if entity.companion_of is not None:
+            primary = primaries.get(entity.companion_of)
+            if primary is None:
+                raise ValueError(
+                    f"companion_of for {entity.entity_id} does not reference a primary entity."
+                )
+            if primary.capabilities != "read-write":
+                entity.capabilities = "read"
     return entities
 
 

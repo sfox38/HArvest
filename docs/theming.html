@@ -397,7 +397,7 @@ nunito.woff2</code></pre>
               <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> Fan</td><td><code>toggle-button</code>, <code>speed-slider</code>, <code>speed-value</code>, <code>cycle-button</code>, <code>preset-button</code>, <code>oscillate-button</code>, <code>direction-select</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> Cover</td><td><code>cover-controls</code>, <code>open-button</code>, <code>close-button</code>, <code>stop-button</code>, <code>position-slider</code>, <code>position-value</code>, <code>tilt-slider</code>, <code>tilt-value</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-thermostat"></span> Climate</td><td><code>current-temp</code>, <code>mode-select</code>, <code>target-temp-input</code>, <code>target-temp-low-input</code>, <code>target-temp-high-input</code>, <code>fan-mode-label</code>, <code>fan-mode-select</code>, <code>preset-label</code>, <code>preset-select</code>, <code>swing-label</code>, <code>swing-select</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> Media player</td><td><code>media-title</code>, <code>media-artist</code>, <code>play-button</code>, <code>prev-button</code>, <code>next-button</code>, <code>volume-slider</code>, <code>mute-button</code>, <code>source-select</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> Media player</td><td><code>media-title</code>, <code>media-artist</code>, <code>power-button</code>, <code>prev-button</code>, <code>play-button</code>, <code>next-button</code>, <code>mute-button</code>, <code>volume-down-button</code>, <code>volume-slider</code>, <code>volume-up-button</code>, <code>source-select</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-ray-vertex"></span> Input number</td><td><code>value-slider</code>, <code>value-input</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-form-select"></span> Input select and select</td><td><code>option-grid</code>, <code>option-pill</code>, <code>option-trigger</code>, <code>option-trigger-label</code>, <code>option-trigger-arrow</code>, <code>option-menu</code>, <code>option-menu-item</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> Remote</td><td><code>power-toggle</code>, <code>activity-select</code>, <code>current-activity</code></td></tr>
@@ -535,7 +535,7 @@ nunito.woff2</code></pre>
               <tr><td><code>feature_config</code></td><td>object</td><td>Feature-specific config (e.g. min/max color temp)</td></tr>
               <tr><td><code>gesture_config</code></td><td>object</td><td>Tap/hold/double-tap action config</td></tr>
               <tr><td><code>companions</code></td><td>string[]</td><td>List of companion entity refs</td></tr>
-              <tr><td><code>graph</code></td><td>"line" | "bar" | null</td><td>History graph type</td></tr>
+              <tr><td><code>graph</code></td><td>"line" | "bar" | "step" | null</td><td>History graph type. Step is available for binary sensors.</td></tr>
               <tr><td><code>hours</code></td><td>number</td><td>History graph time window</td></tr>
               <tr><td><code>animate</code></td><td>boolean</td><td>Animate fan icon</td></tr>
             </tbody>

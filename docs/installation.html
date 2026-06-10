@@ -82,12 +82,12 @@
               <tr><td>Home Assistant</td><td>2024.1</td><td>Any installation method works</td></tr>
               <tr><td>Python</td><td>3.11</td><td>Bundled with HA</td></tr>
               <tr><td>HACS</td><td>any</td><td>Required for installation</td></tr>
-              <tr><td>HTTPS on HA</td><td>-</td><td>Required for WebSocket connections from browsers</td></tr>
+              <tr><td>HA network access</td><td>-</td><td>Must be reachable by widget visitors. HTTPS/WSS is required when the embedding page uses HTTPS.</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>Your Home Assistant instance needs to be reachable from the internet over HTTPS - a URL like <code>https://myhome.duckdns.org</code> or <code>https://ha.yourdomain.com</code>. Plain HTTP is not supported; browsers block WebSocket connections to non-secure origins from secure pages.</p>
+        <p>Your Home Assistant instance must be reachable by the people who will view the widgets. Public widgets need a public HTTPS URL such as <code>https://myhome.duckdns.org</code> or <code>https://ha.yourdomain.com</code>. Private widgets may use an HTTP LAN address when every visitor is on that trusted network and the embedding page also uses HTTP. Browsers block an HTTPS page from connecting to an insecure <code>ws://</code> address.</p>
 
         <p>Popular options for HTTPS remote access: <a href="https://www.nabucasa.com" target="_blank">Nabu Casa</a> (easiest, paid), DuckDNS + Let's Encrypt (free), Cloudflare Tunnel (free).</p>
         </section>
@@ -167,7 +167,7 @@
         <section>
         <h2 id="network">Network requirements</h2>
 
-        <p>Widgets connect from the visitor's browser to your HA instance using a standard HTTPS/WSS connection on port 443. No additional ports, no relay servers.</p>
+        <p>Widgets connect directly from the visitor's browser to the configured HA host and port. Public and HTTPS-hosted pages normally use HTTPS/WSS on port 443. Private HTTP pages can use HTTP/WS on a trusted network. No separate WebSocket port or relay server is required.</p>
 
         <p>If you use a reverse proxy (nginx, Caddy, Traefik, etc.), it needs to forward WebSocket upgrade headers. Most configurations already do this if HA is working normally. If not, add these to your nginx config:</p>
 

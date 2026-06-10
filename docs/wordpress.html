@@ -130,7 +130,7 @@
             <tbody>
               <tr>
                 <td>Home Assistant URL</td>
-                <td>Required. Your HA external HTTPS URL. e.g. <code>https://myhome.duckdns.org</code>. Used to set the <code>connect-src</code> Content-Security-Policy directive automatically and as the default HA URL for shortcodes.</td>
+                <td>Required. The HA URL reachable by your WordPress visitors, for example <code>https://myhome.duckdns.org</code> or a private HTTP LAN address. Public and HTTPS-hosted pages must use an HTTPS HA URL. The plugin uses this value to set the <code>connect-src</code> Content-Security-Policy directive automatically and as the default HA URL for shortcodes.</td>
               </tr>
               <tr>
                 <td>Widget JS source</td>
@@ -220,11 +220,11 @@
         <p>The injected header looks like:</p>
         <pre><code class="language-text">Content-Security-Policy: connect-src 'self' wss://myhome.duckdns.org</code></pre>
 
-        <p>The plugin converts the <code>https://</code> URL from settings to <code>wss://</code> for the directive. You don't need to add this manually.</p>
+        <p>The plugin maps the URL scheme from settings to its WebSocket equivalent: <code>https://</code> becomes <code>wss://</code>, and <code>http://</code> becomes <code>ws://</code>. You don't need to add this manually.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Existing CSP headers</span>
-          <p>If your WordPress host or another plugin already sets a <code>Content-Security-Policy</code> header, the HArvest plugin's header may be ignored or conflict. In that case, manually add <code>wss://your-ha-host</code> to your existing <code>connect-src</code> directive.</p>
+          <p>If your WordPress host or another plugin already sets a <code>Content-Security-Policy</code> header, the HArvest plugin's header may be ignored or conflict. In that case, manually add the matching WebSocket URL, such as <code>wss://your-ha-host</code> for HTTPS or <code>ws://your-ha-host</code> for HTTP, to your existing <code>connect-src</code> directive.</p>
         </div>
 
         </section>

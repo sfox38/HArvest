@@ -133,7 +133,7 @@
 
         <h3><span class="mdi mdi-radiobox-marked"></span> binary_sensor</h3>
         <p>Read-only. Displays current state with device-class appropriate icon and label (motion, door, window, smoke, etc.).</p>
-        <p><strong>History graph:</strong> supported</p>
+        <p><strong>History graph:</strong> supported. Step is the recommended graph type for an on/off timeline. Line and bar are also available.</p>
 
         <h3><span class="mdi mdi-eye"></span> sensor</h3>
         <p>Read-only. Three sub-renderers based on device class:</p>
@@ -158,7 +158,7 @@
         <p><strong>Display settings:</strong> position slider and tilt control can be individually toggled.</p>
 
         <h3><span class="mdi mdi-cast"></span> media_player</h3>
-        <p>Play/pause, optional next and previous track buttons, optional mute toggle and volume slider, and an optional source selector. Current track title, artist, and playback state are displayed when available. Album art is not supported in v1.</p>
+        <p>Power, play/pause, previous track, next track, mute, volume down, volume up, volume slider, and source selector controls appear independently when supported by the entity. The state-aware power button is disabled when the entity does not support the required turn-on or turn-off direction. Current track title, artist, and playback state are displayed when available. Album art is not supported in v1.</p>
         <p><strong>Display settings:</strong> transport controls, volume, and source selector can be individually toggled.</p>
 
         <h3><span class="mdi mdi-toggle-switch-outline"></span> input_boolean</h3>
@@ -187,6 +187,7 @@
 
         <h3><span class="mdi mdi-lock"></span> lock</h3>
         <p>One state-aware action button that shows Unlock while locked and Lock for other actionable states. The button is disabled while the lock is transitioning, jammed, unavailable, or unknown. Read-only capability hides the button and shows the state label only.</p>
+        <p><strong>Open action:</strong> Home Assistant distinguishes unlocking a lock from opening it. Unlock releases the locking mechanism but leaves the door closed; Open unlatches a supporting door so it can be pushed open. The built-in Lock card intentionally provides only Lock and Unlock. <code>lock.open</code> is available as an advanced action through a configured gesture or custom renderer.</p>
         <p><strong>States:</strong> locked, unlocked, locking, unlocking, jammed. The jammed state is highlighted in error colour.</p>
         <p><strong>Optimistic UI:</strong> the card predicts the transitioning state immediately after a command, then reverts to the server-confirmed state when the real update arrives.</p>
 
@@ -283,7 +284,7 @@
 
         <div class="callout callout-warn">
           <span class="callout-label">Important</span>
-          <p>Each companion has a "Read only" toggle that defaults to on. When read-only, the companion shows state but cannot be interacted with, regardless of the domain. If the primary card's access is set to "Read only", all its companions are forced to read-only and the toggle is hidden.</p>
+          <p>Interactive companion domains have a "Read only" toggle that defaults to on. When read-only, the companion shows state but cannot be interacted with. Display-only companion domains are always read-only and do not show the toggle. If the primary card's access is set to "Read only", all its companions are forced to read-only and the toggle is hidden.</p>
         </div>
         </section>
 
@@ -307,7 +308,7 @@
               <tr><td class="col-narrow"><span class="mdi mdi-timer-outline"></span> <code>timer</code></td><td><code>start</code>, <code>pause</code>, <code>cancel</code>, <code>finish</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> <code>media_player</code></td><td><code>media_play_pause</code>, <code>media_next_track</code>, <code>media_previous_track</code>, <code>volume_up</code>, <code>volume_down</code>, <code>volume_set</code>, <code>volume_mute</code>, <code>select_source</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> <code>remote</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>send_command</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> <code>lock</code></td><td><code>lock</code>, <code>unlock</code>, <code>open</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> <code>lock</code></td><td><code>lock</code>, <code>unlock</code>, <code>open</code> (advanced unlatch action for configured gestures and custom renderers; not a built-in card button)</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>button</code></td><td><code>press</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>input_button</code></td><td><code>press</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-numeric"></span> <code>number</code></td><td><code>set_value</code></td></tr>

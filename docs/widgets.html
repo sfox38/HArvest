@@ -201,7 +201,7 @@ document.getElementById("sidebar").appendChild(card2);</code></pre>
 
           <div class="attr-block">
             <div class="attr-name">ha-url <span class="attr-optional">optional</span> <span class="attr-type">string</span></div>
-            <div class="attr-desc">External HTTPS URL of the Home Assistant instance. Overrides the value from <code>HArvest.config()</code> or a parent group. e.g. <code>https://myhome.duckdns.org</code>.</div>
+            <div class="attr-desc">URL of the Home Assistant instance reachable by widget visitors. Use HTTPS when the embedding page uses HTTPS. Overrides the value from <code>HArvest.config()</code> or a parent group. e.g. <code>https://myhome.duckdns.org</code>.</div>
           </div>
 
           <div class="attr-block">
@@ -377,13 +377,19 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
               <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> fan</td><td>Toggle on/off</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-radiobox-marked"></span> binary_sensor</td><td>Read-only state</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> sensor</td><td>Read-only state/value</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> lock</td><td>Lock/Unlock</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> cover</td><td>Read-only state/position</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> remote</td><td>Read-only power state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> button / input_button</td><td>Press</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-numeric"></span> number / input_number</td><td>Read-only value</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-account"></span> person</td><td>Read-only presence state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-timer-outline"></span> timer</td><td>Read-only timer state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-weather-partly-cloudy"></span> weather</td><td>Read-only condition</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>There is no per-card companion limit; the 50-entity token budget is the only constraint. Each companion has a "Read only" toggle (default: on). Read-only companions never trigger service calls regardless of the domain. If the primary card is set to "Read only", all its companions are forced to read-only. Badge entities cannot have companions.</p>
+        <p>There is no per-card companion limit; the 50-entity token budget is the only constraint. Interactive companion domains have a "Read only" toggle that defaults to on. Display-only companion domains never show the toggle or trigger service calls. If the primary card is set to "Read only", all its companions are forced to read-only. Badge entities cannot have companions.</p>
         </section>
 
         <section>
@@ -397,7 +403,7 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
             <tbody>
               <tr><td>Name override</td><td>Entity settings card</td><td>Custom display name, overrides HA friendly_name</td></tr>
               <tr><td>Force color scheme</td><td>Entity settings card</td><td>Auto, Light, or Dark per entity</td></tr>
-              <tr><td>Graph type (line/bar/none)</td><td>Entity settings card</td><td>History graph for sensor, binary_sensor, input_number</td></tr>
+              <tr><td>Graph type (line/bar/step/none)</td><td>Entity settings card</td><td>History graph for sensor, binary_sensor, input_number, and number. Step is available for binary_sensor.</td></tr>
               <tr><td>Graph hours</td><td>Entity settings card</td><td>Time window, 1-168 hours</td></tr>
               <tr><td>Graph period</td><td>Entity settings card</td><td>Aggregation period in minutes</td></tr>
               <tr><td>Animate fan icon</td><td>Entity settings card</td><td>Spinning fan when entity is on</td></tr>

@@ -202,13 +202,13 @@
               <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> cover</td><td>Show position slider, Show tilt control</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> media_player</td><td>Show transport controls, Show volume, Show source selector</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-weather-partly-cloudy"></span> weather</td><td>Show forecast (disabled by default)</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> sensor, <span class="mdi mdi-radiobox-marked"></span> binary_sensor</td><td>Graph type (None, Line, Bar), Hours (1-168), Period (1-60 min)</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> sensor, <span class="mdi mdi-radiobox-marked"></span> binary_sensor</td><td>Graph type (None, Line, Bar, plus Step for binary sensors), Hours (1-168), Period (1-60 min)</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-ray-vertex"></span> input_number</td><td>Display mode (Slider, Buttons), Graph settings</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p><strong>Companions:</strong> add or remove companion entities that display inside the selected entity's card. Companion entities do not appear in the left entity list. This section auto-opens when companions already exist. Hidden when Access is Badge. Each companion has a small "Read only" toggle (default: on). Disable it to allow visitors to interact with the companion (e.g. toggle a light). The toggle only appears when the primary entity's Access is set to Control; read-only primaries force all companions to read-only.</p>
+        <p><strong>Companions:</strong> add or remove companion entities that display inside the selected entity's card. Companion entities do not appear in the left entity list. This section auto-opens when companions already exist and is hidden when Access is Badge. Interactive companion domains have a small "Read only" toggle that defaults to on; disable it to allow visitors to toggle, lock or unlock, or press the companion. Display-only companion domains do not show the toggle. The toggle only appears when the primary entity's Access is set to Control; read-only primaries force all companions to read-only.</p>
 
         <p><strong>Excluded attributes:</strong> a grid of toggles for each attribute the entity exposes. Excluding an attribute prevents it from being sent to the widget. These toggles are linked to the domain-specific controls above: disabling "Show brightness" for a light also excludes the brightness attribute, and vice versa.</p>
 

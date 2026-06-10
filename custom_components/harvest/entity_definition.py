@@ -8,6 +8,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from homeassistant.components.climate import ClimateEntityFeature
+from homeassistant.components.cover import CoverEntityFeature
+from homeassistant.components.fan import FanEntityFeature
+from homeassistant.components.light import LightEntityFeature
+from homeassistant.components.media_player import MediaPlayerEntityFeature
+from homeassistant.components.remote import RemoteEntityFeature
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
 
@@ -115,21 +121,62 @@ def get_blocked_data_keys(exclude_attributes: list[str]) -> set[str]:
 # Maps (domain, bitmask_bit) -> feature string for translate_supported_features.
 FEATURE_FLAGS: dict[str, dict[int, str]] = {
     "light": {
-        1: "brightness", 2: "color_temp", 4: "effect",
-        16: "flash", 32: "transition", 64: "transition", 128: "rgb_color", 1024: "white_value",
+        int(LightEntityFeature.EFFECT): "effect",
+        int(LightEntityFeature.FLASH): "flash",
+        int(LightEntityFeature.TRANSITION): "transition",
     },
-    "fan": {1: "set_speed", 2: "oscillate", 4: "direction", 8: "preset_mode"},
-    "cover": {4: "set_position", 128: "set_tilt_position", 8: "stop"},
+    "fan": {
+        int(FanEntityFeature.SET_SPEED): "set_speed",
+        int(FanEntityFeature.OSCILLATE): "oscillate",
+        int(FanEntityFeature.DIRECTION): "direction",
+        int(FanEntityFeature.PRESET_MODE): "preset_mode",
+    },
+    "cover": {
+        int(CoverEntityFeature.OPEN): "open",
+        int(CoverEntityFeature.CLOSE): "close",
+        int(CoverEntityFeature.SET_POSITION): "set_position",
+        int(CoverEntityFeature.STOP): "stop",
+        int(CoverEntityFeature.OPEN_TILT): "open_tilt",
+        int(CoverEntityFeature.CLOSE_TILT): "close_tilt",
+        int(CoverEntityFeature.STOP_TILT): "stop_tilt",
+        int(CoverEntityFeature.SET_TILT_POSITION): "set_tilt_position",
+    },
     "climate": {
-        1: "target_temperature", 2: "target_temperature_range",
-        4: "fan_mode", 8: "preset_mode", 16: "swing_mode", 32: "aux_heat",
+        int(ClimateEntityFeature.TARGET_TEMPERATURE): "target_temperature",
+        int(ClimateEntityFeature.TARGET_TEMPERATURE_RANGE): "target_temperature_range",
+        int(ClimateEntityFeature.TARGET_HUMIDITY): "target_humidity",
+        int(ClimateEntityFeature.FAN_MODE): "fan_mode",
+        int(ClimateEntityFeature.PRESET_MODE): "preset_mode",
+        int(ClimateEntityFeature.SWING_MODE): "swing_mode",
     },
     "media_player": {
-        1: "play_pause", 2: "next_track", 4: "previous_track",
-        8: "volume_set", 16: "volume_step", 128: "turn_on", 256: "turn_off",
+        int(MediaPlayerEntityFeature.PAUSE): "play_pause",
+        int(MediaPlayerEntityFeature.PLAY): "play_pause",
+        int(MediaPlayerEntityFeature.VOLUME_SET): "volume_set",
+        int(MediaPlayerEntityFeature.VOLUME_MUTE): "volume_mute",
+        int(MediaPlayerEntityFeature.PREVIOUS_TRACK): "previous_track",
+        int(MediaPlayerEntityFeature.NEXT_TRACK): "next_track",
+        int(MediaPlayerEntityFeature.TURN_ON): "turn_on",
+        int(MediaPlayerEntityFeature.TURN_OFF): "turn_off",
+        int(MediaPlayerEntityFeature.VOLUME_STEP): "volume_step",
+        int(MediaPlayerEntityFeature.SELECT_SOURCE): "select_source",
     },
-    "remote": {1: "learn_command", 2: "delete_command", 4: "activity"},
+    "remote": {
+        int(RemoteEntityFeature.LEARN_COMMAND): "learn_command",
+        int(RemoteEntityFeature.DELETE_COMMAND): "delete_command",
+        int(RemoteEntityFeature.ACTIVITY): "activity",
+    },
 }
+
+# These feature flags were added after HArvest's minimum supported HA version.
+# Decode them when present without preventing startup on older HA releases.
+for enum_class, domain, optional_features in (
+    (FanEntityFeature, "fan", (("TURN_ON", "turn_on"), ("TURN_OFF", "turn_off"))),
+    (ClimateEntityFeature, "climate", (("TURN_ON", "turn_on"), ("TURN_OFF", "turn_off"))),
+):
+    for member_name, feature_name in optional_features:
+        if member := getattr(enum_class, member_name, None):
+            FEATURE_FLAGS[domain][int(member)] = feature_name
 
 # Attributes blocked from state_update messages. All other attributes are
 # forwarded to the widget. Individual values exceeding MAX_ATTRIBUTE_VALUE_BYTES
@@ -346,7 +393,7 @@ def build_entity_definition(
         if color_modes & color_capable_modes and "rgb_color" not in supported_features:
             supported_features.append("rgb_color")
 
-    if domain == "cover" and "buttons" not in supported_features:
+    if domain == "cover" and {"open", "close"} & set(supported_features):
         supported_features.append("buttons")
 
     if domain == "weather":
@@ -470,7 +517,7 @@ def decode_supported_features(domain: str, bitmask: int) -> list[str]:
     Returns an empty list for unknown domains or zero bitmask.
     """
     flags = FEATURE_FLAGS.get(domain, {})
-    return [name for bit, name in flags.items() if bitmask & bit]
+    return list(dict.fromkeys(name for bit, name in flags.items() if bitmask & bit))
 
 
 def filter_attributes(attributes: dict) -> dict:

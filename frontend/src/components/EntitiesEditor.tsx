@@ -21,6 +21,7 @@ import { EntityPreview } from "./EntityPreview";
 import { loadWidgetScript, loadRendererScript, isRendererLoaded } from "./WidgetPreview";
 import { loadEntityCache, getEntityCache, useEntityCache } from "../entityCache";
 import { WIDGET_ICONS, WIDGET_ICON_NAMES } from "../widgetIcons";
+import { READ_ONLY_DOMAINS } from "../lovelaceParser";
 
 const PERIOD_OPTIONS = [
   { value: 1440, label: "1 day" },
@@ -57,7 +58,13 @@ interface EntitiesEditorProps {
   setSavedMsg?: (msg: string) => void;
 }
 
-const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor", "lock"]);
+const COMPANION_ALLOWED_DOMAINS = new Set([
+  "light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor", "lock",
+  "button", "input_button", "number", "input_number", "person", "timer", "weather",
+]);
+const COMPANION_INTERACTIVE_DOMAINS = new Set([
+  "light", "switch", "input_boolean", "fan", "lock", "button", "input_button",
+]);
 const ENTITIES_BLOCK_DOMAINS = new Set(["light", "switch", "fan", "input_boolean", "binary_sensor", "lock", "cover", "sensor"]);
 const HISTORY_DOMAINS = new Set(["sensor", "input_number", "number", "binary_sensor"]);
 const NUMERIC_STATE_DOMAINS = new Set(["sensor", "input_number", "counter", "number"]);
@@ -1341,6 +1348,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   disabled={!canEdit}
                   type="button"
                 >{token.entities_block ? "View only" : "Read only"}</button>
+                {!(selectedDomain && READ_ONLY_DOMAINS.has(selectedDomain)) && (
                 <button
                   className={selectedEntity.capabilities === "read-write" ? "active" : ""}
                   aria-pressed={selectedEntity.capabilities === "read-write"}
@@ -1348,6 +1356,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                   disabled={!canEdit}
                   type="button"
                 >Control</button>
+                )}
               </div>
             </div>
             )}
@@ -1568,7 +1577,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                     <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, minWidth: 0 }}>
                       <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }} className="mono" title={c.entity_id}>{c.entity_id}</span>
                       {c.alias && <span className="muted" style={{ fontSize: 10, flexShrink: 0 }}>alias: {c.alias}</span>}
-                      {selectedEntity.capabilities === "read-write" && (
+                      {selectedEntity.capabilities === "read-write" && COMPANION_INTERACTIVE_DOMAINS.has(c.entity_id.split(".")[0]) && (
                       <label style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 4 }}>
                         <Toggle
                           checked={c.capabilities === "read"}
@@ -1858,6 +1867,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <option value="">None</option>
                       <option value="line">Line</option>
                       <option value="bar">Bar</option>
+                      {selectedDomain === "binary_sensor" && <option value="step">Step</option>}
                     </select>
                   </label>
                   <label className="entity-graph-field">
