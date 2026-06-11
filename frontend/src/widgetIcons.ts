@@ -196,9 +196,11 @@ export const DOMAIN_FALLBACK_ICON: Record<string, string> = {
 /**
  * Resolve the icon a widget card shows by default for an entity: the
  * server-resolved icon when it is in the bundle, otherwise the renderer's
- * domain fallback (mirrors the widget's resolveIcon()).
+ * domain fallback. Mirrors the widget's resolveIcon(), which treats
+ * mdi:help-circle (the server's unknown-domain fallback) as unresolved so
+ * Tier 2 domains land on GenericCard's mdi:eye default instead of a (?).
  */
 export function resolveEntityIcon(domain: string, icon?: string | null): string {
-  if (icon && WIDGET_ICONS[icon]) return icon;
+  if (icon && icon !== "mdi:help-circle" && WIDGET_ICONS[icon]) return icon;
   return DOMAIN_FALLBACK_ICON[domain] ?? "mdi:eye";
 }
