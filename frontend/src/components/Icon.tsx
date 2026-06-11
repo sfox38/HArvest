@@ -3,8 +3,10 @@
  *
  * Uses the same MDI path data convention as widget/src/icons.js.
  * Panel-specific UI icons (nav, actions, status) are included here;
- * renderer-domain icons live in the widget bundle.
+ * renderer-domain icons live in the widget bundle (see WidgetIcon).
  */
+
+import { WIDGET_ICONS } from "../widgetIcons";
 
 // MDI 24x24 path data for panel UI icons.
 const PATHS: Record<string, string> = {
@@ -157,6 +159,24 @@ interface IconProps {
 
 export function Icon({ name, size = 18, className }: IconProps) {
   const path = PATHS[name] ?? PATHS["help"];
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      aria-hidden="true"
+      focusable="false"
+      className={className}
+      style={{ display: "block", flexShrink: 0 }}
+    >
+      <path d={path} fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Render an icon from the widget MDI bundle by its "mdi:<name>" key. */
+export function WidgetIcon({ name, size = 18, className }: IconProps) {
+  const path = WIDGET_ICONS[name] ?? WIDGET_ICONS["mdi:help-circle"];
   return (
     <svg
       viewBox="0 0 24 24"

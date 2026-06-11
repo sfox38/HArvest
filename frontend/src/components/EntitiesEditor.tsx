@@ -15,13 +15,13 @@ import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail, Service
 import { api } from "../api";
 import { usePanelDark } from "../panelTheme";
 import { ConfirmDialog, Card, Spinner, EntityAutocomplete, ActionPicker, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
-import { Icon } from "./Icon";
+import { Icon, WidgetIcon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { doCopy, groupEntities } from "./CodeSection";
 import { EntityPreview } from "./EntityPreview";
 import { loadWidgetScript, loadRendererScript, isRendererLoaded } from "./WidgetPreview";
 import { loadEntityCache, getEntityCache, useEntityCache } from "../entityCache";
-import { WIDGET_ICONS, WIDGET_ICON_NAMES } from "../widgetIcons";
+import { WIDGET_ICONS, WIDGET_ICON_NAMES, resolveEntityIcon } from "../widgetIcons";
 import { READ_ONLY_DOMAINS } from "../lovelaceParser";
 
 const PERIOD_OPTIONS = [
@@ -32,31 +32,6 @@ const PERIOD_OPTIONS = [
   { value: 5,    label: "5 minutes" },
   { value: 1,    label: "1 minute" },
 ];
-
-const DOMAIN_ICON: Record<string, string> = {
-  light: "lightbulb",
-  switch: "power",
-  input_boolean: "power",
-  binary_sensor: "bolt",
-  sensor: "chart-line",
-  media_player: "play",
-  lock: "lock",
-  timer: "clock",
-  input_select: "list",
-  input_number: "tune",
-  fan: "fan",
-  climate: "thermostat",
-  cover: "chevDown",
-  select: "list",
-  number: "tune",
-  weather: "weather",
-  person: "person",
-  remote: "remote",
-  button: "tap-button",
-  input_button: "tap-button",
-  script: "script",
-  automation: "robot",
-};
 
 interface EntitiesEditorProps {
   token: Token;
@@ -835,7 +810,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             const e = g.primary;
             const domain = e.entity_id.split(".")[0];
             const isSelected = selectedEntityId === e.entity_id;
-            const friendly = getEntityCache().find(c => c.entity_id === e.entity_id)?.friendly_name;
+            const cached = getEntityCache().find(c => c.entity_id === e.entity_id);
+            const friendly = cached?.friendly_name;
             return (
               <div
                 key={e.entity_id}
@@ -859,7 +835,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 data-entity-id={e.entity_id}
               >
                 <div className="widget-thumb" style={{ width: 24, height: 24 }}>
-                  <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={12} />
+                  <WidgetIcon name={resolveEntityIcon(domain, e.icon_override || cached?.icon)} size={12} />
                 </div>
                 <div className="entity-list-id">
                   {friendly && friendly !== e.entity_id && <span className="entity-list-name">{friendly}</span>}

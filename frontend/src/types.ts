@@ -392,6 +392,9 @@ export interface HAEntity {
   friendly_name: string;
   domain: string;
   state: string;
+  /** MDI icon the widget card shows by default (resolved server-side).
+      Absent on entries built from raw HA states (api.ha.statesByDomain). */
+  icon?: string;
 }
 
 export interface HAEntityDetail {

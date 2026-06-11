@@ -2934,6 +2934,11 @@ class HarvestEntitiesView(_HarvestView):
 
     Returns a flat list of all entities known to HA, used by the panel wizard
     to power the entity autocomplete dropdown in Step 1.
+
+    Each entry carries `icon`: the MDI icon the widget card shows by default
+    for the entity's current state, resolved with the same registry /
+    device-class / domain-default logic as entity definitions, so panel
+    entity lists can match the card.
     """
 
     url = "/api/harvest/entities"
@@ -2943,18 +2948,30 @@ class HarvestEntitiesView(_HarvestView):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
+        from homeassistant.helpers import entity_registry as er
         from .entity_compatibility import get_support_tier, get_sensitive_domains, is_sensitive_domain_blocked
+        from .entity_definition import build_icon_state_map
         sensitive = get_sensitive_domains(self._hass)
-        return self.json([
-            {
+        registry = er.async_get(self._hass)
+        result = []
+        for s in self._hass.states.async_all():
+            if get_support_tier(s.domain) == 3 or is_sensitive_domain_blocked(s.domain, sensitive):
+                continue
+            entry = registry.async_get(s.entity_id)
+            device_class = None
+            if entry is not None:
+                device_class = entry.device_class or entry.original_device_class
+            if device_class is None:
+                device_class = s.attributes.get("device_class")
+            icon_map = build_icon_state_map(s.domain, s, entry, device_class)
+            result.append({
                 "entity_id": s.entity_id,
                 "friendly_name": s.attributes.get("friendly_name", s.entity_id),
                 "domain": s.domain,
                 "state": s.state,
-            }
-            for s in self._hass.states.async_all()
-            if get_support_tier(s.domain) != 3 and not is_sensitive_domain_blocked(s.domain, sensitive)
-        ])
+                "icon": icon_map.get(s.state) or icon_map.get("*", "mdi:help-circle"),
+            })
+        return self.json(result)
 
 
 class HarvestEntityDefinitionView(_HarvestView):

@@ -12,10 +12,11 @@ import { validateLabel as validateLabelWiz } from "../types";
 import { api } from "../api";
 import { usePanelDark } from "../panelTheme";
 import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
-import { Icon } from "./Icon";
+import { Icon, WidgetIcon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { loadWidgetScript, loadRendererScript } from "./WidgetPreview";
 import { getEntityCache, loadEntityCache, useEntityCache } from "../entityCache";
+import { resolveEntityIcon } from "../widgetIcons";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 import { READ_ONLY_DOMAINS } from "../lovelaceParser";
 
@@ -94,16 +95,6 @@ const COMPANION_ALLOWED_DOMAINS = new Set([
 const COMPANION_INTERACTIVE_DOMAINS = new Set([
   "light", "switch", "input_boolean", "fan", "lock", "button", "input_button",
 ]);
-
-const DOMAIN_ICON: Record<string, string> = {
-  light: "lightbulb", switch: "power", input_boolean: "power",
-  binary_sensor: "bolt", sensor: "chart-line", media_player: "play",
-  lock: "lock", timer: "clock", input_select: "list", input_number: "tune",
-  fan: "fan", climate: "thermostat", cover: "chevDown",
-  select: "list", number: "tune", weather: "weather", person: "person",
-  remote: "remote", button: "tap-button", input_button: "tap-button",
-  script: "script", automation: "robot",
-};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -551,7 +542,7 @@ function EntitiesBlockPreview({ entities, capability }: { entities: SelectedEnti
             }}
           >
             <div className="widget-thumb" style={{ width: 28, height: 28, flexShrink: 0 }}>
-              <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={14} />
+              <WidgetIcon name={resolveEntityIcon(domain, cached?.icon)} size={14} />
             </div>
             <span style={{ flex: 1, fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
             {showToggle && !ENTITIES_BLOCK_READONLY_DOMAINS.has(domain) && (
@@ -726,7 +717,8 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
             const isSelected = e.entity_id === activePreviewId;
             const isExpanded = expandedCompanions.has(e.entity_id);
             const companionCount = e.companions.length;
-            const friendly = getEntityCache().find(c => c.entity_id === e.entity_id)?.friendly_name;
+            const cached = getEntityCache().find(c => c.entity_id === e.entity_id);
+            const friendly = cached?.friendly_name;
             return (
               <div key={e.entity_id} role="listitem">
                 <button
@@ -742,7 +734,7 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
                   type="button"
                 >
                   <div className="widget-thumb" style={{ width: 24, height: 24 }}>
-                    <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={12} />
+                    <WidgetIcon name={resolveEntityIcon(domain, cached?.icon)} size={12} />
                   </div>
                   {state.capability !== "badge" && !state.entitiesBlock && (
                   <span
