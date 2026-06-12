@@ -8,7 +8,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from homeassistant.components.frontend import async_register_built_in_panel, async_remove_panel
+from homeassistant.components.frontend import (
+    DATA_PANELS,
+    async_register_built_in_panel,
+    async_remove_panel,
+)
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
 
@@ -52,11 +56,12 @@ async def register_panel(hass: HomeAssistant) -> None:
         ),
     ])
 
-    # Remove any existing panel registration before re-registering.
-    try:
+    # Remove any existing panel registration before re-registering (e.g. on
+    # integration reload). Skipped on fresh startup: calling async_remove_panel
+    # for a panel that is not registered logs a "Removing unknown panel"
+    # warning rather than raising.
+    if PANEL_PATH in hass.data.get(DATA_PANELS, {}):
         async_remove_panel(hass, PANEL_PATH)
-    except Exception:
-        pass
 
     async_register_built_in_panel(
         hass,
