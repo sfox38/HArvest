@@ -33,6 +33,12 @@ PACK_PREFIX = "hpk_"
 PACK_ID_LENGTH = 12         # base62 characters after prefix
 BASE62_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
+# Icon-name prefixes accepted in icon_override. mdi: is bundled in the
+# widget; the others are lazy-loaded subset assets built into
+# panel/icon-sets/<prefix>.js by the widget build. Adding a set later means
+# extending this tuple plus an ICON_SET_BUILDS entry in widget/build.js.
+ICON_NAME_PREFIXES: tuple[str, ...] = ("mdi:", "fa:", "ph:", "tabler:")
+
 # WebSocket endpoint path registered with HA's HTTP server
 WS_PATH = "/api/harvest/ws"
 

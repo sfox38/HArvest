@@ -1468,10 +1468,13 @@
 
       if (this.#iconEl) {
         // Don't spin for stateless fans - the percentage we read isn't
-        // trustworthy and would imply we know the speed.
-        const shouldSpin = this.#isOn && this.#percentage > 0 && !this.#stateless && this.config.animate !== false;
+        // trustworthy and would imply we know the speed. Animate is opt-in
+        // via the panel's Animate display setting, like every other theme.
+        const shouldSpin = this.#isOn && this.#percentage > 0 && !this.#stateless && !!this.config.animate;
         if (shouldSpin) {
-          const duration = 1 / (1.5 * Math.pow(this.#percentage / 100, 0.5));
+          // 2s per rotation at 100% speed (the other themes' fixed baseline),
+          // slowing as the percentage drops.
+          const duration = 2 / Math.pow(this.#percentage / 100, 0.5);
           this.#iconEl.setAttribute("data-spinning", "true");
           this.#iconEl.style.setProperty("--shroom-fan-duration", `${duration.toFixed(2)}s`);
         } else {

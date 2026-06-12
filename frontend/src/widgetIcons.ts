@@ -1,4 +1,13 @@
-/** MDI icon path data available in the widget bundle. Mirrors widget/src/icons.js (regenerate from it; do not hand-edit entries). */
+/**
+ * widgetIcons.ts - GENERATED FILE, do not edit.
+ *
+ * Regenerated from widget/src/icons.js by scripts/generate-widget-icons.js
+ * during the frontend prebuild. To add or change an icon, edit
+ * widget/src/icons.js and run the build. Resolver logic (domain fallbacks,
+ * resolveEntityIcon, icon-set lookups) lives in src/iconResolve.ts.
+ */
+
+/** MDI icon path data bundled in the widget (158 icons). */
 export const WIDGET_ICONS: Record<string, string> = {
   "mdi:help-circle": "M15.07,11.25L14.17,12.17C13.45,12.89 13,13.5 13,15H11V14.5C11,13.39 11.45,12.39 12.17,11.67L13.41,10.41C13.78,10.05 14,9.55 14,9C14,7.9 13.1,7 12,7A2,2 0 0,0 10,9H8A4,4 0 0,1 12,5A4,4 0 0,1 16,9C16,9.88 15.64,10.67 15.07,11.25M13,19H11V17H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12C22,6.47 17.5,2 12,2Z",
   "mdi:circle-small": "M12,10A2,2 0 0,0 10,12C10,13.11 10.9,14 12,14C13.11,14 14,13.11 14,12A2,2 0 0,0 12,10Z",
@@ -160,47 +169,9 @@ export const WIDGET_ICONS: Record<string, string> = {
   "mdi:script-text-play": "M13.8 22H5C3.3 22 2 20.7 2 19V18H13.1C13 18.3 13 18.7 13 19C13 20.1 13.3 21.1 13.8 22M13.8 16H5V5C5 3.3 6.3 2 8 2H19C20.7 2 22 3.3 22 5V6H20V5C20 4.4 19.6 4 19 4S18 4.4 18 5V13.1C16.2 13.4 14.7 14.5 13.8 16M8 8H15V6H8V8M8 12H14V10H8V12M17 16V22L22 19L17 16Z",
 };
 
-export const WIDGET_ICON_NAMES = Object.keys(WIDGET_ICONS).sort();
+/** Per-icon viewBox overrides; icons absent here use "0 0 24 24". */
+export const WIDGET_ICON_VIEWBOX: Record<string, string> = {
 
-/**
- * Renderer fallback icons per domain. Mirrors the widget renderers' defaults
- * (base-card _DOMAIN_FALLBACK plus the per-renderer neutral-state defaults).
- * Used when an entity's resolved icon is not in the bundle, so panel lists
- * fall back exactly like the card does.
- */
-export const DOMAIN_FALLBACK_ICON: Record<string, string> = {
-  light:          "mdi:lightbulb-outline",
-  switch:         "mdi:toggle-switch-off-outline",
-  input_boolean:  "mdi:toggle-switch-off-outline",
-  binary_sensor:  "mdi:radiobox-blank",
-  sensor:         "mdi:gauge",
-  fan:            "mdi:fan-off",
-  climate:        "mdi:thermostat",
-  cover:          "mdi:window-shutter",
-  media_player:   "mdi:cast",
-  input_number:   "mdi:numeric",
-  number:         "mdi:numeric",
-  input_select:   "mdi:format-list-bulleted",
-  select:         "mdi:format-list-bulleted",
-  remote:         "mdi:remote",
-  timer:          "mdi:timer-outline",
-  lock:           "mdi:lock",
-  person:         "mdi:account",
-  button:         "mdi:gesture-tap-button",
-  input_button:   "mdi:gesture-tap-button",
-  script:         "mdi:script-text-play",
-  automation:     "mdi:robot-off",
-  weather:        "mdi:weather-cloudy",
 };
 
-/**
- * Resolve the icon a widget card shows by default for an entity: the
- * server-resolved icon when it is in the bundle, otherwise the renderer's
- * domain fallback. Mirrors the widget's resolveIcon(), which treats
- * mdi:help-circle (the server's unknown-domain fallback) as unresolved so
- * Tier 2 domains land on GenericCard's mdi:eye default instead of a (?).
- */
-export function resolveEntityIcon(domain: string, icon?: string | null): string {
-  if (icon && icon !== "mdi:help-circle" && WIDGET_ICONS[icon]) return icon;
-  return DOMAIN_FALLBACK_ICON[domain] ?? "mdi:eye";
-}
+export const WIDGET_ICON_NAMES = Object.keys(WIDGET_ICONS).sort();

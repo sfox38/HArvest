@@ -13,6 +13,8 @@
  *   create(config)                         - Programmatic card creation
  *   getCard(entityId)                      - Retrieve a registered card
  *   registerRenderer(key, rendererClass)   - Register a custom renderer
+ *   registerIconSet(key, set)              - Register an icon set (fa, ph, ...)
+ *   getIconSet(key)                        - Retrieve a registered icon set
  *   renderers                              - All built-in renderer classes
  *   track.anyState(callback)               - Listen to all state updates
  */
@@ -23,6 +25,7 @@ import { config as setPageConfig, getPageConfig } from "./page-config.js";
 import { getOrCreateClient, getClient, setStateCacheRef } from "./harvest-client.js";
 import { StateCache }                      from "./state-cache.js";
 import { registerRenderer, lookupRenderer } from "./renderers/index.js";
+import { registerIconSet, getIconSet }      from "./icons.js";
 import * as Renderers                      from "./renderers/index.js";
 import { buildEntityDef, filterAttributes } from "./entity-def-builder.js";
 import { esc } from "./_utils/esc.js";
@@ -176,6 +179,8 @@ window.HArvest = {
   buildEntityDef,
   filterAttributes,
   registerRenderer,
+  registerIconSet,
+  getIconSet,
   // Shared HTML-entity escaper, exposed for use by standalone renderer
   // overrides that are loaded as separate IIFE scripts.
   esc,

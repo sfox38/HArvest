@@ -805,8 +805,11 @@ button.entity-setting-group-title:focus-visible {
 .display-settings-select {
   font-size: 12px;
   padding: 3px 6px;
-  max-width: 180px;
-  width: 180px;
+  /* Wide enough for the longest icon-set name with the "(Theme default)"
+     suffix, e.g. "Phosphor Duotone (Theme default)". All preference
+     dropdowns share this width so the column stays aligned. */
+  max-width: 240px;
+  width: 240px;
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -3129,7 +3132,9 @@ button.entity-setting-group-title:focus-visible {
   top: calc(100% + 6px);
   left: 0;
   z-index: 200;
-  width: 272px;
+  /* 7 x 34px tiles + 6 x 2px gaps + 2 x 10px padding + 2px border = 272px;
+     the extra width keeps the grid's scrollbar from clipping the 7th column */
+  width: 292px;
   background: var(--paper);
   border: 1px solid var(--divider);
   border-radius: var(--radius);
@@ -3197,6 +3202,24 @@ button.entity-setting-group-title:focus-visible {
   background: var(--accent-weak);
   color: var(--accent);
   border-color: var(--accent);
+}
+
+.icon-picker-set {
+  width: 100%;
+  font-size: 12.5px;
+  padding: 5px 8px;
+  height: 30px;
+  box-sizing: border-box;
+}
+
+.icon-picker-status {
+  font-size: 12px;
+  color: var(--ink-3);
+  padding: 6px 2px;
+}
+
+.icon-picker-status.error {
+  color: var(--danger);
 }
 
 /* ============================================================

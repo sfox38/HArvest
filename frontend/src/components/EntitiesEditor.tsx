@@ -21,7 +21,8 @@ import { doCopy, groupEntities } from "./CodeSection";
 import { EntityPreview } from "./EntityPreview";
 import { loadWidgetScript, loadRendererScript, isRendererLoaded } from "./WidgetPreview";
 import { loadEntityCache, getEntityCache, useEntityCache } from "../entityCache";
-import { WIDGET_ICONS, WIDGET_ICON_NAMES, resolveEntityIcon } from "../widgetIcons";
+import { resolveEntityIcon, getIconEntry } from "../iconResolve";
+import { IconPicker, useIconSets, translateToSet } from "./IconPicker";
 import { READ_ONLY_DOMAINS } from "../lovelaceParser";
 
 const PERIOD_OPTIONS = [
@@ -203,8 +204,9 @@ function BlockPreviewWidget({ entities, theme, blockLabel, blockIcon, blockShowL
     blockRef.current = block;
 
     // Set header (icon + label)
-    const iconPath = blockIcon && WIDGET_ICONS[blockIcon]
-      ? `<svg viewBox="0 0 24 24" width="16" height="16"><path d="${WIDGET_ICONS[blockIcon]}" fill="currentColor"/></svg>`
+    const blockIconEntry = blockIcon ? getIconEntry(blockIcon) : null;
+    const iconPath = blockIconEntry
+      ? `<svg viewBox="${blockIconEntry.viewBox}" width="16" height="16">${blockIconEntry.body}</svg>`
       : null;
     block.setHeader?.(blockLabel, iconPath, blockShowLabel);
 
@@ -293,8 +295,6 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const [pendingThemeId, setPendingThemeId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [blockLabelInput, setBlockLabelInput] = useState<string>(token.block_label ?? "Entities");
-  const [iconPickerOpen, setIconPickerOpen] = useState(false);
-  const [iconFilter, setIconFilter] = useState("");
   const [previewBgGray, setPreviewBgGray] = useState<number | null>(null);
   const [entitySnippetAlias, setEntitySnippetAlias] = useState(false);
   const [showCompanions, setShowCompanions] = useState(false);
@@ -353,6 +353,12 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const grouped = groupEntities(entities);
   const currentThemeId = themeUrlToId(token.theme_url ?? "");
   const selectedTheme = themes.find(t => t.theme_id === currentThemeId) ?? null;
+  // Effective global icon set: widget setting, falling back to the theme's.
+  const effectiveIconSet = token.icon_set ?? selectedTheme?.icon_set ?? null;
+  // Eagerly load icon-set assets referenced by overrides or the effective
+  // set, so list rows upgrade from the domain fallback like the live card.
+  // The hook re-renders this component as each set registers.
+  useIconSets(entities.map(e => e.icon_override).concat(token.block_icon, effectiveIconSet));
   const rendererCap = selectedTheme?.capabilities ?? null;
   const rendererSettings = selectedTheme?.renderer_settings ?? [];
 
@@ -378,8 +384,6 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
       ? entities.some(e => e.companion_of === selectedEntityId)
       : false;
     setShowCompanions(hasCompanions);
-    setIconPickerOpen(false);
-    setIconFilter("");
     if (selectedEntityId === "__block__") {
       setBlockLabelInput(token.block_label ?? "Entities");
     }
@@ -496,10 +500,15 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
       const result = await api.tokens.generateAlias(companionEntityId);
       alias = result.alias;
     } catch { /* alias stays null */ }
+    // Controllable domains default to Control when the parent allows it;
+    // everything else (and view-only parents) defaults to read-only.
+    const parent = entities.find(e => e.entity_id === primaryEntityId);
+    const interactive = parent?.capabilities === "read-write"
+      && COMPANION_INTERACTIVE_DOMAINS.has(companionEntityId.split(".")[0]);
     const updated = [...entities, {
       entity_id: companionEntityId,
       alias,
-      capabilities: "read" as const,
+      capabilities: (interactive ? "read-write" : "read") as "read" | "read-write",
       exclude_attributes: [] as string[],
       companion_of: primaryEntityId,
       gesture_config: {},
@@ -573,8 +582,6 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
         en.entity_id === selectedEntity.entity_id ? { ...en, icon_override: iconKey } : en
       ));
     }
-    setIconPickerOpen(false);
-    setIconFilter("");
   };
 
   const updateColorScheme = (entityId: string, value: "auto" | "light" | "dark") => {
@@ -835,7 +842,18 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 data-entity-id={e.entity_id}
               >
                 <div className="widget-thumb" style={{ width: 24, height: 24 }}>
-                  <WidgetIcon name={resolveEntityIcon(domain, e.icon_override || cached?.icon)} size={12} />
+                  <WidgetIcon
+                    name={(() => {
+                      // Render the row icon like the live card: per-entity
+                      // override as-is, otherwise the default icon translated
+                      // to the effective global set (mdi when no equivalent).
+                      const base = resolveEntityIcon(domain, e.icon_override || cached?.icon);
+                      return effectiveIconSet
+                        ? (translateToSet(base, effectiveIconSet) ?? base)
+                        : base;
+                    })()}
+                    size={12}
+                  />
                 </div>
                 <div className="entity-list-id">
                   {friendly && friendly !== e.entity_id && <span className="entity-list-name">{friendly}</span>}
@@ -928,80 +946,24 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             <div className="entity-setting-row">
               <label className="entity-setting-label">Display name</label>
               <div style={{ display: "flex", gap: 6, flex: 1, alignItems: "center", position: "relative" }}>
-                <div style={{ position: "relative" }}>
-                  <button
-                    className="icon-picker-btn"
-                    title={blockIcon ? `Icon: ${blockIcon}` : "Pick icon"}
-                    disabled={!canEdit}
-                    onClick={() => { setIconPickerOpen(v => !v); setIconFilter(""); }}
-                    type="button"
-                    aria-label="Pick block icon"
-                    aria-expanded={iconPickerOpen}
-                  >
-                    {blockIcon && WIDGET_ICONS[blockIcon] ? (
-                      <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" style={{ display: "block" }}>
-                        <path d={WIDGET_ICONS[blockIcon]} fill="currentColor" />
-                      </svg>
-                    ) : (
-                      <Icon name="tune" size={14} />
-                    )}
-                  </button>
-                  {iconPickerOpen && (
-                    <div className="icon-picker-popover" role="dialog" aria-label="Icon picker">
-                      <input
-                        className="input icon-picker-filter"
-                        type="text"
-                        placeholder="Filter icons..."
-                        value={iconFilter}
-                        onChange={ev => setIconFilter(ev.target.value)}
-                        autoFocus
-                      />
-                      {blockIcon && (
-                        <button
-                          className="icon-picker-clear"
-                          type="button"
-                          onClick={async () => {
-                            setIconPickerOpen(false);
-                            setIconFilter("");
-                            try {
-                              const updated = await api.tokens.update(token.token_id, { block_icon: null });
-                              setToken(updated);
-                            } catch (e) { setError(String(e)); }
-                          }}
-                        >
-                          <Icon name="close" size={11} /> Reset to default
-                        </button>
-                      )}
-                      <div className="icon-picker-grid" role="listbox" aria-label="Icons">
-                        {WIDGET_ICON_NAMES
-                          .filter(n => !iconFilter || n.replace("mdi:", "").includes(iconFilter.toLowerCase()))
-                          .map(iconKey => (
-                            <button
-                              key={iconKey}
-                              className={"icon-picker-tile" + (blockIcon === iconKey ? " selected" : "")}
-                              type="button"
-                              role="option"
-                              aria-selected={blockIcon === iconKey}
-                              title={iconKey}
-                              onClick={async () => {
-                                setIconPickerOpen(false);
-                                setIconFilter("");
-                                try {
-                                  const updated = await api.tokens.update(token.token_id, { block_icon: iconKey });
-                                  setToken(updated);
-                                } catch (e) { setError(String(e)); }
-                              }}
-                            >
-                              <svg viewBox="0 0 24 24" width={18} height={18} aria-hidden="true">
-                                <path d={WIDGET_ICONS[iconKey]} fill="currentColor" />
-                              </svg>
-                            </button>
-                          ))
-                        }
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <IconPicker
+                  value={blockIcon}
+                  disabled={!canEdit}
+                  ariaLabel="Pick block icon"
+                  defaultSetId={token.icon_set ?? selectedTheme?.icon_set ?? null}
+                  onPick={async (iconKey) => {
+                    try {
+                      const updated = await api.tokens.update(token.token_id, { block_icon: iconKey });
+                      setToken(updated);
+                    } catch (e) { setError(String(e)); }
+                  }}
+                  onClear={async () => {
+                    try {
+                      const updated = await api.tokens.update(token.token_id, { block_icon: null });
+                      setToken(updated);
+                    } catch (e) { setError(String(e)); }
+                  }}
+                />
                 <input
                   type="text"
                   className="input flex-1"
@@ -1218,6 +1180,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       entityAccess={selectedEntity}
                       theme={selectedTheme}
                       companions={selectedGroup?.companions ?? []}
+                      iconSet={token.icon_set ?? selectedTheme?.icon_set ?? null}
                     />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
@@ -1240,66 +1203,18 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             <div className="entity-setting-row">
               <label className="entity-setting-label">Display name</label>
               <div style={{ display: "flex", gap: 6, flex: 1, alignItems: "center", position: "relative" }}>
-                <div style={{ position: "relative" }}>
-                  <button
-                    className="icon-picker-btn"
-                    title={selectedEntity.icon_override ? `Icon: ${selectedEntity.icon_override}` : "Pick icon"}
-                    disabled={!canEdit}
-                    onClick={() => { setIconPickerOpen(v => !v); setIconFilter(""); }}
-                    type="button"
-                    aria-label="Pick icon"
-                    aria-expanded={iconPickerOpen}
-                  >
-                    {selectedEntity.icon_override && WIDGET_ICONS[selectedEntity.icon_override] ? (
-                      <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden="true" style={{ display: "block" }}>
-                        <path d={WIDGET_ICONS[selectedEntity.icon_override]} fill="currentColor" />
-                      </svg>
-                    ) : (
-                      <Icon name="tune" size={14} />
-                    )}
-                  </button>
-                  {iconPickerOpen && (
-                    <div className="icon-picker-popover" role="dialog" aria-label="Icon picker">
-                      <input
-                        className="input icon-picker-filter"
-                        type="text"
-                        placeholder="Filter icons..."
-                        value={iconFilter}
-                        onChange={ev => setIconFilter(ev.target.value)}
-                        autoFocus
-                      />
-                      {selectedEntity.icon_override && (
-                        <button
-                          className="icon-picker-clear"
-                          type="button"
-                          onClick={() => saveIconOverride(null)}
-                        >
-                          <Icon name="close" size={11} /> Reset to default
-                        </button>
-                      )}
-                      <div className="icon-picker-grid" role="listbox" aria-label="Icons">
-                        {WIDGET_ICON_NAMES
-                          .filter(n => !iconFilter || n.replace("mdi:", "").includes(iconFilter.toLowerCase()))
-                          .map(iconKey => (
-                            <button
-                              key={iconKey}
-                              className={"icon-picker-tile" + (selectedEntity.icon_override === iconKey ? " selected" : "")}
-                              type="button"
-                              role="option"
-                              aria-selected={selectedEntity.icon_override === iconKey}
-                              title={iconKey}
-                              onClick={() => saveIconOverride(iconKey)}
-                            >
-                              <svg viewBox="0 0 24 24" width={18} height={18} aria-hidden="true">
-                                <path d={WIDGET_ICONS[iconKey]} fill="currentColor" />
-                              </svg>
-                            </button>
-                          ))
-                        }
-                      </div>
-                    </div>
+                <IconPicker
+                  value={selectedEntity.icon_override}
+                  disabled={!canEdit}
+                  ariaLabel="Pick icon"
+                  onPick={(iconKey) => saveIconOverride(iconKey)}
+                  onClear={() => saveIconOverride(null)}
+                  defaultSetId={token.icon_set ?? selectedTheme?.icon_set ?? null}
+                  defaultIcon={resolveEntityIcon(
+                    selectedEntity.entity_id.split(".")[0],
+                    getEntityCache().find(c => c.entity_id === selectedEntity.entity_id)?.icon,
                   )}
-                </div>
+                />
                 <input
                   type="text"
                   className="input flex-1"

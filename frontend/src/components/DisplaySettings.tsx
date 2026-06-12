@@ -6,11 +6,12 @@
  * offline/error fallback strings.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Token } from "../types";
 import { api } from "../api";
-import { Card } from "./Shared";
+import { Card, themeUrlToId } from "./Shared";
 import { Toggle } from "./Toggle";
+import { IconSetSelect } from "./IconPicker";
 
 const LANG_OPTIONS = [
   { value: "auto", label: "Auto-detect" },
@@ -63,6 +64,20 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
   const [errorText, setErrorText] = useState(token.error_text);
   const [offlineTextErr, setOfflineTextErr] = useState<string | null>(null);
   const [errorTextErr, setErrorTextErr] = useState<string | null>(null);
+  // The assigned theme's own icon set: shown as the "(Theme default)"
+  // entry in the Icon set dropdown.
+  const [themeIconSet, setThemeIconSet] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.themes.list()
+      .then(themes => {
+        if (cancelled) return;
+        const t = themes.find(th => th.theme_id === themeUrlToId(token.theme_url ?? ""));
+        setThemeIconSet(t?.icon_set ?? null);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [token.theme_url]);
 
   const patchToken = async (data: Partial<Token>) => {
     setSaving(true);
@@ -74,6 +89,7 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
   };
 
   const saveLang = (val: string) => patchToken({ lang: val } as Partial<Token>);
+  const saveIconSet = (val: string | null) => patchToken({ icon_set: val } as Partial<Token>);
   const saveA11y = (val: string) => patchToken({ a11y: val } as Partial<Token>);
   const saveColorScheme = (val: string) => patchToken({ color_scheme: val } as Partial<Token>);
   const saveOnOffline = (val: string) => patchToken({ on_offline: val } as Partial<Token>);
@@ -117,6 +133,24 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="divider" />
+
+        {/* Icon set */}
+        <div className="display-settings-row">
+          <div>
+            <div className="display-settings-label">Icon set</div>
+            <div className="settings-field-hint">Render all entity icons in this set. The theme's own set is marked "(Theme default)" and is followed unless you pick another; icons without an equivalent stay Material Design. Per-entity icon picks always win.</div>
+          </div>
+          <IconSetSelect
+            value={token.icon_set}
+            onChange={val => canEdit && saveIconSet(val)}
+            disabled={!canEdit}
+            ariaLabel="Icon set"
+            themeDefaultSetId={themeIconSet}
+            className="input display-settings-select"
+          />
         </div>
 
         <div className="divider" />

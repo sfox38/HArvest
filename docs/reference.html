@@ -186,6 +186,7 @@
               <tr><td>Max session lifetime</td><td>minutes</td><td>1440</td><td>Maximum total duration via renewals.</td></tr>
               <tr><td>Theme</td><td>theme ID | null</td><td>null</td><td>Theme assigned to this token. Null = Default theme.</td></tr>
               <tr><td>Lang</td><td>BCP 47 | "auto"</td><td>"auto"</td><td>Widget language. "auto" follows browser language.</td></tr>
+              <tr><td>Icon set</td><td>set ID | null</td><td>null</td><td>Render all entity icons in this set ("fa", "tabler", "ph", or a Phosphor weight like "ph-duotone"). Null follows the theme's icon set, Material Design otherwise. Icons with no equivalent in the chosen set render in Material Design. Per-entity icon picks always win.</td></tr>
               <tr><td>A11y</td><td>"standard" | "enhanced"</td><td>"standard"</td><td>Accessibility mode.</td></tr>
               <tr><td>On offline</td><td>string</td><td>"last-state"</td><td>"dim", "hide", "message", or "last-state".</td></tr>
               <tr><td>On error</td><td>string</td><td>"message"</td><td>"dim", "hide", or "message".</td></tr>
@@ -204,7 +205,7 @@
             <thead><tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td>Display name</td><td>string | null</td><td>null</td><td>Overrides the entity's HA friendly name in the widget. Null = use HA name.</td></tr>
-              <tr><td>Icon</td><td>mdi:&lt;name&gt; | null</td><td>null</td><td>Overrides the auto-detected icon for all states. Null = use domain default.</td></tr>
+              <tr><td>Icon</td><td>mdi: | fa: | ph: | tabler:&lt;name&gt; | null</td><td>null</td><td>Overrides the auto-detected icon for all states. Accepts Material Design (mdi:), Font Awesome (fa:), Phosphor (ph:), and Tabler (tabler:) names, max 64 characters. Null = use domain default. Non-Material sets load on demand in the widget.</td></tr>
               <tr><td>Force color scheme</td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Forces the widget card into light or dark mode regardless of the visitor's OS setting.</td></tr>
               <tr><td>Capability</td><td>"badge" | "read" | "read-write"</td><td>"read-write"</td><td>"badge" renders a compact pill indicator with no controls, companions, or gestures. "read" is a full card, view only. "read-write" is a full card with control (service calls).</td></tr>
               <tr><td>Alias</td><td>string | null</td><td>null</td><td>8-character random alias. Generated in the wizard, or manually in the detail screen.</td></tr>

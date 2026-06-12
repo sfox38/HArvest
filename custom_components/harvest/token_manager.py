@@ -70,7 +70,8 @@ class EntityAccess:
                                             # None means this is a primary entity.
     gesture_config: dict = field(default_factory=dict)  # per-gesture action configs
     name_override: str | None = None        # custom display name; None means use HA friendly_name
-    icon_override: str | None = None        # custom MDI icon key; None means use auto-detected icon
+    icon_override: str | None = None        # custom icon key (mdi:/fa:/ph:/tabler:, see
+                                            # const.ICON_NAME_PREFIXES); None means auto-detected icon
     color_scheme: str = "auto"              # per-entity: "auto" | "light" | "dark"
     display_hints: dict = field(default_factory=dict)  # domain-specific display overrides
     service_data: dict = field(default_factory=dict)   # pre-configured service call data for script entities
@@ -160,6 +161,8 @@ class Token:
     lang: str = "auto"                     # BCP 47 language tag or "auto"
     a11y: str = "standard"                 # "standard" or "enhanced"
     color_scheme: str = "auto"             # "auto" | "light" | "dark"
+    icon_set: str | None = None            # global icon set ("fa", "ph-duotone", ...);
+                                           # None means follow the theme's icon_set (or MDI)
     custom_messages: bool = False           # when False, widget uses global defaults for error/offline
     on_offline: str = "last-state"         # "dim" | "hide" | "message" | "last-state"
     on_error: str = "message"              # "dim" | "hide" | "message"
@@ -287,6 +290,7 @@ class TokenManager:
         entities_block: bool = False,
         theme_url: str = "",
         renderer_pack: str = "",
+        icon_set: str | None = None,
     ) -> Token:
         """Create, persist, and return a new token.
 
@@ -326,6 +330,7 @@ class TokenManager:
             entities_block=entities_block,
             theme_url=theme_url,
             renderer_pack=renderer_pack,
+            icon_set=icon_set,
         )
         self._tokens[token.token_id] = token
         await self.save()
@@ -477,8 +482,8 @@ class TokenManager:
             "block_label", "block_icon", "block_show_label", "block_highlight_rows",
             "block_show_icons", "block_widget_border",
             "block_access_mode", "block_color_mode", "theme_url",
-            "renderer_pack", "lang", "a11y", "color_scheme", "custom_messages",
-            "on_offline", "on_error", "offline_text", "error_text",
+            "renderer_pack", "lang", "a11y", "color_scheme", "icon_set",
+            "custom_messages", "on_offline", "on_error", "offline_text", "error_text",
         }
         for field_name, value in updates.items():
             if field_name in _UPDATABLE_FIELDS:
@@ -924,6 +929,7 @@ class TokenManager:
             lang=d.get("lang", "auto"),
             a11y=d.get("a11y", "standard"),
             color_scheme=d.get("color_scheme", "auto"),
+            icon_set=d.get("icon_set"),
             custom_messages=d.get("custom_messages", False),
             on_offline=d.get("on_offline", "last-state"),
             on_error=d.get("on_error", "message"),

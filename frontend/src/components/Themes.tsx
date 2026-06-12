@@ -12,6 +12,7 @@ import { api } from "../api";
 import { Card, ConfirmDialog, Spinner, ErrorBanner, ThemeStrip, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { WidgetPreview, clearRendererCache } from "./WidgetPreview";
+import { ICON_SETS, IconSetSelect } from "./IconPicker";
 
 // ---------------------------------------------------------------------------
 // Theme URL mapping helpers
@@ -230,6 +231,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     }
     if (selectedTheme.renderer_settings?.length) {
       obj.renderer_settings = selectedTheme.renderer_settings;
+    }
+    if (selectedTheme.icon_set) {
+      obj.icon_set = selectedTheme.icon_set;
     }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
@@ -457,6 +461,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
           has_renderer: !!parsed.has_renderer,
           capabilities: parsed.capabilities ?? null,
           renderer_settings: parsed.renderer_settings ?? [],
+          icon_set: parsed.icon_set ?? null,
         });
         setDirty(false);
         setParsedVars(null);
@@ -492,6 +497,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
     if (selectedTheme.renderer_settings?.length) {
       obj.renderer_settings = selectedTheme.renderer_settings;
     }
+    if (selectedTheme.icon_set) {
+      obj.icon_set = selectedTheme.icon_set;
+    }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
       obj.dark_variables = selectedTheme.dark_variables;
@@ -525,6 +533,15 @@ export function Themes({ onSelectToken }: ThemesProps) {
     if (trimmed === selectedTheme.author) return;
     try {
       await api.themes.update(selectedTheme.theme_id, { author: trimmed });
+      await reload();
+    } catch (e) { setError(String(e)); }
+  };
+
+  const handleIconSetChange = async (setId: string | null) => {
+    if (!selectedTheme || selectedTheme.is_bundled) return;
+    if ((setId ?? null) === (selectedTheme.icon_set ?? null)) return;
+    try {
+      await api.themes.update(selectedTheme.theme_id, { icon_set: setId });
       await reload();
     } catch (e) { setError(String(e)); }
   };
@@ -735,6 +752,22 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 </>
               )}
 
+              {selectedTheme.is_bundled ? (
+                <div className="muted fs-12">
+                  Icons: {ICON_SETS.find(s => s.id === selectedTheme.icon_set)?.label ?? selectedTheme.icon_set ?? "Material Design"}
+                </div>
+              ) : (
+                <div className="row" style={{ gap: 6, alignItems: "center" }}>
+                  <span className="muted fs-12">Icons</span>
+                  <IconSetSelect
+                    value={selectedTheme.icon_set}
+                    onChange={handleIconSetChange}
+                    ariaLabel="Theme icon set"
+                    className="input fs-12"
+                  />
+                </div>
+              )}
+
               {selectedTheme.custom_fonts?.length > 0 && (
                 <div className="row" style={{ gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   <span className="badge badge-accent">Bundled Font</span>
@@ -772,7 +805,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
           {/* Preview card */}
           <Card title="Preview">
-            <WidgetPreview key={`preview-${selected}-${previewKey}`} variables={previewVars} darkVariables={previewDarkVars} rendererId={rendererId || undefined} />
+            <WidgetPreview key={`preview-${selected}-${previewKey}`} variables={previewVars} darkVariables={previewDarkVars} rendererId={rendererId || undefined} iconSet={selectedTheme?.icon_set ?? null} />
           </Card>
 
           {showCodeEditors && (

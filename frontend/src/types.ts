@@ -99,6 +99,8 @@ export interface Token {
   lang: string;
   a11y: "standard" | "enhanced";
   color_scheme: "auto" | "light" | "dark";
+  /** Global icon set ("fa", "ph-duotone", ...); null follows the theme's icon_set. */
+  icon_set: string | null;
   custom_messages: boolean;
   on_offline: "dim" | "hide" | "message" | "last-state";
   on_error: "dim" | "hide" | "message";
@@ -232,6 +234,8 @@ export interface ThemeDefinition {
   created_at: string;
   capabilities: ThemeCapabilities | null;
   renderer_settings: string[];
+  /** Theme-level icon set ("fa", "ph-thin", ...); null means MDI. */
+  icon_set: string | null;
 }
 
 // ---------------------------------------------------------------------------

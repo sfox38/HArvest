@@ -6,7 +6,7 @@
  * renderer-domain icons live in the widget bundle (see WidgetIcon).
  */
 
-import { WIDGET_ICONS } from "../widgetIcons";
+import { getIconEntry } from "../iconResolve";
 
 // MDI 24x24 path data for panel UI icons.
 const PATHS: Record<string, string> = {
@@ -174,20 +174,25 @@ export function Icon({ name, size = 18, className }: IconProps) {
   );
 }
 
-/** Render an icon from the widget MDI bundle by its "mdi:<name>" key. */
+/**
+ * Render an icon by its prefixed key: "mdi:<name>" from the widget bundle,
+ * or "fa:/ph:/tabler:<name>" from a loaded icon set. The body markup comes
+ * exclusively from the generated widget tables or the integration's
+ * build-generated icon-set assets, never from user input, so injecting it
+ * is safe.
+ */
 export function WidgetIcon({ name, size = 18, className }: IconProps) {
-  const path = WIDGET_ICONS[name] ?? WIDGET_ICONS["mdi:help-circle"];
+  const entry = getIconEntry(name) ?? getIconEntry("mdi:help-circle")!;
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox={entry.viewBox}
       width={size}
       height={size}
       aria-hidden="true"
       focusable="false"
       className={className}
       style={{ display: "block", flexShrink: 0 }}
-    >
-      <path d={path} fill="currentColor" />
-    </svg>
+      dangerouslySetInnerHTML={{ __html: entry.body }}
+    />
   );
 }

@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../api";
 import { Spinner, ErrorBanner, ConfirmDialog, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
+import { IconSetSelect } from "./IconPicker";
 import { Icon } from "./Icon";
 import { loadKnownOrigins, addKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 import type { ThemeDefinition } from "../types";
@@ -45,6 +46,7 @@ interface ConverterState {
   selectedViewIndices: Set<number>;
   capMode: CapMode;
   themeUrl: string;
+  iconSet: string | null;
   originMode: "specific" | "any";
   originUrl: string;
   createdTokenIds: string[];
@@ -275,6 +277,17 @@ function Step2Configure({
         />
       </div>
 
+      {/* Global icon set */}
+      <div className="col" style={{ gap: 4 }}>
+        <label className="label-strong">Icons</label>
+        <IconSetSelect
+          value={state.iconSet}
+          onChange={id => onChange({ iconSet: id })}
+          ariaLabel="Icon set"
+          themeDefaultSetId={themes.find(t => t.theme_id === themeUrlToId(state.themeUrl))?.icon_set ?? null}
+        />
+      </div>
+
       {/* Origin */}
       <div className="col gap-6">
         <div className="label-strong">Origin restriction</div>
@@ -398,6 +411,22 @@ function Step4Done({
   onClose: () => void;
 }) {
   const sizeKb = html ? (new Blob([html]).size / 1024).toFixed(1) : null;
+  const [downloaded, setDownloaded] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  // Shown once on arrival: the generated page only exists in this dialog.
+  const [showDownloadAlert, setShowDownloadAlert] = useState(!!html);
+
+  const handleDownloadClick = () => {
+    setDownloaded(true);
+    onDownload();
+  };
+  const handleCloseClick = () => {
+    if (html && !downloaded) {
+      setConfirmLeave(true);
+      return;
+    }
+    onClose();
+  };
 
   return (
     <div className="col gap-18">
@@ -422,16 +451,37 @@ function Step4Done({
         </div>
       )}
 
+      {showDownloadAlert && (
+        <ConfirmDialog
+          title="Download your page now"
+          message="The generated HTML is not stored anywhere and cannot be retrieved after this dialog closes; only the widgets themselves are saved."
+          confirmLabel="Download HTML"
+          onConfirm={() => { setShowDownloadAlert(false); handleDownloadClick(); }}
+          onCancel={() => setShowDownloadAlert(false)}
+        />
+      )}
+
       <div className="col gap-8" style={{ alignItems: "center" }}>
         {html && (
-          <button className="btn btn-primary" onClick={onDownload} style={{ minWidth: 200 }}>
+          <button className="btn btn-primary" onClick={handleDownloadClick} style={{ minWidth: 200 }}>
             <Icon name="download" size={14} /> Download HTML
           </button>
         )}
-        <button className="btn btn-ghost" onClick={onClose}>
+        <button className="btn btn-ghost" onClick={handleCloseClick}>
           {tokenCount > 0 ? "View created widgets" : "Close"}
         </button>
       </div>
+
+      {confirmLeave && (
+        <ConfirmDialog
+          title="Close without downloading?"
+          message="The generated HTML page is not stored and cannot be retrieved later. Your widgets are saved, but the page itself will be lost."
+          confirmLabel="Close anyway"
+          confirmDestructive
+          onConfirm={() => { setConfirmLeave(false); onClose(); }}
+          onCancel={() => setConfirmLeave(false)}
+        />
+      )}
     </div>
   );
 }
@@ -459,6 +509,7 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
     selectedViewIndices: new Set(),
     capMode: "smart",
     themeUrl: "",
+    iconSet: null,
     originMode: "any",
     originUrl: "",
     createdTokenIds: [],
@@ -580,6 +631,7 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
             embed_mode: "page",
             origins,
             theme_url: themeUrl,
+            icon_set: state.iconSet,
           };
 
           const token = await api.tokens.create(payload);

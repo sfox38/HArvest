@@ -212,8 +212,8 @@
             <thead><tr><th>Method</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td><em>(no helper)</em></td><td>The shared base CSS (card layout, companion zone, history graph, gesture, error/stale states) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>. Your renderer's <code>&lt;style&gt;</code> tag only emits renderer-specific CSS.</td></tr>
-              <tr><td><code>renderIcon(iconName, partName)</code></td><td>Inject an MDI SVG icon into the element with <code>part="&lt;partName&gt;"</code>. Caches internally and skips re-render if unchanged.</td></tr>
-              <tr><td><code>resolveIcon(name, fallback)</code></td><td>Returns <code>name</code> if the icon is in the bundled set, otherwise returns <code>fallback</code>.</td></tr>
+              <tr><td><code>renderIcon(iconName, partName)</code></td><td>Inject an SVG icon into the element with <code>part="&lt;partName&gt;"</code>. Accepts bundled MDI names plus any name from a registered icon set (<code>fa:</code>, <code>ph:</code>, <code>tabler:</code>). Caches internally and skips re-render if unchanged.</td></tr>
+              <tr><td><code>resolveIcon(name, fallback)</code></td><td>Returns <code>name</code> if the icon is in the bundled set or a registered icon set, otherwise returns <code>fallback</code>.</td></tr>
               <tr><td><code>isFocused(element)</code></td><td>Returns true if <code>element</code> has focus in the shadow root. Use in <code>applyState()</code> to avoid overwriting user input (e.g. while typing in a number input).</td></tr>
               <tr><td><code>isSliderActive(element)</code></td><td>Returns true while the user is actively dragging a range slider (pointer down or pending un-grace period after release). Use in <code>applyState()</code> to skip slider updates while the user is interacting.</td></tr>
               <tr><td><code>guardSlider(slider, debouncedSend)</code></td><td>One-call drag-protection wiring for a <code>&lt;input type="range"&gt;</code>. Adds pointer/keyboard handlers that mark the slider active and flush the debounced send on release. Pair with <code>isSliderActive()</code> in <code>applyState()</code>.</td></tr>
@@ -668,6 +668,17 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
           <span class="callout-label">Device class registrations</span>
           <p>Both renderer overrides and standalone registration support device-class-specific keys: <code>HArvest.registerRenderer("sensor.temperature", MyTempCard)</code>. This overrides the renderer only for sensors with <code>device_class: "temperature"</code>, leaving other sensors on their default renderer.</p>
         </div>
+
+        <h3 id="icon-sets">Icon sets</h3>
+        <p>Renderers are not limited to the bundled Material Design icons. HArvest ships curated subsets of Font Awesome solid (<code>fa:</code>), Phosphor (<code>ph:</code>, all six weights), and Tabler (<code>tabler:</code>) that load on demand, and your renderer can use those names anywhere it would use an <code>mdi:</code> name - <code>renderIcon("fa:bolt", "card-icon")</code> works once the set is loaded. Until then <code>resolveIcon()</code> falls back gracefully, so always pass a bundled MDI fallback.</p>
+        <p>Packs can also register their own icon set:</p>
+        <pre><code>HArvest.registerIconSet("mypack", {
+  icons: {
+    "mypack:dino": { body: '&lt;path d="..." fill="currentColor"/&gt;', viewBox: "0 0 24 24" },
+  },
+  aliases: {},
+});</code></pre>
+        <p>Entries are <code>{ body, viewBox }</code> where <code>body</code> is the icon's inner SVG markup (paths, strokes, multiple elements all work). Registration is last-write-wins with a console warning on collision, the same semantics as <code>registerRenderer()</code>. <code>HArvest.getIconSet(key)</code> returns a registered set.</p>
         </section>
 
         <!-- ============================================================ -->

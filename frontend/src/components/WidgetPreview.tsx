@@ -12,6 +12,7 @@ import { usePanelDark } from "../panelTheme";
 import { Toggle } from "./Toggle";
 import { EntityAutocomplete } from "./Shared";
 import { Icon } from "./Icon";
+import { iconSetAsset } from "./IconPicker";
 import buildVersion from "../buildVersion.json";
 
 // ---------------------------------------------------------------------------
@@ -199,6 +200,13 @@ declare global {
         options?: { capabilities?: string; features?: Record<string, boolean>; iconOverride?: string; nameOverride?: string; colorScheme?: string; displayHints?: Record<string, unknown>; gestureConfig?: Record<string, unknown> },
       ) => Record<string, unknown>;
       filterAttributes: (attributes: Record<string, unknown>) => Record<string, unknown>;
+      registerIconSet: (
+        key: string,
+        set: { icons: Record<string, { body: string; viewBox: string }>; aliases?: Record<string, string> },
+      ) => void;
+      getIconSet: (
+        key: string,
+      ) => { icons: Record<string, { body: string; viewBox: string }>; aliases: Record<string, string> } | undefined;
     };
   }
 }
@@ -256,6 +264,35 @@ export function clearRendererCache(rendererId: string): void {
   _loadedRenderers.delete(rendererId);
   _loadingRenderers.delete(rendererId);
   _rendererCacheBust.set(rendererId, String(Date.now()));
+}
+
+const _loadingIconSets = new Map<string, Promise<void>>();
+
+/**
+ * Load an icon-set asset (icon-sets/<setId>.js) once. Awaits the widget
+ * bundle first so window.HArvest.registerIconSet exists when the asset's
+ * IIFE runs. Release-busted (?v=) like the widget bundle itself: these are
+ * build-generated assets, not admin-edited packs.
+ */
+export function loadIconSetScript(setId: string): Promise<void> {
+  if (window.HArvest?.getIconSet?.(setId)) return Promise.resolve();
+  const existing = _loadingIconSets.get(setId);
+  if (existing) return existing;
+  const p = loadWidgetScript().then(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = `/harvest_assets/icon-sets/${encodeURIComponent(setId)}.js?v=${buildVersion.build}`;
+        script.onload = () => resolve();
+        script.onerror = () => {
+          _loadingIconSets.delete(setId);
+          reject(new Error(`Failed to load icon set ${setId}`));
+        };
+        document.head.appendChild(script);
+      }),
+  );
+  _loadingIconSets.set(setId, p);
+  return p;
 }
 
 export function resolveVars(
@@ -319,7 +356,7 @@ export function generateMockHistory(domain: string, graphType: GraphType, state:
 
 function RealWidget({ mock, themeObj, capability, features, graphType, rendererId, colorScheme }: {
   mock: MockEntity;
-  themeObj: { variables: Record<string, string>; dark_variables: Record<string, string> };
+  themeObj: { variables: Record<string, string>; dark_variables: Record<string, string>; icon_set?: string | null };
   capability: "read" | "read-write" | "badge";
   features: Record<string, boolean>;
   graphType: GraphType;
@@ -331,20 +368,25 @@ function RealWidget({ mock, themeObj, capability, features, graphType, rendererI
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
+  const iconSetPrefix = iconSetAsset(themeObj.icon_set);
   useEffect(() => {
     const load = async () => {
-      if (rendererId && !_loadedRenderers.has(rendererId)) {
+      // Gate readiness on the icon-set asset too, or the preview would be
+      // created before the set registers and keep showing mdi glyphs.
+      if ((rendererId && !_loadedRenderers.has(rendererId))
+          || (iconSetPrefix && !window.HArvest?.getIconSet?.(iconSetPrefix))) {
         setReady(false);
       }
       await loadWidgetScript();
       if (rendererId) await loadRendererScript(rendererId).catch(() => {});
+      if (iconSetPrefix) await loadIconSetScript(iconSetPrefix).catch(() => {});
       setReady(true);
     };
     load().catch(() => setLoadError(true));
-  }, [rendererId]);
+  }, [rendererId, iconSetPrefix]);
 
   const featKey = Object.entries(features).filter(([, v]) => v).map(([k]) => k).sort().join(",");
-  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${rendererId ?? ""}:${colorScheme ?? "auto"}`;
+  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${rendererId ?? ""}:${colorScheme ?? "auto"}:${themeObj.icon_set ?? ""}`;
 
   useEffect(() => {
     if (!ready || !containerRef.current || !window.HArvest) return;
@@ -417,6 +459,8 @@ interface WidgetPreviewProps {
   variables: Record<string, string>;
   darkVariables?: Record<string, string>;
   rendererId?: string;
+  /** Theme-level icon set; previews render mdi icons through it like the live card. */
+  iconSet?: string | null;
 }
 
 const _ls = {
@@ -425,7 +469,7 @@ const _ls = {
   del: (k: string) => { try { localStorage.removeItem(k); } catch { /* */ } },
 };
 
-export function WidgetPreview({ variables, darkVariables, rendererId }: WidgetPreviewProps) {
+export function WidgetPreview({ variables, darkVariables, rendererId, iconSet }: WidgetPreviewProps) {
   const _initRenderer = _ls.get("hrv_preview_renderer") ?? "light";
   const _initEntity   = _ls.get("hrv_preview_entity") ?? "";
 
@@ -530,7 +574,7 @@ export function WidgetPreview({ variables, darkVariables, rendererId }: WidgetPr
   const domainFeatures = DOMAIN_FEATURES[effectiveDomain] ?? [];
   const graphOptions = GRAPH_DOMAINS[effectiveDomain];
 
-  const themeObj = { variables, dark_variables: darkVariables ?? {} };
+  const themeObj = { variables, dark_variables: darkVariables ?? {}, icon_set: iconSet ?? null };
 
   return (
     <div className="col" style={{ gap: 12 }}>

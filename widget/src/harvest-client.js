@@ -13,6 +13,7 @@
 
 import { getClientInfo } from "./client-info.js";
 import { getPageConfig } from "./page-config.js";
+import { ensureIconSet, KNOWN_ICON_SETS } from "./icon-set-loader.js";
 
 // Reconnect delay sequence in milliseconds.
 const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
@@ -135,6 +136,7 @@ export class HarvestClient {
 
   /** @type {string|null} */ #activeRenderer = null;
   /** @type {Promise<void>|null} */ #rendererLoadPromise = null;
+  /** @type {Set<string>} */ #iconSetsRequested = new Set();
 
   // Buffered messages for entities not yet registered (companion race condition).
   /** @type {Map<string, object>} */ #pendingDefinitions = new Map();
@@ -767,12 +769,62 @@ export class HarvestClient {
     } catch {
       // Cache is best-effort; never block dispatch.
     }
+    // Definition dispatch is NOT deferred on icon-set loading (unlike the
+    // renderer defer above): the card paints immediately with the MDI or
+    // domain fallback icon and upgrades when the set registers.
+    this.#maybeLoadIconSets(msg);
     const card = this.#cards.get(entityId);
     if (card) {
       card.receiveDefinition?.(msg);
     } else {
       this.#pendingDefinitions.set(entityId, msg);
     }
+  }
+
+  /**
+   * Lazy-load icon-set assets for any non-mdi icon prefix referenced by an
+   * entity definition. Fires once per prefix per client; when the set
+   * registers, every card force-rebuilds so cached fallback icons swap to
+   * the set glyphs.
+   */
+  #maybeLoadIconSets(msg) {
+    const names = [msg.icon, ...Object.values(msg.icon_state_map ?? {})];
+    for (const name of names) {
+      if (typeof name !== "string") continue;
+      const sep = name.indexOf(":");
+      if (sep <= 0) continue;
+      this.#requestIconSet(name.slice(0, sep));
+    }
+  }
+
+  /**
+   * Request a known icon-set asset once per client; force-rebuild all cards
+   * when it registers. No-ops for mdi, unknown prefixes, and repeats.
+   */
+  #requestIconSet(prefix) {
+    if (!prefix || prefix === "mdi" || !KNOWN_ICON_SETS[prefix]) return;
+    if (this.#iconSetsRequested.has(prefix)) return;
+    this.#iconSetsRequested.add(prefix);
+    ensureIconSet(prefix, this.#haUrl).then((loaded) => {
+      if (!loaded) return;
+      for (const card of this.#cards.values()) {
+        card._reRender?.(true);
+      }
+    });
+  }
+
+  /**
+   * Request the asset backing an icon-set id from the token/theme cascade.
+   * Ids are "<prefix>" or "<prefix>-<weight>" ("ph-duotone" loads "ph").
+   */
+  #requestIconSetById(setId) {
+    if (!setId || typeof setId !== "string") return;
+    let prefix = setId;
+    if (!KNOWN_ICON_SETS[prefix]) {
+      const sep = setId.indexOf("-");
+      if (sep > 0) prefix = setId.slice(0, sep);
+    }
+    this.#requestIconSet(prefix);
   }
 
   #handleStateUpdate(msg) {
@@ -921,10 +973,16 @@ export class HarvestClient {
 
   #handleTheme(msg) {
     if (!("variables" in msg)) return;
-    const isEmpty = !msg.variables || Object.keys(msg.variables).length === 0;
+    const isEmpty = (!msg.variables || Object.keys(msg.variables).length === 0)
+      && !msg.icon_set;
     let theme = null;
     if (!isEmpty) {
-      theme = { variables: msg.variables, dark_variables: msg.dark_variables ?? {} };
+      theme = {
+        variables: msg.variables ?? {},
+        dark_variables: msg.dark_variables ?? {},
+        icon_set: msg.icon_set ?? null,
+      };
+      this.#requestIconSetById(theme.icon_set);
       // Forward custom font faces so ThemeLoader can inject @font-face rules.
       // The server sends root-relative URLs (/api/harvest/themes/.../fonts/...);
       // absolutize them against the HA origin so the embedding page's own
@@ -959,11 +1017,13 @@ export class HarvestClient {
       lang: msg.lang ?? "auto",
       a11y: msg.a11y ?? "standard",
       colorScheme: msg.color_scheme ?? "auto",
+      iconSet: msg.icon_set ?? null,
       onOffline: msg.on_offline ?? "last-state",
       onError: msg.on_error ?? "message",
       offlineText: msg.offline_text ?? "",
       errorText: msg.error_text ?? "",
     };
+    this.#requestIconSetById(config.iconSet);
     for (const card of this.#cards.values()) {
       card.receiveTokenConfig?.(config);
     }

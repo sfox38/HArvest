@@ -22,7 +22,7 @@ from homeassistant.core import HomeAssistant
 
 from ._utils import close_ws_with_auth_failed as _close_ws_with_auth_failed, get_entry_data
 from .activity_store import ActivityStore, TokenLifecycleEvent
-from .const import ALIAS_LENGTH, BASE62_ALPHABET
+from .const import ALIAS_LENGTH, BASE62_ALPHABET, ICON_NAME_PREFIXES
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .entity_definition import (
@@ -360,8 +360,11 @@ def _parse_entities(
         icon_override = e.get("icon_override") or None
         if icon_override is not None:
             icon_override = str(icon_override).strip()
-            if not icon_override.startswith("mdi:") or len(icon_override) > 64:
-                raise ValueError(f"icon_override for {entity_id} must be a valid mdi:<name> key.")
+            if not icon_override.startswith(ICON_NAME_PREFIXES) or len(icon_override) > 64:
+                prefixes = ", ".join(p + "<name>" for p in ICON_NAME_PREFIXES)
+                raise ValueError(
+                    f"icon_override for {entity_id} must be a valid icon key ({prefixes})."
+                )
 
         color_scheme = str(e.get("color_scheme", "auto"))
         if color_scheme not in ("auto", "light", "dark"):
@@ -451,6 +454,37 @@ def _introduces_or_changes_gestures(
     )
 
 
+# EntityAccess fields that only affect how a card LOOKS, never what data or
+# control a session has access to. Changes limited to these fields must not
+# terminate live sessions; the entity_definition push updates them in place.
+_DISPLAY_ONLY_EA_FIELDS = frozenset(
+    {"name_override", "icon_override", "color_scheme", "display_hints"}
+)
+
+
+def _entities_change_is_display_only(
+    old_map: dict[str, EntityAccess],
+    new_entities: list[EntityAccess],
+) -> bool:
+    """Return True when an entities update changes only display fields.
+
+    Access-relevant on any of: entity added or removed, or a change to any
+    field outside _DISPLAY_ONLY_EA_FIELDS (capabilities, exclude_attributes,
+    companion_of, alias, gesture_config, service_data).
+    """
+    new_map = {ea.entity_id: ea for ea in new_entities}
+    if set(old_map) != set(new_map):
+        return False
+    for entity_id, new_ea in new_map.items():
+        old_ea = old_map[entity_id]
+        for f in dataclasses.fields(new_ea):
+            if f.name in _DISPLAY_ONLY_EA_FIELDS:
+                continue
+            if getattr(old_ea, f.name) != getattr(new_ea, f.name):
+                return False
+    return True
+
+
 _LABEL_ILLEGAL = re.compile(r"[\x00-\x1f<>\"&]")
 
 
@@ -510,6 +544,20 @@ def _validate_max_sessions(raw: Any) -> int | None:
     if not isinstance(raw, int) or isinstance(raw, bool) or raw < 1:
         raise ValueError("max_sessions must be a positive integer or null.")
     return raw
+
+
+def _validate_icon_set(raw: Any) -> str | None:
+    """Validate an icon-set id ("fa", "ph-duotone", ...), or None for default.
+
+    Deliberately lenient (slug shape, not a fixed list) so future icon sets
+    need no server change; the widget falls back to MDI for unknown ids.
+    """
+    if raw is None or raw == "":
+        return None
+    val = str(raw).strip().lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,23}", val):
+        raise ValueError("icon_set must be a short lowercase slug or null.")
+    return val
 
 
 def _parse_allowed_ips(raw: Any) -> list[str]:
@@ -750,6 +798,7 @@ class HarvestTokensView(_HarvestView):
                 entities_block=entities_block,
                 theme_url=theme_url,
                 renderer_pack=renderer_pack,
+                icon_set=_validate_icon_set(body.get("icon_set")),
             )
         except ValueError as exc:
             raise web.HTTPBadRequest(reason=str(exc))
@@ -1042,6 +1091,7 @@ class HarvestTokenDetailView(_HarvestView):
             "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
             "a11y": token.a11y if token.a11y != "standard" else gcfg.get("default_a11y", "standard"),
             "color_scheme": token.color_scheme,
+            "icon_set": token.icon_set,
             "on_offline": token.on_offline if use_custom else gcfg.get("default_on_offline", "last-state"),
             "on_error": token.on_error if use_custom else gcfg.get("default_on_error", "message"),
             "offline_text": token.offline_text if use_custom else gcfg.get("default_offline_text", ""),
@@ -1202,6 +1252,11 @@ class HarvestTokenDetailView(_HarvestView):
             if val not in ("auto", "light", "dark"):
                 raise web.HTTPBadRequest(reason="color_scheme must be auto, light, or dark.")
             updates["color_scheme"] = val
+        if "icon_set" in body:
+            try:
+                updates["icon_set"] = _validate_icon_set(body["icon_set"])
+            except ValueError as exc:
+                raise web.HTTPBadRequest(reason=str(exc))
         if "on_offline" in body:
             val = str(body["on_offline"])
             if val not in _VALID_ON_OFFLINE:
@@ -1256,7 +1311,18 @@ class HarvestTokenDetailView(_HarvestView):
             "paused", "active_schedule", "allowed_ips", "token_secret", "origins",
             "entities", "expires", "rate_limits",
         }
-        if security_fields & updates.keys():
+        changed_security = security_fields & updates.keys()
+        # An entities update only terminates sessions when it is access-relevant
+        # (entities added/removed, capabilities, companions, aliases, excluded
+        # attributes, gestures, service data). Display-only edits (icon, name,
+        # color scheme, display hints) keep sessions alive and flow through the
+        # entity_definition push below instead of forcing every connected
+        # widget to reconnect.
+        if changed_security == {"entities"} and _entities_change_is_display_only(
+            old_ea_map, token.entities
+        ):
+            changed_security = set()
+        if changed_security:
             ws_list = self._session_manager.terminate_all_for_token(token_id)
             for ws in ws_list:
                 if not ws.closed:
@@ -1287,7 +1353,7 @@ class HarvestTokenDetailView(_HarvestView):
             await self._push_theme_to_sessions(token_id)
             await self._push_renderer_to_sessions(token_id)
 
-        _TOKEN_CONFIG_FIELDS = {"lang", "a11y", "color_scheme", "custom_messages", "on_offline", "on_error", "offline_text", "error_text"}
+        _TOKEN_CONFIG_FIELDS = {"lang", "a11y", "color_scheme", "icon_set", "custom_messages", "on_offline", "on_error", "offline_text", "error_text"}
         if _TOKEN_CONFIG_FIELDS & updates.keys():
             await self._push_token_config_to_sessions(token_id)
 
@@ -1681,6 +1747,10 @@ class HarvestThemesView(_HarvestView):
         capabilities = raw_cap if isinstance(raw_cap, dict) else None
         raw_ps = body.get("renderer_settings")
         renderer_settings = list(raw_ps) if isinstance(raw_ps, list) else None
+        try:
+            icon_set = _validate_icon_set(body.get("icon_set"))
+        except ValueError as exc:
+            raise web.HTTPBadRequest(reason=str(exc))
         theme = await self._theme_manager.create(
             name=name,
             variables=variables,
@@ -1692,6 +1762,7 @@ class HarvestThemesView(_HarvestView):
             capabilities=capabilities,
             renderer_settings=renderer_settings,
             description=str(body.get("description", "")),
+            icon_set=icon_set,
         )
         d = theme_to_api_dict(theme)
         d["has_renderer"] = False
@@ -1856,6 +1927,11 @@ class HarvestThemeImportView(_HarvestView):
                     entry["style"] = str(face["style"])
                 custom_fonts.append(entry)
 
+        try:
+            imported_icon_set = _validate_icon_set(raw.get("icon_set"))
+        except ValueError:
+            imported_icon_set = None  # malformed icon_set in a zip is non-fatal
+
         if overwrite and existing_theme is not None:
             theme = await self._theme_manager.update(existing_theme.theme_id, {
                 "author": str(raw.get("author", "")),
@@ -1867,6 +1943,7 @@ class HarvestThemeImportView(_HarvestView):
                 "renderer_settings": renderer_settings or [],
                 "description": str(raw.get("description", "")),
                 "custom_fonts": custom_fonts,
+                "icon_set": imported_icon_set,
             })
             status_code = 200
         else:
@@ -1882,6 +1959,7 @@ class HarvestThemeImportView(_HarvestView):
                 renderer_settings=renderer_settings,
                 description=str(raw.get("description", "")),
                 custom_fonts=custom_fonts,
+                icon_set=imported_icon_set,
             )
             status_code = 201
 
@@ -2064,6 +2142,7 @@ class HarvestThemeDetailView(_HarvestView):
             "type": "theme",
             "variables": theme.variables,
             "dark_variables": theme.dark_variables,
+            "icon_set": theme.icon_set,
         }
         if theme.custom_fonts:
             msg["custom_fonts"] = [
@@ -2147,6 +2226,11 @@ class HarvestThemeDetailView(_HarvestView):
             updates["renderer_settings"] = list(raw_ps) if isinstance(raw_ps, list) else []
         if "description" in body:
             updates["description"] = str(body["description"])
+        if "icon_set" in body:
+            try:
+                updates["icon_set"] = _validate_icon_set(body["icon_set"])
+            except ValueError as exc:
+                raise web.HTTPBadRequest(reason=str(exc))
 
         try:
             theme = await self._theme_manager.update(theme_id, updates)
@@ -2155,7 +2239,7 @@ class HarvestThemeDetailView(_HarvestView):
         except KeyError:
             raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
 
-        if "variables" in updates or "dark_variables" in updates:
+        if "variables" in updates or "dark_variables" in updates or "icon_set" in updates:
             await self._push_theme_to_tokens(theme_id, theme)
 
         _cf_urls = _build_custom_font_urls(theme_id, theme)

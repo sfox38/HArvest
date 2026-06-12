@@ -14,9 +14,10 @@ import { usePanelDark } from "../panelTheme";
 import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
 import { Icon, WidgetIcon } from "./Icon";
 import { Toggle } from "./Toggle";
-import { loadWidgetScript, loadRendererScript } from "./WidgetPreview";
+import { loadWidgetScript, loadRendererScript, loadIconSetScript } from "./WidgetPreview";
 import { getEntityCache, loadEntityCache, useEntityCache } from "../entityCache";
-import { resolveEntityIcon } from "../widgetIcons";
+import { resolveEntityIcon } from "../iconResolve";
+import { IconSetSelect, iconSetAsset } from "./IconPicker";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 import { READ_ONLY_DOMAINS } from "../lovelaceParser";
 
@@ -63,6 +64,7 @@ interface WizardState {
   expiryOption: "never" | "30d" | "90d" | "1y" | "custom";
   expiryCustomDate: string;
   themeUrl: string;
+  iconSet: string | null;
   useHmac: boolean;
   tokenSecret: string | null;
   generatedToken: Token | null;
@@ -262,7 +264,10 @@ function CompanionPicker({ companions, excludeIds, parentCapability, onChange, c
       alias = result.alias;
     } catch { /* alias stays null */ }
     finally { setLoadingAlias(null); }
-    onChange([...companions, { entity_id: entityId, alias, read_only: true }]);
+    // Controllable domains default to Control when the parent allows it;
+    // everything else (and view-only parents) defaults to read-only.
+    const readOnly = parentCapability !== "read-write" || !isInteractiveDomain(entityId);
+    onChange([...companions, { entity_id: entityId, alias, read_only: readOnly }]);
   };
 
   const removeCompanion = (entityId: string) => {
@@ -348,11 +353,13 @@ const _MOCK_WEATHER_FORECAST_HOURLY = [
 // WizardEntityPreview - live preview of a real entity
 // ---------------------------------------------------------------------------
 
-function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
+function WizardEntityPreview({ entityId, capability, theme, companions = [], iconSet = null }: {
   entityId: string;
   capability: "badge" | "read" | "read-write";
   theme: ThemeDefinition | null;
   companions?: { entity_id: string; alias: string | null; read_only?: boolean }[];
+  /** Effective global icon set (wizard selection ?? theme icon_set). */
+  iconSet?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement | null>(null);
@@ -363,12 +370,17 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
   const rendererId = theme?.has_renderer ? theme.theme_id : undefined;
   const haDark = usePanelDark();
 
+  const iconSetPrefix = iconSetAsset(iconSet);
   useEffect(() => {
+    // Gate readiness on the icon-set asset too, or the preview would be
+    // created before the set registers and keep showing mdi glyphs.
+    if (iconSetPrefix && !window.HArvest?.getIconSet?.(iconSetPrefix)) setReady(false);
     loadWidgetScript()
       .then(() => rendererId ? loadRendererScript(rendererId) : Promise.resolve())
+      .then(() => iconSetPrefix ? loadIconSetScript(iconSetPrefix).catch(() => {}) : undefined)
       .then(() => setReady(true))
       .catch(() => setLoadError(true));
-  }, [rendererId]);
+  }, [rendererId, iconSetPrefix]);
 
   const companionIds = companions.map(c => c.entity_id);
   const defKey = `${entityId}:${capability}:${companionIds.join(",")}`;
@@ -385,12 +397,13 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
     return () => { cancelled = true; };
   }, [defKey]);
 
-  const themeObj = useMemo(() => {
-    if (!theme) return { variables: {}, dark_variables: {} };
-    return { variables: theme.variables ?? {}, dark_variables: theme.dark_variables ?? {} };
-  }, [theme?.theme_id]);
+  const themeObj = useMemo(() => ({
+    variables: theme?.variables ?? {},
+    dark_variables: theme?.dark_variables ?? {},
+    icon_set: iconSet,
+  }), [theme?.theme_id, iconSet]);
 
-  const cardKey = `${entityId}:${capability}:${companionIds.join(",")}:${theme?.theme_id ?? ""}:${haDark ? "dark" : "light"}`;
+  const cardKey = `${entityId}:${capability}:${companionIds.join(",")}:${theme?.theme_id ?? ""}:${iconSet ?? ""}:${haDark ? "dark" : "light"}`;
   const defMatchesEntity = serverDef?.definition?.entity_id === entityId;
   const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
 
@@ -844,6 +857,19 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
         </div>
       )}
 
+      {/* Global icon set */}
+      {state.entities.length > 0 && (
+        <div className="col" style={{ gap: 4 }}>
+          <label className="label-strong">Icons</label>
+          <IconSetSelect
+            value={state.iconSet}
+            onChange={id => onChange({ iconSet: id })}
+            ariaLabel="Icon set"
+            themeDefaultSetId={selectedTheme?.icon_set ?? null}
+          />
+        </div>
+      )}
+
       {/* Live entity preview */}
       {activePreviewId && !state.entitiesBlock && (
         <div className="col gap-8" role="region" aria-label="Entity preview" aria-live="polite">
@@ -863,6 +889,7 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
                 capability={state.capability}
                 theme={selectedTheme}
                 companions={state.entities.find(e => e.entity_id === activePreviewId)?.companions}
+                iconSet={state.iconSet ?? selectedTheme?.icon_set ?? null}
               />
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
@@ -1317,6 +1344,7 @@ function freshState(): WizardState {
     expiryOption: (mem.expiryOption as WizardState["expiryOption"]) ?? "never",
     expiryCustomDate: "",
     themeUrl: mem.themeUrl ?? "",
+    iconSet: null,
     useHmac: false,
     tokenSecret: null,
     generatedToken: null,
@@ -1445,6 +1473,7 @@ export function Wizard({ onClose }: WizardProps) {
           embed_mode: wState.mode,
           entities_block: wState.entitiesBlock,
           theme_url: wState.themeUrl,
+          icon_set: wState.iconSet,
         });
         patchState({ generatedToken: token });
         setStep(4);

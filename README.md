@@ -49,3 +49,14 @@ The HArvest wizard generates the exact snippet you need.
 ## Documentation
 
 Full documentation: **[sfox38.github.io/HArvest](https://sfox38.github.io/HArvest)**
+
+## Licenses
+
+HArvest is MIT licensed. Bundled icon data carries its own licenses:
+
+- Material Design Icons (`mdi:`) - Apache 2.0, bundled in the widget
+- Font Awesome Free solid (`fa:`) - icons CC BY 4.0 (attribution preserved in the generated `icon-sets/fa.js` header)
+- Phosphor (`ph:`) - MIT
+- Tabler (`tabler:`) - MIT
+
+The Font Awesome, Phosphor, and Tabler subsets are packaged from [Iconify](https://iconify.design) (MIT) icon data.

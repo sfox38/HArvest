@@ -388,7 +388,7 @@ export const api = {
     create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; description?: string; has_renderer?: boolean; capabilities?: unknown; renderer_settings?: string[] }): Promise<ThemeDefinition> =>
       _post<ThemeDefinition>("/themes", data),
 
-    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; description: string; variables: Record<string, string>; dark_variables: Record<string, string>; has_renderer: boolean; capabilities: unknown; renderer_settings: string[] }>): Promise<ThemeDefinition> =>
+    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; description: string; variables: Record<string, string>; dark_variables: Record<string, string>; has_renderer: boolean; capabilities: unknown; renderer_settings: string[]; icon_set: string | null }>): Promise<ThemeDefinition> =>
       _patch<ThemeDefinition>(`/themes/${themeId}`, data),
 
     delete: (themeId: string): Promise<void> =>

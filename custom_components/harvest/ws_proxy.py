@@ -634,6 +634,7 @@ class HarvestWsView(HomeAssistantView):
             "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
             "a11y": token.a11y if token.a11y != "standard" else gcfg.get("default_a11y", "standard"),
             "color_scheme": token.color_scheme,
+            "icon_set": token.icon_set,
             "on_offline": token.on_offline if use_custom else gcfg.get("default_on_offline", "last-state"),
             "on_error": token.on_error if use_custom else gcfg.get("default_on_error", "message"),
             "offline_text": token.offline_text if use_custom else gcfg.get("default_offline_text", ""),
@@ -650,6 +651,7 @@ class HarvestWsView(HomeAssistantView):
                     "type": "theme",
                     "variables": theme_def.variables,
                     "dark_variables": theme_def.dark_variables,
+                    "icon_set": theme_def.icon_set,
                 }
                 if theme_def.custom_fonts:
                     theme_msg["custom_fonts"] = [

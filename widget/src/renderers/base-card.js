@@ -25,7 +25,7 @@
  * tags. See _getSharedSheet() below.
  */
 
-import { renderIconSVG, resolveIcon as _resolveIcon, MDI_ICONS } from "../icons.js";
+import { renderIconSVG, resolveIcon as _resolveIcon, iconNameForSet, iconSetIdOf, MDI_ICONS } from "../icons.js";
 import { getErrorStateStyles } from "../error-states.js";
 
 const HOLD_MS = 500;
@@ -597,6 +597,10 @@ export class BaseCard {
    * @param {string} partName  - value of the part="" attribute on the container
    */
   renderIcon(iconName, partName) {
+    // Translate mdi: names to the active icon set (token/theme icon_set
+    // cascade) before caching, so a forced re-render after a set loads
+    // swaps the glyph even when the renderer passes the same mdi name.
+    iconName = iconNameForSet(iconName, this.config?.iconSet);
     if (this.#iconCache.get(partName) === iconName) return;
     this.#iconCache.set(partName, iconName);
     const container = this.root.querySelector(`[part=${partName}]`);
@@ -626,7 +630,22 @@ export class BaseCard {
    * @returns {string}
    */
   resolveIcon(name, fallback) {
-    return _resolveIcon(name, fallback);
+    return _resolveIcon(iconNameForSet(name, this.config?.iconSet), fallback);
+  }
+
+  /**
+   * Resolve a companion icon. Companions inherit their parent card's icon
+   * set: when the primary icon is a per-entity set pick (e.g.
+   * "ph:lightbulb-fill"), companion icons translate into that same set;
+   * otherwise the token/theme icon_set cascade applies as usual.
+   *
+   * @param {string} name
+   * @param {string} fallback
+   * @returns {string}
+   */
+  resolveCompanionIcon(name, fallback) {
+    const setId = iconSetIdOf(this.def?.icon) ?? this.config?.iconSet;
+    return _resolveIcon(iconNameForSet(name, setId), fallback);
   }
 
   /**
@@ -772,7 +791,7 @@ export class BaseCard {
       const iconWrap = pill.querySelector("[part=companion-icon]");
       if (iconWrap) {
         const domainFallback = _DOMAIN_FALLBACK[def.domain] ?? "mdi:circle-small";
-        iconWrap.innerHTML = renderIconSVG(_resolveIcon(def.icon, domainFallback), "companion-icon-svg");
+        iconWrap.innerHTML = renderIconSVG(this.resolveCompanionIcon(def.icon, domainFallback), "companion-icon-svg");
       }
     }
     if (def.friendly_name) {
@@ -816,7 +835,7 @@ export class BaseCard {
     const iconWrap = document.createElement("span");
     iconWrap.setAttribute("part", "companion-icon");
     const domainFallback = _DOMAIN_FALLBACK[def.domain] ?? "mdi:circle-small";
-    const icon = def.icon ? _resolveIcon(def.icon, domainFallback) : "mdi:help-circle";
+    const icon = def.icon ? this.resolveCompanionIcon(def.icon, domainFallback) : "mdi:help-circle";
     iconWrap.innerHTML = renderIconSVG(icon, "companion-icon-svg");
 
     const stateEl = document.createElement("span");
@@ -878,7 +897,7 @@ export class BaseCard {
         if (iconWrap) {
           const domain = pill.dataset.domain ?? "";
           const domainFallback = _DOMAIN_FALLBACK[domain] ?? "mdi:circle-small";
-          iconWrap.innerHTML = renderIconSVG(_resolveIcon(iconName, domainFallback), "companion-icon-svg");
+          iconWrap.innerHTML = renderIconSVG(this.resolveCompanionIcon(iconName, domainFallback), "companion-icon-svg");
         }
       }
     }

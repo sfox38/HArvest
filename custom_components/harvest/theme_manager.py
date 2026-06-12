@@ -48,6 +48,7 @@ class ThemeDefinition:
     renderer_settings: list[str] = dataclasses.field(default_factory=list)
     description: str = ""
     custom_fonts: list[dict] = dataclasses.field(default_factory=list)
+    icon_set: str | None = None  # icon-set id ("fa", "ph-duotone", ...); None means MDI
 
 
 class ThemeManager:
@@ -86,6 +87,7 @@ class ThemeManager:
                     capabilities=raw.get("capabilities") or None,
                     renderer_settings=list(raw.get("renderer_settings", raw.get("pack_settings") or []) or []),
                     description=raw.get("description", ""),
+                    icon_set=(str(raw["icon_set"]).strip() or None) if raw.get("icon_set") else None,
                     created_by="system",
                     created_at="",
                     is_bundled=True,
@@ -172,6 +174,7 @@ class ThemeManager:
         renderer_settings: list[str] | None = None,
         description: str = "",
         custom_fonts: list[dict] | None = None,
+        icon_set: str | None = None,
     ) -> ThemeDefinition:
         """Create and persist a new user theme."""
         theme = ThemeDefinition(
@@ -187,6 +190,7 @@ class ThemeManager:
             renderer_settings=list(renderer_settings or []),
             description=description,
             custom_fonts=list(custom_fonts or []),
+            icon_set=icon_set,
             created_by=created_by,
             created_at=datetime.now(tz=timezone.utc).isoformat(),
             is_bundled=False,
@@ -203,7 +207,7 @@ class ThemeManager:
         if theme is None:
             raise KeyError(f"Theme not found: {theme_id}")
 
-        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer", "capabilities", "renderer_settings", "description", "custom_fonts"}
+        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer", "capabilities", "renderer_settings", "description", "custom_fonts", "icon_set"}
         for field, value in updates.items():
             if field in _UPDATABLE:
                 setattr(theme, field, value)
@@ -363,6 +367,8 @@ def _theme_to_dict(theme: ThemeDefinition) -> dict:
         d["renderer_settings"] = theme.renderer_settings
     if theme.custom_fonts:
         d["custom_fonts"] = theme.custom_fonts
+    if theme.icon_set:
+        d["icon_set"] = theme.icon_set
     return d
 
 
@@ -381,6 +387,7 @@ def _theme_from_dict(d: dict) -> ThemeDefinition:
         renderer_settings=list(d.get("renderer_settings", d.get("pack_settings") or []) or []),
         description=d.get("description", ""),
         custom_fonts=list(d.get("custom_fonts") or []),
+        icon_set=(str(d["icon_set"]).strip() or None) if d.get("icon_set") else None,
         created_by=d.get("created_by", ""),
         created_at=d.get("created_at", ""),
         is_bundled=False,
@@ -400,6 +407,7 @@ def theme_to_api_dict(
     d["capabilities"] = theme.capabilities
     d["renderer_settings"] = theme.renderer_settings
     d["custom_fonts"] = custom_font_urls or []
+    d["icon_set"] = theme.icon_set
     return d
 
 

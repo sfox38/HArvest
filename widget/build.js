@@ -74,6 +74,26 @@ const WIDGET_COPIES = [
 // Post-build copy destinations for renderer files.
 const RENDERER_COPIES = [];
 
+// ---------------------------------------------------------------------------
+// Icon sets
+//
+// Each entry builds dist/icon-sets/<prefix>.js (copied into the integration's
+// panel/icon-sets/ so /harvest_assets serves it). Only the icons named in the
+// committed curated map (widget/icon-maps/<prefix>.json, produced by the
+// offline curation tooling) are shipped - a subset of the full set, sized to
+// HArvest's bundled MDI icons. Phosphor expands each curated regular-weight
+// name into every weight present in the package (Phosphor publishes all
+// icons in all weights, so the regular-name curation covers them).
+// ---------------------------------------------------------------------------
+const PH_WEIGHT_SUFFIXES = ["-thin", "-light", "-bold", "-fill", "-duotone"];
+const ICON_SET_BUILDS = [
+  { prefix: "fa", pkg: "@iconify-json/fa7-solid", map: "icon-maps/fa.json" },
+  { prefix: "ph", pkg: "@iconify-json/ph", map: "icon-maps/ph.json", expandSuffixes: PH_WEIGHT_SUFFIXES },
+  { prefix: "tabler", pkg: "@iconify-json/tabler", map: "icon-maps/tabler.json" },
+];
+const ICON_SET_DIST = resolve(DIST_DIR, "icon-sets");
+const ICON_SET_COPY_DIR = resolve(__dirname, "../custom_components/harvest/panel/icon-sets");
+
 const isWatch = process.argv.includes("--watch");
 
 const versions = readVersionConstants();
@@ -186,6 +206,111 @@ async function build() {
     const name = renderer.out.split("/").pop();
     const rkb = (rendererBytes.byteLength / 1024).toFixed(1);
     console.log(`Renderer: ${rkb} KB  renderers/${name}`);
+  }
+
+  await buildIconSets();
+}
+
+/**
+ * Resolve an Iconify icon entry to { body, viewBox } using the set's
+ * default dimensions for icons that do not override them.
+ */
+function iconifyEntry(data, name) {
+  const info = data.icons[name];
+  if (!info || info.hidden) return null;
+  const left = info.left ?? data.left ?? 0;
+  const top = info.top ?? data.top ?? 0;
+  const w = info.width ?? data.width ?? 16;
+  const h = info.height ?? data.height ?? 16;
+  return { body: info.body, viewBox: `${left} ${top} ${w} ${h}` };
+}
+
+/**
+ * Generate dist/icon-sets/<prefix>.js for every configured set and copy each
+ * into the integration's panel/icon-sets/ directory. Hard-fails when a
+ * curated map references an icon the pinned package does not contain, so
+ * package or map drift breaks the build loudly instead of shipping holes.
+ */
+async function buildIconSets() {
+  // Drift guard input: bundled MDI names should all appear in each map.
+  const { MDI_ICONS } = await import("./src/icons.js");
+  const bundledNames = Object.keys(MDI_ICONS);
+
+  mkdirSync(ICON_SET_DIST, { recursive: true });
+  mkdirSync(ICON_SET_COPY_DIR, { recursive: true });
+
+  for (const setBuild of ICON_SET_BUILDS) {
+    const mapPath = resolve(__dirname, setBuild.map);
+    const map = JSON.parse(readFileSync(mapPath, "utf8"));
+    const data = JSON.parse(readFileSync(
+      resolve(__dirname, "node_modules", setBuild.pkg, "icons.json"), "utf8"));
+    const pkgMeta = JSON.parse(readFileSync(
+      resolve(__dirname, "node_modules", setBuild.pkg, "package.json"), "utf8"));
+    const setInfo = JSON.parse(readFileSync(
+      resolve(__dirname, "node_modules", setBuild.pkg, "info.json"), "utf8"));
+
+    for (const mdiName of bundledNames) {
+      if (!(mdiName in map)) {
+        console.warn(
+          `Icon set ${setBuild.prefix}: bundled icon "${mdiName}" has no entry in ` +
+          `${setBuild.map} (new icon needs a curation pass)`);
+      }
+    }
+
+    const icons = {};
+    const aliases = {};
+    for (const [mdiName, target] of Object.entries(map)) {
+      if (target === null) continue; // curated no-equivalent; MDI shows instead
+      const expectedPrefix = `${setBuild.prefix}:`;
+      if (!target.startsWith(expectedPrefix)) {
+        throw new Error(
+          `Icon set ${setBuild.prefix}: map entry ${mdiName} -> ${target} does not ` +
+          `use the "${expectedPrefix}" prefix`);
+      }
+      const baseName = target.slice(expectedPrefix.length);
+      const entry = iconifyEntry(data, baseName);
+      if (!entry) {
+        throw new Error(
+          `Icon set ${setBuild.prefix}: "${baseName}" (mapped from ${mdiName}) is not ` +
+          `in ${setBuild.pkg}@${pkgMeta.version}`);
+      }
+      icons[target] = entry;
+      aliases[mdiName] = target;
+      for (const suffix of setBuild.expandSuffixes ?? []) {
+        const weightName = `${baseName}${suffix}`;
+        const weightEntry = iconifyEntry(data, weightName);
+        if (weightEntry) {
+          icons[`${expectedPrefix}${weightName}`] = weightEntry;
+        }
+      }
+    }
+
+    const license = setInfo.license ?? {};
+    const header =
+      `/*!\n` +
+      ` * HArvest icon set "${setBuild.prefix}" - curated subset of ${setInfo.name}\n` +
+      ` * Source: ${setBuild.pkg}@${pkgMeta.version} (packaged via Iconify, https://iconify.design)\n` +
+      ` * Icon license: ${license.title ?? "see package"}${license.url ? ` - ${license.url}` : ""}\n` +
+      ` * This header is a license attribution notice. Do not remove.\n` +
+      ` */\n`;
+    const payload = JSON.stringify({ icons, aliases });
+    const js =
+      header +
+      `(function(){` +
+      `if(!window.HArvest||!window.HArvest.registerIconSet){` +
+      `console.warn("[HArvest] icon set '${setBuild.prefix}' loaded before harvest.min.js; ignored");` +
+      `return;}` +
+      `window.HArvest.registerIconSet(${JSON.stringify(setBuild.prefix)},${payload});` +
+      `})();\n`;
+
+    const distPath = resolve(ICON_SET_DIST, `${setBuild.prefix}.js`);
+    const copyPath = resolve(ICON_SET_COPY_DIR, `${setBuild.prefix}.js`);
+    writeFileSync(distPath, js);
+    copyFileSync(distPath, copyPath);
+    const ikb = (Buffer.byteLength(js) / 1024).toFixed(1);
+    console.log(
+      `Icon set: ${ikb} KB  icon-sets/${setBuild.prefix}.js ` +
+      `(${Object.keys(icons).length} icons, ${Object.keys(aliases).length} aliases)`);
   }
 }
 

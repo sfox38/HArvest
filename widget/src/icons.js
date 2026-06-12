@@ -585,42 +585,184 @@ export const MDI_ICONS = {
 // The icon is scaled down slightly by the SVG renderer to fit the element.
 // ---------------------------------------------------------------------------
 
-const _ICON_VIEWBOX = {};
+export const ICON_VIEWBOXES = {};
+
+// ---------------------------------------------------------------------------
+// Additional icon sets (fa:, ph:, tabler:, ...)
+//
+// MDI stays bundled; other sets register at runtime via registerIconSet(),
+// typically from the lazy-loaded /harvest_assets/icon-sets/<prefix>.js
+// assets. Entries are { body, viewBox } where body is the raw inner SVG
+// markup (not a single path "d"): Tabler is stroke-based and Phosphor
+// duotone is multi-path, which a single path cannot represent.
+// ---------------------------------------------------------------------------
+
+const _iconSets = new Map();
+
+/**
+ * Register an icon set under a prefix key. Last-write-wins. Logs a warning
+ * on collision (mirrors registerRenderer semantics).
+ *
+ * @param {string} key - Prefix without the colon, e.g. "fa"
+ * @param {{icons: Record<string, {body: string, viewBox: string}>,
+ *          aliases?: Record<string, string>}} set
+ */
+export function registerIconSet(key, set) {
+  if (!set || typeof set.icons !== "object" || set.icons === null) {
+    console.warn(`[HArvest] registerIconSet("${key}"): invalid set, ignored`);
+    return;
+  }
+  if (_iconSets.has(key)) {
+    console.warn(
+      `[HArvest] registerIconSet: overriding existing icon set "${key}"`,
+    );
+  }
+  _iconSets.set(key, { icons: set.icons, aliases: set.aliases ?? {} });
+}
+
+/**
+ * Return a registered icon set, or undefined.
+ *
+ * @param {string} key
+ */
+export function getIconSet(key) {
+  return _iconSets.get(key);
+}
+
+/**
+ * Translate an mdi: icon name to its curated equivalent in an icon set.
+ *
+ * setId is "<prefix>" or "<prefix>-<weight>" (e.g. "fa", "ph-duotone").
+ * Returns the set's name when the set is registered and has a curated alias
+ * for the mdi name (weight suffix applied when that variant exists);
+ * otherwise returns the input unchanged, so MDI shows for unmapped icons
+ * and for sets that have not loaded yet. Non-mdi inputs (explicit fa:/ph:/
+ * tabler: picks) pass through untouched - per-entity choices win.
+ *
+ * @param {string} name  - Icon name, e.g. "mdi:lightbulb"
+ * @param {string|null|undefined} setId - Active icon-set id, or null for MDI
+ * @returns {string}
+ */
+export function iconNameForSet(name, setId) {
+  if (!setId || setId === "mdi" || !name || !name.startsWith("mdi:")) return name;
+  let prefix = setId;
+  let weight = null;
+  let set = _iconSets.get(prefix);
+  if (!set) {
+    const sep = setId.indexOf("-");
+    if (sep > 0) {
+      prefix = setId.slice(0, sep);
+      weight = setId.slice(sep + 1);
+      set = _iconSets.get(prefix);
+    }
+  }
+  if (!set) return name;
+  const target = set.aliases[name];
+  if (!target) return name;
+  if (weight) {
+    const weighted = `${target}-${weight}`;
+    if (set.icons[weighted]) return weighted;
+  }
+  return set.icons[target] ? target : name;
+}
+
+/** Phosphor weight suffixes (mirrors ICON_SET_BUILDS expansion in build.js). */
+const _WEIGHT_SUFFIXES = ["thin", "light", "bold", "fill", "duotone"];
+
+/**
+ * Derive the icon-set id a set icon name belongs to: "fa:bolt" gives "fa",
+ * "ph:lightbulb-duotone" gives "ph-duotone" (a suffix only counts as a
+ * weight when stripping it yields another icon in the set, so regular
+ * names like ph:traffic-light stay on the base id). Returns null for mdi
+ * or unprefixed names. Used so companion pills can follow their parent
+ * card's per-entity icon-set choice.
+ *
+ * @param {string|null|undefined} name
+ * @returns {string|null}
+ */
+export function iconSetIdOf(name) {
+  if (!name) return null;
+  const sep = name.indexOf(":");
+  if (sep <= 0) return null;
+  const prefix = name.slice(0, sep);
+  if (prefix === "mdi") return null;
+  const set = _iconSets.get(prefix);
+  if (set) {
+    for (const w of _WEIGHT_SUFFIXES) {
+      if (name.endsWith(`-${w}`) && set.icons[name.slice(0, -(w.length + 1))]) {
+        return `${prefix}-${w}`;
+      }
+    }
+  }
+  return prefix;
+}
+
+/**
+ * Resolve an icon name to { body, viewBox } or null. mdi: names come from
+ * the bundled tables; any other prefix is looked up in the registered sets
+ * (direct entry first, then one hop through the set's aliases).
+ *
+ * @param {string} name
+ * @returns {{body: string, viewBox: string} | null}
+ */
+function _lookup(name) {
+  if (!name) return null;
+  const d = MDI_ICONS[name];
+  if (d !== undefined) {
+    return {
+      body: `<path d="${d}" fill="currentColor"/>`,
+      viewBox: ICON_VIEWBOXES[name] ?? "0 0 24 24",
+    };
+  }
+  const sep = name.indexOf(":");
+  if (sep <= 0) return null;
+  const set = _iconSets.get(name.slice(0, sep));
+  if (!set) return null;
+  let entry = set.icons[name];
+  if (!entry) {
+    const target = set.aliases[name];
+    if (target) entry = set.icons[target];
+  }
+  return entry ?? null;
+}
 
 // ---------------------------------------------------------------------------
 // Render function
 // ---------------------------------------------------------------------------
 
 /**
- * Render an MDI icon as an SVG string. Falls back to mdi:circle-small (dot)
- * if the requested icon name is not in the bundle.
+ * Render an icon as an SVG string. Falls back to mdi:circle-small (dot)
+ * if the requested icon name is not in the bundle or a registered set.
  *
- * @param {string} name      - MDI icon name, e.g. "mdi:lightbulb"
+ * The body markup comes exclusively from the bundled MDI tables or from
+ * build-generated icon-set assets shipped with the integration - never from
+ * user input - so injecting it into the SVG string is safe.
+ *
+ * @param {string} name      - Icon name, e.g. "mdi:lightbulb" or "fa:bolt"
  * @param {string} partName  - Value for the SVG part="" attribute
  * @returns {string}         - Full <svg> element as an HTML string
  */
 export function renderIconSVG(name, partName) {
-  const path = MDI_ICONS[name] ?? MDI_ICONS["mdi:circle-small"];
-  const vb   = _ICON_VIEWBOX[name] ?? "0 0 24 24";
+  const entry = _lookup(name) ?? _lookup("mdi:circle-small");
   return (
-    `<svg part="${partName}" viewBox="${vb}" ` +
+    `<svg part="${partName}" viewBox="${entry.viewBox}" ` +
     `xmlns="http://www.w3.org/2000/svg" ` +
     `aria-hidden="true" focusable="false">` +
-    `<path d="${path}" fill="currentColor"/>` +
+    entry.body +
     `</svg>`
   );
 }
 
 /**
- * Return name if it is in the MDI bundle, otherwise return fallback.
- * Use this in renderers to avoid falling back to the generic help-circle
- * when a custom HA icon name is not bundled.
+ * Return name if it resolves to a bundled or registered icon, otherwise
+ * return fallback. Use this in renderers to avoid falling back to the
+ * generic help-circle when a custom HA icon name is not available.
  *
  * @param {string} name
  * @param {string} fallback - must be a key that exists in MDI_ICONS
  * @returns {string}
  */
 export function resolveIcon(name, fallback) {
-  if (!name || name === "mdi:help-circle" || !MDI_ICONS[name]) return fallback;
+  if (!name || name === "mdi:help-circle" || !_lookup(name)) return fallback;
   return name;
 }

@@ -12,7 +12,8 @@ import type { Token, ThemeDefinition, HAEntityDetail } from "../types";
 import { api } from "../api";
 import { usePanelDark } from "../panelTheme";
 import { Spinner } from "./Shared";
-import { loadWidgetScript, loadRendererScript, isRendererLoaded, generateMockHistory } from "./WidgetPreview";
+import { loadWidgetScript, loadRendererScript, loadIconSetScript, isRendererLoaded, generateMockHistory } from "./WidgetPreview";
+import { iconSetAsset } from "./IconPicker";
 
 const _MOCK_WEATHER_FORECAST_DAILY = [
   { datetime: "2025-06-10T12:00:00", condition: "sunny",        temperature: 27, templow: 18 },
@@ -37,11 +38,14 @@ export function EntityPreview({
   entityAccess,
   theme,
   companions = [],
+  iconSet = null,
 }: {
   entity: HAEntityDetail;
   entityAccess: Token["entities"][number];
   theme: ThemeDefinition | null;
   companions?: Token["entities"][number][];
+  /** Effective global icon set (token icon_set ?? theme icon_set). */
+  iconSet?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement | null>(null);
@@ -51,13 +55,20 @@ export function EntityPreview({
   const rendererId = theme?.has_renderer ? theme.theme_id : undefined;
   const haDark = usePanelDark();
 
+  const iconSetPrefix = iconSetAsset(iconSet);
   useEffect(() => {
-    if (rendererId && !isRendererLoaded(rendererId)) setReady(false);
+    // Gate readiness on the icon-set asset too, or the preview would be
+    // created before the set registers and keep showing mdi glyphs.
+    if ((rendererId && !isRendererLoaded(rendererId))
+        || (iconSetPrefix && !window.HArvest?.getIconSet?.(iconSetPrefix))) {
+      setReady(false);
+    }
     loadWidgetScript()
       .then(() => rendererId ? loadRendererScript(rendererId) : Promise.resolve())
+      .then(() => iconSetPrefix ? loadIconSetScript(iconSetPrefix).catch(() => {}) : undefined)
       .then(() => setReady(true))
       .catch(() => setLoadError(true));
-  }, [rendererId]);
+  }, [rendererId, iconSetPrefix]);
 
   const entityAccessJson = useMemo(() => JSON.stringify(entityAccess), [entityAccess.capabilities, entityAccess.name_override, entityAccess.icon_override, entityAccess.color_scheme, entityAccess.exclude_attributes, entityAccess.display_hints, entityAccess.gesture_config]);
   const defKey = `${entity.entity_id}:${entityAccessJson}:${companions.map(c => `${c.entity_id}:${c.capabilities}`).join(",")}`;
@@ -80,12 +91,13 @@ export function EntityPreview({
     return () => { cancelled = true; };
   }, [defKey]);
 
-  const themeObj = useMemo(() => {
-    if (!theme) return { variables: {}, dark_variables: {} };
-    return { variables: theme.variables ?? {}, dark_variables: theme.dark_variables ?? {} };
-  }, [theme?.theme_id]);
+  const themeObj = useMemo(() => ({
+    variables: theme?.variables ?? {},
+    dark_variables: theme?.dark_variables ?? {},
+    icon_set: iconSet,
+  }), [theme?.theme_id, iconSet]);
 
-  const cardKey = `${entity.entity_id}:${entity.state}:${defKey}:${theme?.theme_id ?? ""}:${haDark ? "dark" : "light"}`;
+  const cardKey = `${entity.entity_id}:${entity.state}:${defKey}:${theme?.theme_id ?? ""}:${iconSet ?? ""}:${haDark ? "dark" : "light"}`;
   const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
 
   useEffect(() => {

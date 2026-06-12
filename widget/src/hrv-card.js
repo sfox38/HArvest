@@ -78,6 +78,8 @@ export class HrvCard extends HTMLElement {
   /** @type {{points:object[], hours:number}|null} */ #lastHistoryData = null;
   /** @type {object|null} */ #lastTheme = null;
   /** @type {(() => void)|null} */ #pageConfigUnsubscribe = null;
+  /** @type {string|null} */ #tokenIconSet = null;
+  /** @type {string|null} */ #themeIconSet = null;
 
   // -------------------------------------------------------------------------
   // Observed attributes
@@ -421,11 +423,27 @@ export class HrvCard extends HTMLElement {
   }
 
   /**
+   * Recompute the effective icon set from the cascade: token icon_set wins
+   * over the theme's, null means MDI. A change force-rebuilds the renderer
+   * so already-rendered mdi glyphs swap (or swap back). The set asset
+   * itself is loaded by HarvestClient when the token_config/theme message
+   * arrives; until it registers, translation is a no-op and MDI shows.
+   */
+  #updateIconSet() {
+    const effective = this.#tokenIconSet ?? this.#themeIconSet ?? null;
+    if (effective === (this.#config.iconSet ?? null)) return;
+    this.#config.iconSet = effective;
+    this._reRender(true);
+  }
+
+  /**
    * Called when the server pushes a theme update for this token.
-   * @param {object} theme - { variables, dark_variables }
+   * @param {object} theme - { variables, dark_variables, icon_set }
    */
   receiveTheme(theme) {
     this.#lastTheme = theme || null;
+    this.#themeIconSet = theme?.icon_set ?? null;
+    this.#updateIconSet();
     if (!this.shadowRoot) return;
     if (theme) {
       ThemeLoader.apply(
@@ -446,6 +464,8 @@ export class HrvCard extends HTMLElement {
   receiveTokenConfig(config) {
     this.#config.lang = config.lang ?? "auto";
     this.#config.a11y = config.a11y ?? "standard";
+    this.#tokenIconSet = config.iconSet ?? null;
+    this.#updateIconSet();
     this.#config.onOffline = config.onOffline ?? "last-state";
     this.#config.onError = config.onError ?? "message";
     this.#config.offlineText = config.offlineText ?? "";
@@ -508,13 +528,16 @@ export class HrvCard extends HTMLElement {
     }
   }
 
-  _reRender() {
+  _reRender(force = false) {
     if (!this.#entityDef || !this.#renderer) return;
     const NewRenderer = this.#entityDef.capabilities === "badge"
       ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
       : (this.#client?._getRendererOverride?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
         || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null));
-    if (NewRenderer === this.#renderer.constructor) return;
+    // force bypasses the renderer-class short-circuit: after an icon set
+    // loads, the same renderer class must still rebuild so icons rendered
+    // with the fallback glyph swap to the now-registered set glyphs.
+    if (!force && NewRenderer === this.#renderer.constructor) return;
     this.#renderer.destroy?.();
     this.#renderer = new NewRenderer(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
@@ -607,6 +630,9 @@ export class HrvCard extends HTMLElement {
     this.#config.animate = animate || !!hints.animate;
     this.#config.colorScheme = entityDef.color_scheme ?? "auto";
     this.#config.displayHints = hints;
+    // Panel previews pass the effective icon set on the theme object so the
+    // preview matches the live cascade (token icon_set ?? theme icon_set).
+    this.#config.iconSet = themeVars?.icon_set ?? null;
 
     const csNow = _resolveColorScheme(this.#config.colorScheme || "auto");
     if (csNow === "light" || csNow === "dark") {
@@ -867,6 +893,7 @@ export class HrvCard extends HTMLElement {
       period:       10,
       animate:      false,
       a11y:         "standard",
+      iconSet:      null,
       companions:   this.#companions,
       card:         this,
     };
