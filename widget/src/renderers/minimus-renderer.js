@@ -1895,9 +1895,6 @@
     .hrv-cf-option:hover { background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.08)); }
     .hrv-cf-option[data-active=true] { color: var(--hrv-color-primary, #1976d2); }
 
-    .hrv-cf-btn[data-readonly=true] {
-      cursor: not-allowed;
-    }
     .hrv-climate-ro-temp {
       text-align: center;
       padding: 24px 0 16px;
@@ -1926,6 +1923,13 @@
       align-self: flex-start;
       padding-top: 5px;
       padding-left: 2px;
+    }
+    .hrv-climate-ro-mode {
+      display: block;
+      text-align: center;
+      font-size: 15px;
+      color: var(--hrv-color-text, #fff);
+      padding-top: 8px;
     }
   `;
 
@@ -2032,44 +2036,43 @@
                 <button class="hrv-climate-step" type="button" aria-label="Decrease temperature" title="Decrease temperature" data-dir="-">&#8722;</button>
                 <button class="hrv-climate-step" type="button" aria-label="Increase temperature" title="Increase temperature" data-dir="+">+</button>
               </div>
-            ` : !isWritable && hasDial ? /* html */`
+            ` : !isWritable ? /* html */`
               <div class="hrv-climate-ro-temp">
                 <div class="hrv-climate-ro-temp-row">
-                  <span class="hrv-climate-ro-temp-int">${_esc(tInt)}</span><span class="hrv-climate-ro-temp-frac">.${_esc(tFrac)}</span><span class="hrv-climate-ro-temp-unit">${_esc(this.#unit)}</span>
+                  <span class="hrv-climate-ro-temp-int">-</span><span class="hrv-climate-ro-temp-frac"></span><span class="hrv-climate-ro-temp-unit">${_esc(this.#unit)}</span>
                 </div>
+                <span class="hrv-climate-ro-mode"></span>
               </div>
             ` : ""}
+            ${isWritable ? /* html */`
             <div class="hrv-climate-grid">
               ${hints.show_hvac_modes !== false && this.#hvacModes.length ? /* html */`
-                <button class="hrv-cf-btn" data-feat="mode" type="button"
-                  ${!isWritable ? 'data-readonly="true" title="Read-only"' : 'title="Change HVAC mode"'}>
+                <button class="hrv-cf-btn" data-feat="mode" type="button" title="Change HVAC mode">
                   <span class="hrv-cf-label">Mode</span>
                   <span class="hrv-cf-value">-</span>
                 </button>
               ` : ""}
               ${hasPreset && this.#presetModes.length ? /* html */`
-                <button class="hrv-cf-btn" data-feat="preset" type="button"
-                  ${!isWritable ? 'data-readonly="true" title="Read-only"' : 'title="Change preset mode"'}>
+                <button class="hrv-cf-btn" data-feat="preset" type="button" title="Change preset mode">
                   <span class="hrv-cf-label">Preset</span>
                   <span class="hrv-cf-value">-</span>
                 </button>
               ` : ""}
               ${hasFan && this.#fanModes.length ? /* html */`
-                <button class="hrv-cf-btn" data-feat="fan" type="button"
-                  ${!isWritable ? 'data-readonly="true" title="Read-only"' : 'title="Change fan mode"'}>
+                <button class="hrv-cf-btn" data-feat="fan" type="button" title="Change fan mode">
                   <span class="hrv-cf-label">Fan mode</span>
                   <span class="hrv-cf-value">-</span>
                 </button>
               ` : ""}
               ${hasSwing && this.#swingModes.length ? /* html */`
-                <button class="hrv-cf-btn" data-feat="swing" type="button"
-                  ${!isWritable ? 'data-readonly="true" title="Read-only"' : 'title="Change swing mode"'}>
+                <button class="hrv-cf-btn" data-feat="swing" type="button" title="Change swing mode">
                   <span class="hrv-cf-label">Swing mode</span>
                   <span class="hrv-cf-value">-</span>
                 </button>
               ` : ""}
-              ${isWritable ? '<div class="hrv-climate-dropdown" role="listbox" popover="manual"></div>' : ""}
+              <div class="hrv-climate-dropdown" role="listbox" popover="manual"></div>
             </div>
+            ` : ""}
           </div>
           ${this.renderAriaLiveHTML()}
           ${this.renderCompanionZoneHTML()}
@@ -2307,12 +2310,18 @@
 
       const roTempInt = this.root.querySelector(".hrv-climate-ro-temp-int");
       const roTempFrac = this.root.querySelector(".hrv-climate-ro-temp-frac");
-      if (roTempInt && attributes.temperature !== undefined) {
-        this.#targetTemp = attributes.temperature;
-        const [ri, rf] = this.#targetTemp.toFixed(1).split(".");
-        roTempInt.textContent = ri;
-        roTempFrac.textContent = `.${rf}`;
+      if (roTempInt) {
+        // Read-only shows the current room temperature (like the base card),
+        // falling back to the target if no current reading is available.
+        const ct = attributes.current_temperature ?? attributes.temperature;
+        if (ct !== undefined && ct !== null) {
+          const [ri, rf] = Number(ct).toFixed(1).split(".");
+          roTempInt.textContent = ri;
+          if (roTempFrac) roTempFrac.textContent = `.${rf}`;
+        }
       }
+      const roMode = this.root.querySelector(".hrv-climate-ro-mode");
+      if (roMode) roMode.textContent = _capitalize(attributes.hvac_action ?? state);
 
       this.#updateFeatureButtons();
 

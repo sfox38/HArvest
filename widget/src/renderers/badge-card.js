@@ -79,7 +79,7 @@ const BADGE_STYLES = /* css */`
        Themes can override via --hrv-badge-height. */
     height: var(--hrv-badge-height, 42px);
     padding: 0 12px 0 8px;
-    border-radius: 14px;
+    border-radius: var(--hrv-badge-radius, 14px);
     background: var(--hrv-card-background, var(--hrv-color-surface, #fff));
     box-shadow: var(--hrv-card-shadow, 0 1px 3px rgba(0,0,0,0.1));
     border: var(--hrv-card-border, 1px solid var(--hrv-color-border, #e5e7eb));

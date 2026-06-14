@@ -2583,7 +2583,7 @@ button.entity-setting-group-title:focus-visible {
 .theme-tray {
   display: flex;
   gap: 0;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .theme-tray-actions {
@@ -2594,6 +2594,16 @@ button.entity-setting-group-title:focus-visible {
   padding-right: 14px;
   margin-right: 14px;
   border-right: 1px solid var(--divider);
+}
+
+/* Right-hand column: filter box stacked above the theme slider, both sharing
+   the slider's left edge (right of the actions column) and full remaining width. */
+.theme-tray-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .theme-tray-action {

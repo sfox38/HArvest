@@ -702,7 +702,14 @@ export class BaseCard {
     }
     const key = `state.${state}`;
     const localized = this.i18n.t(key);
-    return localized !== key ? localized : state;
+    if (localized !== key) return localized;
+    // input_select / select options are slugs with no i18n key. Prettify the
+    // fallback (capitalize, underscores to spaces) so cards and badges show a
+    // friendly value instead of the raw slug.
+    if ((d === "input_select" || d === "select") && state) {
+      return state.charAt(0).toUpperCase() + state.slice(1).replace(/_/g, " ");
+    }
+    return state;
   }
 
   /**

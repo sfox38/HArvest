@@ -81,7 +81,12 @@ const INPUT_SELECT_STYLES = /* css */`
     position: fixed;
     margin: 0;
     inset: unset;
-    background: var(--hrv-card-background, #ffffff);
+    /* The menu lives in the top layer over arbitrary page content, so it needs
+       an opaque-enough surface. --hrv-menu-background lets translucent themes
+       (e.g. Glass) supply a readable fill; backdrop-filter frosts the rest. */
+    background: var(--hrv-menu-background, var(--hrv-card-background, #ffffff));
+    -webkit-backdrop-filter: var(--hrv-card-backdrop-filter, none);
+    backdrop-filter: var(--hrv-card-backdrop-filter, none);
     border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.10));
     border-radius: var(--hrv-radius-m);
     box-shadow: 0 8px 24px rgba(0,0,0,0.18);
@@ -232,7 +237,7 @@ export class InputSelectCard extends BaseCard {
       btn.setAttribute("part", "option-pill");
       btn.type = "button";
       btn.dataset.option = opt;
-      btn.textContent = opt;
+      btn.textContent = this.formatStateLabel(opt);
       btn.addEventListener("click", () => {
         this.config.card?.sendCommand("select_option", { option: opt });
       });
@@ -251,7 +256,7 @@ export class InputSelectCard extends BaseCard {
       btn.type = "button";
       btn.role = "option";
       btn.dataset.option = opt;
-      btn.textContent = opt;
+      btn.textContent = this.formatStateLabel(opt);
       btn.addEventListener("click", () => {
         this.config.card?.sendCommand("select_option", { option: opt });
         this.#closeDropdown();
@@ -310,7 +315,7 @@ export class InputSelectCard extends BaseCard {
 
   applyState(state, attributes) {
     if (this.#stateLabel) {
-      this.#stateLabel.textContent = state;
+      this.#stateLabel.textContent = this.formatStateLabel(state);
       return;
     }
 
@@ -327,7 +332,7 @@ export class InputSelectCard extends BaseCard {
 
     if (this.#displayMode === "dropdown") {
       const label = this.root.querySelector("[part=option-trigger-label]");
-      if (label) label.textContent = state;
+      if (label) label.textContent = this.formatStateLabel(state);
       for (const btn of this.#optionEls) {
         btn.setAttribute("data-active", String(btn.dataset.option === state));
       }

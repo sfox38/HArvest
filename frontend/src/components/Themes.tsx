@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { ThemeDefinition, Token, RenderersResponse } from "../types";
 import { api } from "../api";
-import { Card, ConfirmDialog, Spinner, ErrorBanner, ThemeStrip, themeUrlToId } from "./Shared";
+import { Card, ConfirmDialog, Spinner, ErrorBanner, ThemeStrip, SearchInput, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
 import { WidgetPreview, clearRendererCache } from "./WidgetPreview";
 import { ICON_SETS, IconSetSelect } from "./IconPicker";
@@ -98,6 +98,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   // Code editor state
   const [editedJson, setEditedJson] = useState("");
@@ -174,6 +175,15 @@ export function Themes({ onSelectToken }: ThemesProps) {
   useEffect(() => { api.renderers.list().then(setRenderersData).catch(() => {}); }, []);
 
   const selectedTheme = themes.find(t => t.theme_id === selected) ?? null;
+
+  const filteredThemes = (() => {
+    const words = search.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return themes;
+    return themes.filter(t => {
+      const hay = t.name.toLowerCase();
+      return words.every(w => hay.includes(w));
+    });
+  })();
   const rendererId = selectedTheme?.has_renderer ? selectedTheme.theme_id : null;
   const selectedRenderer = rendererId
     ? renderersData?.renderers.find(r => r.renderer_id === rendererId) ?? null
@@ -647,18 +657,30 @@ export function Themes({ onSelectToken }: ThemesProps) {
               {reloading ? "Reloading..." : "Reload"}
             </button>
           </div>
-          <ThemeStrip
-            themes={themes}
-            selectedId={selected ?? ""}
-            onSelect={setSelected}
-            thumbRefreshKey={thumbKey}
-            renderMeta={t => (
-              <div className="theme-strip-meta">
-                {t.is_bundled && <span className="badge badge-muted">System</span>}
-                <span className="muted fs-11">{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
-              </div>
+          <div className="theme-tray-main">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Filter themes by name..."
+              ariaLabel="Filter themes"
+              style={{ width: "100%" }}
+            />
+            <ThemeStrip
+              themes={filteredThemes}
+              selectedId={selected ?? ""}
+              onSelect={setSelected}
+              thumbRefreshKey={thumbKey}
+              renderMeta={t => (
+                <div className="theme-strip-meta">
+                  {t.is_bundled && <span className="badge badge-muted">System</span>}
+                  <span className="muted fs-11">{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
+                </div>
+              )}
+            />
+            {filteredThemes.length === 0 && (
+              <div className="muted fs-12" style={{ padding: "8px 0" }}>No themes match "{search}".</div>
             )}
-          />
+          </div>
         </div>
         <input ref={fileRef} type="file" accept=".zip" style={{ display: "none" }} onChange={handleImport} />
         <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />

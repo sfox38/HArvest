@@ -140,6 +140,11 @@
           <p>The script URL points at your Home Assistant instance. The HArvest integration serves the widget bundle directly at <code>/harvest_assets/harvest.min.js</code>. The widget always matches the running integration version: update HArvest via HACS and every embedded widget picks up the new bundle on the next page load. You don't need to upload the widget separately, configure a CDN, or keep versions in sync.</p>
         </div>
 
+        <div class="callout callout-warn">
+          <span class="callout-label">Don't mix HTTPS and HTTP</span>
+          <p>The scheme of your HA URL must match the scheme of the page the widget is embedded on. An <code>https://</code> page cannot connect to an <code>http://</code> HA URL: browsers block the insecure <code>ws://</code> WebSocket as mixed content, and the widgets may not load at all. Use <code>https://</code> for both (an HTTPS page with an HTTPS HA URL), or <code>http://</code> for both on a trusted private network. If your widgets stay blank with no errors on the card, check that the page and the HA URL use the same scheme.</p>
+        </div>
+
         <div class="callout callout-tip">
           <span class="callout-label">Multiple tokens on one page</span>
           <p>The <code>HArvest.config()</code> call sets a page-level default. If you need cards from different tokens on the same page, you can set <code>token</code> and <code>ha-url</code> directly on individual cards or card groups instead. See <a href="widgets.html#config-levels">token configuration levels</a> in the widget reference.</p>

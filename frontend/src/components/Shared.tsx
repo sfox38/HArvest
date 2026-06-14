@@ -1913,6 +1913,34 @@ export function themeUrlToId(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// SearchInput - shared search/filter box (icon + text input)
+// ---------------------------------------------------------------------------
+
+interface SearchInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  ariaLabel: string;
+  style?: React.CSSProperties;
+}
+
+export function SearchInput({ value, onChange, placeholder, ariaLabel, style }: SearchInputProps) {
+  return (
+    <div className="search" style={style}>
+      <Icon name="search" size={15} />
+      <input
+        className="input"
+        type="search"
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        aria-label={ariaLabel}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ThemeStrip - shared horizontal theme selector
 // ---------------------------------------------------------------------------
 

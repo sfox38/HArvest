@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Token, TokenStatus } from "../types";
 import { api } from "../api";
-import { StatusBadge, EmptyState, Spinner, ErrorBanner } from "./Shared";
+import { StatusBadge, EmptyState, Spinner, ErrorBanner, SearchInput } from "./Shared";
 import { Icon } from "./Icon";
 import { TokenDetail } from "./TokenDetail";
 
@@ -194,17 +194,13 @@ export function TokenList({ onOpenWizard, onOpenConverter, initialTokenId, onIni
 
       {/* Toolbar */}
       <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-        <div className="search" style={{ flex: "1 1 240px", maxWidth: 400 }}>
-          <Icon name="search" size={15} />
-          <input
-            className="input"
-            type="search"
-            placeholder="Search widgets by name or origin..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            aria-label="Search widgets"
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search widgets by name or origin..."
+          ariaLabel="Search widgets"
+          style={{ flex: "1 1 240px", maxWidth: 400 }}
+        />
         <div className="segmented" role="group" aria-label="Filter by status">
           {FILTER_OPTIONS.map(({ value, label }) => (
             <button key={value} aria-pressed={filter === value} onClick={() => { setFilter(value); localStorage.setItem("hrv_filter_tab", value); }}>

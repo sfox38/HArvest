@@ -20,6 +20,7 @@
     "--hrv-color-state-unavailable": "#767676",
     "--hrv-color-error":           "#9b1c1c",
     "--hrv-card-radius":           "4px",
+    "--hrv-badge-radius":          "2px",
     "--hrv-card-shadow":           "none",
     "--hrv-card-border":           "2px solid #000000",
     "--hrv-card-padding":          "16px",

@@ -73,6 +73,7 @@
             <li><a href="#parts">Named parts (::part() selectors)</a></li>
             <li><a href="#bundled-themes">Bundled themes</a></li>
             <li><a href="#custom-themes">Creating custom themes</a></li>
+            <li><a href="#contributed-themes">User-contributed themes</a></li>
             <li><a href="#custom-fonts">Custom fonts</a></li>
             <li><a href="#custom-renderers">Custom renderers</a></li>
             <li><a href="#renderer-overrides">Renderer overrides</a></li>
@@ -503,6 +504,40 @@ nunito.woff2</code></pre>
 
         <h3>Sharing themes</h3>
         <p>Click <strong>Export .zip</strong> on any theme to download it as a <code>.zip</code> file containing <code>theme.json</code> and, if applicable, <code>renderer.js</code>. Anyone can import it on their own HArvest instance via the Themes tab <strong>Import .zip</strong> button. This is how third-party themes are distributed.</p>
+
+        <h2 id="contributed-themes">User-contributed themes</h2>
+
+        <p>Beyond the five bundled themes, HArvest ships a growing collection of extra community themes in a <strong>User Contributed Themes</strong> directory. These are not installed automatically - you import the ones you want through the panel.</p>
+
+        <p>Where to find the directory:</p>
+        <ul>
+          <li>Inside the <code>release.zip</code> attached to each <a href="https://github.com/sfox38/HArvest/releases" target="_blank">GitHub release</a>, in the <code>User Contributed Themes/</code> folder.</li>
+          <li>Or browse and download it directly from the <a href="https://github.com/sfox38/HArvest/tree/main/User%20Contributed%20Themes" target="_blank">repository on GitHub</a>.</li>
+        </ul>
+
+        <p>Each theme is provided as a ready-to-import <code>.zip</code> (for example <code>neu.zip</code> or <code>material-eww.zip</code>) alongside an unpacked folder of the same name. To install one, open the panel's <strong>Themes</strong> tab, click <strong>Import .zip</strong>, and choose the theme's <code>.zip</code> file. It then appears in the theme picker like any other theme and can be assigned to tokens. Themes that include a <code>renderer.js</code> also bring their own card layouts (see <a href="#renderer-distribution">distributing a theme with a renderer</a>).</p>
+
+        <p>Themes currently included: (more themes to be added regularly)</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Theme</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Material Eww</strong></td>
+                <td>Material Design 3 inspired palette with rounded surfaces and a custom bundled font.</td>
+              </tr>
+              <tr>
+                <td><strong>Neu</strong></td>
+                <td>Neumorphism inspired theme with physical-feeling controls. Dual box-shadows create extruded and inset surfaces, with a grey-only palette. Includes a renderer.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Keeping a contributed theme up to date</span>
+          <p>These themes live in the repository rather than being delivered through HACS, so they do not auto-update with the integration. To pick up a newer version, download the latest <code>.zip</code> and import it again - the panel will offer to replace your existing copy.</p>
+        </div>
 
         <h2 id="custom-renderers">Custom renderers</h2>
 
