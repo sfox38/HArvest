@@ -880,14 +880,16 @@ export class BaseCard {
    *
    * @param {string} entityId
    * @param {string} state
-   * @param {object} _attributes
+   * @param {object} attributes
    */
-  updateCompanionState(entityId, state, _attributes) {
+  updateCompanionState(entityId, state, attributes) {
     const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
     if (!pill) return;
-    const label = this.formatStateLabel(
+    let label = this.formatStateLabel(
       state, pill.dataset.domain || null, pill.dataset.deviceClass || null,
     );
+    const unit = attributes?.unit_of_measurement;
+    if (unit) label = `${label} ${unit}`;
     const stateEl = pill.querySelector("[part=companion-state]");
     if (stateEl) stateEl.textContent = label;
     const name = pill.getAttribute("aria-label")?.replace(/ - .*$/, "") ?? entityId;

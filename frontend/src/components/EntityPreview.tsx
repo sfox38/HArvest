@@ -73,7 +73,7 @@ export function EntityPreview({
   }, [rendererId, iconSetPrefix]);
 
   const entityAccessJson = useMemo(() => JSON.stringify(entityAccess), [entityAccess.capabilities, entityAccess.name_override, entityAccess.icon_override, entityAccess.color_scheme, entityAccess.exclude_attributes, entityAccess.display_hints, entityAccess.gesture_config]);
-  const defKey = `${entity.entity_id}:${entityAccessJson}:${companions.map(c => `${c.entity_id}:${c.capabilities}`).join(",")}`;
+  const defKey = `${entity.entity_id}:${entityAccessJson}:${companions.map(c => `${c.entity_id}:${c.capabilities}:${JSON.stringify(c.display_hints ?? {})}`).join(",")}`;
   useEffect(() => {
     let cancelled = false;
     api.entities.getDefinition(entity.entity_id, {
@@ -181,7 +181,7 @@ export function EntityPreview({
     }
 
     for (const c of companions) {
-      api.entities.getDefinition(c.entity_id, { capabilities: c.capabilities }).then(result => {
+      api.entities.getDefinition(c.entity_id, { capabilities: c.capabilities, display_hints: c.display_hints ?? undefined }).then(result => {
         const el = cardRef.current as HTMLElement & { _receiveCompanionDefinition?: (id: string, def: Record<string, unknown>) => void; _receiveCompanionState?: (id: string, s: string, a: Record<string, unknown>) => void } | null;
         if (!el) return;
         el._receiveCompanionDefinition?.(c.entity_id, result.definition);
