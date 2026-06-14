@@ -102,7 +102,7 @@ class Harvest_Settings {
                 add_settings_error(
                     'harvest_settings_group',
                     'harvest_widget_source_no_custom_url',
-                    __( 'Widget JS source set to HA-served because no custom URL was provided.', 'harvest' ),
+                    __( 'Widget script source set to HA-served because no custom URL was provided.', 'harvest' ),
                     'warning'
                 );
                 return 'ha';
@@ -372,7 +372,7 @@ class Harvest_Settings {
 
                     <tr>
                         <th scope="row">
-                            <?php esc_html_e( 'Widget JS source', 'harvest' ); ?>
+                            <?php esc_html_e( 'Widget script source', 'harvest' ); ?>
                         </th>
                         <td>
                             <?php
@@ -383,52 +383,73 @@ class Harvest_Settings {
                             // broken on first render after upgrade.
                             $source = self::get_widget_source();
                             ?>
-                            <label>
-                                <input type="radio"
-                                    name="harvest_widget_source"
-                                    value="ha"
-                                    <?php checked( $source, 'ha' ); ?>>
-                                <?php esc_html_e( 'HA-served (recommended)', 'harvest' ); ?>
-                            </label>
-                            <span id="harvest-ha-preview-wrap"
-                                style="<?php echo $source === 'ha' ? 'display:block;margin-left:24px;color:#646970;font-size:12px;font-family:Consolas,Monaco,monospace;word-break:break-all;' : 'display:none;'; ?>">
-                                <span id="harvest-ha-preview-text"
-                                    data-no-url-msg="<?php echo esc_attr__( 'Set the Home Assistant URL above to enable this option.', 'harvest' ); ?>">
-                                    <?php
-                                    if ( $ha_url === '' ) {
-                                        esc_html_e(
-                                            'Set the Home Assistant URL above to enable this option.',
-                                            'harvest'
-                                        );
-                                    } else {
-                                        echo esc_html( $ha_url . '/harvest_assets/harvest.min.js' );
-                                    }
-                                    ?>
+                            <div class="harvest-source-option" style="margin-bottom:12px;">
+                                <label>
+                                    <input type="radio"
+                                        name="harvest_widget_source"
+                                        value="ha"
+                                        <?php checked( $source, 'ha' ); ?>>
+                                    <?php esc_html_e( 'HA-served (recommended)', 'harvest' ); ?>
+                                </label>
+                                <span id="harvest-ha-preview-wrap"
+                                    style="<?php echo $source === 'ha' ? 'display:block;' : 'display:none;'; ?>">
+                                    <span id="harvest-ha-preview-text"
+                                        data-no-url-msg="<?php echo esc_attr__( 'Set the Home Assistant URL above to enable this option.', 'harvest' ); ?>">
+                                        <?php
+                                        if ( $ha_url === '' ) {
+                                            esc_html_e(
+                                                'Set the Home Assistant URL above to enable this option.',
+                                                'harvest'
+                                            );
+                                        } else {
+                                            echo esc_html( $ha_url . '/harvest_assets/harvest.min.js' );
+                                        }
+                                        ?>
+                                    </span>
+                                    <span id="harvest-ha-url-indicator" class="harvest-url-indicator" data-status="idle"></span>
                                 </span>
-                                <span id="harvest-ha-url-indicator" class="harvest-url-indicator" data-status="idle"></span>
-                            </span>
-                            <br>
-                            <label>
-                                <input type="radio"
-                                    name="harvest_widget_source"
-                                    value="custom"
-                                    <?php checked( $source, 'custom' ); ?>>
-                                <?php esc_html_e( 'Use custom URL', 'harvest' ); ?>
-                            </label>
-                            <span id="harvest-custom-url-wrap"
-                                style="<?php echo $source === 'custom' ? '' : 'display:none;'; ?>">
-                                <br>
-                                <input
-                                    type="text"
-                                    id="harvest_widget_custom_url"
-                                    name="harvest_widget_custom_url"
-                                    value="<?php echo esc_attr( get_option( 'harvest_widget_custom_url' ) ); ?>"
-                                    class="regular-text"
-                                    placeholder="<?php esc_attr_e( 'https://example.com/harvest.min.js, /harvest.min.js, or harvest.min.js', 'harvest' ); ?>"
-                                >
-                                <span id="harvest-custom-url-indicator" class="harvest-url-indicator" data-status="idle"></span>
-                            </span>
+                            </div>
+                            <div class="harvest-source-option">
+                                <label>
+                                    <input type="radio"
+                                        name="harvest_widget_source"
+                                        value="custom"
+                                        <?php checked( $source, 'custom' ); ?>>
+                                    <?php esc_html_e( 'Use custom URL', 'harvest' ); ?>
+                                </label>
+                                <span id="harvest-custom-url-wrap"
+                                    style="<?php echo $source === 'custom' ? '' : 'display:none;'; ?>">
+                                    <input
+                                        type="text"
+                                        id="harvest_widget_custom_url"
+                                        name="harvest_widget_custom_url"
+                                        value="<?php echo esc_attr( get_option( 'harvest_widget_custom_url' ) ); ?>"
+                                        class="regular-text"
+                                        placeholder="<?php esc_attr_e( 'https://example.com/harvest.min.js, /harvest.min.js, or harvest.min.js', 'harvest' ); ?>"
+                                    >
+                                    <span id="harvest-custom-url-indicator" class="harvest-url-indicator" data-status="idle"></span>
+                                    <p class="description" style="margin-top:6px;max-width:640px;">
+                                        <?php esc_html_e( 'Paste the full widget script URL here. In Home Assistant, open the HArvest panel, go to the Settings tab, and under "Widget script source" copy the Custom URL or Alternate port URL shown there.', 'harvest' ); ?>
+                                    </p>
+                                </span>
+                            </div>
                             <style>
+                                /* Per-option detail blocks. Layout lives here (not inline) so the
+                                   JS display toggle does not wipe the margins. Indented under each
+                                   radio; each option sits in its own .harvest-source-option row so
+                                   spacing is consistent whether or not a detail block is visible. */
+                                #harvest-ha-preview-wrap {
+                                    margin-left: 24px;
+                                    color: #646970;
+                                    font-size: 12px;
+                                    font-family: Consolas, Monaco, monospace;
+                                    word-break: break-all;
+                                }
+                                #harvest-custom-url-wrap {
+                                    display: block;
+                                    margin-left: 24px;
+                                    margin-top: 6px;
+                                }
                                 /* Reachability-indicator visuals (shared by HA URL and Custom URL fields) */
                                 .harvest-url-indicator {
                                     display: inline-block;

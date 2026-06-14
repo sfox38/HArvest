@@ -31,7 +31,7 @@ msgid "The external URL of your Home Assistant instance. Used by every widget on
 msgstr ""
 
 #: includes/class-harvest-settings.php
-msgid "Widget JS source"
+msgid "Widget script source"
 msgstr ""
 
 #. translators: %s: version number

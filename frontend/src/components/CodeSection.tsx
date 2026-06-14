@@ -89,7 +89,7 @@ export function groupEntities(entities: Token["entities"]): PrimaryWithCompanion
   return primaries.map(p => ({ primary: p, companions: companionMap.get(p.entity_id) ?? [] }));
 }
 
-function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null, entitiesBlock = false): string {
+export function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haUrl: string, hmacSecret: string | null, entitiesBlock = false): string {
   const groups = groupEntities(token.entities);
   const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
 
@@ -128,7 +128,7 @@ function buildCardSnippet(token: Token, useAliases: boolean, mode: CardMode, haU
   return `<hrv-card ${groupAttrs} ${entityAttr}></hrv-card>`;
 }
 
-function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null, entitiesBlock = false): string {
+export function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode, hmacSecret: string | null, entitiesBlock = false): string {
   const groups = groupEntities(token.entities);
   const secretAttr = hmacSecret ? ` token-secret="${hmacSecret}"` : "";
 
@@ -146,7 +146,7 @@ function buildWordPressSnippet(token: Token, useAliases: boolean, mode: CardMode
       return `[harvest_entities_block]\n${lines}\n[/harvest_entities_block]`;
     }
     if (mode === "group") {
-      return `[harvest_entities_block]\n[harvest_group token="${token.token_id}"${secretAttr}]\n${groups.map(g => shortcodeLine(g, "  ")).join("\n")}\n[/harvest_group]\n[/harvest_entities_block]`;
+      return `[harvest_group token="${token.token_id}"${secretAttr}]\n  [harvest_entities_block]\n${groups.map(g => shortcodeLine(g, "    ")).join("\n")}\n  [/harvest_entities_block]\n[/harvest_group]`;
     }
     const g = groups[0];
     if (!g) return "";

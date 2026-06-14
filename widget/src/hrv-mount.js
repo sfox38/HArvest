@@ -118,7 +118,14 @@ function mountGroup(el) {
 }
 
 /**
- * Create an <hrv-card> from a .hrv-mount div and append it to that div.
+ * Create an <hrv-card> from a .hrv-mount div.
+ *
+ * Normally the card is appended inside the .hrv-mount div (the standalone
+ * contract). When the mount lives directly inside an <hrv-entities-block>,
+ * the card replaces the div instead, so it becomes a direct <hrv-card> child
+ * of the block: the block's row layout and dividers only apply to direct
+ * hrv-card children, never to a wrapper div.
+ *
  * entity= takes priority over alias= when both data attributes are set.
  *
  * Token and ha-url are inherited from a parent .hrv-group div if not set
@@ -138,6 +145,7 @@ function mountCard(el) {
   const card = document.createElement("hrv-card");
 
   // Inherit token and ha-url from the nearest ancestor .hrv-group if absent.
+  // Resolve this before the element is moved so the ancestor walk is intact.
   const inherited = _inheritFromParentGroup(el);
 
   const token = el.dataset.token || inherited.token;
@@ -154,7 +162,12 @@ function mountCard(el) {
 
   if (el.dataset.layout)           card.setAttribute("layout",       el.dataset.layout);
 
-  el.appendChild(card);
+  const parent = el.parentElement;
+  if (parent && parent.tagName === "HRV-ENTITIES-BLOCK") {
+    el.replaceWith(card);
+  } else {
+    el.appendChild(card);
+  }
 }
 
 /**
