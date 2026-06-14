@@ -647,6 +647,13 @@ a.nav-item { text-decoration: none; color: var(--ink-3); }
   overflow: hidden;
 }
 
+.entity-preview-loading {
+  min-height: 124px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-4);
+}
+
 .entity-setting-row {
   display: flex;
   align-items: center;
@@ -1461,6 +1468,11 @@ button.entity-setting-group-title:focus-visible {
 .code-full {
   width: 100%;
   box-sizing: border-box;
+  cursor: text;
+}
+
+/* Code blocks that copy on click (e.g. generated secret) keep a pointer. */
+.code-copyable {
   cursor: pointer;
 }
 

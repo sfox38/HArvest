@@ -10,7 +10,7 @@
  * snapshot stale state.
  */
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import type { Token, ThemeDefinition, ThemeCapabilities, HAEntityDetail, ServiceFieldSchema } from "../types";
 import { api } from "../api";
 import { usePanelDark } from "../panelTheme";
@@ -301,7 +301,9 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const [attrCache, setAttrCache] = useState<Record<string, string[]>>({});
   const [attrLoading, setAttrLoading] = useState<Set<string>>(new Set());
   const [entityDetail, setEntityDetail] = useState<Record<string, HAEntityDetail>>({});
+  const [reservedPreviewHeight, setReservedPreviewHeight] = useState<number | null>(null);
   const configPanelRef = useRef<HTMLDivElement>(null);
+  const previewSlotRef = useRef<HTMLDivElement>(null);
 
   const agreeDialogRef = useRef<HTMLDivElement>(null);
   const previousDialogFocus = useRef<HTMLElement | null>(null);
@@ -369,6 +371,20 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
   const selectedGroup = selectedEntity
     ? grouped.find(g => g.primary.entity_id === selectedEntityId) ?? null
     : null;
+  const selectedEntityDetail = selectedEntity
+    ? entityDetail[selectedEntity.entity_id] ?? null
+    : null;
+
+  const selectEntity = (next: string | null) => {
+    if (next && next !== "__block__" && next !== selectedEntityId) {
+      const height = previewSlotRef.current?.getBoundingClientRect().height ?? 0;
+      setReservedPreviewHeight(height > 0 ? height : null);
+    } else {
+      setReservedPreviewHeight(null);
+    }
+    setSelectedEntityId(next);
+  };
+  const releasePreviewHeight = useCallback(() => setReservedPreviewHeight(null), []);
 
   const filteredThemes = themeFilter
     ? themes.filter(t => {
@@ -474,7 +490,15 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
       const result = await api.tokens.generateAlias(entityId);
       alias = result.alias;
     } catch { /* alias stays null */ }
-    const defaultCap = entities[0]?.capabilities ?? "read";
+    // Read-only domains (sensor, binary_sensor, weather, person) cannot be
+    // controlled, so they must never inherit a "read-write" default from the
+    // first entity - otherwise the Access toggle shows nothing selected because
+    // the Control button is hidden for these domains.
+    const domain = entityId.split(".")[0];
+    const inherited = entities[0]?.capabilities ?? "read";
+    const defaultCap = READ_ONLY_DOMAINS.has(domain) && inherited === "read-write"
+      ? "read"
+      : inherited;
     const updated = [...entities, {
       entity_id: entityId,
       alias,
@@ -549,7 +573,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
           delete hints.badge_icon_color;
         }
         const result = { ...en, capabilities: newCap, display_hints: hints };
-        if (toBadge) result.gesture_config = {};
+        // Gestures only apply to interactive cards; drop them otherwise.
+        if (newCap !== "read-write") result.gesture_config = {};
         return result;
       }
       return en;
@@ -781,7 +806,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             const next = ev.key === "ArrowDown"
               ? Math.min(idx + 1, ids.length - 1)
               : Math.max(idx - 1, 0);
-            setSelectedEntityId(ids[next]);
+            selectEntity(ids[next]);
             const row = ev.currentTarget.querySelector(`[data-entity-id="${ids[next]}"]`) as HTMLElement | null;
             row?.focus();
           }}
@@ -791,7 +816,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               className={`entity-list-row${selectedEntityId === "__block__" ? " selected" : ""}`}
               onClick={() => {
                 const next = selectedEntityId === "__block__" ? null : "__block__";
-                setSelectedEntityId(next);
+                selectEntity(next);
                 setBlockExpanded(v => !v);
                 if (next && window.innerWidth <= 720) {
                   requestAnimationFrame(() => configPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
@@ -825,7 +850,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 className={`entity-list-row${isSelected ? " selected" : ""}${token.entities_block ? " entity-list-row--child" : ""}`}
                 onClick={() => {
                   const next = isSelected ? null : e.entity_id;
-                  setSelectedEntityId(next);
+                  selectEntity(next);
                   if (next && window.innerWidth <= 720) {
                     requestAnimationFrame(() => configPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
                   }
@@ -836,7 +861,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 onKeyDown={ev => {
                   if (ev.key === "Enter" || ev.key === " ") {
                     ev.preventDefault();
-                    setSelectedEntityId(isSelected ? null : e.entity_id);
+                    selectEntity(isSelected ? null : e.entity_id);
                   }
                 }}
                 data-entity-id={e.entity_id}
@@ -1168,19 +1193,28 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
             )}
 
-            {!token.entities_block && entityDetail[selectedEntity.entity_id] && (() => {
+            {!token.entities_block && (() => {
               const bgColor = previewBgGray == null
                 ? undefined
                 : `rgb(${Math.round(previewBgGray * 2.55)},${Math.round(previewBgGray * 2.55)},${Math.round(previewBgGray * 2.55)})`;
               return (
+                <div
+                  ref={previewSlotRef}
+                  className="entity-preview-slot"
+                  style={reservedPreviewHeight
+                    ? { minHeight: reservedPreviewHeight }
+                    : undefined}
+                >
+                {selectedEntityDetail ? (
                 <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
                   <div className="entity-preview-stage" style={{ flex: 1, borderRadius: 8, background: bgColor, transition: "background 0.15s" }}>
                     <EntityPreview
-                      entity={entityDetail[selectedEntity.entity_id]}
+                      entity={selectedEntityDetail}
                       entityAccess={selectedEntity}
                       theme={selectedTheme}
                       companions={selectedGroup?.companions ?? []}
                       iconSet={token.icon_set ?? selectedTheme?.icon_set ?? null}
+                      onReady={releasePreviewHeight}
                     />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
@@ -1196,6 +1230,13 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       className="preview-bg-slider"
                     />
                   </div>
+                </div>
+                ) : (
+                  <div className="entity-preview-loading" role="status">
+                    <Spinner size={20} />
+                    <span className="sr-only">Loading entity preview</span>
+                  </div>
+                )}
                 </div>
               );
             })()}
@@ -1891,7 +1932,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
             </div>
             )}
 
-            {selectedEntity.capabilities !== "badge" && !token.entities_block && (
+            {selectedEntity.capabilities === "read-write" && !token.entities_block && (
             <div className="entity-setting-group">
               <div className="entity-setting-group-title">Gestures</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>

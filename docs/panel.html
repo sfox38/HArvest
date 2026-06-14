@@ -171,6 +171,7 @@
 
         <h4>Live preview</h4>
         <p>When an entity is selected, a live preview card appears below the theme picker. It renders the selected entity using the current theme and all applied settings. The preview updates automatically as you change settings, switch themes, or modify display options. It also respects the entity's forced color scheme setting (Auto, Light, or Dark).</p>
+        <p>When a graph is enabled for an entity, the preview shows that entity's real recorded history, fetched from Home Assistant's recorder using the same logic the live widget uses. If the recorder has no numeric history for the entity (for example a brand-new helper, or a recorder that is not storing that entity), the preview falls back to sample data so the card is never blank.</p>
 
         <h4>Entity settings card</h4>
         <p>Below the preview, the settings card shows all configuration for the selected entity. Settings are grouped into universal controls (available for all entity types) and domain-specific controls.</p>
@@ -183,7 +184,7 @@
               <tr><td>Icon</td><td>icon picker</td><td>Replaces the auto-detected icon with any icon from the widget's built-in set (~113 icons). Click the icon button to the left of the Display name field to open the picker. Select an icon, or use "Reset to default" to clear the override.</td></tr>
               <tr><td>Display name</td><td>text input</td><td>Overrides the entity's Home Assistant friendly name. Leave blank to use the HA name.</td></tr>
               <tr><td>Force color scheme</td><td>Auto, Light, Dark</td><td>Forces the widget card to render in that color scheme regardless of the visitor's system settings. Auto follows the page's color scheme.</td></tr>
-              <tr><td>Access</td><td>Badge, Read only, Read + Control</td><td>Badge renders a compact pill indicator (icon, name, state) with no controls, companions, or gestures. Read only displays a full card without controls. Read + Control displays a full card that can send commands (e.g. toggle a light).</td></tr>
+              <tr><td>Access</td><td>Badge, Read only, Read + Control</td><td>Badge renders a compact pill indicator (icon, name, state) with no controls, companions, or gestures. Read only displays a full card without controls or gestures. Read + Control displays a full card that can send commands (e.g. toggle a light) and supports gestures.</td></tr>
               <tr><td>Decimal rounding</td><td>0-6, or None</td><td>Rounds the entity's numeric state to a fixed number of decimal places. Available for sensor, input_number, counter, and number entities. Set to 0 for integer values, or leave as None for the raw HA value. Rounding is applied server-side so all themes display the same precision.</td></tr>
             </tbody>
           </table>
@@ -212,7 +213,7 @@
 
         <p><strong>Excluded attributes:</strong> a grid of toggles for each attribute the entity exposes. Excluding an attribute prevents it from being sent to the widget. These toggles are linked to the domain-specific controls above: disabling "Show brightness" for a light also excludes the brightness attribute, and vice versa.</p>
 
-        <p><strong>Gestures:</strong> maps tap, hold, and double-tap interactions on the card to actions. Hidden when Access is Badge.</p>
+        <p><strong>Gestures:</strong> maps tap, hold, and double-tap interactions on the card to actions. Gestures require Read + Control access, so the section is hidden when Access is Badge or Read only. Switching a card from Read + Control to Read only or Badge clears any gestures it had.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Gesture</th><th>Available actions</th></tr></thead>

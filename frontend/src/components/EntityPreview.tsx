@@ -39,6 +39,7 @@ export function EntityPreview({
   theme,
   companions = [],
   iconSet = null,
+  onReady,
 }: {
   entity: HAEntityDetail;
   entityAccess: Token["entities"][number];
@@ -46,6 +47,7 @@ export function EntityPreview({
   companions?: Token["entities"][number][];
   /** Effective global icon set (token icon_set ?? theme icon_set). */
   iconSet?: string | null;
+  onReady?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement | null>(null);
@@ -145,11 +147,16 @@ export function EntityPreview({
     }
 
     const graphType = (entityAccess.display_hints?.graph as string) ?? null;
+    const graphHours = (entityAccess.display_hints?.hours as number) ?? 24;
+    const graphPeriod = (entityAccess.display_hints?.period as number) ?? 10;
+    const graphEnabled = !!graphType && graphType !== "none";
     const opts: Record<string, unknown> = {};
     if (rendererId) opts.rendererId = rendererId;
-    if (graphType && graphType !== "none") {
+    if (graphEnabled) {
       opts.graph = graphType;
-      opts.hours = 24;
+      opts.hours = graphHours;
+      // Initial paint uses mock data; real recorder history (when available)
+      // replaces it below so the preview matches what live widgets render.
       opts.historyData = generateMockHistory(domain, graphType as "line" | "bar" | "step", entity.state);
     }
 
@@ -158,6 +165,20 @@ export function EntityPreview({
       Object.keys(opts).length ? opts as never : undefined,
     );
     cardRef.current = card;
+    requestAnimationFrame(() => onReady?.());
+
+    // Swap the mock graph for real recorder history when the entity has any.
+    // Falls back to the mock paint when the recorder is empty/unavailable so
+    // the preview is never blank.
+    if (graphEnabled) {
+      api.entities.getHistory(entity.entity_id, { hours: graphHours, period: graphPeriod })
+        .then(res => {
+          const el = cardRef.current as (HTMLElement & { receiveHistoryData?: (points: unknown[], hours: number) => void }) | null;
+          if (!el || !res.points || res.points.length < 2) return;
+          el.receiveHistoryData?.(res.points, res.hours);
+        })
+        .catch(() => {});
+    }
 
     for (const c of companions) {
       api.entities.getDefinition(c.entity_id, { capabilities: c.capabilities }).then(result => {
@@ -170,7 +191,7 @@ export function EntityPreview({
 
     return () => { container.innerHTML = ""; cardRef.current = null; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, cardKey, serverDef, themeJson]);
+  }, [ready, cardKey, serverDef, themeJson, onReady]);
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   return (

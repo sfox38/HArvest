@@ -87,6 +87,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
         HarvestAggregatesView,
         HarvestEntitiesView,
         HarvestEntityDefinitionView,
+        HarvestPreviewHistoryView,
         HarvestScriptFieldsView,
         HarvestServiceFieldsView,
         HarvestRegistriesView,
@@ -3135,6 +3136,56 @@ class HarvestEntityDefinitionView(_HarvestView):
             "definition": definition,
             "state": _round_state(state.state, entity_access),
             "attributes": filtered_attrs,
+        })
+
+
+class HarvestPreviewHistoryView(_HarvestView):
+    """GET /api/harvest/preview/history/{entity_id}
+
+    Returns real recorder history for an entity using the same fetch and
+    aggregation logic as the live WebSocket history_request handler, so the
+    panel preview graph matches what hosted widgets render. Returns an empty
+    points list when the recorder is unavailable or the entity has no numeric
+    history (the panel then falls back to mock data).
+
+    Query params (optional): hours (1-168, default 24), period (minutes,
+    default 10).
+
+    Response: {"entity_id", "hours", "period", "points": [{"t", "s"}, ...]}
+    """
+
+    url = "/api/harvest/preview/history/{entity_id}"
+    name = "api:harvest:preview:history"
+
+    async def get(self, request: web.Request, entity_id: str) -> web.Response:
+        user = request.get("hass_user")
+        if user is None or not user.is_admin:
+            raise web.HTTPForbidden()
+
+        if self._hass.states.get(entity_id) is None:
+            raise web.HTTPNotFound(text=f"Entity {entity_id} not found")
+
+        params = request.query
+        try:
+            hours = int(params.get("hours", 24))
+        except (TypeError, ValueError):
+            hours = 24
+        hours = max(1, min(hours, 168))
+        try:
+            period = int(params.get("period", 10))
+        except (TypeError, ValueError):
+            period = 10
+        period = max(1, period)
+        if period >= hours * 60:
+            period = 10
+
+        from .ws_proxy import fetch_history_points
+        points = await fetch_history_points(self._hass, entity_id, hours, period)
+        return self.json({
+            "entity_id": entity_id,
+            "hours": hours,
+            "period": period,
+            "points": points,
         })
 
 

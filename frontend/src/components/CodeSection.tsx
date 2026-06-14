@@ -280,7 +280,7 @@ export function CodeSection({ token, setToken, setError, hmacSecret, bare }: { t
             </div>
             <CopyBtn copied={setupCopy.copied} copy={setupCopy.copy} label={isPage ? "Copy setup" : "Copy script"} />
           </div>
-          <pre className="code code-full" onClick={setupCopy.copy} title="Click to copy">{setupSnippet}</pre>
+          <pre className="code code-full">{setupSnippet}</pre>
         </div>
       )}
 
@@ -300,7 +300,7 @@ export function CodeSection({ token, setToken, setError, hmacSecret, bare }: { t
           </div>
           <CopyBtn copied={cardCopy.copied} copy={cardCopy.copy} label={tab === "wordpress" ? "Copy shortcode" : "Copy markup"} />
         </div>
-        <pre className="code code-full" onClick={cardCopy.copy} title="Click to copy">{cardSnippet}</pre>
+        <pre className="code code-full">{cardSnippet}</pre>
       </div>
 
       {/* Alias toggle */}

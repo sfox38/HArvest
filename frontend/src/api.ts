@@ -562,6 +562,15 @@ export const api = {
       return _get(`/preview/definition/${encodeURIComponent(entityId)}`, Object.keys(p).length ? p : undefined);
     },
 
+    getHistory: (entityId: string, params?: { hours?: number; period?: number }): Promise<{
+      entity_id: string; hours: number; period: number; points: Array<{ t: string; s: string }>;
+    }> => {
+      const p: Record<string, string> = {};
+      if (params?.hours != null) p.hours = String(params.hours);
+      if (params?.period != null) p.period = String(params.period);
+      return _get(`/preview/history/${encodeURIComponent(entityId)}`, Object.keys(p).length ? p : undefined);
+    },
+
     getScriptFields: (entityId: string): Promise<{ entity_id: string; fields: Record<string, ServiceFieldSchema> }> =>
       _get(`/entities/${encodeURIComponent(entityId)}/script_fields`),
   },

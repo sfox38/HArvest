@@ -107,11 +107,11 @@
           <table>
             <thead><tr><th>Domain</th><th>Why it's gated</th></tr></thead>
             <tbody>
-              <tr><td><code>lock</code></td><td>Controls physical locks - enabling this can open doors</td></tr>
-              <tr><td><code>cover</code></td><td>Controls garage doors, gates, and motorized blinds</td></tr>
-              <tr><td><code>script</code></td><td>Executes arbitrary HA script logic</td></tr>
               <tr><td><code>automation</code></td><td>Triggers, enables, or disables HA automations</td></tr>
               <tr><td><code>button</code>, <code>input_button</code></td><td>One-shot press actions, often wired to scripts or scenes. Both domains are controlled by the Button sensitive-domain setting.</td></tr>
+              <tr><td><code>cover</code></td><td>Controls garage doors, gates, and motorized blinds</td></tr>
+              <tr><td><code>lock</code></td><td>Controls physical locks - enabling this can open doors</td></tr>
+              <tr><td><code>script</code></td><td>Executes arbitrary HA script logic</td></tr>
             </tbody>
           </table>
         </div>
@@ -121,7 +121,7 @@
         <section>
         <h2 id="tier1">Tier 1 - Dedicated renderers</h2>
 
-        <p>Every entity has universal settings available in the entity settings card: <strong>name override</strong> (custom display name replacing the HA friendly name), <strong>icon override</strong> (a custom icon picked from the icon picker next to the display name), <strong>force color scheme</strong> (Auto, Light, or Dark per entity), <strong>access</strong> (Badge, Read only, or Control), <strong>companions</strong> (not available for Badge), <strong>gestures</strong> (not available for Badge), and <strong>excluded attributes</strong>. When access is set to Badge, the entity renders as a compact pill-shaped indicator showing only icon, name, and state. Badge-specific settings (show icon, show name, show state, icon color) replace the domain-specific and companion settings. Domain-specific settings are listed under each entity type below.</p>
+        <p>Every entity has universal settings available in the entity settings card: <strong>name override</strong> (custom display name replacing the HA friendly name), <strong>icon override</strong> (a custom icon picked from the icon picker next to the display name), <strong>force color scheme</strong> (Auto, Light, or Dark per entity), <strong>access</strong> (Badge, Read only, or Control), <strong>companions</strong> (not available for Badge), <strong>gestures</strong> (Control access only), and <strong>excluded attributes</strong>. When access is set to Badge, the entity renders as a compact pill-shaped indicator showing only icon, name, and state. Badge-specific settings (show icon, show name, show state, icon color) replace the domain-specific and companion settings. Domain-specific settings are listed under each entity type below.</p>
 
         <p>The icon picker offers several icon sets via its dropdown: <strong>Material Design</strong> (the default set, bundled with the widget), <strong>Font Awesome</strong>, <strong>Phosphor</strong> (each of its six weights - Regular, Thin, Light, Bold, Fill, and Duotone - is its own entry), and <strong>Tabler</strong>. The non-Material sets load on demand as small assets served by the integration; a widget using one paints instantly with its default icon and swaps to the chosen glyph as soon as the set loads. The same picker (and the same sets) is available for the entities-block header icon.</p>
 
@@ -129,31 +129,16 @@
 
         <p>The access setting also controls how much data the server sends. Badge and Read-only entities receive only the attributes they need for display, while Control entities receive the full payload including feature configuration and service call metadata. This reduces bandwidth and improves load time, especially on pages with many entities.</p>
 
-        <h3><span class="mdi mdi-lightbulb"></span> light</h3>
-        <p>On/off toggle, brightness slider, color temperature slider. Hides controls that the physical device doesn't support (e.g. no brightness slider on a non-dimmable light). Supported features are read from the entity's <code>supported_features</code> bitmask.</p>
-        <p><strong>Display settings:</strong> brightness, color temperature, and RGB color can each be individually toggled on or off in the entity settings card.</p>
-        <p><strong>History graph:</strong> not supported</p>
-
-        <h3><span class="mdi mdi-toggle-switch"></span> switch</h3>
-        <p>On/off toggle. Simple state display with device-class icon.</p>
+        <h3><span class="mdi mdi-robot"></span> automation</h3>
+        <p>Trigger button that fires the automation regardless of its on/off state. An enable/disable toggle lets visitors turn the automation on or off.</p>
+        <p><strong>States:</strong> on (enabled), off (disabled).</p>
 
         <h3><span class="mdi mdi-radiobox-marked"></span> binary_sensor</h3>
         <p>Read-only. Displays current state with device-class appropriate icon and label (motion, door, window, smoke, etc.).</p>
         <p><strong>History graph:</strong> supported. Step is the recommended graph type for an on/off timeline. Line and bar are also available.</p>
 
-        <h3><span class="mdi mdi-eye"></span> sensor</h3>
-        <p>Read-only. Three sub-renderers based on device class:</p>
-        <ul>
-          <li><strong>temperature</strong> - large temperature value display with unit</li>
-          <li><strong>humidity</strong> - large humidity percentage display</li>
-          <li><strong>battery</strong> - percentage bar with color (green/amber/red by level)</li>
-          <li><strong>generic sensor</strong> - value + unit, works for any numeric sensor</li>
-        </ul>
-        <p><strong>History graph:</strong> supported (line or bar, configurable per entity)</p>
-
-        <h3><span class="mdi mdi-fan"></span> fan</h3>
-        <p>Toggle, speed percentage slider, oscillate toggle, direction selector (forward/reverse). The fan icon optionally spins when the entity is on (enabled via the <strong>Animate</strong> display setting in the panel). Controls that the physical device doesn't support are hidden.</p>
-        <p><strong>Display settings:</strong> choose a display mode to override auto-detection: Auto (default), On/Off only (hides speed controls), Continuous (forces slider), Stepped (forces step buttons), or Cycle (forces cycle button).</p>
+        <h3><span class="mdi mdi-gesture-tap-button"></span> button and input_button</h3>
+        <p>Both domains use the same dedicated renderer: a single full-width Press button. No ongoing state is tracked. The button is disabled when the entity is unavailable.</p>
 
         <h3><span class="mdi mdi-thermostat"></span> climate</h3>
         <p>HVAC mode selector, numeric target temperature input or low/high target inputs for range mode, current temperature read-only display, fan mode selector, preset selector, and swing mode selector. Controls appear only when supported by the entity and permitted by its access setting.</p>
@@ -163,9 +148,9 @@
         <p>Open, stop, and close buttons. Position and tilt sliders (0-100%) are shown when the cover supports the corresponding feature. Controls are shown or hidden based on device capabilities and display settings.</p>
         <p><strong>Display settings:</strong> position slider and tilt control can be individually toggled.</p>
 
-        <h3><span class="mdi mdi-cast"></span> media_player</h3>
-        <p>Power, play/pause, previous track, next track, mute, volume down, volume up, volume slider, and source selector controls appear independently when supported by the entity. The state-aware power button is disabled when the entity does not support the required turn-on or turn-off direction. Current track title, artist, and playback state are displayed when available. Album art is not supported in v1.</p>
-        <p><strong>Display settings:</strong> transport controls, volume, and source selector can be individually toggled.</p>
+        <h3><span class="mdi mdi-fan"></span> fan</h3>
+        <p>Toggle, speed percentage slider, oscillate toggle, direction selector (forward/reverse). The fan icon optionally spins when the entity is on (enabled via the <strong>Animate</strong> display setting in the panel). Controls that the physical device doesn't support are hidden.</p>
+        <p><strong>Display settings:</strong> choose a display mode to override auto-detection: Auto (default), On/Off only (hides speed controls), Continuous (forces slider), Stepped (forces step buttons), or Cycle (forces cycle button).</p>
 
         <h3><span class="mdi mdi-toggle-switch-outline"></span> input_boolean</h3>
         <p>On/off toggle. Functionally equivalent to switch but for HA input helpers.</p>
@@ -178,18 +163,10 @@
         <h3><span class="mdi mdi-format-list-bulleted"></span> input_select</h3>
         <p>Option pills by default, or a custom dropdown-style menu when <strong>Show as dropdown</strong> is enabled. The current option is highlighted, and read-only cards show it as text.</p>
 
-        <h3><span class="mdi mdi-timer-outline"></span> timer</h3>
-        <p>Countdown display. Start/resume, pause, cancel, and finish buttons. State-aware: shows relevant buttons for current state (idle, active, paused).</p>
-
-        <h3><span class="mdi mdi-remote"></span> remote</h3>
-        <p>Explicit on/off power control. When the remote exposes an <code>activity_list</code>, the card also shows an activity dropdown and highlights <code>current_activity</code>. Selecting an activity calls <code>remote.turn_on</code> with that activity. Arbitrary <code>remote.send_command</code> actions are available through configured gestures and custom renderers, not through a raw command field in the built-in card.</p>
-
-        <h3><span class="mdi mdi-weather-partly-cloudy"></span> weather</h3>
-        <p>Read-only. Displays current conditions by default: a large condition icon paired with the temperature, condition label, and a detail row showing humidity, wind speed, and pressure.</p>
-        <p>Forecasts are optional and disabled by default. Enable <strong>Show forecast</strong> in the weather entity's display settings to fetch and display forecast data. When enabled, HArvest fetches available daily and hourly forecasts directly from HA and subscribes to later forecast updates. The card shows a 5-day strip for daily forecasts and lets visitors switch between daily and hourly views when both are available.</p>
-        <p>This forecast integration works with HA 2024.4+ where forecast data is no longer provided as a weather entity state attribute.</p>
-        <p><strong>Display settings:</strong> Show forecast enables or disables forecast fetching, subscriptions, and display for this entity.</p>
-        <p><strong>History graph:</strong> not supported.</p>
+        <h3><span class="mdi mdi-lightbulb"></span> light</h3>
+        <p>On/off toggle, brightness slider, color temperature slider. Hides controls that the physical device doesn't support (e.g. no brightness slider on a non-dimmable light). Supported features are read from the entity's <code>supported_features</code> bitmask.</p>
+        <p><strong>Display settings:</strong> brightness, color temperature, and RGB color can each be individually toggled on or off in the entity settings card.</p>
+        <p><strong>History graph:</strong> not supported</p>
 
         <h3><span class="mdi mdi-lock"></span> lock</h3>
         <p>One state-aware action button that shows Unlock while locked and Lock for other actionable states. The button is disabled while the lock is transitioning, jammed, unavailable, or unknown. Read-only capability hides the button and shows the state label only.</p>
@@ -197,26 +174,49 @@
         <p><strong>States:</strong> locked, unlocked, locking, unlocking, jammed. The jammed state is highlighted in error colour.</p>
         <p><strong>Optimistic UI:</strong> the card predicts the transitioning state immediately after a command, then reverts to the server-confirmed state when the real update arrives.</p>
 
-        <h3><span class="mdi mdi-account"></span> person</h3>
-        <p>Read-only. Displays the person's presence state: Home, Away, or the name of the zone they are in.</p>
-
-        <h3><span class="mdi mdi-gesture-tap-button"></span> button and input_button</h3>
-        <p>Both domains use the same dedicated renderer: a single full-width Press button. No ongoing state is tracked. The button is disabled when the entity is unavailable.</p>
+        <h3><span class="mdi mdi-cast"></span> media_player</h3>
+        <p>Power, play/pause, previous track, next track, mute, volume down, volume up, volume slider, and source selector controls appear independently when supported by the entity. The state-aware power button is disabled when the entity does not support the required turn-on or turn-off direction. Current track title, artist, and playback state are displayed when available. Album art is not supported in v1.</p>
+        <p><strong>Display settings:</strong> transport controls, volume, and source selector can be individually toggled.</p>
 
         <h3><span class="mdi mdi-numeric"></span> number</h3>
         <p>Range slider spanning the entity's min/max, with current value display. Functionally identical to <code>input_number</code>. Used by integrations such as smart thermostats and LED controllers.</p>
         <p><strong>History graph:</strong> supported</p>
 
-        <h3><span class="mdi mdi-form-select"></span> select</h3>
-        <p>Option pills or a custom dropdown-style menu, according to the entity's Display settings. Functionally identical to <code>input_select</code>. Used by integrations such as AV receivers and tuners.</p>
+        <h3><span class="mdi mdi-account"></span> person</h3>
+        <p>Read-only. Displays the person's presence state: Home, Away, or the name of the zone they are in.</p>
+
+        <h3><span class="mdi mdi-remote"></span> remote</h3>
+        <p>Explicit on/off power control. When the remote exposes an <code>activity_list</code>, the card also shows an activity dropdown and highlights <code>current_activity</code>. Selecting an activity calls <code>remote.turn_on</code> with that activity. Arbitrary <code>remote.send_command</code> actions are available through configured gestures and custom renderers, not through a raw command field in the built-in card.</p>
 
         <h3><span class="mdi mdi-script-text"></span> script</h3>
         <p>Run button that triggers the script. If the script defines input variables (via <code>fields:</code> in the YAML config), the wizard and token editor show a typed form for each variable - number inputs, dropdowns, entity pickers, area selectors, and more, matching the field's HA selector type. Default values are pre-filled. These values are baked into the token at creation time; visitors cannot change them. The card shows a pulse animation while the script is running.</p>
         <p><strong>States:</strong> off (idle), on (running).</p>
 
-        <h3><span class="mdi mdi-robot"></span> automation</h3>
-        <p>Trigger button that fires the automation regardless of its on/off state. An enable/disable toggle lets visitors turn the automation on or off.</p>
-        <p><strong>States:</strong> on (enabled), off (disabled).</p>
+        <h3><span class="mdi mdi-form-select"></span> select</h3>
+        <p>Option pills or a custom dropdown-style menu, according to the entity's Display settings. Functionally identical to <code>input_select</code>. Used by integrations such as AV receivers and tuners.</p>
+
+        <h3><span class="mdi mdi-eye"></span> sensor</h3>
+        <p>Read-only. Three sub-renderers based on device class:</p>
+        <ul>
+          <li><strong>temperature</strong> - large temperature value display with unit</li>
+          <li><strong>humidity</strong> - large humidity percentage display</li>
+          <li><strong>battery</strong> - percentage bar with color (green/amber/red by level)</li>
+          <li><strong>generic sensor</strong> - value + unit, works for any numeric sensor</li>
+        </ul>
+        <p><strong>History graph:</strong> supported (line or bar, configurable per entity)</p>
+
+        <h3><span class="mdi mdi-toggle-switch"></span> switch</h3>
+        <p>On/off toggle. Simple state display with device-class icon.</p>
+
+        <h3><span class="mdi mdi-timer-outline"></span> timer</h3>
+        <p>Countdown display. Start/resume, pause, cancel, and finish buttons. State-aware: shows relevant buttons for current state (idle, active, paused).</p>
+
+        <h3><span class="mdi mdi-weather-partly-cloudy"></span> weather</h3>
+        <p>Read-only. Displays current conditions by default: a large condition icon paired with the temperature, condition label, and a detail row showing humidity, wind speed, and pressure.</p>
+        <p>Forecasts are optional and disabled by default. Enable <strong>Show forecast</strong> in the weather entity's display settings to fetch and display forecast data. When enabled, HArvest fetches available daily and hourly forecasts directly from HA and subscribes to later forecast updates. The card shows a 5-day strip for daily forecasts and lets visitors switch between daily and hourly views when both are available.</p>
+        <p>This forecast integration works with HA 2024.4+ where forecast data is no longer provided as a weather entity state attribute.</p>
+        <p><strong>Display settings:</strong> Show forecast enables or disables forecast fetching, subscriptions, and display for this entity.</p>
+        <p><strong>History graph:</strong> not supported.</p>
 
         </section>
 
@@ -230,7 +230,7 @@
           <li>Current state as text</li>
         </ul>
 
-        <p>Some examples of Tier 2 domains: <code>text</code>, <code>date</code>, <code>time</code>, <code>event</code>, <code>calendar</code>.</p>
+        <p>Some examples of Tier 2 domains: <code>calendar</code>, <code>date</code>, <code>event</code>, <code>text</code>, <code>time</code>.</p>
 
         <p>Tier 2 domains remain display-only in the generic card. Admins can register allowed services under <strong>Settings &gt; Custom Domains</strong> so configured gestures or a custom renderer can send commands, but this does not add controls to the generic card. See the <a href="#custom-domains">Custom domains</a> section for details.</p>
         </section>
@@ -245,8 +245,8 @@
             <thead><tr><th>Domain</th><th>Why blocked</th></tr></thead>
             <tbody>
               <tr><td><code>alarm_control_panel</code></td><td>Security system - only arm/disarm from trusted interfaces</td></tr>
-              <tr><td><code>device_tracker</code></td><td>Privacy concern - exposes real-time location. Use <code>person</code> domain instead</td></tr>
               <tr><td><code>camera</code></td><td>Live video feed - significant bandwidth and privacy risk</td></tr>
+              <tr><td><code>device_tracker</code></td><td>Privacy concern - exposes real-time location. Use <code>person</code> domain instead</td></tr>
               <tr><td><code>scene</code></td><td>Deferred to v2 review</td></tr>
               <tr><td><code>update</code></td><td>HA update management - admin-only operation</td></tr>
             </tbody>
@@ -268,18 +268,18 @@
           <table>
             <thead><tr><th>Domain</th><th>Access in companion role</th><th>Typical use</th></tr></thead>
             <tbody>
-              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> <code>light</code></td><td>Toggle on/off</td><td>Additional light in the same room shown as a pill</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch"></span> <code>switch</code></td><td>Toggle on/off</td><td>Related switch shown alongside a primary entity</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch-outline"></span> <code>input_boolean</code></td><td>Toggle on/off</td><td>Boolean helper state</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> <code>fan</code></td><td>Toggle on/off</td><td>Fan power state alongside a climate or light card</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-radiobox-marked"></span> <code>binary_sensor</code></td><td>Read-only</td><td>Motion, door/window state, occupancy indicator inside a light card</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> <code>sensor</code></td><td>Read-only</td><td>Temperature next to a climate card, power draw next to a switch</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> <code>lock</code></td><td>Lock/Unlock</td><td>Lock state shown alongside a door sensor or light card</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> <code>cover</code></td><td>Read-only</td><td>Cover position indicator alongside a related entity</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> <code>remote</code></td><td>Read-only power state</td><td>Remote power status alongside a media player card</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>button</code> / <code>input_button</code></td><td>Press</td><td>Trigger a scene or action from inside another card</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> <code>cover</code></td><td>Read-only</td><td>Cover position indicator alongside a related entity</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> <code>fan</code></td><td>Toggle on/off</td><td>Fan power state alongside a climate or light card</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch-outline"></span> <code>input_boolean</code></td><td>Toggle on/off</td><td>Boolean helper state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> <code>light</code></td><td>Toggle on/off</td><td>Additional light in the same room shown as a pill</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> <code>lock</code></td><td>Lock/Unlock</td><td>Lock state shown alongside a door sensor or light card</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-numeric"></span> <code>number</code> / <code>input_number</code></td><td>Read-only</td><td>Numeric helper value alongside a related entity, similar to sensor</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-account"></span> <code>person</code></td><td>Read-only</td><td>Home/Away presence indicator alongside a lock or light card</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> <code>remote</code></td><td>Read-only power state</td><td>Remote power status alongside a media player card</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> <code>sensor</code></td><td>Read-only</td><td>Temperature next to a climate card, power draw next to a switch</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch"></span> <code>switch</code></td><td>Toggle on/off</td><td>Related switch shown alongside a primary entity</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-timer-outline"></span> <code>timer</code></td><td>Read-only</td><td>Countdown remaining time alongside a media player or automation card</td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-weather-partly-cloudy"></span> <code>weather</code></td><td>Read-only</td><td>Outdoor temperature and condition alongside a climate card</td></tr>
             </tbody>
@@ -303,24 +303,24 @@
           <table>
             <thead><tr><th>Domain</th><th>Allowed services</th></tr></thead>
             <tbody>
-              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> <code>light</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch"></span> <code>switch</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch-outline"></span> <code>input_boolean</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> <code>fan</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code>, <code>set_percentage</code>, <code>oscillate</code>, <code>set_direction</code>, <code>set_preset_mode</code>, <code>increase_speed</code>, <code>decrease_speed</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> <code>cover</code></td><td><code>open_cover</code>, <code>close_cover</code>, <code>stop_cover</code>, <code>set_cover_position</code>, <code>set_cover_tilt_position</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-robot"></span> <code>automation</code></td><td><code>trigger</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>button</code></td><td><code>press</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-thermostat"></span> <code>climate</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>set_temperature</code>, <code>set_hvac_mode</code>, <code>set_fan_mode</code>, <code>set_preset_mode</code>, <code>set_swing_mode</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> <code>cover</code></td><td><code>open_cover</code>, <code>close_cover</code>, <code>stop_cover</code>, <code>set_cover_position</code>, <code>set_cover_tilt_position</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> <code>fan</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code>, <code>set_percentage</code>, <code>oscillate</code>, <code>set_direction</code>, <code>set_preset_mode</code>, <code>increase_speed</code>, <code>decrease_speed</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch-outline"></span> <code>input_boolean</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>input_button</code></td><td><code>press</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-ray-vertex"></span> <code>input_number</code></td><td><code>set_value</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-format-list-bulleted"></span> <code>input_select</code></td><td><code>select_option</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-timer-outline"></span> <code>timer</code></td><td><code>start</code>, <code>pause</code>, <code>cancel</code>, <code>finish</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> <code>media_player</code></td><td><code>media_play_pause</code>, <code>media_next_track</code>, <code>media_previous_track</code>, <code>volume_up</code>, <code>volume_down</code>, <code>volume_set</code>, <code>volume_mute</code>, <code>select_source</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> <code>remote</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>send_command</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> <code>light</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> <code>lock</code></td><td><code>lock</code>, <code>unlock</code>, <code>open</code> (advanced unlatch action for configured gestures and custom renderers; not a built-in card button)</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>button</code></td><td><code>press</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>input_button</code></td><td><code>press</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> <code>media_player</code></td><td><code>media_play_pause</code>, <code>media_next_track</code>, <code>media_previous_track</code>, <code>volume_up</code>, <code>volume_down</code>, <code>volume_set</code>, <code>volume_mute</code>, <code>select_source</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-numeric"></span> <code>number</code></td><td><code>set_value</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-form-select"></span> <code>select</code></td><td><code>select_option</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> <code>remote</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>send_command</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-script-text"></span> <code>script</code></td><td><code>turn_on</code></td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-robot"></span> <code>automation</code></td><td><code>trigger</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-form-select"></span> <code>select</code></td><td><code>select_option</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch"></span> <code>switch</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-timer-outline"></span> <code>timer</code></td><td><code>start</code>, <code>pause</code>, <code>cancel</code>, <code>finish</code></td></tr>
             </tbody>
           </table>
         </div>

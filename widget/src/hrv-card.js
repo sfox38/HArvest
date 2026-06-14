@@ -235,6 +235,13 @@ export class HrvCard extends HTMLElement {
     // this path, so this check does not interfere with style updates.
     if (this.#entityDef && this.#renderer
         && JSON.stringify(def) === JSON.stringify(this.#entityDef)) {
+      // The renderer is unchanged, but history still needs to be (re)requested.
+      // The stale-on-mount fast path renders a cached definition before the WS
+      // is open, so its history request is a no-op; the matching server
+      // definition then short-circuits here. Without this call the graph would
+      // never load on a warm-cache page load (only after a config change forces
+      // a non-matching definition). See _ensureHistory().
+      this.#ensureHistory();
       return;
     }
 
@@ -334,18 +341,28 @@ export class HrvCard extends HTMLElement {
       this.#renderer.updateCompanionState?.(entityId, state, attributes);
     }
 
-    if (this.#config.graph) {
-      if (this.#lastHistoryData) {
-        this.#renderer.receiveHistoryData?.(
-          this.#lastHistoryData.points,
-          this.#lastHistoryData.hours,
-          this.#config.graph,
-        );
-      }
-      if (this.#client) {
-        const entityRef = this.#entityId || this.#alias;
-        this.#client.requestHistory(entityRef);
-      }
+    this.#ensureHistory();
+  }
+
+  /**
+   * Replay cached history and request fresh history from the server when a
+   * graph is configured. Safe to call on every definition arrival (including
+   * structurally-identical ones): requestHistory no-ops until the WS is open
+   * and authed, so the real server definition - which arrives over an open
+   * connection - is what actually triggers the fetch.
+   */
+  #ensureHistory() {
+    if (!this.#config.graph) return;
+    if (this.#lastHistoryData) {
+      this.#renderer?.receiveHistoryData?.(
+        this.#lastHistoryData.points,
+        this.#lastHistoryData.hours,
+        this.#config.graph,
+      );
+    }
+    if (this.#client) {
+      const entityRef = this.#entityId || this.#alias;
+      this.#client.requestHistory(entityRef);
     }
   }
 

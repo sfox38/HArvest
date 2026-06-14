@@ -1257,14 +1257,9 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
   const entityList = useEntityCache();
   const TIER3 = useMemo(() => new Set(["alarm_control_panel", "device_tracker", "camera", "scene", "update"]), []);
 
-  if (preloadedFields === undefined) {
-    if (!domain || !service) return null;
-    if (loading) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Loading fields...</div>;
-    if (error) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Could not load field schema. Use JSON below.</div>;
-  }
-  if (Object.keys(fields).length === 0) return null;
-
   // Pre-fill defaults for fields that have a default and no current value.
+  // This effect must stay above the early returns below so the hook order is
+  // stable across renders (loading -> loaded), otherwise React error #310.
   const fieldsJson = JSON.stringify(fields);
   useEffect(() => {
     const defaults: Record<string, unknown> = {};
@@ -1278,6 +1273,13 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
     if (any) onChange({ ...data, ...defaults });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldsJson]);
+
+  if (preloadedFields === undefined) {
+    if (!domain || !service) return null;
+    if (loading) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Loading fields...</div>;
+    if (error) return <div className="muted fs-11" style={{ paddingTop: 4 }}>Could not load field schema. Use JSON below.</div>;
+  }
+  if (Object.keys(fields).length === 0) return null;
 
   const setField = (key: string, val: unknown) => {
     const next = { ...data };

@@ -1301,53 +1301,7 @@ class HarvestWsView(HomeAssistantView):
         if period >= hours_in_minutes:
             period = 10
 
-        points: list[dict[str, str]] = []
-
-        if "recorder" in self._hass.config.components:
-            try:
-                from homeassistant.components.recorder import get_instance, history
-
-                end = datetime.now(tz=timezone.utc)
-                start = end - timedelta(hours=int(hours))
-                instance = get_instance(self._hass)
-                states_dict = await instance.async_add_executor_job(
-                    history.state_changes_during_period,
-                    self._hass,
-                    start,
-                    end,
-                    real_id,
-                    True,  # no_attributes - we only need state values
-                )
-                history_domain = real_id.partition(".")[0]
-                raw_points: list[tuple[float, float]] = []
-                for state_obj in states_dict.get(real_id, []):
-                    s = state_obj.state
-                    if s in ("unavailable", "unknown", ""):
-                        continue
-                    try:
-                        value = (
-                            {"off": 0.0, "on": 1.0}[s]
-                            if history_domain == "binary_sensor"
-                            else float(s)
-                        )
-                        raw_points.append((
-                            state_obj.last_changed.timestamp(),
-                            value,
-                        ))
-                    except (KeyError, ValueError, TypeError):
-                        continue
-
-                if raw_points:
-                    points = _aggregate_points(
-                        raw_points,
-                        start.timestamp(),
-                        end.timestamp(),
-                        period,
-                        use_last=history_domain == "binary_sensor",
-                    )
-
-            except Exception:
-                _LOGGER.warning("HArvest: failed to fetch history for %s", real_id, exc_info=True)
+        points = await fetch_history_points(self._hass, real_id, hours, period)
 
         await ws.send_json({
             "type": "history_data",
@@ -1999,6 +1953,68 @@ def _aggregate_points(
         bucket_start = bucket_end
 
     return result
+
+
+async def fetch_history_points(
+    hass: HomeAssistant,
+    real_id: str,
+    hours: int,
+    period: int,
+) -> list[dict[str, str]]:
+    """Fetch and aggregate an entity's recorder history.
+
+    Returns a list of {"t": iso, "s": value} points, period-bucketed. Returns
+    an empty list when the recorder is not loaded or the entity has no numeric
+    history. Shared by the WebSocket history_request handler and the panel
+    preview history view so both produce identical data.
+    """
+    points: list[dict[str, str]] = []
+    if "recorder" not in hass.config.components:
+        return points
+    try:
+        from homeassistant.components.recorder import get_instance, history
+
+        end = datetime.now(tz=timezone.utc)
+        start = end - timedelta(hours=int(hours))
+        instance = get_instance(hass)
+        states_dict = await instance.async_add_executor_job(
+            history.state_changes_during_period,
+            hass,
+            start,
+            end,
+            real_id,
+            True,  # no_attributes - we only need state values
+        )
+        history_domain = real_id.partition(".")[0]
+        raw_points: list[tuple[float, float]] = []
+        for state_obj in states_dict.get(real_id, []):
+            s = state_obj.state
+            if s in ("unavailable", "unknown", ""):
+                continue
+            try:
+                value = (
+                    {"off": 0.0, "on": 1.0}[s]
+                    if history_domain == "binary_sensor"
+                    else float(s)
+                )
+                raw_points.append((
+                    state_obj.last_changed.timestamp(),
+                    value,
+                ))
+            except (KeyError, ValueError, TypeError):
+                continue
+
+        if raw_points:
+            points = _aggregate_points(
+                raw_points,
+                start.timestamp(),
+                end.timestamp(),
+                period,
+                use_last=history_domain == "binary_sensor",
+            )
+    except Exception:
+        _LOGGER.warning("HArvest: failed to fetch history for %s", real_id, exc_info=True)
+    return points
 
 
 def _find_entity_access(entity_id: str, token: Token) -> EntityAccess | None:
