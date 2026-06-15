@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>HA Entities - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -48,7 +49,7 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
@@ -108,7 +109,7 @@
             </tbody>
           </table>
         </div>
-        <p>Goes <code>off</code> if the integration fails to start, hits a fatal error, or is reloaded. Useful for an alert automation that notifies you if HArvest stops unexpectedly after a HA update or restart.</p>
+        <p>Reports <code>on</code> while the loaded integration is accepting connections. During a normal integration reload or unload, HArvest briefly sets the sensor to <code>off</code> and then removes its diagnostic entities. If setup fails before entities are registered, this sensor may not exist. Use Home Assistant integration monitoring or log alerts when you need reliable setup-failure detection.</p>
 
         <h3>sensor.harvest_active_sessions</h3>
         <div class="table-wrap">
@@ -310,26 +311,26 @@ sensor.harvest_bedroom_widgets_commands_today</code></pre>
 
         <h3>Pause a token on a schedule</h3>
         <pre><code class="language-text">automation:
-  alias: "HArvest - pause bedroom token overnight"
-  trigger:
-    - platform: time
-      at: "22:00:00"
-  action:
-    - service: switch.turn_on
-      target:
-        entity_id: switch.harvest_bedroom_widgets_paused
+  - alias: "HArvest - pause bedroom token overnight"
+    trigger:
+      - platform: time
+        at: "22:00:00"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.harvest_bedroom_widgets_paused
 
-automation:
-  alias: "HArvest - unpause bedroom token at 7am"
-  trigger:
-    - platform: time
-      at: "07:00:00"
-  action:
-    - service: switch.turn_off
-      target:
-        entity_id: switch.harvest_bedroom_widgets_paused</code></pre>
+  - alias: "HArvest - unpause bedroom token at 7am"
+    trigger:
+      - platform: time
+        at: "07:00:00"
+    action:
+      - service: switch.turn_off
+        target:
+          entity_id: switch.harvest_bedroom_widgets_paused</code></pre>
 
-        <h3>Alert if HArvest stops running</h3>
+        <h3>Observe a loaded integration stopping</h3>
+        <p>This example can observe the brief <code>off</code> transition while HArvest is still loaded, but it is not a reliable setup-failure alert because the entity is removed during unload and may never exist after a failed setup.</p>
         <pre><code class="language-text">automation:
   alias: "HArvest stopped"
   trigger:

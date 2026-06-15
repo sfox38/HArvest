@@ -402,8 +402,7 @@ h4 {
   line-height: 1.3;
   color: var(--text);
   margin: 24px 0 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.005em;
   scroll-margin-top: 20px;
 }
 
@@ -882,4 +881,14 @@ a.nav-card span {
 
   .attr-grid { grid-template-columns: 1fr; }
 
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

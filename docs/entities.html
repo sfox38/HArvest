@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Entity Types - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
@@ -10,8 +11,8 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -49,7 +50,7 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
@@ -127,7 +128,7 @@
 
         <p>Icons can also be switched per widget rather than per entity: the <strong>Icon set</strong> dropdown (in the wizard, the dashboard converter, and the widget's Preferences) renders every entity icon in the chosen set, including state variants. Themes can declare their own icon set too (the bundled minimus theme uses Phosphor Duotone); the widget setting defaults to <strong>Theme default</strong>, which follows the theme. Icons with no equivalent in the chosen set stay Material Design, and per-entity picks from the icon picker always take priority.</p>
 
-        <p>The access setting also controls how much data the server sends. Badge and Read-only entities receive only the attributes they need for display, while Control entities receive the full payload including feature configuration and service call metadata. This reduces bandwidth and improves load time, especially on pages with many entities.</p>
+        <p>The access setting also controls how much data the server sends. Badge and Read-only entities receive only the attributes they need for display, while Control entities receive the broader feature and command metadata needed by interactive cards. Global filtering, per-entity exclusions, and payload limits still apply. This reduces bandwidth and improves load time, especially on pages with many entities.</p>
 
         <h3><span class="mdi mdi-robot"></span> automation</h3>
         <p>Trigger button that fires the automation regardless of its on/off state. An enable/disable toggle lets visitors turn the automation on or off.</p>
@@ -164,14 +165,14 @@
         <p>Option pills by default, or a custom dropdown-style menu when <strong>Show as dropdown</strong> is enabled. The current option is highlighted, and read-only cards show it as text.</p>
 
         <h3><span class="mdi mdi-lightbulb"></span> light</h3>
-        <p>On/off toggle, brightness slider, color temperature slider. Hides controls that the physical device doesn't support (e.g. no brightness slider on a non-dimmable light). Supported features are read from the entity's <code>supported_features</code> bitmask.</p>
+        <p>On/off toggle, brightness slider, and color temperature slider. Controls are hidden when the physical device does not support them. Light capabilities are derived from both the entity's <code>supported_features</code> bitmask and its modern <code>supported_color_modes</code> attribute.</p>
         <p><strong>Display settings:</strong> brightness, color temperature, and RGB color can each be individually toggled on or off in the entity settings card.</p>
         <p><strong>History graph:</strong> not supported</p>
 
         <h3><span class="mdi mdi-lock"></span> lock</h3>
         <p>One state-aware action button that shows Unlock while locked and Lock for other actionable states. The button is disabled while the lock is transitioning, jammed, unavailable, or unknown. Read-only capability hides the button and shows the state label only.</p>
         <p><strong>Open action:</strong> Home Assistant distinguishes unlocking a lock from opening it. Unlock releases the locking mechanism but leaves the door closed; Open unlatches a supporting door so it can be pushed open. The built-in Lock card intentionally provides only Lock and Unlock. <code>lock.open</code> is available as an advanced action through a configured gesture or custom renderer.</p>
-        <p><strong>States:</strong> locked, unlocked, locking, unlocking, jammed. The jammed state is highlighted in error colour.</p>
+        <p><strong>States:</strong> locked, unlocked, locking, unlocking, jammed. The jammed state is highlighted in the error color.</p>
         <p><strong>Optimistic UI:</strong> the card predicts the transitioning state immediately after a command, then reverts to the server-confirmed state when the real update arrives.</p>
 
         <h3><span class="mdi mdi-cast"></span> media_player</h3>
@@ -196,7 +197,7 @@
         <p>Option pills or a custom dropdown-style menu, according to the entity's Display settings. Functionally identical to <code>input_select</code>. Used by integrations such as AV receivers and tuners.</p>
 
         <h3><span class="mdi mdi-eye"></span> sensor</h3>
-        <p>Read-only. Three sub-renderers based on device class:</p>
+        <p>Read-only. Three device-class-specific renderers plus a generic fallback:</p>
         <ul>
           <li><strong>temperature</strong> - large temperature value display with unit</li>
           <li><strong>humidity</strong> - large humidity percentage display</li>

@@ -9,22 +9,22 @@ HArvest creates a secure bridge between your Home Assistant instance and any web
 
 ## Highlights
 
-- **16 dedicated renderers** - purpose-built cards for lights, fans, climate, media players, sensors, covers, badges, timers, and more
+- **22 Tier 1 entity domains** - purpose-built cards cover lights, fans, climate, media players, sensors, covers, badges, timers, and more
 - **Real-time WebSocket updates** - no polling, no refresh
 - **Scoped token access** - each widget exposes only the entities you choose, with origin restrictions, HMAC signing, and instant revocation
 - **WordPress plugin** - shortcode-based embedding, no HTML required
 - **Custom themes and renderer packs** - full CSS variable control, or replace the default card UI entirely
-- **Minimal resources required** - compact, zero dependencies, native Web Components
+- **Minimal widget runtime** - compact native Web Components with no external browser dependencies
 
 ## Requirements
 
 - Home Assistant 2024.1 or later
 - HTTPS remote access to your HA instance
-- HACS
+- HACS for the supported installation method
 
 ## Installation
 
-After restarting, go to **Settings > Devices and Services > Add Integration**, search for **HArvest**, and select it. The HArvest panel appears in your sidebar.
+Add `https://github.com/sfox38/HArvest` as a custom Integration repository in HACS, download HArvest, and restart Home Assistant. Then go to **Settings > Devices and Services > Add Integration**, search for **HArvest**, and select it. The HArvest panel appears in your sidebar.
 
 ## Quick start
 

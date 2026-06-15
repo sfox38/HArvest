@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Widget Reference - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
@@ -10,8 +11,8 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -49,7 +50,7 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
@@ -107,7 +108,7 @@
         <p>The script <code>src</code> points at your HA instance, which serves the widget bundle directly out of the integration's own files at <code>/harvest_assets/harvest.min.js</code>. The widget always matches the running integration version - update HArvest via HACS and every embedded widget picks up the new bundle on the next page load.</p>
 
         <h3>Data attribute mode</h3>
-        <p>Uses plain <code>&lt;div&gt;</code> elements with <code>data-</code> attributes. Mostly useful in environments that sanitize custom HTML tags - some page builders, CMSes, or email templates won't allow unknown elements like <code>&lt;hrv-card&gt;</code>.</p>
+        <p>Uses plain <code>&lt;div&gt;</code> elements with <code>data-</code> attributes. This is useful in page builders and CMSes that allow JavaScript but sanitize unknown HTML tags such as <code>&lt;hrv-card&gt;</code>.</p>
 
         <pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 
@@ -206,7 +207,7 @@ document.getElementById("sidebar").appendChild(card2);</code></pre>
 
           <div class="attr-block">
             <div class="attr-name">token-secret <span class="attr-optional">optional</span> <span class="attr-type">string</span></div>
-            <div class="attr-desc">HMAC signing secret. Required when the token has HMAC authentication enabled. The secret is used to sign auth messages client-side so the server can verify that auth requests came from a legitimate page embed.</div>
+            <div class="attr-desc">HMAC signing secret. Required when the token has HMAC authentication enabled. The browser uses it to sign auth messages so a token ID leaked without its paired secret cannot authenticate. The secret remains visible to visitors who can inspect the page.</div>
           </div>
 
         </div>

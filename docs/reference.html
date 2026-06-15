@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Full Reference - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -48,7 +49,7 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
@@ -176,19 +177,30 @@
               <tr><td>A11y</td><td>"standard" | "enhanced"</td><td>"standard"</td><td>Accessibility mode.</td></tr>
               <tr><td>Active schedule</td><td>object | null</td><td>null</td><td>Day/hour restriction with IANA timezone.</td></tr>
               <tr><td>Allow any origin</td><td>boolean</td><td>false</td><td>Skip origin checking entirely.</td></tr>
+              <tr><td>Allowed paths</td><td>path list</td><td>-</td><td>Optional exact page-path allowlist evaluated when the widget sends <code>page_path</code>. Each path starts with <code>/</code> and cannot contain a query string, fragment, or <code>..</code>.</td></tr>
               <tr><td>Allowed IPs</td><td>CIDR list</td><td>-</td><td>IP allowlist. Behind a proxy or tunnel, configure trusted proxies in HArvest integration settings.</td></tr>
               <tr><td>Allowed origins</td><td>list</td><td>-</td><td>Websites allowed to connect. Empty = any (if allow_any is set) or rejection.</td></tr>
+              <tr><td>Color scheme</td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Widget-level color scheme used unless an entity overrides it.</td></tr>
+              <tr><td>Custom messages</td><td>boolean</td><td>false</td><td>When false, offline and error behavior inherits the global display defaults.</td></tr>
+              <tr><td>Embed mode</td><td>"single" | "group" | "page"</td><td>"single"</td><td>Generated snippet and layout mode.</td></tr>
               <tr><td>Entities</td><td>list</td><td>-</td><td>List of entity IDs with per-entity capability and settings.</td></tr>
+              <tr><td>Entities block</td><td>boolean and block settings</td><td>false</td><td>Enables the compact entities-block layout. Related settings control its label, icon, row highlighting, icons, border, access mode, and color mode.</td></tr>
               <tr><td>Error text</td><td>string</td><td>""</td><td>Custom message shown on connection error.</td></tr>
               <tr><td>Expires at</td><td>ISO datetime | null</td><td>null</td><td>Token expiry. Null = never expires.</td></tr>
               <tr><td>Icon set</td><td>set ID | null</td><td>null</td><td>Render all entity icons in this set ("fa", "tabler", "ph", or a Phosphor weight like "ph-duotone"). Null follows the theme's icon set, Material Design otherwise. Icons with no equivalent in the chosen set render in Material Design. Per-entity icon picks always win.</td></tr>
               <tr><td>Label</td><td>string</td><td>-</td><td>Display name in the panel. Not exposed to visitors.</td></tr>
               <tr><td>Lang</td><td>BCP 47 | "auto"</td><td>"auto"</td><td>Widget language. "auto" follows browser language.</td></tr>
+              <tr><td>Max commands per minute</td><td>integer</td><td>30</td><td>Per-token command rate limit.</td></tr>
+              <tr><td>Max push per second</td><td>integer</td><td>1</td><td>Per-token state update rate limit.</td></tr>
+              <tr><td>Max renewals</td><td>integer | null</td><td>null</td><td>Maximum session renewals. Null = unlimited.</td></tr>
               <tr><td>Max session lifetime</td><td>minutes</td><td>1440</td><td>Maximum total duration via renewals.</td></tr>
               <tr><td>Max sessions</td><td>integer | null</td><td>null</td><td>Max concurrent sessions. Null = unlimited.</td></tr>
               <tr><td>Offline text</td><td>string</td><td>""</td><td>Custom message shown when entity is offline.</td></tr>
               <tr><td>On error</td><td>string</td><td>"message"</td><td>"dim", "hide", or "message".</td></tr>
               <tr><td>On offline</td><td>string</td><td>"last-state"</td><td>"dim", "hide", "message", or "last-state".</td></tr>
+              <tr><td>Override rate-limit defaults</td><td>boolean</td><td>false</td><td>False merges token limits with global defaults; true uses the token values exclusively.</td></tr>
+              <tr><td>Paused</td><td>boolean</td><td>false</td><td>Blocks new sessions and drops active sessions without permanently revoking the token.</td></tr>
+              <tr><td>Renderer pack</td><td>string</td><td>""</td><td>Renderer override associated with the selected theme, when present.</td></tr>
               <tr><td>Session lifetime</td><td>minutes</td><td>60</td><td>Session duration before renewal required.</td></tr>
               <tr><td>Theme</td><td>theme ID | null</td><td>null</td><td>Theme assigned to this token. Null = Default theme.</td></tr>
               <tr><td>Token secret</td><td>string | null</td><td>null</td><td>HMAC signing secret. Null = HMAC disabled.</td></tr>
@@ -241,11 +253,20 @@
               <tr><td>Auth attempts per token/min</td><td>10</td><td>Failed attempts before token is temporarily blocked.</td></tr>
               <tr><td>Auth timeout</td><td>10s</td><td>WebSocket auth must complete within this window.</td></tr>
               <tr><td>Client heartbeat timeout</td><td>60s</td><td>Session dropped if no client message within this window.</td></tr>
+              <tr><td>Default display behavior</td><td>Auto / standard defaults</td><td>Global language, accessibility, offline behavior, error behavior, and fallback message defaults.</td></tr>
+              <tr><td>Default rate limits</td><td>1 push/s, 30 commands/min</td><td>Global defaults merged with token limits unless the token overrides them.</td></tr>
               <tr><td>Default session lifetime</td><td>60 min</td><td>Session duration before renewal required.</td></tr>
+              <tr><td>External port</td><td>Disabled</td><td>Starts the optional alternate widget transport server when set.</td></tr>
+              <tr><td>HA event bus events</td><td>Security events enabled</td><td>Controls which HArvest lifecycle and security events are fired on the HA event bus.</td></tr>
               <tr><td>Keepalive interval</td><td>30s</td><td>Server-to-client ping frequency.</td></tr>
+              <tr><td>Keepalive timeout</td><td>10s</td><td>How long the server waits for a keepalive response before closing a session.</td></tr>
               <tr><td>Kill switch</td><td>Off</td><td>Drops all sessions globally and blocks new connections.</td></tr>
+              <tr><td>Max connections per minute</td><td>100</td><td>Global inbound connection-attempt limit.</td></tr>
+              <tr><td>Max inbound message size</td><td>4096 bytes</td><td>Closes connections that send larger WebSocket frames.</td></tr>
               <tr><td>Max session lifetime</td><td>1440 min</td><td>Maximum total duration via renewals.</td></tr>
               <tr><td>Override host</td><td>(empty)</td><td>The public URL the panel uses when generating snippets and computing the HA-served widget script URL. Empty means use the URL of whatever HA host the admin is currently visiting. Set this to your external HA URL when admins access HA via a different domain than visitors will use.</td></tr>
+              <tr><td>Sensitive domains</td><td>Disabled</td><td>Controls whether locks, covers, scripts, automations, buttons, and input buttons can be added to tokens.</td></tr>
+              <tr><td>Trusted proxies</td><td>-</td><td>Known proxy IPs or CIDRs allowed to supply forwarded client addresses.</td></tr>
               <tr><td>Widget script source</td><td>HA-served</td><td>Three options: HA-served (default, snippet uses <code>{HA_URL}/harvest_assets/harvest.min.js</code>; always matches the running integration), Alternate port (lightweight server for the widget script, WebSocket connection, and runtime assets, for installs where the main HA port is not reachable from the embed site), or Custom URL (admin-supplied). The alternate server is plain HTTP unless placed behind a TLS proxy or secure tunnel. HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration.</td></tr>
             </tbody>
           </table>
@@ -302,13 +323,20 @@
     "...": "..."
   },
   "author": "string (optional)",
+  "description": "string (optional)",
   "version": "string (optional)",
-  "has_renderer": "boolean (optional, true when renderer.js is present)"
+  "has_renderer": "boolean (optional)",
+  "capabilities": "object (optional)",
+  "renderer_settings": ["optional", "setting", "ids"],
+  "custom_fonts": ["optional font-face definitions"],
+  "icon_set": "optional icon-set id"
 }</code></pre>
+
+        <p><code>name</code> and <code>variables</code> are required when importing a theme zip. <code>harvest_version</code> defaults to <code>1</code>. A bundled <code>renderer.js</code> file sets <code>has_renderer</code> automatically.</p>
 
         <h2 id="error-codes">Error codes</h2>
 
-        <p>All error codes are <code>HRV_</code>-prefixed. They appear in auth failure activity log events, in <code>auth_failed</code> WebSocket messages, and in <code>ack</code> error responses. See SPEC.md Section 6 for the canonical list and per-code retryability notes.</p>
+        <p>All error codes are <code>HRV_</code>-prefixed. They appear in auth failure activity log events, in <code>auth_failed</code> WebSocket messages, and in <code>ack</code> error responses. Permanent errors stop reconnect attempts; temporary availability and rate-limit errors may be retried with backoff.</p>
 
         <div class="table-wrap">
           <table>
@@ -338,7 +366,7 @@
           </table>
         </div>
 
-        <p>The widget defines four additional client-only states that never appear in server activity logs: <code>HRV_CONNECTING</code> (initial handshake in progress), <code>HRV_INCOMPATIBLE</code> (the widget-side state name set when an <code>auth_failed</code> with <code>HRV_PROTOCOL_INCOMPATIBLE</code> arrives; permanent, no reconnect), <code>HRV_OFFLINE</code> (cannot reach the server), and <code>HRV_STALE</code> (heartbeat timeout). These are documented in SPEC.md Section 8.</p>
+        <p>The widget defines four additional client-only states that never appear in server activity logs: <code>HRV_CONNECTING</code> (initial handshake in progress), <code>HRV_INCOMPATIBLE</code> (the widget-side state name set when an <code>auth_failed</code> with <code>HRV_PROTOCOL_INCOMPATIBLE</code> arrives; permanent, no reconnect), <code>HRV_OFFLINE</code> (cannot reach the server), and <code>HRV_STALE</code> (heartbeat timeout).</p>
 
       </div>
     </main>

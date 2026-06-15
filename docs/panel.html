@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Panel Guide - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
@@ -10,8 +11,8 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -49,7 +50,7 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
@@ -60,7 +61,7 @@
         <div class="page-header">
           <div class="page-label">Using HArvest</div>
           <h1>Panel guide</h1>
-          <p class="lead">Covers every screen in the HArvest panel: dashboard, widget management, the wizard, themes, settings, and the activity log.</p>
+          <p class="lead">Use the panel to create widgets, adjust what they expose, change their appearance, and review activity. Start with the task you need below, or read through each screen in order.</p>
         </div>
 
         <div class="toc">
@@ -77,6 +78,13 @@
           </ol>
         </div>
 
+        <div class="nav-cards">
+          <a class="nav-card" href="#wizard"><strong>Create a widget</strong><span>Choose entities, permissions, appearance, and access restrictions.</span></a>
+          <a class="nav-card" href="#token-detail"><strong>Change a widget</strong><span>Edit entities, code, preferences, security, and sessions.</span></a>
+          <a class="nav-card" href="#converter"><strong>Convert a dashboard</strong><span>Generate an HTML page from a supported HA dashboard.</span></a>
+          <a class="nav-card" href="#activity"><strong>Investigate activity</strong><span>Filter connection, command, lifecycle, and error events.</span></a>
+        </div>
+
         <h2 id="dashboard">Dashboard</h2>
 
         <p>The dashboard is the first screen you see when you open the panel. It shows a real-time snapshot of what's happening across all your widgets.</p>
@@ -86,16 +94,15 @@
         </div>
 
         <h3>Stat cards</h3>
-        <p>Five sensor cards across the top of the dashboard:</p>
+        <p>Four statistic cards across the top of the dashboard:</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Card</th><th>What it shows</th></tr></thead>
             <tbody>
               <tr><td>Active Sessions</td><td>Number of widget sessions currently connected</td></tr>
               <tr><td>Active Tokens</td><td>Total non-expired, non-revoked tokens</td></tr>
-              <tr><td>Commands Today</td><td>Service calls sent through HArvest in the last 24 hours</td></tr>
-              <tr><td>Errors Today</td><td>Auth failures and flood protection events in the last 24 hours</td></tr>
-              <tr><td>DB Size</td><td>Current activity log database size</td></tr>
+              <tr><td>Commands Today</td><td>Service calls sent through HArvest since midnight in the Home Assistant timezone</td></tr>
+              <tr><td>Errors Today</td><td>Authentication failures recorded since midnight in the Home Assistant timezone</td></tr>
             </tbody>
           </table>
         </div>
@@ -181,7 +188,7 @@
           <table>
             <thead><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
             <tbody>
-              <tr><td>Icon</td><td>icon picker</td><td>Replaces the auto-detected icon with any icon from the widget's built-in set (~113 icons). Click the icon button to the left of the Display name field to open the picker. Select an icon, or use "Reset to default" to clear the override.</td></tr>
+              <tr><td>Icon</td><td>icon picker</td><td>Replaces the auto-detected icon with any icon from the widget's built-in Material Design set (currently 158 icons) or an available alternate icon set. Click the icon button to the left of the Display name field to open the picker. Select an icon, or use "Reset to default" to clear the override.</td></tr>
               <tr><td>Display name</td><td>text input</td><td>Overrides the entity's Home Assistant friendly name. Leave blank to use the HA name.</td></tr>
               <tr><td>Force color scheme</td><td>Auto, Light, Dark</td><td>Forces the widget card to render in that color scheme regardless of the visitor's system settings. Auto follows the page's color scheme.</td></tr>
               <tr><td>Access</td><td>Badge, Read only, Read + Control</td><td>Badge renders a compact pill indicator (icon, name, state) with no controls, companions, or gestures. Read only displays a full card without controls or gestures. Read + Control displays a full card that can send commands (e.g. toggle a light) and supports gestures.</td></tr>
@@ -190,7 +197,7 @@
           </table>
         </div>
 
-        <p><strong>Badge settings:</strong> when Access is set to Badge, domain-specific controls, companions, and gestures are hidden. In their place, badge-specific settings appear: <strong>Show icon</strong>, <strong>Show name</strong>, and <strong>Show state</strong> toggles, plus an <strong>Icon color</strong> picker with color swatches (Auto, Red, Orange, Amber, Yellow, Green, Teal, Cyan, Blue, Indigo, Purple, Pink, Grey). Auto derives the color from the entity's domain.</p>
+        <p><strong>Badge settings:</strong> when Access is set to Badge, domain-specific controls, companions, and gestures are hidden. In their place, badge-specific settings appear: <strong>Show icon</strong>, <strong>Show name</strong>, and <strong>Show state</strong> toggles, plus an <strong>Icon color</strong> picker with color swatches (Auto, Red, Orange, Amber, Yellow, Green, Teal, Cyan, Blue, Indigo, Purple, Pink, Gray). Auto derives the color from the entity's domain.</p>
 
         <p><strong>Domain-specific controls</strong> appear based on the entity's domain. By default, the panel shows all display options supported by the built-in renderer. A theme's optional capability metadata can filter these controls to show only the options its renderer override supports. These controls are hidden when Access is Badge or the widget uses entities block mode.</p>
         <div class="table-wrap">
@@ -251,7 +258,7 @@
         <h3>Preferences tab</h3>
         <p>Collapsible sections for:</p>
         <ul>
-          <li><strong>Origins</strong> - which websites can use this widget. Add specific URLs (e.g. <code>https://mysite.com</code>) with optional path restrictions, or enable "allow any origin".</li>
+          <li><strong>Origins</strong> - which websites can use this widget. Add specific URLs, optionally restrict them to exact normalized page paths, or enable "allow any origin".</li>
           <li><strong>Schedule</strong> - restrict access to specific days of the week and hours of the day, in a chosen timezone.</li>
           <li><strong>Rate limits</strong> - per-widget override for the global rate limit defaults.</li>
           <li><strong>Display defaults</strong> - language, icon set (render all entity icons in Material Design, Font Awesome, Phosphor, or Tabler; "Theme default" follows the theme's choice), accessibility mode, and offline/error message settings.</li>
@@ -338,7 +345,7 @@
         </div>
 
         <h3>Theme picker strip</h3>
-        <p>The theme card at the top of the Entities tab's right panel shows a horizontal scrollable strip of theme thumbnails. Bundled themes are marked with a <span class="badge badge-grey">System</span> badge. Three indicators can appear overlaid on a theme thumbnail: a <span class="badge badge-amber">★</span> badge when the theme includes a renderer override (shown as <span class="badge badge-amber">⚠</span> if the renderer JS file is missing), and an <span class="badge badge-grey">F</span> badge when the theme bundles a custom font (hovering shows the font family names). A text filter below the strip narrows results by theme name or ID.</p>
+        <p>The theme card at the top of the Entities tab's right panel shows a horizontal scrollable strip of theme thumbnails. Bundled themes are marked with a <span class="badge badge-grey">System</span> badge. Renderer themes show a <span class="badge badge-amber">★</span> indicator, or a <span class="badge badge-amber">⚠</span> if the renderer JavaScript file is missing. Themes that bundle a custom font show an <span class="badge badge-grey">F</span> indicator; hovering over it shows the font family names. A text filter below the strip narrows results by theme name or ID.</p>
 
         <h3>Renderer overrides</h3>
         <p>Some themes include a renderer override, which replaces the default card renderers with custom designs. When a theme with a renderer is active, the domain-specific controls in the entity settings card are filtered to show only options the renderer supports. Switching between themes preserves your display settings; options the new theme does not support are hidden but kept in storage.</p>

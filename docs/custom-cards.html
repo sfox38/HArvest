@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Building Custom Cards - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -48,7 +49,7 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
@@ -81,6 +82,13 @@
             <li><a href="#complete-example">Complete example: vacuum card</a></li>
             <li><a href="#checklist">Checklist</a></li>
           </ol>
+        </div>
+
+        <div class="nav-cards">
+          <a class="nav-card" href="#complete-example"><strong>Build the example</strong><span>Start with the complete vacuum renderer and its theme definition.</span></a>
+          <a class="nav-card" href="#basecard-api"><strong>Use the API reference</strong><span>Look up BaseCard properties, helpers, and lifecycle methods.</span></a>
+          <a class="nav-card" href="#admin-setup"><strong>Enable commands</strong><span>Allow only the Home Assistant services your renderer needs.</span></a>
+          <a class="nav-card" href="#checklist"><strong>Review before import</strong><span>Check accessibility, read-only behavior, unavailable states, and escaping.</span></a>
         </div>
 
         <!-- ============================================================ -->
@@ -285,8 +293,8 @@
         &lt;div part="card-body"&gt;
           &lt;span part="status"&gt;&lt;/span&gt;
           ${isWritable ? `
-            &lt;button part="start-btn" type="button"&gt;Start&lt;/button&gt;
-            &lt;button part="stop-btn" type="button"&gt;Stop&lt;/button&gt;
+            &lt;button part="start-btn" type="button" aria-label="Start vacuum"&gt;Start&lt;/button&gt;
+            &lt;button part="stop-btn" type="button" aria-label="Stop vacuum"&gt;Stop&lt;/button&gt;
           ` : ""}
         &lt;/div&gt;
         ${this.renderAriaLiveHTML()}
@@ -564,10 +572,10 @@
 
         <h3>CSS custom properties</h3>
 
-        <p>Use HArvest's CSS custom properties for colours, spacing, typography, and card structure. This ensures your card adapts to theme changes and dark mode automatically. The full list is on the <a href="theming.html">Theming</a> page. The most commonly used:</p>
+        <p>Use HArvest's CSS custom properties for colors, spacing, typography, and card structure. This ensures your card adapts to theme changes and dark mode automatically. The full list is on the <a href="theming.html">Theming</a> page. The most commonly used:</p>
 
 <pre><code class="language-css">/* Colours */
-var(--hrv-color-primary)            /* Accent colour */
+var(--hrv-color-primary)            /* Accent color */
 var(--hrv-color-surface)            /* Card background */
 var(--hrv-color-text)               /* Primary text */
 var(--hrv-color-text-secondary)     /* Muted text */
@@ -575,7 +583,7 @@ var(--hrv-color-state-on)           /* Active/on state */
 var(--hrv-color-state-off)          /* Inactive/off state */
 var(--hrv-color-success)            /* Positive actions */
 var(--hrv-color-error)              /* Negative actions / errors */
-var(--hrv-color-text-inverse)       /* Text on coloured backgrounds */
+var(--hrv-color-text-inverse)       /* Text on colored backgrounds */
 
 /* Spacing and sizing */
 var(--hrv-spacing-xs)  /* 4px */    var(--hrv-spacing-s)  /* 8px */
@@ -606,7 +614,7 @@ var(--hrv-transition-speed)  /* 150ms */</code></pre>
     // Check if server has a custom tap action configured
     const tap = this.config.gestureConfig?.tap;
     if (tap) { this._runAction(tap); return; }
-    // Default behaviour
+    // Default behavior
     this.config.card?.sendCommand("start", {});
   },
 });</code></pre>
@@ -804,9 +812,9 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
             &lt;div part="fan-speed"&gt;&lt;/div&gt;
             ${w ? `
               &lt;div part="controls"&gt;
-                &lt;button part="start-btn" type="button"&gt;Start&lt;/button&gt;
-                &lt;button part="stop-btn" type="button"&gt;Stop&lt;/button&gt;
-                &lt;button part="dock-btn" type="button"&gt;Dock&lt;/button&gt;
+                &lt;button part="start-btn" type="button" aria-label="Start vacuum"&gt;Start&lt;/button&gt;
+                &lt;button part="stop-btn" type="button" aria-label="Stop vacuum"&gt;Stop&lt;/button&gt;
+                &lt;button part="dock-btn" type="button" aria-label="Return vacuum to dock"&gt;Dock&lt;/button&gt;
               &lt;/div&gt;
             ` : ""}
           &lt;/div&gt;

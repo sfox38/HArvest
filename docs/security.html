@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Security - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -48,7 +49,7 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
@@ -93,7 +94,7 @@
           <li>Visitors can only access entities explicitly listed in their token</li>
           <li>Write access is separate from read access and must be explicitly granted</li>
           <li>Tier 3 domains (alarm panels, cameras, device trackers) are permanently blocked at token creation time - they cannot be added regardless of configuration</li>
-          <li>Sensitive Tier 1 domains (<code>lock</code>, <code>cover</code>, <code>script</code>, <code>automation</code>, <code>button</code>, <code>input_button</code>) are disabled by default and must be explicitly enabled in Settings before use. The Button setting controls both button domains.</li>
+          <li>Sensitive Tier 1 domains (<code>lock</code>, <code>cover</code>, <code>script</code>, <code>automation</code>, <code>button</code>, <code>input_button</code>) are disabled by default and must be explicitly enabled in Settings before use.</li>
           <li>Only service calls in the <a href="entities.html#allowed-services">allowed services whitelist</a> can be executed</li>
           <li>Tokens can be restricted to specific websites, IP ranges, and time windows</li>
           <li>All auth events and service calls are logged with session, origin, and entity details</li>
@@ -106,7 +107,7 @@
         <p>Understanding these limitations helps you make better deployment decisions.</p>
 
         <ul>
-          <li><strong>Token ID in page source</strong> - the token ID is visible in your page HTML. Anyone who copies it can use it from a non-browser tool (curl, etc.) as long as the origin check passes or isn't set. Use HMAC signing and strict origin restrictions for write-access tokens.</li>
+          <li><strong>Token credentials in page source</strong> - the token ID, and the HMAC secret when enabled, are visible in your page HTML. Non-browser tools can forge the Origin header and page path. Keep each token narrowly scoped and grant control access only where it is needed.</li>
           <li><strong>Browser developer tools</strong> - visitors with DevTools open can inspect the WebSocket traffic, see entity IDs and states, and manually send valid commands for entities in the token scope. You cannot prevent this for in-scope entities on a control-enabled token.</li>
           <li><strong>Origin header</strong> - the origin check runs on the HTTP <code>Origin</code> header, which browsers send reliably but non-browser tools can forge. Origin restriction is effective for browser-based attacks, not for determined attackers with script access to your token ID.</li>
           <li><strong>Network-level attacks</strong> - DDoS, infrastructure flooding, and similar attacks are outside HArvest's scope. Use Cloudflare, fail2ban, or similar tools at the infrastructure level.</li>
@@ -127,29 +128,29 @@
 
         <h2 id="hmac">HMAC authentication</h2>
 
-        <p>By default, knowing a token ID is sufficient to connect to it from any page (subject to origin restrictions). HMAC signing adds a second factor: the connecting page must prove it has a shared secret.</p>
+        <p>By default, knowing a token ID is sufficient to authenticate, subject to the token's other restrictions. HMAC signing additionally requires each auth message to carry a valid signature made with the token's shared secret.</p>
 
-        <p>When HMAC is enabled on a token, the widget signs each auth message with the secret using HMAC-SHA256. The server verifies the signature and rejects auth requests that don't include a valid, non-stale signature. A timestamp is embedded in the signature payload: requests older than 60 seconds, or more than 5 seconds in the future, are rejected. The 5-second forward tolerance absorbs minor clock drift between the host that signs the message (typically the WordPress server) and the Home Assistant host.</p>
+        <p>When HMAC is enabled on a token, the widget signs each auth message in the visitor's browser using HMAC-SHA256. The server verifies the signature and rejects auth requests that don't include a valid, non-stale signature. A timestamp is embedded in the signature payload: requests older than 60 seconds, or more than 5 seconds in the future, are rejected. The 5-second forward tolerance absorbs minor clock differences between the visitor's browser and the Home Assistant host.</p>
 
-        <p>The <code>token-secret</code> attribute on <code>&lt;hrv-card&gt;</code> is the HMAC secret. It appears in your page source, so it doesn't hide from someone looking at your page. The purpose of HMAC is to prevent someone who copied your token ID from using it on a different page - the token ID alone isn't enough, they also need the secret.</p>
+        <p>The <code>token-secret</code> attribute on <code>&lt;hrv-card&gt;</code> is the HMAC secret. It appears in your page source, so it is not hidden from page visitors. HMAC helps when a token ID leaks separately from its paired secret, and it prevents unsigned or stale auth messages. It does not protect against someone who can read the complete embed code.</p>
 
         <p>Set a token secret in the widget detail screen under <strong>Security</strong>. Minimum 16 characters. Use a random string.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Token secret storage</span>
           <p>The token secret is stored as plaintext in HA's <code>.storage/harvest_tokens</code> file on your HA instance. This is by design - HMAC verification requires the plaintext secret.</p>
-          <p>The secret also appears as a <code>data-token-secret</code> attribute in the rendered HTML of any page that uses the <code>token-secret</code> shortcode parameter (WordPress) or <code>token-secret</code> attribute (standalone embed). Anyone who views the page source can read it. The security value of HMAC is that copying the token ID alone is not sufficient to connect from a different page - the attacker also needs the per-page secret. It is not a hidden credential.</p>
+          <p>The secret also appears as a <code>data-token-secret</code> attribute in the rendered HTML of any page that uses the <code>token-secret</code> shortcode parameter (WordPress) or <code>token-secret</code> attribute (standalone embed). Anyone who views the page source can read it. The security value of HMAC is that copying the token ID alone is not sufficient to connect from a different page; the attacker also needs the token's paired secret. It is not a hidden credential.</p>
         </div>
 
         <h2 id="origin-restriction">Origin restriction</h2>
 
         <p>Restrict which websites can connect using a token. Add allowed origins in the widget detail screen under <strong>Origins</strong>.</p>
 
-        <p>Each origin entry is a full URL without path, e.g. <code>https://mysite.com</code>. Optionally add path restrictions to allow only specific pages: <code>https://mysite.com</code> + path <code>/smart-home</code> means only pages at <code>https://mysite.com/smart-home*</code> can connect.</p>
+        <p>Each origin entry is a full URL without path, for example <code>https://mysite.com</code>. You can optionally add an exact page-path allowlist. Origin <code>https://mysite.com</code> with path <code>/smart-home</code> allows <code>https://mysite.com/smart-home</code>, but not <code>/smart-home/settings</code> or paths with a different normalized value.</p>
 
         <p>The origin check uses the HTTP <code>Origin</code> header from the WebSocket upgrade request. Browsers send this reliably. When origin restrictions are configured, a missing Origin header is denied. Non-browser tools can still forge an allowed Origin value, so token scope remains the primary security boundary.</p>
 
-        <p><strong>Allow any origin</strong> disables origin checking entirely for that token. Use only for read-only public data tokens where security through obscurity is acceptable.</p>
+        <p><strong>Allow any origin</strong> disables origin checking entirely for that token. Use it only for narrowly scoped public data tokens where any website is intentionally allowed to connect.</p>
 
         <h2 id="schedules">Access schedules</h2>
 
@@ -176,7 +177,7 @@
 
         <p>For multi-hop deployments (e.g. Cloudflare to nginx to HA), list <strong>every</strong> intermediate proxy. HArvest walks <code>X-Forwarded-For</code> from right to left, skipping trusted hops, and uses the first untrusted entry as the real client IP. If any intermediate hop is missing from the trusted list, HArvest stops at that hop and treats it as the client.</p>
 
-        <p>For Cloudflare Tunnel, HArvest normally sees the local <code>cloudflared</code> process or container as its direct peer. Trust that local peer, not Cloudflare's entire public edge network. For a conventional Cloudflare proxy in the forwarding chain, use <a href="https://www.cloudflare.com/ips/" target="_blank">Cloudflare's maintained IPv4 and IPv6 range list</a> rather than copying a single example range, and keep it updated when Cloudflare changes the list.</p>
+        <p>For Cloudflare Tunnel, HArvest normally sees the local <code>cloudflared</code> process or container as its direct peer. Trust that local peer, not Cloudflare's entire public edge network. For a conventional Cloudflare proxy in the forwarding chain, use <a href="https://www.cloudflare.com/ips/" target="_blank" rel="noopener noreferrer">Cloudflare's maintained IPv4 and IPv6 range list</a> rather than copying a single example range, and keep it updated when Cloudflare changes the list.</p>
 
         <p>HArvest validates and canonicalizes every trusted proxy IP or CIDR before saving it. If a trusted proxy sends a malformed forwarded IP chain, HArvest ignores the chain and falls back to the direct TCP peer.</p>
 
@@ -206,7 +207,7 @@
         <p>For security-sensitive tokens, use shorter session lifetimes (15-30 minutes) so compromised sessions expire quickly.</p>
 
         <h3>Kill switch</h3>
-        <p>The global kill switch in Settings &gt; Sessions immediately drops all active sessions across all tokens and blocks new connections. It stays active until you turn it off. Use this if you suspect a widespread compromise.</p>
+        <p>The global kill switch in Settings &gt; Sessions immediately drops all active sessions across all tokens and blocks new connections. It stays active until you turn it off. Use this if you suspect a widespread compromise without resorting to deleting tokens or uninstalling HArvest.</p>
 
         <p>Individual tokens can be paused (drops sessions, blocks new connections for that token) or revoked (permanently disabled) from the widget detail screen without affecting other tokens.</p>
         </section>
@@ -221,14 +222,14 @@
           <li>Set capability to <strong>Badge</strong> (minimal pill indicator) or <strong>Read</strong> (full card) for all entities</li>
           <li>Add an origin restriction for the embedding website</li>
           <li>Set an expiry date (90 days and rotate, or use a schedule)</li>
-          <li>Use entity aliases to avoid exposing real entity IDs in page source</li>
+          <li>Use entity aliases to reduce disclosure of real entity IDs in page source</li>
         </ul>
 
         <h3>Interactive widgets (lights, climate, covers)</h3>
         <ul>
           <li>Use the narrowest entity scope possible - don't include entities you don't need</li>
           <li>Add strict origin restrictions with path restrictions</li>
-          <li>Enable HMAC signing with a strong random secret</li>
+          <li>Consider HMAC signing to reject unsigned and stale auth messages, while remembering that the secret is visible in the embed page</li>
           <li>Set session lifetime to 15-30 minutes</li>
           <li>Consider IP restrictions if your visitors come from predictable networks</li>
           <li>Enable access schedule if the widget is only needed at certain times</li>
@@ -239,7 +240,7 @@
         <ul>
           <li>Set <code>max_sessions</code> to limit concurrent connections per token</li>
           <li>Consider per-token rate limit overrides to constrain command frequency</li>
-          <li>Use Cloudflare or a CDN in front of HA to absorb traffic spikes</li>
+          <li>Use a WebSocket-capable reverse proxy, WAF, or DDoS protection provider in front of HA to absorb traffic spikes</li>
         </ul>
         </section>
 

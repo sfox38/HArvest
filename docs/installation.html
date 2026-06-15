@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Installation - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -48,7 +49,7 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
@@ -59,7 +60,7 @@
         <div class="page-header">
           <div class="page-label">Getting started</div>
           <h1>Installation</h1>
-          <p class="lead">Covers requirements and how to install HArvest into Home Assistant via HACS.</p>
+          <p class="lead">Install HArvest through HACS, add the integration, and create your first widget. The network section is only needed when visitors connect from outside your trusted network or through a proxy.</p>
         </div>
 
         <div class="toc">
@@ -81,7 +82,7 @@
             <tbody>
               <tr><td>Home Assistant</td><td>2024.1</td><td>Any installation method works</td></tr>
               <tr><td>Python</td><td>3.11</td><td>Bundled with HA</td></tr>
-              <tr><td>HACS</td><td>any</td><td>Required for installation</td></tr>
+              <tr><td>HACS</td><td>any current version</td><td>Supported installation method. Manual custom-component installation is possible but unsupported.</td></tr>
               <tr><td>HA network access</td><td>-</td><td>Must be reachable by widget visitors. HTTPS/WSS is required when the embedding page uses HTTPS.</td></tr>
             </tbody>
           </table>
@@ -89,13 +90,13 @@
 
         <p>Your Home Assistant instance must be reachable by the people who will view the widgets. Public widgets need a public HTTPS URL such as <code>https://myhome.duckdns.org</code> or <code>https://ha.yourdomain.com</code>. Private widgets may use an HTTP LAN address when every visitor is on that trusted network and the embedding page also uses HTTP. Browsers block an HTTPS page from connecting to an insecure <code>ws://</code> address.</p>
 
-        <p>Popular options for HTTPS remote access: <a href="https://www.nabucasa.com" target="_blank">Nabu Casa</a> (easiest, paid), DuckDNS + Let's Encrypt (free), Cloudflare Tunnel (free).</p>
+        <p>Popular options for HTTPS remote access: <a href="https://www.nabucasa.com" target="_blank" rel="noopener noreferrer">Nabu Casa</a> (easiest, paid), DuckDNS + Let's Encrypt (free), Cloudflare Tunnel (free).</p>
         </section>
 
         <section>
         <h2 id="hacs">Install via HACS</h2>
 
-        <p>HArvest is installed as a custom HACS repository - it isn't in the default HACS catalog.</p>
+        <p>HArvest is installed as a custom HACS repository. It is not in the default HACS catalog. Manual custom-component installation is possible, but the documented and supported installation path is HACS.</p>
 
         <div class="screenshot-aside">
           <div class="screenshot">
@@ -156,7 +157,7 @@
         <p>If for some reason you don't want visitors loading the widget JS from your HA instance (for example, your site needs to work even when HA is briefly offline), you can self-host instead:</p>
 
         <ol>
-          <li>Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank">GitHub Releases</a>. Inside the zip, find <code>widget/dist/harvest.min.js</code>.</li>
+          <li>Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a>. Inside the zip, find <code>widget/dist/harvest.min.js</code>.</li>
           <li>Upload it to your web server.</li>
           <li>In the HArvest panel, go to <strong>Settings &gt; Connection &gt; Widget script source</strong> and switch to <strong>Custom URL</strong>. Enter the path to your hosted copy.</li>
         </ol>
@@ -166,6 +167,8 @@
 
         <section>
         <h2 id="network">Network requirements</h2>
+
+        <p>This section covers advanced deployment choices. You can skip it when every widget visitor can already reach the same Home Assistant URL you use.</p>
 
         <p>Widgets connect directly from the visitor's browser to the configured HA host and port. Public and HTTPS-hosted pages normally use HTTPS/WSS on port 443. Private HTTP pages can use HTTP/WS on a trusted network. No separate WebSocket port or relay server is required.</p>
 
