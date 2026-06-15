@@ -6,6 +6,9 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
+
+const INPUT_BOOLEAN_ROW_STYLES = /* css */``;
 
 const INPUT_BOOLEAN_STYLES = /* css */`
   [part=card-body] {
@@ -16,7 +19,8 @@ const INPUT_BOOLEAN_STYLES = /* css */`
   }
 
   [part=toggle-button] {
-    padding: var(--hrv-spacing-xs) var(--hrv-spacing-m);
+    width: 100%;
+    padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
     border: none;
     border-radius: var(--hrv-radius-m);
     font-size: var(--hrv-font-size-s);
@@ -24,12 +28,11 @@ const INPUT_BOOLEAN_STYLES = /* css */`
     font-family: inherit;
     cursor: pointer;
     transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
-    min-width: 64px;
   }
 
   [part=toggle-button][aria-pressed=true] {
-    background: var(--hrv-color-state-on);
-    color: var(--hrv-color-text-inverse);
+    background: var(--hrv-color-primary);
+    color: var(--hrv-color-on-primary);
   }
 
   [part=toggle-button][aria-pressed=false] {
@@ -57,28 +60,22 @@ const INPUT_BOOLEAN_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class InputBooleanCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */ #toggleBtn  = null;
+  /** @type {HTMLButtonElement|null} */ #rowToggle  = null;
   /** @type {HTMLElement|null}       */ #stateLabel = null;
 
   render() {
     const isWritable = this.def.capabilities === "read-write";
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${INPUT_BOOLEAN_STYLES}</style>
+      <style>${INPUT_BOOLEAN_STYLES}${INPUT_BOOLEAN_ROW_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          ${isWritable ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>` : `<span part="row-control"><span part="row-state"></span></span>`}
         </div>
         <div part="card-body">
           ${!isWritable ? `<span part="state-label"></span>` : ""}
@@ -91,6 +88,7 @@ export class InputBooleanCard extends BaseCard {
     `;
 
     this.#toggleBtn  = this.root.querySelector("[part=toggle-button]");
+    this.#rowToggle  = this.root.querySelector("[part=row-toggle]");
     this.#stateLabel = this.root.querySelector("[part=state-label]");
 
     if (!isWritable) {
@@ -98,18 +96,18 @@ export class InputBooleanCard extends BaseCard {
     }
 
     this.renderIcon(
-      this.def.icon ?? "mdi:toggle-switch-off",
+      this.resolveIcon(this.def.icon, "mdi:toggle-switch-off-outline"),
       "card-icon",
     );
 
-    this._attachGestureHandlers(this.#toggleBtn, {
-      onTap: () => {
-        const tap = this.config.gestureConfig?.tap;
-        if (tap) { this._runAction(tap); return; }
-        const isOn = this.#toggleBtn?.getAttribute("aria-pressed") === "true";
-        this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
-      },
-    });
+    const onTap = () => {
+      const tap = this.config.gestureConfig?.tap;
+      if (tap) { this._runAction(tap); return; }
+      const isOn = (this.#toggleBtn ?? this.#rowToggle)?.getAttribute("aria-pressed") === "true";
+      this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
+    };
+    this._attachGestureHandlers(this.#toggleBtn, { onTap });
+    this._attachGestureHandlers(this.#rowToggle, { onTap });
 
     this.renderCompanions();
   }
@@ -134,10 +132,18 @@ export class InputBooleanCard extends BaseCard {
       this.#toggleBtn.disabled = isUnavailable;
     }
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (isOn ? "mdi:toggle-switch" : "mdi:toggle-switch-off");
-    this.renderIcon(iconName, "card-icon");
+    if (this.#rowToggle) {
+      this.#rowToggle.textContent = this.i18n.t(isOn ? "state.on" : "state.off");
+      this.#rowToggle.setAttribute("aria-pressed", String(isOn));
+      this.#rowToggle.disabled = isUnavailable;
+    }
+
+    const rowStateEl = this.root.querySelector("[part=row-state]");
+    if (rowStateEl) rowStateEl.textContent = label;
+
+    const defaultIcon = isOn ? "mdi:toggle-switch" : "mdi:toggle-switch-off-outline";
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }

@@ -1,8 +1,5 @@
 /**
- * theme-loader.js - Theme JSON fetch, in-memory cache, and CSS variable injection.
- *
- * Theme objects are fetched once per URL and cached for the lifetime of the
- * page session. Multiple cards sharing the same theme-url share one fetch.
+ * theme-loader.js - Theme CSS variable injection.
  *
  * Theme JSON format (theming.md):
  * {
@@ -28,20 +25,6 @@
  */
 
 /**
- * In-memory cache: theme URL -> ThemeObject (or null on fetch failure).
- * Null entries are cached so a bad URL is not retried on every card mount.
- * @type {Map<string, object|null>}
- */
-const _cache = new Map();
-
-/**
- * In-flight fetches: URL -> Promise<object|null>.
- * Prevents duplicate concurrent requests for the same URL.
- * @type {Map<string, Promise<object|null>>}
- */
-const _inflight = new Map();
-
-/**
  * Shared dark-mode listener. All themed cards register a callback here
  * instead of each attaching its own matchMedia listener.
  * @type {Set<() => void>}
@@ -54,60 +37,6 @@ let _darkMq = null;
 // ---------------------------------------------------------------------------
 
 export class ThemeLoader {
-
-  /**
-   * Resolve a theme for the given card config. Returns:
-   *   - The inline theme object if config.theme is set (no fetch needed).
-   *   - A fetched ThemeObject if config.themeUrl is set.
-   *   - null if neither is set or the fetch fails.
-   *
-   * @param {{ theme?: object, themeUrl?: string }} config
-   * @returns {Promise<object|null>}
-   */
-  static async resolve(config) {
-    if (config.theme) return config.theme;
-    if (config.themeUrl) return this.fetch(config.themeUrl);
-    return null;
-  }
-
-  /**
-   * Fetch a theme JSON from the given URL. Results are cached in memory.
-   * Concurrent requests for the same URL share one in-flight Promise.
-   * Null is cached on failure so the URL is not retried every card mount.
-   *
-   * @param {string} url
-   * @returns {Promise<object|null>}
-   */
-  static async fetch(url) {
-    // Cache hit.
-    if (_cache.has(url)) return _cache.get(url);
-
-    // In-flight dedup.
-    if (_inflight.has(url)) return _inflight.get(url);
-
-    const promise = (async () => {
-      try {
-        const res = await globalThis.fetch(url);
-        if (!res.ok) {
-          console.warn(`[HArvest] Theme fetch failed (${res.status}):`, url);
-          _cache.set(url, null);
-          return null;
-        }
-        const json = await res.json();
-        _cache.set(url, json);
-        return json;
-      } catch (err) {
-        console.warn("[HArvest] Failed to load theme from", url, err);
-        _cache.set(url, null);
-        return null;
-      } finally {
-        _inflight.delete(url);
-      }
-    })();
-
-    _inflight.set(url, promise);
-    return promise;
-  }
 
   /**
    * Apply a theme object to a shadow root by setting CSS custom properties on
@@ -162,19 +91,40 @@ export class ThemeLoader {
         ? { ...theme.variables, ...theme.dark_variables }
         : theme.variables;
 
-      // Wipe all inline styles so no var from the previous theme lingers
-      // when the incoming theme does not define that property.
-      host.style.cssText = "";
+      // Remove only variables previously applied by ThemeLoader. The host page
+      // owns every other inline style on the custom element.
+      ThemeLoader.clear(shadowRoot);
 
       const _dangerousValueRe = /url\s*\(|expression\s*\(|@import/i;
+      const appliedKeys = new Map();
       for (const [key, value] of Object.entries(vars ?? {})) {
         if (!key.startsWith("--")) continue;
-        if (_dangerousValueRe.test(value)) continue;
-        host.style.setProperty(key, value);
+        const cssValue = String(value);
+        if (_dangerousValueRe.test(cssValue)) continue;
+        appliedKeys.set(key, {
+          existed: [...host.style].includes(key),
+          value: host.style.getPropertyValue(key),
+          priority: host.style.getPropertyPriority(key),
+        });
+        host.style.setProperty(key, cssValue);
       }
+      host[_APPLIED_KEYS] = appliedKeys;
     };
 
     applyVars();
+
+    // Inject custom fonts declared by the theme. @font-face rules in
+    // document.head are global - they apply inside shadow DOM via the
+    // font-family property even though class selectors do not cross shadow
+    // boundaries. Idempotent: keyed by sanitised family name + weight.
+    const baseUrl = theme._sourceUrl || null;
+    if (Array.isArray(theme.custom_fonts)) {
+      for (const face of theme.custom_fonts) {
+        if (face.family && face.url) {
+          _injectFontFace(face.family, _resolveFontUrl(face.url, baseUrl), face.weight, face.style);
+        }
+      }
+    }
 
     // Only register OS-change listener when not forced to a specific scheme.
     if (colorScheme === "auto") {
@@ -198,14 +148,77 @@ export class ThemeLoader {
   }
 
   /**
-   * Clear the in-memory URL cache. Intended for testing only.
+   * Remove variables previously applied by ThemeLoader without disturbing
+   * inline styles owned by the embedding page.
+   *
+   * @param {ShadowRoot} shadowRoot
+   */
+  static clear(shadowRoot) {
+    const host = /** @type {any} */ (shadowRoot.host);
+    for (const [key, original] of host[_APPLIED_KEYS] ?? []) {
+      if (original.existed) {
+        host.style.setProperty(key, original.value, original.priority);
+      } else {
+        host.style.removeProperty(key);
+      }
+    }
+    delete host[_APPLIED_KEYS];
+  }
+
+  /**
+   * Reset shared dark-mode state. Intended for testing only.
    */
   static _clearCache() {
-    _cache.clear();
-    _inflight.clear();
+    _darkCallbacks.clear();
+    _darkMq = null;
   }
 }
 
 // Private symbol used to store the MediaQueryList cleanup function on the
 // host element without polluting its public interface.
 const _CLEANUP_KEY = Symbol("harvThemeCleanup");
+const _APPLIED_KEYS = Symbol("harvThemeAppliedKeys");
+
+/**
+ * Resolve a font URL relative to the theme's source URL. Absolute URLs
+ * and data URIs pass through unchanged. Relative paths are resolved
+ * against the directory containing the theme JSON.
+ *
+ * @param {string} fontUrl
+ * @param {string|null} themeBaseUrl
+ * @returns {string}
+ */
+function _resolveFontUrl(fontUrl, themeBaseUrl) {
+  if (!themeBaseUrl || /^(https?:|data:|blob:)/i.test(fontUrl)) return fontUrl;
+  try {
+    const base = themeBaseUrl.substring(0, themeBaseUrl.lastIndexOf("/") + 1);
+    return new URL(fontUrl, base).href;
+  } catch {
+    return fontUrl;
+  }
+}
+
+/**
+ * Inject a @font-face rule into document.head.
+ * Idempotent: the data-hrv-font attribute is keyed by the sanitised family
+ * name plus weight so multiple weights of the same family each get one rule.
+ *
+ * @param {string} family  - Font family name, e.g. "Inter"
+ * @param {string} url     - URL to the woff2 file
+ * @param {string} [weight="normal"] - CSS font-weight value, e.g. "400" or "100 900"
+ * @param {string} [fontStyle="normal"] - CSS font-style value
+ */
+function _injectFontFace(family, url, weight, fontStyle) {
+  if (typeof family !== "string" || typeof url !== "string") return;
+  const w = String(weight || "normal").trim().toLowerCase();
+  const s = String(fontStyle || "normal").trim().toLowerCase();
+  const validWeight = /^(?:normal|bold|(?:[1-9]\d{0,2}|1000)(?: (?:[1-9]\d{0,2}|1000))?)$/;
+  if (!validWeight.test(w) || !["normal", "italic", "oblique"].includes(s)) return;
+  const key = `${family.toLowerCase().replace(/\s+/g, "-")}-${w}-${s}`;
+  if ([...document.head.querySelectorAll("[data-hrv-font]")]
+    .some((element) => element.getAttribute("data-hrv-font") === key)) return;
+  const style = document.createElement("style");
+  style.setAttribute("data-hrv-font", key);
+  style.textContent = `@font-face{font-family:${JSON.stringify(family)};src:url(${JSON.stringify(url)}) format("woff2");font-weight:${w};font-style:${s};font-display:swap}`;
+  document.head.appendChild(style);
+}

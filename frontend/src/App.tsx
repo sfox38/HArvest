@@ -2,22 +2,23 @@
  * App.tsx - Root component and navigation for the HArvest panel.
  *
  * Two-row appbar: brand + "New widget" action on top, nav tabs below.
- * Five tabs: Dashboard, Widgets, Sessions, Activity, Settings & help.
+ * Five tabs: Dashboard, Widgets, Sessions, Activity, Settings.
  * Dark/light/auto theme toggled in Settings and persisted to localStorage.
  */
 
 import { useState, useCallback, useEffect } from "react";
 import type { Screen } from "./types";
-import { api, getHaDarkMode, onHaDarkModeChange } from "./api";
+import { api, getHaDarkMode, onHaDarkModeChange, isOffline, onConnectivityChange } from "./api";
 import { Dashboard }   from "./components/Dashboard";
 import { TokenList }   from "./components/TokenList";
 import { ActivityLog } from "./components/ActivityLog";
 import { Sessions }    from "./components/Sessions";
-import { Actions }     from "./components/Actions";
 import { Themes }      from "./components/Themes";
 import { Settings }    from "./components/Settings";
 import { Wizard }      from "./components/Wizard";
+import { ConverterWizard } from "./components/ConverterWizard";
 import { Icon }        from "./components/Icon";
+import { PanelThemeContext } from "./panelTheme";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,13 +34,12 @@ const NAV_MAIN: { id: Screen; label: string; icon: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "home"     },
   { id: "widgets",   label: "Widgets",   icon: "grid"     },
   { id: "themes",    label: "Themes",    icon: "palette"  },
-  { id: "actions",   label: "Actions",   icon: "play"     },
   { id: "sessions",  label: "Sessions",  icon: "plug"     },
   { id: "activity",  label: "Activity",  icon: "activity" },
 ];
 
 const NAV_FOOT: { id: Screen; label: string; icon: string }[] = [
-  { id: "settings", label: "Settings & help", icon: "settings" },
+  { id: "settings", label: "Settings", icon: "settings" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -59,6 +59,7 @@ function readStoredTheme(): AppTheme {
 export function App() {
   const [screen, setScreen]         = useState<Screen>("dashboard");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [converterOpen, setConverterOpen] = useState(false);
   const [initialTokenId, setInitialTokenId] = useState<string | null>(null);
   // Increment to reset (remount) the TokenList when Widgets nav is clicked
   // while already viewing a token detail.
@@ -71,6 +72,8 @@ export function App() {
   const [haDark, setHaDark] = useState<boolean>(getHaDarkMode);
   // Kill switch: when active, all sessions are blocked.
   const [killSwitch, setKillSwitch] = useState(false);
+  // Network connectivity: true when HA is unreachable.
+  const [offline, setOffline] = useState(isOffline);
 
   // Persist theme choice and apply data-theme attribute.
   useEffect(() => {
@@ -79,6 +82,9 @@ export function App() {
 
   // Subscribe to HA dark mode changes for "auto" mode.
   useEffect(() => onHaDarkModeChange(setHaDark), []);
+
+  // Subscribe to connectivity changes.
+  useEffect(() => onConnectivityChange(setOffline), []);
 
   // Fetch kill switch state on mount.
   useEffect(() => {
@@ -92,6 +98,17 @@ export function App() {
     if (newTokenId) {
       setInitialTokenId(newTokenId);
       setTokenListKey(k => k + 1);
+      setScreen("widgets");
+    }
+  }, []);
+
+  const openConverter = useCallback(() => setConverterOpen(true), []);
+
+  const closeConverter = useCallback((createdIds?: string[]) => {
+    setConverterOpen(false);
+    if (createdIds && createdIds.length > 0) {
+      setTokenListKey(k => k + 1);
+      setInitialTokenId(createdIds[0]);
       setScreen("widgets");
     }
   }, []);
@@ -116,6 +133,7 @@ export function App() {
     : theme;
 
   return (
+    <PanelThemeContext.Provider value={dataTheme}>
     <div className="app" data-theme={dataTheme}>
 
       <header className="appbar">
@@ -127,6 +145,12 @@ export function App() {
             </div>
             <span className="brand-name">HArvest</span>
           </button>
+          {offline && (
+            <div className="connectivity-banner" role="status" aria-live="polite">
+              <Icon name="refresh" size={13} />
+              <span>Reconnecting...</span>
+            </div>
+          )}
           <div className="appbar-actions">
             {killSwitch && (
               <span className="kill-switch-indicator" title="Kill switch is active - all sessions blocked">
@@ -157,6 +181,15 @@ export function App() {
               <span className="nav-label">{label}</span>
             </button>
           ))}
+          <a
+            className="nav-item"
+            href="https://sfox38.github.io/HArvest/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span className="nav-icon"><Icon name="external" size={16} /></span>
+            <span className="nav-label">Documentation</span>
+          </a>
           <div className="nav-spacer" />
           {NAV_FOOT.map(({ id, label, icon }) => (
             <button
@@ -187,15 +220,13 @@ export function App() {
             <TokenList
               key={tokenListKey}
               onOpenWizard={openWizard}
+              onOpenConverter={openConverter}
               initialTokenId={initialTokenId}
               onInitialTokenConsumed={() => setInitialTokenId(null)}
             />
           )}
           {screen === "themes" && (
             <Themes onSelectToken={goToToken} />
-          )}
-          {screen === "actions" && (
-            <Actions />
           )}
           {screen === "sessions" && (
             <Sessions onSelectToken={goToToken} />
@@ -216,6 +247,12 @@ export function App() {
       {wizardOpen && (
         <Wizard onClose={closeWizard} />
       )}
+
+      {/* Converter wizard overlay */}
+      {converterOpen && (
+        <ConverterWizard onClose={closeConverter} />
+      )}
     </div>
+    </PanelThemeContext.Provider>
   );
 }

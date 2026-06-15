@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Widget Reference - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -17,7 +20,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v1.0 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -47,18 +50,18 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Using HArvest</div>
           <h1>Widget reference</h1>
-          <p class="lead">HTML attributes, embed modes, the JavaScript API, companion entities, and advanced card configuration.</p>
+          <p class="lead">Covers HTML attributes, embed modes, the JavaScript API, companion entities, and advanced card configuration.</p>
         </div>
 
         <div class="toc">
@@ -76,6 +79,11 @@
           </ol>
         </div>
 
+        <div class="callout callout-tip">
+          <span class="callout-label">Before you read further...</span>
+          <p>You don't need to know any of the information on this page to use HArvest. The panel wizard generates widget code automatically, and the embed snippets are ready to copy and paste. This page is a reference for anyone who wants to understand the underlying attributes, customize the JavaScript API, or troubleshoot advanced configurations.</p>
+        </div>
+
         <section>
         <h2 id="embed-modes">Embed modes</h2>
 
@@ -84,7 +92,7 @@
         <h3>Custom element mode</h3>
         <p>Uses <code>&lt;hrv-card&gt;</code> and <code>&lt;hrv-group&gt;</code> as native HTML custom elements.</p>
 
-        <pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+        <pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
 &lt;/script&gt;
@@ -97,10 +105,12 @@
   &lt;hrv-card entity="light.dining_room"&gt;&lt;/hrv-card&gt;
 &lt;/hrv-group&gt;</code></pre>
 
-        <h3>Data attribute mode</h3>
-        <p>Uses plain <code>&lt;div&gt;</code> elements with <code>data-</code> attributes. Mostly useful in environments that sanitize custom HTML tags - some page builders, CMSes, or email templates won't allow unknown elements like <code>&lt;hrv-card&gt;</code>.</p>
+        <p>The script <code>src</code> points at your HA instance, which serves the widget bundle directly out of the integration's own files at <code>/harvest_assets/harvest.min.js</code>. The widget always matches the running integration version - update HArvest via HACS and every embedded widget picks up the new bundle on the next page load.</p>
 
-        <pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+        <h3>Data attribute mode</h3>
+        <p>Uses plain <code>&lt;div&gt;</code> elements with <code>data-</code> attributes. This is useful in page builders and CMSes that allow JavaScript but sanitize unknown HTML tags such as <code>&lt;hrv-card&gt;</code>.</p>
+
+        <pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 
 &lt;div class="hrv-group" data-token="hwt_..." data-ha-url="https://myhome.example.com"&gt;
   &lt;div class="hrv-mount" data-entity="light.bedroom_main"&gt;&lt;/div&gt;
@@ -192,13 +202,14 @@ document.getElementById("sidebar").appendChild(card2);</code></pre>
 
           <div class="attr-block">
             <div class="attr-name">ha-url <span class="attr-optional">optional</span> <span class="attr-type">string</span></div>
-            <div class="attr-desc">External HTTPS URL of the Home Assistant instance. Overrides the value from <code>HArvest.config()</code> or a parent group. e.g. <code>https://myhome.duckdns.org</code>.</div>
+            <div class="attr-desc">URL of the Home Assistant instance reachable by widget visitors. Use HTTPS when the embedding page uses HTTPS. Overrides the value from <code>HArvest.config()</code> or a parent group. e.g. <code>https://myhome.duckdns.org</code>.</div>
           </div>
 
           <div class="attr-block">
             <div class="attr-name">token-secret <span class="attr-optional">optional</span> <span class="attr-type">string</span></div>
-            <div class="attr-desc">HMAC signing secret. Required when the token has HMAC authentication enabled. The secret is used to sign auth messages client-side so the server can verify that auth requests came from a legitimate page embed.</div>
+            <div class="attr-desc">HMAC signing secret. Required when the token has HMAC authentication enabled. The browser uses it to sign auth messages so a token ID leaked without its paired secret cannot authenticate. The secret remains visible to visitors who can inspect the page.</div>
           </div>
+
         </div>
 
         <h2 id="hrv-group">hrv-group attributes</h2>
@@ -221,6 +232,27 @@ document.getElementById("sidebar").appendChild(card2);</code></pre>
             <div class="attr-desc">HMAC secret, inherited by all child cards.</div>
           </div>
         </div>
+        </section>
+
+        <section>
+        <h2 id="entities-block">Entities block</h2>
+
+        <p>An entities block groups multiple cards into a single visual container where each card appears as a compact row. This is useful for dashboards where you want several entities listed together inside one card-like container, similar to the entities card in Lovelace.</p>
+
+        <p>Wrap <code>&lt;hrv-card&gt;</code> elements inside an <code>&lt;hrv-entities-block&gt;</code> custom element:</p>
+
+<pre><code class="language-html">&lt;hrv-entities-block&gt;
+  &lt;hrv-card entity="light.living_room"&gt;&lt;/hrv-card&gt;
+  &lt;hrv-card entity="switch.fan"&gt;&lt;/hrv-card&gt;
+  &lt;hrv-card entity="sensor.temperature"&gt;&lt;/hrv-card&gt;
+  &lt;hrv-card entity="binary_sensor.motion"&gt;&lt;/hrv-card&gt;
+&lt;/hrv-entities-block&gt;</code></pre>
+
+        <p>The <code>&lt;hrv-entities-block&gt;</code> element automatically forces each child <code>&lt;hrv-card&gt;</code> into row layout mode, stripping the card's own background, shadow, and border-radius. Each card renders as a single horizontal row: icon, name, then the primary control or state value. The block container provides the shared card appearance, border-radius, and row separator lines. No extra CSS is needed.</p>
+
+        <p>Each card in the block is still an independent <code>&lt;hrv-card&gt;</code> with its own entity subscription and state. Cards inside an entities block do not support companions or gestures. Existing gesture settings remain stored if entities block mode is enabled, but they are inactive until the token returns to normal card mode. New or changed gestures are rejected while entities block mode is enabled. The panel wizard generates the entities block snippet automatically when the "Entities block" option is enabled for a token.</p>
+
+        <p>Entities-block tokens are optimized server-side: each entity receives a compact data payload containing only the identity, icon, and state information needed for row rendering. Feature configuration, gesture configuration, companions, and service call metadata are not sent, reducing bandwidth and improving load time for large blocks.</p>
         </section>
 
         <section>
@@ -260,11 +292,13 @@ document.getElementById("sidebar").appendChild(card2);</code></pre>
 });</code></pre>
 
         <h3>HArvest.getCard(entityId)</h3>
-        <p>Returns the <code>HrvCard</code> instance currently registered for a given entity ID, or <code>null</code> if none exists. When multiple cards on the same page subscribe to the same entity, this returns the most recently registered one.</p>
+        <p>Returns the <code>HrvCard</code> instance currently registered for a given entity ID or alias on the page-level client configured by <code>HArvest.config()</code>, or <code>null</code> if none exists. Cards that use a different token through group-level or card-level attributes belong to a different client and are not found by this method. When multiple cards on the page-level client subscribe to the same entity, this returns the most recently registered one.</p>
 
         <pre><code class="language-javascript">const card = HArvest.getCard("light.bedroom_main");
 if (card) {
-  console.log(card.entityId, card.lastState);
+  card.addEventListener("hrv-state-change", event => {
+    console.log(event.detail.state);
+  });
 }</code></pre>
 
         <h3>HArvest.registerRenderer(key, RendererClass)</h3>
@@ -298,14 +332,25 @@ HArvest.renderers.BinarySensorCard
 HArvest.renderers.InputBooleanCard
 HArvest.renderers.InputNumberCard
 HArvest.renderers.InputSelectCard
-HArvest.renderers.HarvestActionCard
 HArvest.renderers.TimerCard
 HArvest.renderers.WeatherCard
+HArvest.renderers.LockCard
+HArvest.renderers.PersonCard
+HArvest.renderers.ButtonCard       // button and input_button
+HArvest.renderers.ScriptCard
+HArvest.renderers.AutomationCard
 HArvest.renderers.BadgeCard      // compact pill for badge capability
 HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
 
+        <h3>HArvest.esc(value)</h3>
+        <p>Returns a string with HTML-significant characters escaped. Custom renderer authors should use it whenever user-provided text, such as an entity friendly name, is inserted into an <code>innerHTML</code> template. It is not needed when assigning text through <code>textContent</code>.</p>
+
+        <pre><code class="language-javascript">this.root.innerHTML = `
+  &lt;span part="card-name"&gt;${HArvest.esc(this.def.friendly_name)}&lt;/span&gt;
+`;</code></pre>
+
         <h3>HArvest.track.anyState(callback)</h3>
-        <p>Registers a callback that fires whenever any entity's state changes on the page. Useful for logging, analytics, or driving custom page logic based on entity state.</p>
+        <p>Registers a callback that fires whenever an entity state update arrives on the page-level client configured by <code>HArvest.config()</code>. Cards using different group-level or card-level tokens are not included. Useful for logging or reacting to every entity carried by the page-level connection.</p>
 
         <pre><code class="language-javascript">HArvest.track.anyState((entityId, state, attributes) => {
   console.log(`${entityId} changed to ${state}`);
@@ -320,7 +365,7 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
         <p>Companions are configured server-side in the panel (entity detail screen, Display settings, Companion entities). They don't need any HTML attribute on the card element - the server automatically subscribes the companion entities and delivers them alongside the primary entity's definition.</p>
 
         <div class="screenshot">
-          <img src="companion.jpg">
+          <img src="companion.jpg" alt="Light card with companion pills showing a motion sensor and a temperature sensor" loading="lazy">
         </div>
 
         <h3>Companion eligibility</h3>
@@ -329,18 +374,25 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
           <table>
             <thead><tr><th>Domain</th><th>Access in companion role</th></tr></thead>
             <tbody>
-              <tr><td>light</td><td>Toggle on/off</td></tr>
-              <tr><td>switch</td><td>Toggle on/off</td></tr>
-              <tr><td>input_boolean</td><td>Toggle on/off</td></tr>
-              <tr><td>binary_sensor</td><td>Read-only state</td></tr>
-              <tr><td>lock</td><td>Read-only state</td></tr>
-              <tr><td>cover</td><td>Read-only state/position</td></tr>
-              <tr><td>remote</td><td>Read-only power state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> light</td><td>Toggle on/off</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch"></span> switch</td><td>Toggle on/off</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch-outline"></span> input_boolean</td><td>Toggle on/off</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> fan</td><td>Toggle on/off</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-radiobox-marked"></span> binary_sensor</td><td>Read-only state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> sensor</td><td>Read-only state/value</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> lock</td><td>Lock/Unlock</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> cover</td><td>Read-only state/position</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> remote</td><td>Read-only power state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> button / input_button</td><td>Press</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-numeric"></span> number / input_number</td><td>Read-only value</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-account"></span> person</td><td>Read-only presence state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-timer-outline"></span> timer</td><td>Read-only timer state</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-weather-partly-cloudy"></span> weather</td><td>Read-only condition</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>There is no per-card companion limit; the 50-entity token budget is the only constraint. Companions with "read" capability never trigger service calls regardless of the domain, even if the domain normally allows control. Badge entities cannot have companions.</p>
+        <p>There is no per-card companion limit. Primaries and companions count toward HArvest's internal 250-entity safety cap per token. Interactive companion domains have a "Read only" toggle that defaults to on. Display-only companion domains never show the toggle or trigger service calls. If the primary card is set to "Read only", all its companions are forced to read-only. Badge entities cannot have companions.</p>
         </section>
 
         <section>
@@ -354,7 +406,7 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
             <tbody>
               <tr><td>Name override</td><td>Entity settings card</td><td>Custom display name, overrides HA friendly_name</td></tr>
               <tr><td>Force color scheme</td><td>Entity settings card</td><td>Auto, Light, or Dark per entity</td></tr>
-              <tr><td>Graph type (line/bar/none)</td><td>Entity settings card</td><td>History graph for sensor, binary_sensor, input_number</td></tr>
+              <tr><td>Graph type (line/bar/step/none)</td><td>Entity settings card</td><td>History graph for sensor, binary_sensor, input_number, and number. Step is available for binary_sensor.</td></tr>
               <tr><td>Graph hours</td><td>Entity settings card</td><td>Time window, 1-168 hours</td></tr>
               <tr><td>Graph period</td><td>Entity settings card</td><td>Aggregation period in minutes</td></tr>
               <tr><td>Animate fan icon</td><td>Entity settings card</td><td>Spinning fan when entity is on</td></tr>
@@ -363,6 +415,7 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
               <tr><td>Climate feature toggles</td><td>Entity settings card</td><td>Show/hide HVAC modes, presets, fan mode, swing mode</td></tr>
               <tr><td>Cover feature toggles</td><td>Entity settings card</td><td>Show/hide position slider, tilt control</td></tr>
               <tr><td>Media player feature toggles</td><td>Entity settings card</td><td>Show/hide transport, volume, source selector</td></tr>
+              <tr><td>Weather forecast toggle</td><td>Entity settings card</td><td>Opt in to daily and hourly forecast fetching, subscriptions, and display</td></tr>
               <tr><td>Input number display mode</td><td>Entity settings card</td><td>Slider or Buttons</td></tr>
               <tr><td>Companion entities</td><td>Entity settings card</td><td>See above</td></tr>
               <tr><td>Excluded attributes</td><td>Entity settings card</td><td>Linked with feature toggles bidirectionally</td></tr>
@@ -383,14 +436,26 @@ HArvest.renderers.GenericCard    // Tier 2 fallback</code></pre>
         <section>
         <h2 id="state-events">Tracking state events</h2>
 
-        <p>The <code>HArvest.track.anyState()</code> callback receives every state change for every entity on the page. For more targeted tracking, listen on a specific card instance:</p>
+        <p>Each <code>&lt;hrv-card&gt;</code> dispatches a bubbling <code>hrv-state-change</code> DOM event whenever it receives a confirmed <code>state_update</code> from Home Assistant. Optimistic visual changes made while a command is pending do not dispatch this event. Listen directly on a card for targeted behavior, or listen on a containing element to handle events from multiple cards.</p>
 
-        <pre><code class="language-javascript">// Wait for the card to be registered, then attach a listener
+        <pre><code class="language-javascript">// The hrv-card element must be in the DOM before attaching a listener
 document.querySelector("hrv-card[entity='light.bedroom']")
   .addEventListener("hrv-state-change", (event) => {
-    const { entityId, state, attributes } = event.detail;
-    console.log(entityId, state);
+    const {
+      entityId,
+      state,
+      attributes,
+      previousState,
+      previousAttributes,
+      lastUpdated,
+    } = event.detail;
+
+    console.log(`${entityId}: ${previousState} to ${state}`);
   });</code></pre>
+
+        <p><code>entityId</code> is the card's configured entity reference, so it contains the alias when the card uses <code>alias=</code>. On the first confirmed update, <code>previousState</code> and <code>previousAttributes</code> are <code>null</code>. Remove the listener with the standard <code>removeEventListener()</code> API when it is no longer needed.</p>
+
+        <p><code>HArvest.track.anyState()</code> remains available for observing all updates carried by the page-level client configured through <code>HArvest.config()</code>. Use <code>hrv-state-change</code> when you need a particular card or cards using other token configurations.</p>
         </section>
 
         <section>

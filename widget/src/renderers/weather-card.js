@@ -7,6 +7,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 import { renderIconSVG } from "../icons.js";
 
 const CONDITION_ICONS = {
@@ -140,11 +141,19 @@ const WEATHER_STYLES = /* css */`
     display: flex;
     gap: var(--hrv-spacing-xs);
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
     width: 0;
     min-width: 100%;
   }
+  [part=forecast-strip][data-mode=hourly]:active { cursor: grabbing; }
   [part=forecast-strip][data-mode=hourly]::-webkit-scrollbar { display: none; }
+  [part=forecast-strip][data-dragging] * { pointer-events: none; }
 
   [part=forecast-day] {
     display: flex;
@@ -202,14 +211,6 @@ const WEATHER_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function _conditionIcon(condition) {
   return CONDITION_ICONS[condition] ?? "mdi:weather-cloudy";
@@ -217,7 +218,94 @@ function _conditionIcon(condition) {
 
 const _SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// Mouse drag-scroll with gentle ease-out momentum on release.
+// Velocity is averaged over the last 80ms so a flick at the end of a slow
+// drag still produces a snappy fling. Touch falls through to native scroll.
+function _installMomentumScroll(strip) {
+  if (!strip) return () => {};
+  const SAMPLE_WINDOW = 80, VELOCITY_BOOST = 1.6, DECAY = 0.96, MIN_VEL = 0.04;
+  let pointerId = null, startX = 0, startScroll = 0;
+  let velocity = 0, moved = false, momentumRaf = 0;
+  const samples = [];
+  const stopMomentum = () => { if (momentumRaf) { cancelAnimationFrame(momentumRaf); momentumRaf = 0; } };
+  const computeReleaseVelocity = (now) => {
+    while (samples.length && samples[0].t < now - SAMPLE_WINDOW) samples.shift();
+    if (samples.length < 2) return 0;
+    const first = samples[0], last = samples[samples.length - 1];
+    const dt = last.t - first.t;
+    if (dt <= 0) return 0;
+    return (last.x - first.x) / dt;
+  };
+  const startMomentum = () => {
+    if (Math.abs(velocity) < MIN_VEL) return;
+    let prev = performance.now();
+    const tick = (now) => {
+      const dt = now - prev; prev = now;
+      strip.scrollLeft -= velocity * dt;
+      velocity *= Math.pow(DECAY, dt / 16);
+      if (Math.abs(velocity) < MIN_VEL) { momentumRaf = 0; velocity = 0; return; }
+      const max = strip.scrollWidth - strip.clientWidth;
+      if (strip.scrollLeft <= 0 || strip.scrollLeft >= max) { momentumRaf = 0; velocity = 0; return; }
+      momentumRaf = requestAnimationFrame(tick);
+    };
+    momentumRaf = requestAnimationFrame(tick);
+  };
+  const onDown = (e) => {
+    if (strip.scrollWidth <= strip.clientWidth) return;
+    if (e.pointerType === "touch") return;
+    const t = e.target;
+    if (t && t !== strip && t.closest?.("button, a")) return;
+    stopMomentum();
+    pointerId = e.pointerId;
+    startX = e.clientX;
+    startScroll = strip.scrollLeft;
+    velocity = 0; moved = false;
+    samples.length = 0;
+    samples.push({ x: e.clientX, t: e.timeStamp });
+    try { strip.setPointerCapture(pointerId); } catch { /* ignore */ }
+  };
+  const onMove = (e) => {
+    if (e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 4) { moved = true; strip.dataset.dragging = "true"; }
+    strip.scrollLeft = startScroll - dx;
+    samples.push({ x: e.clientX, t: e.timeStamp });
+    const cutoff = e.timeStamp - SAMPLE_WINDOW;
+    while (samples.length > 2 && samples[0].t < cutoff) samples.shift();
+  };
+  const onUp = (e) => {
+    if (e.pointerId !== pointerId) return;
+    try { strip.releasePointerCapture(pointerId); } catch { /* ignore */ }
+    pointerId = null;
+    if (moved) {
+      const click = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      window.addEventListener("click", click, { capture: true, once: true });
+      requestAnimationFrame(() => strip.removeAttribute("data-dragging"));
+      velocity = computeReleaseVelocity(e.timeStamp) * VELOCITY_BOOST;
+      startMomentum();
+    }
+    samples.length = 0;
+  };
+  strip.addEventListener("pointerdown",   onDown);
+  strip.addEventListener("pointermove",   onMove);
+  strip.addEventListener("pointerup",     onUp);
+  strip.addEventListener("pointercancel", onUp);
+  strip.addEventListener("wheel",      stopMomentum, { passive: true });
+  strip.addEventListener("touchstart", stopMomentum, { passive: true });
+  return () => {
+    stopMomentum();
+    strip.removeEventListener("pointerdown",   onDown);
+    strip.removeEventListener("pointermove",   onMove);
+    strip.removeEventListener("pointerup",     onUp);
+    strip.removeEventListener("pointercancel", onUp);
+    strip.removeEventListener("wheel",         stopMomentum);
+    strip.removeEventListener("touchstart",    stopMomentum);
+  };
+}
+
 export class WeatherCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #iconEl     = null;
   /** @type {HTMLElement|null} */ #tempEl     = null;
   /** @type {HTMLElement|null} */ #condEl     = null;
@@ -228,6 +316,7 @@ export class WeatherCard extends BaseCard {
   /** @type {HTMLElement|null} */ #tabsEl     = null;
   /** @type {HTMLElement|null} */ #scrollTrackEl = null;
   /** @type {HTMLElement|null} */ #scrollThumbEl = null;
+  #scrollTeardown = null;
   get #forecastMode() { return this.config._forecastMode ?? "daily"; }
   set #forecastMode(v) { this.config._forecastMode = v; }
   #forecastDaily  = null;
@@ -235,7 +324,7 @@ export class WeatherCard extends BaseCard {
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${WEATHER_STYLES}</style>
+      <style>${WEATHER_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
@@ -287,14 +376,20 @@ export class WeatherCard extends BaseCard {
 
     if (this.#forecastEl) {
       this.#forecastEl.addEventListener("scroll", () => this.#syncScrollThumb(), { passive: true });
+      this.#scrollTeardown = _installMomentumScroll(this.#forecastEl);
     }
     if (this.#scrollTrackEl) {
       this.#scrollTrackEl.addEventListener("pointerdown", (e) => this.#onTrackPointerDown(e));
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:weather-cloudy", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:weather-cloudy"), "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
+  }
+
+  destroy() {
+    this.#scrollTeardown?.();
+    this.#scrollTeardown = null;
   }
 
   applyState(state, attributes) {
@@ -311,15 +406,23 @@ export class WeatherCard extends BaseCard {
     if (this.#condEl) this.#condEl.textContent = condLabel;
 
     const temp = attributes.temperature ?? attributes.native_temperature;
-    const tempUnit = attributes.temperature_unit ?? "";
+    let tempUnit = String(
+      attributes.temperature_unit
+      || attributes.native_temperature_unit
+      || this.def.unit_of_measurement
+      || "°C"
+    ).trim();
+    if (tempUnit && !/^°/.test(tempUnit) && tempUnit.length <= 2) {
+      tempUnit = `°${tempUnit}`;
+    }
     if (this.#tempEl) {
       const unitEl = this.#tempEl.querySelector("[part=weather-temp-unit]");
       this.#tempEl.firstChild.textContent = temp != null ? Math.round(Number(temp)) : "--";
-      if (unitEl) unitEl.textContent = tempUnit ? ` ${tempUnit}` : "";
+      if (unitEl) unitEl.textContent = tempUnit;
     }
 
-    const headerIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? iconName;
-    this.renderIcon(headerIcon, "card-icon");
+    const rawHeaderIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? iconName;
+    this.renderIcon(this.resolveIcon(rawHeaderIcon, iconName), "card-icon");
 
     if (this.#humidityEl) {
       const h = attributes.humidity;

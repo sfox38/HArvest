@@ -6,6 +6,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const BATTERY_STYLES = /* css */`
   [part=card-body] {
@@ -25,7 +26,7 @@ const BATTERY_STYLES = /* css */`
   [part=sensor-value] {
     font-size: 2rem;
     font-weight: var(--hrv-font-weight-bold);
-    color: var(--hrv-color-primary);
+    color: var(--hrv-color-text);
     line-height: 1;
   }
 
@@ -59,26 +60,22 @@ function _batteryIcon(level) {
   return "mdi:battery-outline";
 }
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class BatterySensorCard extends BaseCard {
-  /** @type {HTMLElement|null} */ #valueEl = null;
+  static staleOnMount = true;
+
+  /** @type {HTMLElement|null} */ #valueEl     = null;
+  /** @type {HTMLElement|null} */ #rowValue    = null;
   /** @type {string|null} */      #currentIcon = null;
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${BATTERY_STYLES}</style>
+      <style>${BATTERY_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-value"></span></span>
         </div>
         <div part="card-body">
           <span part="battery-icon-wrap" aria-hidden="true"></span>
@@ -92,8 +89,9 @@ export class BatterySensorCard extends BaseCard {
       </div>
     `;
 
-    this.#valueEl = this.root.querySelector("[part=sensor-value]");
-    this.renderIcon(this.def.icon ?? "mdi:battery", "card-icon");
+    this.#valueEl  = this.root.querySelector("[part=sensor-value]");
+    this.#rowValue = this.root.querySelector("[part=row-value]");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:battery"), "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
@@ -103,13 +101,15 @@ export class BatterySensorCard extends BaseCard {
 
     this.#valueEl.textContent = state;
 
+    const unit = this.def.unit_of_measurement ?? "%";
+    if (this.#rowValue) this.#rowValue.textContent = `${state} ${unit}`;
+
     const icon = _batteryIcon(state === "unavailable" ? null : state);
     if (icon !== this.#currentIcon) {
       this.#currentIcon = icon;
       this.renderIcon(icon, "battery-icon-wrap");
     }
 
-    const unit = this.def.unit_of_measurement ?? "%";
     this.announceState(`${this.def.friendly_name}, ${state} ${unit}`);
   }
 }

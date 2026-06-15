@@ -7,15 +7,20 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { Token, ThemeDefinition } from "../types";
-import { validateLabel as validateLabelWiz, DEFAULT_WIDGET_SCRIPT_URL } from "../types";
+import type { Token, ThemeDefinition, ServiceFieldSchema } from "../types";
+import { validateLabel as validateLabelWiz } from "../types";
 import { api } from "../api";
-import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, useThemeThumbs } from "./Shared";
-import { Icon } from "./Icon";
+import { usePanelDark } from "../panelTheme";
+import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAutocomplete, ServiceDataFields, ThemeStrip, themeIdToUrl, themeUrlToId } from "./Shared";
+import { Icon, WidgetIcon } from "./Icon";
 import { Toggle } from "./Toggle";
-import { loadWidgetScript, loadPackScript } from "./WidgetPreview";
-import { getEntityCache, loadEntityCache } from "../entityCache";
+import { loadWidgetScript, loadRendererScript, loadIconSetScript } from "./WidgetPreview";
+import { getEntityCache, loadEntityCache, useEntityCache } from "../entityCache";
+import { resolveEntityIcon } from "../iconResolve";
+import { IconSetSelect, iconSetAsset } from "./IconPicker";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
+import { READ_ONLY_DOMAINS } from "../lovelaceParser";
+import { resolveWidgetConnectionUrls } from "../connectionUrls";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,11 +49,13 @@ function saveMemory(m: Partial<WizardMemory>) {
 interface SelectedEntity {
   entity_id: string;
   alias: string | null;
-  companions: { entity_id: string; alias: string | null }[];
+  companions: { entity_id: string; alias: string | null; read_only?: boolean }[];
+  service_data?: Record<string, unknown>;
 }
 
 interface WizardState {
   mode: "single" | "group" | "page";
+  entitiesBlock: boolean;
   entities: SelectedEntity[];
   label: string;
   labelAutoset: boolean;
@@ -58,6 +65,7 @@ interface WizardState {
   expiryOption: "never" | "30d" | "90d" | "1y" | "custom";
   expiryCustomDate: string;
   themeUrl: string;
+  iconSet: string | null;
   useHmac: boolean;
   tokenSecret: string | null;
   generatedToken: Token | null;
@@ -67,20 +75,29 @@ interface WizardProps {
   onClose: (newTokenId?: string) => void;
 }
 
+function countSelectedEntities(entities: SelectedEntity[]): number {
+  const entityIds = new Set<string>();
+  for (const entity of entities) {
+    entityIds.add(entity.entity_id);
+    for (const companion of entity.companions) entityIds.add(companion.entity_id);
+  }
+  return entityIds.size;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const TOTAL_STEPS = 4;
+const DEFAULT_ENTITY_HARD_CAP = 250;
 const STEP_LABELS = ["Design", "Origin", "Expiry", "Done"];
-const COMPANION_ALLOWED_DOMAINS = new Set(["light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "lock"]);
-
-const DOMAIN_ICON: Record<string, string> = {
-  light: "lightbulb", switch: "power", input_boolean: "power",
-  binary_sensor: "bolt", sensor: "chart-line", media_player: "play",
-  lock: "lock", timer: "clock", input_select: "list", input_number: "tune",
-  fan: "fan", climate: "thermostat", cover: "chevDown", harvest_action: "play",
-};
+const COMPANION_ALLOWED_DOMAINS = new Set([
+  "light", "switch", "binary_sensor", "input_boolean", "cover", "remote", "fan", "sensor", "lock",
+  "button", "input_button", "number", "input_number", "person", "timer", "weather",
+]);
+const COMPANION_INTERACTIVE_DOMAINS = new Set([
+  "light", "switch", "input_boolean", "fan", "lock", "button", "input_button",
+]);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,11 +129,27 @@ function fmtExpiry(option: string): string {
 }
 
 function buildCardSnippetFromState(
-  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, haUrl: string,
+  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, haUrl: string, entitiesBlock = false,
 ): string {
   function cardLine(e: SelectedEntity, indent = ""): string {
     const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
     return `${indent}<hrv-card ${entityAttr}></hrv-card>`;
+  }
+
+  if (entitiesBlock) {
+    const groupAttrs = `ha-url="${haUrl}" token="${tokenId}"`;
+    if (mode === "page") {
+      const cards = entities.map(e => cardLine(e, "  ")).join("\n");
+      return `<hrv-entities-block>\n${cards}\n</hrv-entities-block>`;
+    }
+    if (mode === "group") {
+      const cards = entities.map(e => cardLine(e, "    ")).join("\n");
+      return `<hrv-group ${groupAttrs}>\n  <hrv-entities-block>\n${cards}\n  </hrv-entities-block>\n</hrv-group>`;
+    }
+    const e = entities[0];
+    if (!e) return "";
+    const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
+    return `<hrv-entities-block>\n  <hrv-card ${groupAttrs} ${entityAttr}></hrv-card>\n</hrv-entities-block>`;
   }
 
   if (mode === "page") {
@@ -134,11 +167,28 @@ function buildCardSnippetFromState(
 }
 
 function buildWordPressSnippetFromState(
-  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string,
+  entities: SelectedEntity[], useAliases: boolean, mode: "single" | "group" | "page", tokenId: string, entitiesBlock = false,
 ): string {
   function shortcodeLine(e: SelectedEntity, indent = ""): string {
     const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
     return `${indent}[harvest ${entityAttr}]`;
+  }
+
+  if (entitiesBlock) {
+    if (mode === "page") {
+      const lines = entities.map(e => {
+        const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
+        return `  [harvest token="${tokenId}" ${entityAttr}]`;
+      }).join("\n");
+      return `[harvest_entities_block]\n${lines}\n[/harvest_entities_block]`;
+    }
+    if (mode === "group") {
+      return `[harvest_entities_block]\n[harvest_group token="${tokenId}"]\n${entities.map(e => shortcodeLine(e, "  ")).join("\n")}\n[/harvest_group]\n[/harvest_entities_block]`;
+    }
+    const e = entities[0];
+    if (!e) return "";
+    const entityAttr = useAliases && e.alias ? `alias="${e.alias}"` : `entity="${e.entity_id}"`;
+    return `[harvest_entities_block]\n  [harvest token="${tokenId}" ${entityAttr}]\n[/harvest_entities_block]`;
   }
 
   if (mode === "page") {
@@ -190,15 +240,19 @@ function StepIndicator({ current }: { current: number }) {
 // ---------------------------------------------------------------------------
 
 interface CompanionPickerProps {
-  companions: { entity_id: string; alias: string | null }[];
+  companions: { entity_id: string; alias: string | null; read_only?: boolean }[];
   excludeIds: string[];
-  onChange: (c: { entity_id: string; alias: string | null }[]) => void;
+  parentCapability: "badge" | "read" | "read-write";
+  onChange: (c: { entity_id: string; alias: string | null; read_only?: boolean }[]) => void;
+  canAdd: boolean;
+  maxEntities: number;
+  blockedDomains?: Set<string>;
 }
 
-function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerProps) {
+function CompanionPicker({ companions, excludeIds, parentCapability, onChange, canAdd, maxEntities, blockedDomains }: CompanionPickerProps) {
   const [input, setInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
-  const canAdd = true;
+  const isInteractiveDomain = (entityId: string) => COMPANION_INTERACTIVE_DOMAINS.has(entityId.split(".")[0]);
 
   const addCompanion = async (entityId: string) => {
     if (companions.some(c => c.entity_id === entityId)) return;
@@ -211,7 +265,10 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
       alias = result.alias;
     } catch { /* alias stays null */ }
     finally { setLoadingAlias(null); }
-    onChange([...companions, { entity_id: entityId, alias }]);
+    // Controllable domains default to Control when the parent allows it;
+    // everything else (and view-only parents) defaults to read-only.
+    const readOnly = parentCapability !== "read-write" || !isInteractiveDomain(entityId);
+    onChange([...companions, { entity_id: entityId, alias, read_only: readOnly }]);
   };
 
   const removeCompanion = (entityId: string) => {
@@ -220,9 +277,9 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
 
   return (
     <div className="col" style={{ gap: 6, paddingLeft: 12, borderLeft: "2px solid var(--divider)", marginTop: 2 }}>
-      <div className="muted" style={{ fontSize: 11 }}>
+      <div className="muted fs-11">
         Companions ({companions.length}) - secondary entities shown alongside this card.
-        Allowed domains: light, switch, lock, cover, binary sensor, input boolean, remote.
+        Interactive companions can toggle, lock/unlock, or press. Other eligible companions are display-only.
       </div>
       {canAdd && (
         <EntityAutocomplete
@@ -231,8 +288,14 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
           onSelect={id => { addCompanion(id); setInput(""); }}
           disabled={loadingAlias !== null}
           filterDomains={COMPANION_ALLOWED_DOMAINS}
+          excludeDomains={blockedDomains}
           placeholder="Add companion entity..."
         />
+      )}
+      {!canAdd && (
+        <div className="muted fs-11" style={{ color: "var(--warning)" }}>
+          Maximum of {maxEntities} entities per token. Remove an entity before adding another companion.
+        </div>
       )}
       {loadingAlias && (
         <div className="row muted" style={{ gap: 6, fontSize: 11 }}>
@@ -241,8 +304,18 @@ function CompanionPicker({ companions, excludeIds, onChange }: CompanionPickerPr
       )}
       {companions.map(c => (
         <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ flex: 1, fontSize: 12 }}>{c.entity_id}</span>
-          {c.alias && <span className="muted" style={{ fontSize: 10 }}>alias: {c.alias}</span>}
+          <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c.entity_id}</span>
+          {c.alias && <span className="muted" style={{ fontSize: 10, flexShrink: 0 }}>alias: {c.alias}</span>}
+          {parentCapability === "read-write" && isInteractiveDomain(c.entity_id) && (
+          <label className="companion-read-only-toggle" style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 4 }}>
+            <Toggle
+              checked={c.read_only !== false}
+              onChange={v => onChange(companions.map(comp => comp.entity_id === c.entity_id ? { ...comp, read_only: v } : comp))}
+              size="small"
+            />
+            <span style={{ fontSize: 10, whiteSpace: "nowrap" }} className="muted">Read only</span>
+          </label>
+          )}
           <button
             onClick={() => removeCompanion(c.entity_id)}
             className="btn btn-sm btn-ghost"
@@ -281,11 +354,13 @@ const _MOCK_WEATHER_FORECAST_HOURLY = [
 // WizardEntityPreview - live preview of a real entity
 // ---------------------------------------------------------------------------
 
-function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
+function WizardEntityPreview({ entityId, capability, theme, companions = [], iconSet = null }: {
   entityId: string;
   capability: "badge" | "read" | "read-write";
   theme: ThemeDefinition | null;
-  companions?: { entity_id: string; alias: string | null }[];
+  companions?: { entity_id: string; alias: string | null; read_only?: boolean }[];
+  /** Effective global icon set (wizard selection ?? theme icon_set). */
+  iconSet?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement | null>(null);
@@ -293,14 +368,20 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
   const [loadError, setLoadError] = useState(false);
   const [serverDef, setServerDef] = useState<{ definition: Record<string, unknown>; state: string; attributes: Record<string, unknown> } | null>(null);
   const renderedKeyRef = useRef<string>("");
-  const packId = theme?.renderer_pack ? theme.theme_id : undefined;
+  const rendererId = theme?.has_renderer ? theme.theme_id : undefined;
+  const haDark = usePanelDark();
 
+  const iconSetPrefix = iconSetAsset(iconSet);
   useEffect(() => {
+    // Gate readiness on the icon-set asset too, or the preview would be
+    // created before the set registers and keep showing mdi glyphs.
+    if (iconSetPrefix && !window.HArvest?.getIconSet?.(iconSetPrefix)) setReady(false);
     loadWidgetScript()
-      .then(() => packId ? loadPackScript(packId) : Promise.resolve())
+      .then(() => rendererId ? loadRendererScript(rendererId) : Promise.resolve())
+      .then(() => iconSetPrefix ? loadIconSetScript(iconSetPrefix).catch(() => {}) : undefined)
       .then(() => setReady(true))
       .catch(() => setLoadError(true));
-  }, [packId]);
+  }, [rendererId, iconSetPrefix]);
 
   const companionIds = companions.map(c => c.entity_id);
   const defKey = `${entityId}:${capability}:${companionIds.join(",")}`;
@@ -317,13 +398,15 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
     return () => { cancelled = true; };
   }, [defKey]);
 
-  const themeObj = useMemo(() => {
-    if (!theme) return { variables: {}, dark_variables: {} };
-    return { variables: theme.variables ?? {}, dark_variables: theme.dark_variables ?? {} };
-  }, [theme?.theme_id]);
+  const themeObj = useMemo(() => ({
+    variables: theme?.variables ?? {},
+    dark_variables: theme?.dark_variables ?? {},
+    icon_set: iconSet,
+  }), [theme?.theme_id, iconSet]);
 
-  const cardKey = `${entityId}:${capability}:${companionIds.join(",")}:${theme?.theme_id ?? ""}`;
+  const cardKey = `${entityId}:${capability}:${companionIds.join(",")}:${theme?.theme_id ?? ""}:${iconSet ?? ""}:${haDark ? "dark" : "light"}`;
   const defMatchesEntity = serverDef?.definition?.entity_id === entityId;
+  const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
 
   useEffect(() => {
     if (!ready || !serverDef || !defMatchesEntity || !containerRef.current || !window.HArvest) return;
@@ -333,12 +416,20 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
     container.innerHTML = "";
     cardRef.current = null;
     const domain = entityId.split(".")[0];
-    const entityDef: Record<string, unknown> = { ...serverDef.definition, capabilities: capability };
+    // Pin the preview to the panel's effective theme (the HArvest Theme
+    // setting, with "auto" following HA). Leaving color_scheme at "auto"
+    // makes the widget follow the OS prefers-color-scheme, which can
+    // disagree with the theme the panel is rendered in.
+    const entityDef: Record<string, unknown> = {
+      ...serverDef.definition,
+      capabilities: capability,
+      color_scheme: haDark ? "dark" : "light",
+    };
 
     if (companions.length > 0) {
       entityDef.preview_companions = companions.map(c => ({
         entity_id: c.entity_id,
-        capabilities: capability,
+        capabilities: c.read_only !== false ? "read" : capability === "badge" ? "read" : capability,
         domain: c.entity_id.split(".")[0],
       }));
     }
@@ -362,85 +453,123 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [] }: {
     }
 
     const opts: Record<string, unknown> = {};
-    if (packId) opts.packId = packId;
+    if (rendererId) opts.rendererId = rendererId;
 
     const card = window.HArvest!.preview(
       container, entityDef, previewState, attrs, themeObj as never,
       Object.keys(opts).length ? opts as never : undefined,
     );
     cardRef.current = card;
-  }, [ready, cardKey, serverDef, defMatchesEntity, JSON.stringify(themeObj)]);
+
+    // Fetch companion definitions so preview pills show real icons.
+    for (const c of companions) {
+      api.entities.getDefinition(c.entity_id, { capabilities: "read" }).then(result => {
+        const el = cardRef.current as HTMLElement & { _receiveCompanionDefinition?: (id: string, def: Record<string, unknown>) => void; _receiveCompanionState?: (id: string, s: string, a: Record<string, unknown>) => void } | null;
+        if (!el) return;
+        el._receiveCompanionDefinition?.(c.entity_id, result.definition);
+        el._receiveCompanionState?.(c.entity_id, result.state, result.attributes);
+      }).catch(() => {});
+    }
+  }, [ready, cardKey, serverDef, defMatchesEntity, themeJson]);
 
   useEffect(() => {
     const card = cardRef.current as (HTMLElement & { applyPreviewTheme?: (v: Record<string, unknown>) => void }) | null;
     if (!card?.applyPreviewTheme) return;
     card.applyPreviewTheme(themeObj);
-  }, [JSON.stringify(themeObj)]);
+  }, [themeJson]);
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   if (!ready && !cardRef.current) return <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>;
-  return <div ref={containerRef} className="theme-preview-widget" style={{ display: "flex", justifyContent: "center", minHeight: 100 }} />;
+  return <div ref={containerRef} className="theme-preview-widget" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 100 }} />;
 }
 
 // ---------------------------------------------------------------------------
 // Theme URL helpers
 // ---------------------------------------------------------------------------
 
-function themeIdToUrl(id: string): string {
-  if (id === "default") return "";
-  if (id.startsWith("hth_")) return `user:${id}`;
-  return `bundled:${id}`;
-}
 
-function themeUrlToId(url: string): string {
-  if (!url) return "default";
-  if (url.startsWith("bundled:")) return url.slice(8);
-  if (url.startsWith("user:")) return url.slice(5);
-  return url;
+// ---------------------------------------------------------------------------
+// ScriptVarsForm - variable configuration for script entities
+// ---------------------------------------------------------------------------
+
+function ScriptVarsForm({ entityId, serviceData, onChange }: {
+  entityId: string;
+  serviceData: Record<string, unknown>;
+  onChange: (data: Record<string, unknown>) => void;
+}) {
+  const [fields, setFields] = useState<Record<string, ServiceFieldSchema> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    api.entities.getScriptFields(entityId)
+      .then(r => { setFields(r.fields); })
+      .catch(() => setError("Could not load script variables."))
+      .finally(() => setLoading(false));
+  }, [entityId]);
+
+  if (loading) return <div className="muted" style={{ fontSize: 12, padding: "4px 0" }}><Spinner size={12} /> Loading script variables...</div>;
+  if (error) return <div className="muted" style={{ fontSize: 12, color: "var(--warning)" }}>{error}</div>;
+  if (!fields || Object.keys(fields).length === 0) return null;
+
+  return (
+    <div className="col" style={{ gap: 6, paddingTop: 6 }}>
+      <span className="label-strong" style={{ fontSize: 11 }}>Script variables</span>
+      <ServiceDataFields
+        domain="script"
+        service={entityId.split(".", 2)[1]}
+        data={serviceData}
+        onChange={onChange}
+        preloadedFields={fields}
+      />
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Step 1: Design (entities + permissions + theme + preview)
 // ---------------------------------------------------------------------------
 
-function ThemeStrip({ themes, themeUrl, onChange }: { themes: ThemeDefinition[]; themeUrl: string; onChange: (url: string) => void }) {
-  const thumbUrls = useThemeThumbs(themes);
-  const selectedId = themeUrlToId(themeUrl);
+const ENTITIES_BLOCK_DOMAINS = new Set(["light", "switch", "fan", "input_boolean", "binary_sensor", "lock", "cover", "sensor"]);
+const ENTITIES_BLOCK_READONLY_DOMAINS = new Set(["binary_sensor", "sensor"]);
 
-  if (themes.length === 0) return null;
-
+function EntitiesBlockPreview({ entities, capability }: { entities: SelectedEntity[]; capability: "badge" | "read" | "read-write" }) {
+  const showToggle = capability === "read-write";
   return (
-    <div className="col" style={{ gap: 4 }}>
-      <label style={{ fontSize: 12, fontWeight: 600 }}>Theme</label>
-      <div className="theme-strip" role="radiogroup" aria-label="Widget theme">
-        {themes.map(t => (
-          <button
-            key={t.theme_id}
-            className={`theme-strip-item${selectedId === t.theme_id ? " selected" : ""}`}
-            onClick={() => onChange(themeIdToUrl(t.theme_id))}
-            role="radio"
-            aria-checked={selectedId === t.theme_id}
-            aria-label={t.name}
+    <div style={{
+      background: "var(--surface)", borderRadius: 12,
+      boxShadow: "0 1px 3px rgba(0,0,0,0.08)", overflow: "hidden",
+    }}>
+      {entities.map((e, i) => {
+        const domain = e.entity_id.split(".")[0];
+        const cached = getEntityCache().find(c => c.entity_id === e.entity_id);
+        const name = cached?.friendly_name ?? e.entity_id;
+        return (
+          <div
+            key={e.entity_id}
+            className="row"
+            style={{
+              padding: "10px 14px", gap: 12, alignItems: "center",
+              borderTop: i > 0 ? "1px solid rgba(0,0,0,0.06)" : undefined,
+            }}
           >
-            <div className="theme-thumb-wrap">
-              {thumbUrls[t.theme_id] ? (
-                <img className="theme-strip-thumb" src={thumbUrls[t.theme_id]} alt={t.name} draggable={false} />
-              ) : (
-                <div className="theme-strip-thumb" />
-              )}
-              {t.renderer_pack && (
-                <span className="theme-pack-star" title="Theme includes a custom renderer pack">&#9733;</span>
-              )}
+            <div className="widget-thumb" style={{ width: 28, height: 28, flexShrink: 0 }}>
+              <WidgetIcon name={resolveEntityIcon(domain, cached?.icon)} size={14} />
             </div>
-            <span className="theme-strip-name">{t.name}</span>
-          </button>
-        ))}
-      </div>
+            <span style={{ flex: 1, fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+            {showToggle && !ENTITIES_BLOCK_READONLY_DOMAINS.has(domain) && (
+              <Toggle checked={true} onChange={() => {}} disabled />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function Step1({ state, onChange, existingLabels, maxEntities }: { state: WizardState; onChange: (u: Partial<WizardState>) => void; existingLabels: string[]; maxEntities: number }) {
+function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }: { state: WizardState; onChange: (u: Partial<WizardState>) => void; existingLabels: string[]; maxEntities: number; blockedDomains?: Set<string> }) {
   const [entityInput, setEntityInput] = useState("");
   const [loadingAlias, setLoadingAlias] = useState<string | null>(null);
   const [expandedCompanions, setExpandedCompanions] = useState<Set<string>>(new Set());
@@ -453,15 +582,18 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
   const selectedThemeId = themeUrlToId(state.themeUrl);
   const selectedTheme = themes.find(t => t.theme_id === selectedThemeId) ?? null;
 
+  const entityCacheList = useEntityCache();
   useEffect(() => {
-    if (getEntityCache().length === 0) loadEntityCache();
+    if (entityCacheList.length === 0) loadEntityCache();
   }, []);
 
-  const atEntityLimit = state.mode !== "single" && state.entities.length >= maxEntities;
+  const selectedEntityCount = countSelectedEntities(state.entities);
+  const atEntityLimit = state.mode !== "single" && selectedEntityCount >= maxEntities;
+  const canAddCompanion = selectedEntityCount < maxEntities;
 
   const selectEntity = async (entityId: string) => {
     if (state.entities.some(e => e.entity_id === entityId)) return;
-    if (state.mode !== "single" && state.entities.length >= maxEntities) return;
+    if (state.mode !== "single" && selectedEntityCount >= maxEntities) return;
     setLoadingAlias(entityId);
     let alias: string | null = null;
     try {
@@ -472,6 +604,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
 
     const latest = entitiesRef.current;
     if (latest.some(e => e.entity_id === entityId)) return;
+    if (state.mode !== "single" && countSelectedEntities(latest) >= maxEntities) return;
 
     const entry: SelectedEntity = { entity_id: entityId, alias, companions: [] };
     const isFirst = latest.length === 0;
@@ -485,7 +618,12 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
       updates.label = autoName.slice(0, 100);
     }
 
+    if (state.capability === "read-write" && newEntities.every(e => READ_ONLY_DOMAINS.has(e.entity_id.split(".")[0]))) {
+      updates.capability = "read";
+    }
+
     onChange(updates);
+    setPreviewEntityId(entityId);
   };
 
   const removeEntity = (entityId: string) => {
@@ -494,11 +632,20 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
     const remaining = state.entities.filter(e => e.entity_id !== entityId);
     const updates: Partial<WizardState> = { entities: remaining };
     if (state.labelAutoset && remaining.length === 0) updates.label = "";
+    if (state.capability === "read-write" && remaining.length > 0 && remaining.every(e => READ_ONLY_DOMAINS.has(e.entity_id.split(".")[0]))) {
+      updates.capability = "read";
+    }
     onChange(updates);
   };
 
-  const updateCompanions = (entityId: string, companions: { entity_id: string; alias: string | null }[]) => {
-    onChange({ entities: state.entities.map(e => e.entity_id === entityId ? { ...e, companions } : e) });
+  const updateCompanions = (entityId: string, companions: { entity_id: string; alias: string | null; read_only?: boolean }[]) => {
+    const entities = state.entities.map(e => e.entity_id === entityId ? { ...e, companions } : e);
+    if (countSelectedEntities(entities) > maxEntities) return;
+    onChange({ entities });
+  };
+
+  const updateServiceData = (entityId: string, data: Record<string, unknown>) => {
+    onChange({ entities: state.entities.map(e => e.entity_id === entityId ? { ...e, service_data: data } : e) });
   };
 
   const toggleExpand = (entityId: string) => {
@@ -517,25 +664,35 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
 
   return (
     <div className="col" style={{ gap: 16 }}>
-      <div className="segmented" role="group" aria-label="Widget mode">
-        {(["single", "group", "page"] as const).map(m => (
-          <button key={m} aria-pressed={state.mode === m} onClick={() => {
-            if (m === state.mode) return;
-            const carried = m === "single" ? state.entities.slice(0, 1) : state.entities;
-            onChange({ mode: m, entities: carried });
-          }}>
-            {m === "single" ? "Single card" : m === "group" ? "Group of cards" : "Page of cards"}
-          </button>
-        ))}
+      <div className="row" style={{ gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="segmented" role="group" aria-label="Widget mode">
+          {(["single", "group", "page"] as const).map(m => (
+            <button key={m} aria-pressed={state.mode === m} onClick={() => {
+              if (m === state.mode) return;
+              const carried = m === "single" ? state.entities.slice(0, 1) : state.entities;
+              onChange({ mode: m, entities: carried });
+            }}>
+              {m === "single" ? "Single card" : m === "group" ? "Group of cards" : "Page of cards"}
+            </button>
+          ))}
+        </div>
+        <div className="row" style={{ gap: 6, fontSize: 13, flexShrink: 0, marginLeft: "auto" }}>
+          <Toggle
+            checked={state.entitiesBlock}
+            onChange={v => {
+              if (v && state.entities.some(e => e.companions.length > 0)) return;
+              onChange({ entitiesBlock: v, ...(v && state.capability === "badge" ? { capability: "read" } : {}) });
+            }}
+            disabled={state.entities.some(e => e.companions.length > 0)}
+          />
+          <span
+            style={{ cursor: "default" }}
+            title={state.entities.some(e => e.companions.length > 0)
+              ? "Remove companions first to enable entities block mode."
+              : "Renders cards as compact rows inside a shared container."}
+          >Entities block</span>
+        </div>
       </div>
-
-      <p className="muted" style={{ fontSize: 13 }}>
-        {state.mode === "single"
-          ? "Choose one entity. Optionally add companion entities shown alongside it."
-          : state.mode === "group"
-            ? "Add multiple entities for a group widget. Each card can have companion entities."
-            : "Add entities for a full page of widgets. Cards inherit ha-url and token from a page-level config call."}
-      </p>
 
       {showPicker && (
         <EntityAutocomplete
@@ -545,6 +702,8 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
           disabled={loadingAlias !== null}
           placeholder={state.mode === "single" ? "Search entity ID or friendly name..." : multiMode ? "Add entity..." : "Add entity..."}
           excludeIds={primaryIds}
+          filterDomains={state.entitiesBlock ? ENTITIES_BLOCK_DOMAINS : undefined}
+          excludeDomains={blockedDomains}
         />
       )}
 
@@ -572,7 +731,8 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
             const isSelected = e.entity_id === activePreviewId;
             const isExpanded = expandedCompanions.has(e.entity_id);
             const companionCount = e.companions.length;
-            const friendly = getEntityCache().find(c => c.entity_id === e.entity_id)?.friendly_name;
+            const cached = getEntityCache().find(c => c.entity_id === e.entity_id);
+            const friendly = cached?.friendly_name;
             return (
               <div key={e.entity_id} role="listitem">
                 <button
@@ -588,9 +748,9 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                   type="button"
                 >
                   <div className="widget-thumb" style={{ width: 24, height: 24 }}>
-                    <Icon name={DOMAIN_ICON[domain] ?? "plug"} size={12} />
+                    <WidgetIcon name={resolveEntityIcon(domain, cached?.icon)} size={12} />
                   </div>
-                  {state.capability !== "badge" && (
+                  {state.capability !== "badge" && !state.entitiesBlock && (
                   <span
                     role="button"
                     tabIndex={0}
@@ -619,12 +779,25 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                     <Icon name="close" size={10} />
                   </span>
                 </button>
-                {state.capability !== "badge" && isExpanded && (
+                {state.capability !== "badge" && !state.entitiesBlock && isExpanded && (
                   <CompanionPicker
                     companions={e.companions}
                     excludeIds={primaryIds}
+                    parentCapability={state.capability}
                     onChange={cs => updateCompanions(e.entity_id, cs)}
+                    canAdd={canAddCompanion}
+                    maxEntities={maxEntities}
+                    blockedDomains={blockedDomains}
                   />
+                )}
+                {domain === "script" && state.capability === "read-write" && (
+                  <div style={{ padding: "0 8px 8px 8px" }}>
+                    <ScriptVarsForm
+                      entityId={e.entity_id}
+                      serviceData={e.service_data ?? {}}
+                      onChange={data => updateServiceData(e.entity_id, data)}
+                    />
+                  </div>
                 )}
               </div>
             );
@@ -633,7 +806,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
       )}
 
       {state.entities.length === 0 && (
-        <p className="muted" style={{ fontSize: 12 }}>
+        <p className="muted fs-12">
           No entities selected yet. Add at least one to continue.
         </p>
       )}
@@ -641,10 +814,11 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
       {/* Widget name + Permissions - same row */}
       {state.entities.length > 0 && (() => {
         const nameErr = validateLabelWiz(state.label, existingLabels);
+        const allReadOnly = state.entities.length > 0 && state.entities.every(e => READ_ONLY_DOMAINS.has(e.entity_id.split(".")[0]));
         return (
           <div className="row" style={{ gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div className="col" style={{ gap: 4, flex: 1, minWidth: 160 }}>
-              <label style={{ fontSize: 12, fontWeight: 600 }}>Widget name</label>
+              <label className="label-strong">Widget name</label>
               <input
                 value={state.label}
                 maxLength={100}
@@ -653,14 +827,18 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                 className="input"
                 style={{ borderColor: nameErr ? "var(--danger)" : undefined }}
               />
-              {nameErr && <div style={{ fontSize: 12, color: "var(--danger)" }}>{nameErr}</div>}
+              {nameErr && <div className="error-msg">{nameErr}</div>}
             </div>
             <div className="col" style={{ gap: 4 }}>
-              <label style={{ fontSize: 12, fontWeight: 600 }}>Permissions</label>
+              <label className="label-strong">Permissions</label>
               <div className="segmented" role="group" aria-label="Capability">
-                <button aria-pressed={state.capability === "badge"} onClick={() => { onChange({ capability: "badge", entities: state.entities.map(e => ({ ...e, companions: [] })) }); saveMemory({ capability: "badge" }); }}>Badge</button>
-                <button aria-pressed={state.capability === "read"} onClick={() => { onChange({ capability: "read" }); saveMemory({ capability: "read" }); }}>View only</button>
-                <button aria-pressed={state.capability === "read-write"} onClick={() => { onChange({ capability: "read-write" }); saveMemory({ capability: "read-write" }); }}>Control</button>
+                {!state.entitiesBlock && (
+                  <button aria-pressed={state.capability === "badge"} onClick={() => { onChange({ capability: "badge", entities: state.entities.map(e => ({ ...e, companions: [] })) }); saveMemory({ capability: "badge" }); }}>Badge</button>
+                )}
+                <button aria-pressed={state.capability === "read"} onClick={() => { onChange({ capability: "read", entities: state.entities.map(e => ({ ...e, companions: e.companions.map(c => ({ ...c, read_only: true })) })) }); saveMemory({ capability: "read" }); }}>View only</button>
+                {!allReadOnly && (
+                  <button aria-pressed={state.capability === "read-write"} onClick={() => { onChange({ capability: "read-write" }); saveMemory({ capability: "read-write" }); }}>Control</button>
+                )}
               </div>
             </div>
           </div>
@@ -669,13 +847,34 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
 
       {/* Theme strip */}
       {state.entities.length > 0 && (
-        <ThemeStrip themes={themes} themeUrl={state.themeUrl} onChange={url => { onChange({ themeUrl: url }); saveMemory({ themeUrl: url }); }} />
+        <div className="col" style={{ gap: 4 }}>
+          <label className="label-strong">Theme</label>
+          <ThemeStrip
+            themes={themes}
+            selectedId={themeUrlToId(state.themeUrl)}
+            onSelect={id => { const url = themeIdToUrl(id); onChange({ themeUrl: url }); saveMemory({ themeUrl: url }); }}
+            ariaLabel="Widget theme"
+          />
+        </div>
+      )}
+
+      {/* Global icon set */}
+      {state.entities.length > 0 && (
+        <div className="col" style={{ gap: 4 }}>
+          <label className="label-strong">Icons</label>
+          <IconSetSelect
+            value={state.iconSet}
+            onChange={id => onChange({ iconSet: id })}
+            ariaLabel="Icon set"
+            themeDefaultSetId={selectedTheme?.icon_set ?? null}
+          />
+        </div>
       )}
 
       {/* Live entity preview */}
-      {activePreviewId && (
-        <div className="col" style={{ gap: 8 }} role="region" aria-label="Entity preview" aria-live="polite">
-          <label style={{ fontSize: 12, fontWeight: 600 }}>Preview</label>
+      {activePreviewId && !state.entitiesBlock && (
+        <div className="col gap-8" role="region" aria-label="Entity preview" aria-live="polite">
+          <label className="label-strong">Preview</label>
           <div style={{ display: "flex", alignItems: "stretch", gap: 8 }}>
             <div
               className="theme-preview-stage"
@@ -691,6 +890,7 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
                 capability={state.capability}
                 theme={selectedTheme}
                 companions={state.entities.find(e => e.entity_id === activePreviewId)?.companions}
+                iconSet={state.iconSet ?? selectedTheme?.icon_set ?? null}
               />
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
@@ -707,6 +907,14 @@ function Step1({ state, onChange, existingLabels, maxEntities }: { state: Wizard
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Entities block preview */}
+      {state.entitiesBlock && state.entities.length > 0 && (
+        <div className="col gap-8" role="region" aria-label="Entities block preview" aria-live="polite">
+          <label className="label-strong">Preview</label>
+          <EntitiesBlockPreview entities={state.entities} capability={state.capability} />
         </div>
       )}
     </div>
@@ -792,7 +1000,7 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
           checked={state.originMode === "specific"}
           onChange={() => { onChange({ originMode: "specific" }); saveMemory({ originMode: "specific" }); }}
         />
-        <div style={{ flex: 1 }}>
+        <div className="flex-1">
           <div style={{ fontWeight: 600, fontSize: 14 }}>A specific website or page</div>
           {state.originMode === "specific" && (
             <div className="col" style={{ gap: 8, marginTop: 10 }}>
@@ -800,7 +1008,7 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
               {/* Added URLs list */}
               {originUrls.map(url => (
                 <div key={url} className="row" style={{ gap: 6, fontSize: 13 }}>
-                  <span style={{ flex: 1 }} className="mono url-clip">{url}</span>
+                  <span className="flex-1 mono url-clip">{url}</span>
                   <button type="button" onClick={() => removeUrl(url)} className="btn btn-sm btn-danger">Remove</button>
                 </div>
               ))}
@@ -849,9 +1057,9 @@ function Step2({ state, onChange }: { state: WizardState; onChange: (u: Partial<
               )}
 
               {urlError && (
-                <div style={{ fontSize: 12, color: "var(--danger)" }}>{urlError}</div>
+                <div className="error-msg">{urlError}</div>
               )}
-              <p className="muted" style={{ fontSize: 11 }}>
+              <p className="muted fs-11">
                 Site only (https://example.com) or a specific page (https://example.com/page.html).
               </p>
             </div>
@@ -925,7 +1133,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
             checked={state.expiryOption === value}
             onChange={() => { onChange({ expiryOption: value }); saveMemory({ expiryOption: value }); }}
           />
-          <div style={{ flex: 1 }}>
+          <div className="flex-1">
             <span style={{ fontSize: 14 }}>{label}</span>
             {value !== "never" && value !== "custom" && (
               <span className="muted" style={{ fontSize: 12, marginLeft: 6 }}>({fmtExpiry(value)})</span>
@@ -941,7 +1149,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
                   style={{ marginLeft: 10, fontSize: 13, borderColor: customDateInvalid ? "var(--danger)" : undefined }}
                 />
                 {customDateInvalid && (
-                  <span style={{ fontSize: 12, color: "var(--danger)" }}>Date must be in the future.</span>
+                  <span className="error-msg">Date must be in the future.</span>
                 )}
               </span>
             )}
@@ -957,7 +1165,7 @@ function Step3({ state, onChange }: { state: WizardState; onChange: (u: Partial<
 // ---------------------------------------------------------------------------
 
 
-function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, selectedEntities, widgetScriptUrl, cardMode, onAcknowledgedChange }: {
+function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, selectedEntities, widgetScriptUrl, externalPort, cardMode, entitiesBlock, onAcknowledgedChange }: {
   token: Token;
   tokenSecret: string | null;
   originMode: "specific" | "any";
@@ -965,7 +1173,9 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
   overrideHost: string;
   selectedEntities: SelectedEntity[];
   widgetScriptUrl: string;
+  externalPort: number;
   cardMode: "single" | "group" | "page";
+  entitiesBlock: boolean;
   onAcknowledgedChange?: (v: boolean) => void;
 }) {
   const [useAliases,   setUseAliases]   = useState(() => localStorage.getItem("hrv_use_aliases") === "true");
@@ -982,8 +1192,16 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
     }).catch(() => {});
   }, [token.token_id]);
 
-  const haUrl = overrideHost || window.location.origin;
-  const scriptUrl = widgetScriptUrl.trim() || DEFAULT_WIDGET_SCRIPT_URL;
+  const baseHaUrl = overrideHost || window.location.origin;
+  // SPEC.md Section 12: empty widget_script_url means HA-served. Compute
+  // {haUrl}/harvest_assets/harvest.min.js so the wizard's preview snippet
+  // matches what the integration actually serves at runtime, instead of
+  // emitting <script src=""></script>.
+  const { haUrl, scriptUrl } = resolveWidgetConnectionUrls(
+    baseHaUrl,
+    widgetScriptUrl,
+    externalPort,
+  );
   const isPage = cardMode === "page";
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
@@ -991,8 +1209,8 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
     ? `${scriptTag}\n<script>HArvest.config({ ${pageConfigParts.join(", ")} });</script>`
     : scriptTag;
   const cardSnippet = tab === "web"
-    ? buildCardSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, haUrl)
-    : buildWordPressSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id);
+    ? buildCardSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, haUrl, entitiesBlock)
+    : buildWordPressSnippetFromState(selectedEntities, useAliases, cardMode, token.token_id, entitiesBlock);
   const hostDisplay = originMode === "any" ? "Anywhere" : (originUrl || haUrl);
 
   const saveWidgetName = async (name: string) => {
@@ -1033,7 +1251,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
       {acknowledged && (
         <>
           <div className="col" style={{ gap: 4 }}>
-            <label style={{ fontSize: 12, fontWeight: 600 }}>Widget name</label>
+            <label className="label-strong">Widget name</label>
             <input
               value={widgetName}
               maxLength={100}
@@ -1047,10 +1265,10 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
               className="input"
               style={{ fontSize: 14, borderColor: nameError ? "var(--danger)" : undefined }}
             />
-            {nameError && <div style={{ fontSize: 12, color: "var(--danger)" }}>{nameError}</div>}
+            {nameError && <div className="error-msg">{nameError}</div>}
           </div>
 
-          <div className="muted" style={{ fontSize: 13 }}>
+          <div className="muted fs-13">
             Host URL: <span className="mono">{hostDisplay}</span>
           </div>
 
@@ -1061,7 +1279,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
                 <span className="step-pill">1</span>
                 <div>
                   <div className="code-block-title">{isPage ? "Page setup" : "Widget script"}</div>
-                  <div className="muted" style={{ fontSize: 12 }}>
+                  <div className="muted fs-12">
                     {isPage
                       ? "Add once to your page's <head>. All widgets inherit these defaults."
                       : "Add once to your page's <head>."}
@@ -1078,7 +1296,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
               <span className="step-pill">{tab === "web" ? "2" : "1"}</span>
               <div>
                 <div className="code-block-title">{tab === "wordpress" ? "Shortcode" : "Widget markup"}</div>
-                <div className="muted" style={{ fontSize: 12 }}>
+                <div className="muted fs-12">
                   {tab === "wordpress"
                     ? "Paste into any post or page. The HArvest plugin loads the widget script automatically."
                     : "Drop wherever the widget should render."}
@@ -1116,7 +1334,8 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
 function freshState(): WizardState {
   const mem = loadMemory();
   return {
-    mode: "single",
+    mode: "group",
+    entitiesBlock: false,
     entities: [],
     label: "",
     labelAutoset: true,
@@ -1126,6 +1345,7 @@ function freshState(): WizardState {
     expiryOption: (mem.expiryOption as WizardState["expiryOption"]) ?? "never",
     expiryCustomDate: "",
     themeUrl: mem.themeUrl ?? "",
+    iconSet: null,
     useHmac: false,
     tokenSecret: null,
     generatedToken: null,
@@ -1140,11 +1360,19 @@ export function Wizard({ onClose }: WizardProps) {
   const [confirmClose, setConfirmClose] = useState(false);
   const [overrideHost,       setOverrideHost]       = useState("");
   const [widgetScriptUrl,    setWidgetScriptUrl]    = useState("");
+  const [externalPort,       setExternalPort]       = useState(0);
   const [existingLabels,     setExistingLabels]     = useState<string[]>([]);
-  const [maxEntities,        setMaxEntities]        = useState(50);
+  const [entityHardCap,      setEntityHardCap]      = useState(DEFAULT_ENTITY_HARD_CAP);
+  const [blockedDomains,     setBlockedDomains]     = useState<Set<string>>(new Set());
   const [secretAcknowledged, setSecretAcknowledged] = useState(false);
   const wizardRef = useRef<HTMLDivElement>(null);
   const closeRequestRef = useRef<() => void>(() => {});
+  // Synchronous re-entry guard for the Step 3 -> Generate path. The button's
+  // disabled={loading} attribute only takes effect on the next render, so a
+  // rapid second click between setLoading(true) and the DOM flush would
+  // otherwise fire a second tokens.create() and create duplicate tokens.
+  // useRef updates synchronously; state does not.
+  const generateLockRef = useRef(false);
 
   // Focus trap: initial focus + Tab cycle within the dialog.
   useEffect(() => {
@@ -1169,7 +1397,10 @@ export function Wizard({ onClose }: WizardProps) {
     api.config.get().then(c => {
       setOverrideHost(c.override_host || "");
       setWidgetScriptUrl(c.widget_script_url || "");
-      if (c.max_entities_per_token) setMaxEntities(c.max_entities_per_token);
+      setExternalPort(c.external_port ?? 0);
+      if (c.entity_hard_cap > 0) setEntityHardCap(c.entity_hard_cap);
+      const sd = c.sensitive_domains ?? {};
+      setBlockedDomains(new Set(Object.keys(sd).filter(k => !sd[k])));
     }).catch(() => {});
     api.tokens.list().then(ts => {
       setExistingLabels(ts.map(t => t.label));
@@ -1199,6 +1430,8 @@ export function Wizard({ onClose }: WizardProps) {
     }
 
     if (step === 3) {
+      if (generateLockRef.current) return;
+      generateLockRef.current = true;
       setLoading(true);
       setError(null);
       try {
@@ -1208,6 +1441,7 @@ export function Wizard({ onClose }: WizardProps) {
           capabilities: wState.capability,
           exclude_attributes: [] as string[],
           companion_of: null as string | null,
+          ...(e.service_data && Object.keys(e.service_data).length > 0 ? { service_data: e.service_data } : {}),
         }]));
         const companionMap = new Map<string, { entity_id: string; alias: string | null; capabilities: "badge" | "read" | "read-write"; exclude_attributes: string[]; companion_of: string | null }>();
         for (const e of wState.entities) {
@@ -1216,7 +1450,7 @@ export function Wizard({ onClose }: WizardProps) {
               companionMap.set(c.entity_id, {
                 entity_id: c.entity_id,
                 alias: c.alias,
-                capabilities: wState.capability,
+                capabilities: c.read_only !== false ? "read" : wState.capability === "badge" ? "read" : wState.capability,
                 exclude_attributes: [],
                 companion_of: e.entity_id,
               });
@@ -1238,7 +1472,9 @@ export function Wizard({ onClose }: WizardProps) {
           origins,
           expires,
           embed_mode: wState.mode,
+          entities_block: wState.entitiesBlock,
           theme_url: wState.themeUrl,
+          icon_set: wState.iconSet,
         });
         patchState({ generatedToken: token });
         setStep(4);
@@ -1249,6 +1485,7 @@ export function Wizard({ onClose }: WizardProps) {
         setError(body.replace(/^\d{3}:\s*/, "").replace(/^Error:\s*/, "") || raw);
       } finally {
         setLoading(false);
+        generateLockRef.current = false;
       }
       return;
     }
@@ -1318,7 +1555,7 @@ export function Wizard({ onClose }: WizardProps) {
 
         {/* Body */}
         <div className="wizard-body">
-          {step === 1 && <Step1 state={wState} onChange={patchState} existingLabels={existingLabels} maxEntities={maxEntities} />}
+          {step === 1 && <Step1 state={wState} onChange={patchState} existingLabels={existingLabels} maxEntities={entityHardCap} blockedDomains={blockedDomains} />}
           {step === 2 && <Step2 state={wState} onChange={patchState} />}
           {step === 3 && <Step3 state={wState} onChange={patchState} />}
           {isDone && (
@@ -1330,7 +1567,9 @@ export function Wizard({ onClose }: WizardProps) {
               overrideHost={overrideHost}
               selectedEntities={wState.entities}
               widgetScriptUrl={widgetScriptUrl}
+              externalPort={externalPort}
               cardMode={wState.mode}
+              entitiesBlock={wState.entitiesBlock}
               onAcknowledgedChange={setSecretAcknowledged}
             />
           )}

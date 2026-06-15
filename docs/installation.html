@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Installation - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -17,7 +19,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v1.0 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -47,18 +49,18 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Getting started</div>
           <h1>Installation</h1>
-          <p class="lead">Requirements and installing HArvest into Home Assistant via HACS.</p>
+          <p class="lead">Install HArvest through HACS, add the integration, and create your first widget. The network section is only needed when visitors connect from outside your trusted network or through a proxy.</p>
         </div>
 
         <div class="toc">
@@ -80,25 +82,25 @@
             <tbody>
               <tr><td>Home Assistant</td><td>2024.1</td><td>Any installation method works</td></tr>
               <tr><td>Python</td><td>3.11</td><td>Bundled with HA</td></tr>
-              <tr><td>HACS</td><td>any</td><td>Required for installation</td></tr>
-              <tr><td>HTTPS on HA</td><td>-</td><td>Required for WebSocket connections from browsers</td></tr>
+              <tr><td>HACS</td><td>any current version</td><td>Supported installation method. Manual custom-component installation is possible but unsupported.</td></tr>
+              <tr><td>HA network access</td><td>-</td><td>Must be reachable by widget visitors. HTTPS/WSS is required when the embedding page uses HTTPS.</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>Your Home Assistant instance needs to be reachable from the internet over HTTPS - a URL like <code>https://myhome.duckdns.org</code> or <code>https://ha.yourdomain.com</code>. Plain HTTP is not supported; browsers block WebSocket connections to non-secure origins from secure pages.</p>
+        <p>Your Home Assistant instance must be reachable by the people who will view the widgets. Public widgets need a public HTTPS URL such as <code>https://myhome.duckdns.org</code> or <code>https://ha.yourdomain.com</code>. Private widgets may use an HTTP LAN address when every visitor is on that trusted network and the embedding page also uses HTTP. Browsers block an HTTPS page from connecting to an insecure <code>ws://</code> address.</p>
 
-        <p>Popular options for HTTPS remote access: <a href="https://www.nabucasa.com" target="_blank">Nabu Casa</a> (easiest, paid), DuckDNS + Let's Encrypt (free), Cloudflare Tunnel (free).</p>
+        <p>Popular options for HTTPS remote access: <a href="https://www.nabucasa.com" target="_blank" rel="noopener noreferrer">Nabu Casa</a> (easiest, paid), DuckDNS + Let's Encrypt (free), Cloudflare Tunnel (free).</p>
         </section>
 
         <section>
         <h2 id="hacs">Install via HACS</h2>
 
-        <p>HArvest is installed as a custom HACS repository - it isn't in the default HACS catalog.</p>
+        <p>HArvest is installed as a custom HACS repository. It is not in the default HACS catalog. Manual custom-component installation is possible, but the documented and supported installation path is HACS.</p>
 
         <div class="screenshot-aside">
           <div class="screenshot">
-            <img src="hacs.jpg">
+            <img src="hacs.jpg" alt="HACS custom repositories dialog with the HArvest repository URL entered" loading="lazy" width="726" height="1580">
           </div>
           <ol class="steps">
             <li class="step">
@@ -141,41 +143,58 @@
         <section>
         <h2 id="widget-script">Widget script</h2>
 
-        <p>HACS installs the Home Assistant integration (the panel and WebSocket proxy) but not the widget script. The widget script is a separate JavaScript file called <code>harvest.min.js</code> that runs on your website, the site where visitors see and interact with your widgets.</p>
+        <p>You do not need to install or upload the widget script separately. HACS installs the Home Assistant integration, and the integration serves the widget bundle directly out of its own files at <code>{your-HA-URL}/harvest_assets/harvest.min.js</code>. The wizard generates snippets that point at this URL automatically.</p>
 
-        <p>You need to place this file on your web server. There are two ways to get it:</p>
-
-        <h3>From the GitHub release</h3>
-        <p>Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank">GitHub Releases</a>. Inside the zip, find <code>widget/dist/harvest.min.js</code> and upload it to your web server.</p>
-
-        <h3>From the repository</h3>
-        <p>If you cloned the repository, the file is at <code>widget/dist/harvest.min.js</code> in the project root.</p>
-
-        <p>Place the file wherever works best for your setup. The <code>&lt;script src="..."&gt;</code> path in your embed snippets must point to it. For example, if you upload it to your site root, use <code>src="/harvest.min.js"</code>. If you place it in an assets folder, use <code>src="/assets/harvest.min.js"</code>.</p>
+        <p>This means the widget always matches the version of HArvest currently running on your HA instance. When you update HArvest via HACS, every embedded widget on every site picks up the new bundle on the next page load. There is nothing to upload, no CDN to configure, and no version drift to worry about.</p>
 
         <div class="callout callout-tip">
           <span class="callout-label">WordPress users</span>
-          <p>If you use the <a href="wordpress.html">HArvest WordPress plugin</a>, you do not need to place the script manually. The plugin handles loading the widget script for you.</p>
+          <p>If you use the <a href="wordpress.html">HArvest WordPress plugin</a>, the plugin enqueues the widget script for you. The plugin's "Widget JS source" setting defaults to the same HA-served URL described above.</p>
         </div>
+
+        <h3>Hosting the script yourself (advanced)</h3>
+
+        <p>If for some reason you don't want visitors loading the widget JS from your HA instance (for example, your site needs to work even when HA is briefly offline), you can self-host instead:</p>
+
+        <ol>
+          <li>Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a>. Inside the zip, find <code>widget/dist/harvest.min.js</code>.</li>
+          <li>Upload it to your web server.</li>
+          <li>In the HArvest panel, go to <strong>Settings &gt; Connection &gt; Widget script source</strong> and switch to <strong>Custom URL</strong>. Enter the path to your hosted copy.</li>
+        </ol>
+
+        <p>The wizard will then generate snippets that use your custom URL instead. Note: when you do this, you become responsible for keeping the widget bundle in sync with the integration version. Use this option only if you have a specific reason to need it.</p>
         </section>
 
         <section>
         <h2 id="network">Network requirements</h2>
 
-        <p>Widgets connect from the visitor's browser to your HA instance using a standard HTTPS/WSS connection on port 443. No additional ports, no relay servers.</p>
+        <p>This section covers advanced deployment choices. You can skip it when every widget visitor can already reach the same Home Assistant URL you use.</p>
 
-        <p>If you use one, your reverse proxy (nginx, Caddy, Traefik, etc.) needs to forward WebSocket upgrade headers. Most configurations already do this if HA is working normally. If not, add these to your nginx config:</p>
+        <p>Widgets connect directly from the visitor's browser to the configured HA host and port. Public and HTTPS-hosted pages normally use HTTPS/WSS on port 443. Private HTTP pages can use HTTP/WS on a trusted network. No separate WebSocket port or relay server is required.</p>
+
+        <p>Public widgets require a publicly reachable HTTPS/WSS endpoint. A reverse proxy such as nginx, Caddy, or Traefik is a common way to provide TLS on port 443 and a clean hostname, but it is not the only option. Native Home Assistant TLS, Nabu Casa, or a secure tunnel can also provide the required endpoint. If an intermediary proxy or tunnel sits between visitors and HArvest, configure it to preserve WebSocket traffic and forward the real visitor IP before relying on HArvest IP restrictions or per-IP rate limiting.</p>
+
+        <p>A reverse proxy needs to forward WebSocket upgrade headers and the client IP chain. A minimal nginx location includes:</p>
 
         <pre><code class="language-text">proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection "upgrade";
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 proxy_read_timeout 3600s;
 proxy_send_timeout 3600s;</code></pre>
 
-        <p>Caddy and Traefik handle WebSocket upgrades automatically with no extra config. Cloudflare Tunnel works with a 100-second idle timeout - HArvest's 30-second keepalive interval keeps the connection alive.</p>
+        <p>After enabling forwarded client IPs, add only the nginx peer IP or narrowly scoped proxy subnet to HArvest's <code>trusted_proxies</code> setting. Caddy and Traefik handle WebSocket upgrades automatically, but their direct peer addresses must still be trusted in HArvest before forwarded IPs are used. Cloudflare Tunnel supports WebSockets; HArvest's keepalive traffic prevents the connection from being completely idle.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Visitors behind restrictive corporate networks</span>
           <p>Some enterprise networks block WebSocket connections. Visitors in those environments won't see the widgets. HArvest does not have a polling fallback - the connection either succeeds or the card shows an offline state.</p>
+        </div>
+
+        <h3>Alternate port (optional)</h3>
+        <p>If HA's main port is blocked by a firewall or shared with other services, you can start a lightweight widget transport server on a separate port. In the HArvest panel under <strong>Settings > Connection > Widget script source</strong>, select <strong>Alternate port</strong> and enter a port number (e.g. <code>9050</code>). The server binds to all interfaces (0.0.0.0) and includes permissive CORS headers so any configured origin can load the widget. Changes take effect immediately without restarting HA.</p>
+        <p>When alternate port is enabled, generated snippets use the alternate address for the widget script, WebSocket connection, icon sets, custom fonts, and renderer scripts. Widgets configured for the main HA port continue to work as well.</p>
+        <div class="callout callout-warn">
+          <span class="callout-label">Security warning</span>
+          <p>The alternate-port server uses plain HTTP, binds to all interfaces, and permits cross-origin asset requests. WebSocket token and origin validation still applies. Use it only on a trusted private network or place it behind a TLS proxy or secure tunnel before exposing it externally. HTTPS pages require an HTTPS/WSS frontend because browsers block plain HTTP and WebSocket content on secure pages.</p>
         </div>
         </section>
 

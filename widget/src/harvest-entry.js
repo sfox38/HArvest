@@ -13,18 +13,44 @@
  *   create(config)                         - Programmatic card creation
  *   getCard(entityId)                      - Retrieve a registered card
  *   registerRenderer(key, rendererClass)   - Register a custom renderer
+ *   registerIconSet(key, set)              - Register an icon set (fa, ph, ...)
+ *   getIconSet(key)                        - Retrieve a registered icon set
  *   renderers                              - All built-in renderer classes
  *   track.anyState(callback)               - Listen to all state updates
  */
 
-import { config, getPageConfig, HrvCard } from "./hrv-card.js";
-import { HrvGroup }                        from "./hrv-group.js";
+import { HrvCard }                          from "./hrv-card.js";
+import { HrvGroup }                         from "./hrv-group.js";
+import { config as setPageConfig, getPageConfig } from "./page-config.js";
 import { getOrCreateClient, getClient, setStateCacheRef } from "./harvest-client.js";
 import { StateCache }                      from "./state-cache.js";
 import { registerRenderer, lookupRenderer } from "./renderers/index.js";
+import { registerIconSet, getIconSet }      from "./icons.js";
 import * as Renderers                      from "./renderers/index.js";
 import { buildEntityDef, filterAttributes } from "./entity-def-builder.js";
+import { esc } from "./_utils/esc.js";
 import "./hrv-mount.js";
+import "./hrv-entities-block.js";
+
+/**
+ * Public HArvest.config() entry point. Stores page-level defaults AND, when
+ * haUrl + token are both set, eagerly opens the WebSocket so the TLS
+ * handshake overlaps with HTML parsing instead of blocking the first paint.
+ * No-ops cleanly when only haUrl or only token is provided.
+ */
+function config(options) {
+  setPageConfig(options);
+  const pc = getPageConfig();
+  if (pc.haUrl && pc.token) {
+    try {
+      const client = getOrCreateClient(pc.haUrl, pc.token, pc.tokenSecret ?? null);
+      client.prewarm();
+    } catch (err) {
+      // Prewarm is purely an optimization - never block config().
+      console.warn("[HArvest] WS prewarm at config() failed:", err);
+    }
+  }
+}
 
 // Wire StateCache into HarvestClient (avoids a circular import at module
 // evaluation time - the proxy in harvest-client.js resolves it here).
@@ -57,8 +83,6 @@ function create(cardConfig) {
   if (haUrl)             card.setAttribute("ha-url",   haUrl);
   if (cardConfig.entity) card.setAttribute("entity",   cardConfig.entity);
   if (cardConfig.alias)  card.setAttribute("alias",    cardConfig.alias);
-  if (cardConfig.lang)   card.setAttribute("lang",     cardConfig.lang);
-  if (cardConfig.themeUrl) card.setAttribute("theme-url", cardConfig.themeUrl);
 
   if (cardConfig.targetId) {
     const target = document.getElementById(cardConfig.targetId);
@@ -120,7 +144,7 @@ function anyState(callback) {
  * @param {string} state         - Entity state value
  * @param {object} attributes    - Entity attributes
  * @param {object} [themeVars]   - CSS custom properties to apply
- * @param {object} [options]     - Additional options (graph, hours, historyData, packId)
+ * @param {object} [options]     - Additional options (graph, hours, historyData, rendererId)
  * @returns {HrvCard}
  */
 function preview(container, entityDef, state, attributes, themeVars, options) {
@@ -132,7 +156,7 @@ function preview(container, entityDef, state, attributes, themeVars, options) {
   // setPreview must run after connectedCallback (which is synchronous).
   card.setPreview(
     entityDef, state, attributes, themeVars,
-    options?.packId ?? null,
+    options?.rendererId ?? null,
     options?.graph ?? null,
     !!options?.animate,
   );
@@ -155,6 +179,11 @@ window.HArvest = {
   buildEntityDef,
   filterAttributes,
   registerRenderer,
+  registerIconSet,
+  getIconSet,
+  // Shared HTML-entity escaper, exposed for use by standalone renderer
+  // overrides that are loaded as separate IIFE scripts.
+  esc,
   renderers: {
     BaseCard:             Renderers.BaseCard,
     LightCard:            Renderers.LightCard,
@@ -166,15 +195,21 @@ window.HArvest = {
     RemoteCard:           Renderers.RemoteCard,
     TemperatureSensorCard:Renderers.TemperatureSensorCard,
     HumiditySensorCard:   Renderers.HumiditySensorCard,
+    BatterySensorCard:    Renderers.BatterySensorCard,
     GenericSensorCard:    Renderers.GenericSensorCard,
     BinarySensorCard:     Renderers.BinarySensorCard,
     InputBooleanCard:     Renderers.InputBooleanCard,
     InputNumberCard:      Renderers.InputNumberCard,
     InputSelectCard:      Renderers.InputSelectCard,
-    HarvestActionCard:    Renderers.HarvestActionCard,
     TimerCard:            Renderers.TimerCard,
     WeatherCard:          Renderers.WeatherCard,
+    LockCard:             Renderers.LockCard,
+    PersonCard:           Renderers.PersonCard,
+    ButtonCard:           Renderers.ButtonCard,
+    ScriptCard:           Renderers.ScriptCard,
+    AutomationCard:       Renderers.AutomationCard,
     GenericCard:          Renderers.GenericCard,
+    BadgeCard:            Renderers.BadgeCard,
   },
   track: {
     anyState,

@@ -32,21 +32,14 @@ class HarvestConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.FlowResult:
         """Handle the initial step.
 
-        Shows a confirmation form on first visit. Creates the entry on submit.
+        Creates the entry immediately with no user interaction.
         Aborts if an entry already exists (only one HArvest instance per HA).
         """
-        # Prevent duplicate entries.
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
-
-        if user_input is not None:
-            return self.async_create_entry(title="HArvest", data={})
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({}),
-            description_placeholders={},
-        )
+        if user_input is None:
+            return self.async_show_form(step_id="user", data_schema=vol.Schema({}))
+        return self.async_create_entry(title="HArvest", data={})
 
     @staticmethod
     @callback

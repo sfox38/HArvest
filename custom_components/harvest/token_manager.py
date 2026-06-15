@@ -26,8 +26,6 @@ from .const import (
     ATTRIBUTE_DENYLIST_SUBSTRINGS,
     BASE62_ALPHABET,
     CONF_ABSOLUTE_SESSION_LIFETIME,
-    CONF_MAX_ENTITIES_HARD_CAP,
-    CONF_MAX_ENTITIES_PER_TOKEN,
     DEFAULTS,
     ERR_ENTITY_INCOMPATIBLE,
     ERR_ENTITY_NOT_IN_TOKEN,
@@ -38,6 +36,7 @@ from .const import (
     ERR_TOKEN_INACTIVE,
     ERR_TOKEN_INVALID,
     ERR_TOKEN_REVOKED,
+    MAX_ENTITIES_HARD_CAP,
     SESSION_PREFIX,
     SESSION_ID_LENGTH,
     TOKEN_ID_LENGTH,
@@ -60,7 +59,7 @@ _ALLOW_PATH_MAX_LEN = 512
 @dataclass
 class EntityAccess:
     entity_id: str
-    capabilities: str                       # "read" or "read-write"
+    capabilities: str                       # "badge", "read", or "read-write"
     alias: str | None = None                # 8-char base62 alias; None means entity_id is used directly.
                                             # Generated at entity selection time in the wizard UI (Step 1),
                                             # stored in wizard session state, persisted to the token on Generate.
@@ -71,9 +70,11 @@ class EntityAccess:
                                             # None means this is a primary entity.
     gesture_config: dict = field(default_factory=dict)  # per-gesture action configs
     name_override: str | None = None        # custom display name; None means use HA friendly_name
-    icon_override: str | None = None        # custom MDI icon key; None means use auto-detected icon
+    icon_override: str | None = None        # custom icon key (mdi:/fa:/ph:/tabler:, see
+                                            # const.ICON_NAME_PREFIXES); None means auto-detected icon
     color_scheme: str = "auto"              # per-entity: "auto" | "light" | "dark"
     display_hints: dict = field(default_factory=dict)  # domain-specific display overrides
+    service_data: dict = field(default_factory=dict)   # pre-configured service call data for script entities
 
 
 @dataclass
@@ -126,8 +127,14 @@ class Token:
                                             # When set, the plaintext secret is stored in HA's .storage/
                                             # harvest_tokens file (local filesystem only, included in HA
                                             # backups). The secret is NOT hashed - it must be retrievable
-                                            # for HMAC verification. Security claim: the secret is not
-                                            # embedded in public HTML, not that it is never stored.
+                                            # for HMAC verification.
+                                            #
+                                            # NOTE: per SPEC.md, the secret is also embedded in the page
+                                            # HTML alongside the token_id (the widget needs both to sign
+                                            # auth messages). Both values are visible in page source.
+                                            # The HMAC security claim is that a leaked token_id ALONE
+                                            # (without the paired secret) cannot authenticate - not that
+                                            # the secret is hidden from page viewers.
     origins: OriginConfig
     entities: list[EntityAccess]
     rate_limits: RateLimitConfig
@@ -140,19 +147,27 @@ class Token:
     revoke_reason: str | None
     paused: bool = False
     embed_mode: str = "single"             # "single", "group", or "page"
+    entities_block: bool = False
+    block_label: str | None = "Entities"
+    block_icon: str | None = None
+    block_show_label: bool = True
+    block_highlight_rows: bool = False
+    block_show_icons: bool = True
+    block_widget_border: str | None = None     # "inner" | "outer" | None (outer default)
+    block_access_mode: str = "override"        # "override" | "per_entity"
+    block_color_mode: str = "override"         # "override" | "per_entity"
     theme_url: str = ""                    # bundled theme URL or custom theme URL; empty means default
     renderer_pack: str = ""                # "" = none; derived from theme_id when theme has a pack
     lang: str = "auto"                     # BCP 47 language tag or "auto"
     a11y: str = "standard"                 # "standard" or "enhanced"
     color_scheme: str = "auto"             # "auto" | "light" | "dark"
+    icon_set: str | None = None            # global icon set ("fa", "ph-duotone", ...);
+                                           # None means follow the theme's icon_set (or MDI)
     custom_messages: bool = False           # when False, widget uses global defaults for error/offline
     on_offline: str = "last-state"         # "dim" | "hide" | "message" | "last-state"
     on_error: str = "message"              # "dim" | "hide" | "message"
     offline_text: str = ""
     error_text: str = ""
-
-
-_VALID_COLOR_SCHEMES = {"auto", "light", "dark"}
 
 
 def _migrate_display_hints(e: dict) -> dict:
@@ -272,30 +287,23 @@ class TokenManager:
         active_schedule: ActiveSchedule | None,
         allowed_ips: list[str],
         embed_mode: str = "single",
+        entities_block: bool = False,
         theme_url: str = "",
+        renderer_pack: str = "",
+        icon_set: str | None = None,
     ) -> Token:
         """Create, persist, and return a new token.
 
         Validates entity count against hard cap before creating.
-        Raises ValueError if entity count exceeds max_entities_hard_cap.
+        Raises ValueError if entity count exceeds MAX_ENTITIES_HARD_CAP.
         Validates allow_paths entries (must start with /, no .., no query string or
         fragment, max 512 chars). Query strings in allow_paths entries are rejected
         at save time since they would never match after page_path normalisation.
         Raises ValueError for invalid path entries.
         """
-        soft_limit = self._config.get(
-            CONF_MAX_ENTITIES_PER_TOKEN, DEFAULTS[CONF_MAX_ENTITIES_PER_TOKEN]
-        )
-        hard_cap = self._config.get(
-            CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
-        )
-        if len(entities) > hard_cap:
+        if len(entities) > MAX_ENTITIES_HARD_CAP:
             raise ValueError(
-                f"Entity count {len(entities)} exceeds hard cap {hard_cap}."
-            )
-        if len(entities) > soft_limit:
-            raise ValueError(
-                f"Entity count {len(entities)} exceeds the configured limit {soft_limit}."
+                f"Entity count {len(entities)} exceeds hard cap {MAX_ENTITIES_HARD_CAP}."
             )
 
         self._validate_allow_paths(origins.allow_paths)
@@ -319,7 +327,10 @@ class TokenManager:
             revoked_at=None,
             revoke_reason=None,
             embed_mode=embed_mode,
+            entities_block=entities_block,
             theme_url=theme_url,
+            renderer_pack=renderer_pack,
+            icon_set=icon_set,
         )
         self._tokens[token.token_id] = token
         await self.save()
@@ -458,28 +469,21 @@ class TokenManager:
 
         # Validate entity count if entities are being updated.
         if "entities" in updates:
-            soft_limit = self._config.get(
-                CONF_MAX_ENTITIES_PER_TOKEN, DEFAULTS[CONF_MAX_ENTITIES_PER_TOKEN]
-            )
-            hard_cap = self._config.get(
-                CONF_MAX_ENTITIES_HARD_CAP, DEFAULTS[CONF_MAX_ENTITIES_HARD_CAP]
-            )
             new_entities: list[EntityAccess] = updates["entities"]
-            if len(new_entities) > hard_cap:
+            if len(new_entities) > MAX_ENTITIES_HARD_CAP:
                 raise ValueError(
-                    f"Entity count {len(new_entities)} exceeds hard cap {hard_cap}."
-                )
-            if len(new_entities) > soft_limit:
-                raise ValueError(
-                    f"Entity count {len(new_entities)} exceeds the configured limit {soft_limit}."
+                    f"Entity count {len(new_entities)} exceeds hard cap {MAX_ENTITIES_HARD_CAP}."
                 )
 
         _UPDATABLE_FIELDS = {
             "label", "origins", "entities", "expires", "token_secret",
             "rate_limits", "session", "max_sessions", "allowed_ips",
-            "active_schedule", "paused", "embed_mode", "theme_url",
-            "renderer_pack", "lang", "a11y", "color_scheme", "custom_messages",
-            "on_offline", "on_error", "offline_text", "error_text",
+            "active_schedule", "paused", "embed_mode", "entities_block",
+            "block_label", "block_icon", "block_show_label", "block_highlight_rows",
+            "block_show_icons", "block_widget_border",
+            "block_access_mode", "block_color_mode", "theme_url",
+            "renderer_pack", "lang", "a11y", "color_scheme", "icon_set",
+            "custom_messages", "on_offline", "on_error", "offline_text", "error_text",
         }
         for field_name, value in updates.items():
             if field_name in _UPDATABLE_FIELDS:
@@ -503,6 +507,7 @@ class TokenManager:
         timestamp: int | None,
         nonce: str | None,
         signature: str | None,
+        dropped_refs: list[tuple[str, str]] | None = None,
     ) -> tuple[Token, str | None]:
         """Validate an incoming auth request against a token.
 
@@ -516,12 +521,20 @@ class TokenManager:
         follow the same entity/alias convention as the card they belong to.
 
         Resolution for each ref: check alias lookup first (EntityAccess.alias == ref),
-        then real entity ID lookup (EntityAccess.entity_id == ref). Unknown refs
-        return HRV_ENTITY_NOT_IN_TOKEN.
+        then real entity ID lookup (EntityAccess.entity_id == ref). Individual
+        unresolvable refs and Tier 3 refs are silently skipped (see step 8 below);
+        callers can observe them via the dropped_refs out-parameter.
 
         page_path is sent by the widget from window.location.pathname. Browsers
         do not send a Referer header on WebSocket upgrades, so the client
         includes the path explicitly.
+
+        dropped_refs is an optional out-parameter. If a list is passed, this
+        method appends (ref, reason) tuples for each entity_ref that was
+        silently dropped. Reasons are "unresolved" (not in the token's entity
+        list) or "tier3_blocked" (resolved to a Tier 3 incompatible domain).
+        The caller can use this to log stale or incompatible card references
+        for admin visibility without failing the connection.
 
         Checks in order:
         1. Token exists (HRV_TOKEN_INVALID if not)
@@ -531,9 +544,20 @@ class TokenManager:
         5. source_ip in allowed_ips if set (HRV_IP_DENIED)
         6. Origin in allowed list if allow_any is False (HRV_ORIGIN_DENIED)
         7. page_path matches allow_paths if set and page_path present (HRV_ORIGIN_DENIED)
-        8. All entity_refs resolve to known entities (HRV_ENTITY_NOT_IN_TOKEN)
-        9. All resolved entities compatible (not Tier 3) (HRV_ENTITY_INCOMPATIBLE)
-        10. HMAC signature valid if token_secret set (HRV_SIGNATURE_INVALID)
+        8. HMAC signature valid if token_secret set (HRV_SIGNATURE_INVALID).
+           Done BEFORE entity resolution so a token-id-only attacker cannot
+           use the entity-resolution branch as an oracle to enumerate which
+           entities are configured (sending guesses without a valid HMAC
+           would otherwise distinguish HRV_ENTITY_NOT_IN_TOKEN from
+           HRV_SIGNATURE_INVALID). Non-HMAC tokens skip this step and the
+           oracle does not exist for them anyway (the entity scope is
+           public on the embedding page).
+        9. At least one entity_ref resolves to a known, compatible (non-Tier-3)
+           entity. Individual unresolvable or Tier-3 refs are silently dropped
+           and recorded into dropped_refs if provided. The whole auth fails
+           with HRV_ENTITY_NOT_IN_TOKEN (or HRV_ENTITY_INCOMPATIBLE if every
+           drop was Tier 3) only when entity_refs is non-empty and zero refs
+           resolve to a usable entity. An empty entity_refs list passes.
 
         Does not check session count - caller checks via SessionManager.
         """
@@ -578,10 +602,22 @@ class TokenManager:
                 if normalised not in token.origins.allow_paths:
                     return token, ERR_ORIGIN_DENIED
 
-        # 8. Resolve entity refs - partial scope by design.
+        # 8. HMAC signature - verified BEFORE entity resolution to avoid
+        # leaking entity scope to a token-id-only attacker via the
+        # ENTITY_NOT_IN_TOKEN/SIGNATURE_INVALID branch difference. See
+        # docstring step 8 for the full rationale.
+        if token.token_secret is not None:
+            if timestamp is None or nonce is None or signature is None:
+                return token, ERR_SIGNATURE_INVALID
+            if not self.verify_hmac(token.token_secret, token_id, timestamp, nonce, signature):
+                return token, ERR_SIGNATURE_INVALID
+
+        # 9. Resolve entity refs - partial scope by design.
         # Unresolvable and Tier 3 refs are silently dropped rather than
         # rejecting the whole auth. This allows a page with mixed cards
         # (some valid, some stale or incompatible) to still connect.
+        # Each dropped ref is recorded into dropped_refs (if provided) so the
+        # caller can surface them to admins via activity log.
         # Empty entity_refs=[] also passes; subscription is gated later.
         # Only fail if entity_refs was non-empty and zero refs resolved.
         from .entity_compatibility import get_support_tier  # local import to avoid circular dep
@@ -590,10 +626,14 @@ class TokenManager:
         for ref in entity_refs:
             resolved = self._resolve_entity_ref(ref, token)
             if resolved is None:
+                if dropped_refs is not None:
+                    dropped_refs.append((ref, "unresolved"))
                 continue
             domain = resolved.entity_id.split(".")[0]
             if get_support_tier(domain) == 3:
                 tier3_count += 1
+                if dropped_refs is not None:
+                    dropped_refs.append((ref, "tier3_blocked"))
                 continue
             valid_count += 1
 
@@ -601,13 +641,6 @@ class TokenManager:
             if tier3_count > 0:
                 return token, ERR_ENTITY_INCOMPATIBLE
             return token, ERR_ENTITY_NOT_IN_TOKEN
-
-        # 10. HMAC signature.
-        if token.token_secret is not None:
-            if timestamp is None or nonce is None or signature is None:
-                return token, ERR_SIGNATURE_INVALID
-            if not self.verify_hmac(token.token_secret, token_id, timestamp, nonce, signature):
-                return token, ERR_SIGNATURE_INVALID
 
         return token, None
 
@@ -694,8 +727,8 @@ class TokenManager:
         token_secret as the key. The token_secret passed here is the stored
         plaintext secret retrieved from HA's storage. The widget also uses
         the plaintext to sign. Comparison uses hmac.compare_digest to prevent
-        timing attacks. Validates that timestamp is within 60 seconds of
-        server time to prevent replay attacks.
+        timing attacks. Rejects timestamps older than 60 seconds or more than
+        5 seconds in the future (clock-skew tolerance) to prevent replay attacks.
 
         Note: the secret is stored as plaintext in HA's local .storage/ file.
         Previous documentation claiming it was stored as a hash was incorrect -
@@ -704,12 +737,13 @@ class TokenManager:
         Security: no nonce store - replay is possible within the 60s window.
         Accepted tradeoff; see security.md section 5.14.
         """
-        if not isinstance(timestamp, int):
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool):
             return False
         if not isinstance(nonce, str) or not isinstance(signature, str):
             return False
         now_ts = int(datetime.now(tz=timezone.utc).timestamp())
-        if abs(now_ts - timestamp) > 60:
+        delta = now_ts - timestamp
+        if delta < -5 or delta > 60:
             return False
 
         message = f"{token_id}:{timestamp}:{nonce}".encode()
@@ -780,13 +814,6 @@ class TokenManager:
                     f"allow_paths entry must not contain a query string or fragment: {path!r}"
                 )
 
-    @staticmethod
-    def _migrate_entity_dict(e: dict) -> dict:
-        """Strip legacy top-level fields that moved into display_hints."""
-        for key in ("graph", "hours", "period", "animate"):
-            e.pop(key, None)
-        return e
-
     def _token_to_dict(self, token: Token) -> dict:
         """Serialise a Token to a JSON-compatible dict for HA storage."""
         d = dataclasses.asdict(token)
@@ -811,6 +838,7 @@ class TokenManager:
                 icon_override=e.get("icon_override"),
                 color_scheme=e.get("color_scheme", "auto"),
                 display_hints=_migrate_display_hints(e),
+                service_data=e.get("service_data", {}),
             )
             for e in d.get("entities", [])
         ]
@@ -822,19 +850,33 @@ class TokenManager:
             allow_paths=origins_raw.get("allow_paths", []),
         )
 
+        # Defensively coerce stored values to ints. Older storage (pre-bounds-
+        # validation in _parse_rate_limits / _parse_session_config) could hold
+        # strings, floats, or out-of-range ints. Coerce here so the runtime
+        # never has to compare int >= str or divide by zero. Bad values fall
+        # back to safe defaults rather than crashing bootup.
+        def _safe_int(value: object, default: int, *, allow_none: bool = False) -> int | None:
+            if value is None and allow_none:
+                return None
+            try:
+                n = int(value)  # type: ignore[arg-type]
+                return n if n >= 1 else default
+            except (TypeError, ValueError):
+                return default if not allow_none else None
+
         rl_raw = d["rate_limits"]
         rate_limits = RateLimitConfig(
-            max_push_per_second=rl_raw.get("max_push_per_second", 1),
-            max_commands_per_minute=rl_raw.get("max_commands_per_minute", 30),
-            override_defaults=rl_raw.get("override_defaults", False),
+            max_push_per_second=_safe_int(rl_raw.get("max_push_per_second"), 1) or 1,
+            max_commands_per_minute=_safe_int(rl_raw.get("max_commands_per_minute"), 30) or 30,
+            override_defaults=bool(rl_raw.get("override_defaults", False)),
         )
 
         sess_raw = d["session"]
         session = SessionConfig(
-            lifetime_minutes=sess_raw.get("lifetime_minutes", 60),
-            max_lifetime_minutes=sess_raw.get("max_lifetime_minutes", 1440),
-            max_renewals=sess_raw.get("max_renewals"),
-            absolute_lifetime_hours=sess_raw.get("absolute_lifetime_hours"),
+            lifetime_minutes=_safe_int(sess_raw.get("lifetime_minutes"), 60) or 60,
+            max_lifetime_minutes=_safe_int(sess_raw.get("max_lifetime_minutes"), 1440) or 1440,
+            max_renewals=_safe_int(sess_raw.get("max_renewals"), 0, allow_none=True),
+            absolute_lifetime_hours=_safe_int(sess_raw.get("absolute_lifetime_hours"), 0, allow_none=True),
         )
 
         active_schedule: ActiveSchedule | None = None
@@ -873,11 +915,21 @@ class TokenManager:
             revoke_reason=d.get("revoke_reason"),
             paused=d.get("paused", False),
             embed_mode=d.get("embed_mode", "single"),
+            entities_block=d.get("entities_block", False),
+            block_label=d.get("block_label", "Entities"),
+            block_icon=d.get("block_icon"),
+            block_show_label=d.get("block_show_label", True),
+            block_highlight_rows=d.get("block_highlight_rows", False),
+            block_show_icons=d.get("block_show_icons", True),
+            block_widget_border=d.get("block_widget_border"),
+            block_access_mode=d.get("block_access_mode", "override"),
+            block_color_mode=d.get("block_color_mode", "override"),
             theme_url=d.get("theme_url", ""),
             renderer_pack=d.get("renderer_pack", ""),
             lang=d.get("lang", "auto"),
             a11y=d.get("a11y", "standard"),
             color_scheme=d.get("color_scheme", "auto"),
+            icon_set=d.get("icon_set"),
             custom_messages=d.get("custom_messages", False),
             on_offline=d.get("on_offline", "last-state"),
             on_error=d.get("on_error", "message"),
@@ -902,16 +954,21 @@ def _prev_day_abbr(day: str) -> str:
 def _normalise_page_path(page_path: str) -> str:
     """Normalise a page path sent by the widget (window.location.pathname).
 
-    Strips any query string or fragment that might have been appended.
-    Returns just the path portion.
+    Strips query string, fragment, and a trailing slash so that
+    ``/embed/lights`` and ``/embed/lights/`` both match an
+    ``allow_paths: ["/embed/lights"]`` entry. The root ``/`` is preserved.
 
     Examples:
         /embed/lights?foo=bar  ->  /embed/lights
+        /embed/lights/         ->  /embed/lights
         /                      ->  /
     """
     try:
         parsed = urlparse(page_path)
-        return parsed.path or "/"
+        path = parsed.path or "/"
+        if len(path) > 1 and path.endswith("/"):
+            path = path[:-1]
+        return path
     except Exception:
         return "/"
 

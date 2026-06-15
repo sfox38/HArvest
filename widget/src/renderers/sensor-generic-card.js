@@ -6,6 +6,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const GENERIC_SENSOR_STYLES = /* css */`
   [part=card-body] {
@@ -29,26 +30,22 @@ const GENERIC_SENSOR_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class GenericSensorCard extends BaseCard {
-  /** @type {HTMLElement|null} */ #valueEl = null;
-  /** @type {HTMLElement|null} */ #unitEl  = null;
+  static staleOnMount = true;
+
+  /** @type {HTMLElement|null} */ #valueEl  = null;
+  /** @type {HTMLElement|null} */ #unitEl   = null;
+  /** @type {HTMLElement|null} */ #rowValue = null;
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${GENERIC_SENSOR_STYLES}</style>
+      <style>${GENERIC_SENSOR_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-value"></span></span>
         </div>
         <div part="card-body">
           <span part="sensor-value" aria-live="polite">-</span>
@@ -61,10 +58,11 @@ export class GenericSensorCard extends BaseCard {
       </div>
     `;
 
-    this.#valueEl = this.root.querySelector("[part=sensor-value]");
-    this.#unitEl  = this.root.querySelector("[part=sensor-unit]");
+    this.#valueEl  = this.root.querySelector("[part=sensor-value]");
+    this.#unitEl   = this.root.querySelector("[part=sensor-unit]");
+    this.#rowValue = this.root.querySelector("[part=row-value]");
 
-    this.renderIcon(this.def.icon ?? "mdi:eye", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:eye"), "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
@@ -75,6 +73,7 @@ export class GenericSensorCard extends BaseCard {
       this.#unitEl.textContent = attributes.unit_of_measurement;
     }
     const unit = attributes.unit_of_measurement ?? this.def.unit_of_measurement ?? "";
+    if (this.#rowValue) this.#rowValue.textContent = unit ? `${state} ${unit}` : state;
     this.announceState(`${this.def.friendly_name}, ${state}${unit ? ` ${unit}` : ""}`);
   }
 }

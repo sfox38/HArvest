@@ -11,6 +11,10 @@
  *   destroyClient(haUrl, tokenId)
  */
 
+import { getClientInfo } from "./client-info.js";
+import { getPageConfig } from "./page-config.js";
+import { ensureIconSet, KNOWN_ICON_SETS } from "./icon-set-loader.js";
+
 // Reconnect delay sequence in milliseconds.
 const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
 
@@ -18,6 +22,8 @@ const RECONNECT_DELAYS = [5000, 10000, 30000, 60000];
 const HEARTBEAT_TIMEOUT_MS = 60_000;
 
 // Auth debounce: wait this long after the first card mounts before opening WS.
+// Used to coalesce multiple registerCard() calls into a single auth message.
+// Skipped on single-card pages with no HArvest.config() (see registerCard).
 const AUTH_DEBOUNCE_MS = 50;
 
 // Maximum consecutive re-auth failures before entering permanent HRV_AUTH_FAILED.
@@ -94,6 +100,7 @@ export class HarvestClient {
   /** @type {WebSocket|null} */ #ws = null;
   /** @type {string|null} */ #sessionId = null;
   /** @type {number} */ #msgIdCounter = 0;
+  /** @type {boolean} */ #authPending = false;
 
   // entityId -> HrvCard (last-write-wins)
   /** @type {Map<string, object>} */ #cards = new Map();
@@ -113,9 +120,11 @@ export class HarvestClient {
   /** @type {number} */ #renewalCount = 0;
   // max renewals from the last auth_ok (null = unlimited)
   /** @type {number|null} */ #maxRenewals = null;
+  /** @type {boolean} */ #renewalPending = false;
+  /** @type {object[]} */ #queuedSessionMessages = [];
 
   // last_updated timestamps per entity for out-of-order discard
-  /** @type {Map<string, {state: string, attributes: object, lastUpdated: Date}>} */ #entityStates = new Map();
+  /** @type {Map<string, {state: string, attributes: object, lastUpdated: Date, lastUpdatedRaw: string}>} */ #entityStates = new Map();
 
   // Flood protection: track malformed message timestamps
   /** @type {number[]} */ #malformedTimestamps = [];
@@ -128,13 +137,18 @@ export class HarvestClient {
   // Permanent shutdown flag - set after MAX_REAUTH_ATTEMPTS failures
   /** @type {boolean} */ #permanentFailure = false;
 
-  /** @type {string|null} */ #activePack = null;
-  // Resolves when the in-flight pack script finishes loading. null when idle.
-  /** @type {Promise<void>|null} */ #packLoadPromise = null;
+  /** @type {string|null} */ #activeRenderer = null;
+  /** @type {Promise<void>|null} */ #rendererLoadPromise = null;
+  /** @type {Set<string>} */ #iconSetsRequested = new Set();
 
   // Buffered messages for entities not yet registered (companion race condition).
   /** @type {Map<string, object>} */ #pendingDefinitions = new Map();
   /** @type {Map<string, object>} */ #pendingStateUpdates = new Map();
+
+  // rAF batching: coalesce rapid state_update dispatches into one paint cycle.
+  /** @type {Map<string, {state: string, attributes: object, lastUpdated: string}>} */
+  #rafQueue = new Map();
+  /** @type {number|null} */ #rafId = null;
 
   /**
    * @param {string} haUrl   - Base URL of the HA instance (e.g. https://ha.example.com)
@@ -167,24 +181,90 @@ export class HarvestClient {
     this.#cards.set(entityId, card);
 
     if (this.#ws !== null && this.#ws.readyState === WebSocket.OPEN && this.#sessionId) {
-      // Connection already open: subscribe the new entity immediately.
-      this.#sendJson({
+      // Connection already open and authed: subscribe the new entity immediately.
+      this.#sendSessionJson({
         type: "subscribe",
         session_id: this.#sessionId,
         entity_ids: [entityId],
         msg_id: this.#nextMsgId(),
       });
-    } else {
-      // Queue for the initial auth message.
-      this.#pendingEntityIds.add(entityId);
-
-      if (this.#ws === null && this.#authDebounceTimer === null && !this.#permanentFailure) {
-        this.#authDebounceTimer = setTimeout(() => {
-          this.#authDebounceTimer = null;
-          this.#openConnection();
-        }, AUTH_DEBOUNCE_MS);
-      }
+      return;
     }
+
+    // Queue for the initial auth message.
+    this.#pendingEntityIds.add(entityId);
+
+    if (this.#permanentFailure || this.#authDebounceTimer !== null) return;
+
+    // Probe phase: defer one macrotask so any sync-task siblings (static
+    // <hrv-card>s parsed in the same tick, or programmatic create() loops)
+    // have a chance to register and add to #pendingEntityIds. Then decide
+    // whether to skip the 50ms coalescing wait.
+    this.#authDebounceTimer = setTimeout(() => this.#triggerAuthDispatch(), 0);
+  }
+
+  /**
+   * After the 0ms probe: decide whether to skip the 50ms debounce.
+   *
+   * Rules:
+   *   - HArvest.config() called: page-level setup implies multiple cards
+   *     are likely (programmatic create() or many static cards sharing a
+   *     token). Use the full debounce.
+   *   - Otherwise, if only one entity is pending: this is the only card on
+   *     the page; fire auth/connect immediately.
+   *   - Otherwise (multiple cards already pending): use the full debounce
+   *     to absorb any further siblings.
+   */
+  #triggerAuthDispatch() {
+    this.#authDebounceTimer = null;
+    if (this.#permanentFailure) return;
+
+    const hasPageConfig = Object.keys(getPageConfig()).length > 0;
+    const skipDebounce = !hasPageConfig && this.#pendingEntityIds.size <= 1;
+
+    if (skipDebounce) {
+      this.#dispatchAuth();
+    } else {
+      this.#authDebounceTimer = setTimeout(() => {
+        this.#authDebounceTimer = null;
+        this.#dispatchAuth();
+      }, AUTH_DEBOUNCE_MS);
+    }
+  }
+
+  /**
+   * Send the auth message, opening the WS first if it isn't already.
+   * If prewarm() opened the WS but it's still CONNECTING, #onOpen will see
+   * pending entity IDs and call #sendAuth itself.
+   */
+  #dispatchAuth() {
+    if (this.#ws === null) {
+      this.#openConnection();
+      return;
+    }
+    if (this.#ws.readyState === WebSocket.OPEN && !this.#sessionId && !this.#authPending) {
+      this.#sendAuth().catch((err) => {
+        console.error("[HArvest] HMAC signing failed - entering permanent failure:", err);
+        this.#permanentFailure = true;
+        for (const card of this.#cards.values()) {
+          card.setErrorState?.("HRV_AUTH_FAILED");
+        }
+        this.#ws?.close();
+      });
+    }
+    // Else: WS is CONNECTING (from prewarm). #onOpen will detect pending IDs.
+  }
+
+  /**
+   * Eagerly open the WebSocket without sending auth. Called by HArvest.config()
+   * via harvest-entry.js when haUrl + token are known before any card mounts.
+   * The TLS handshake then overlaps with HTML parse + the auth debounce.
+   *
+   * No-op if a WS is already open, currently opening, or after permanent failure.
+   */
+  prewarm() {
+    if (this.#ws !== null || this.#permanentFailure) return;
+    this.#openConnection();
   }
 
   /**
@@ -222,7 +302,7 @@ export class HarvestClient {
     this.#entityStates.delete(entityId);
 
     if (this.#ws !== null && this.#ws.readyState === WebSocket.OPEN && this.#sessionId) {
-      this.#sendJson({
+      this.#sendSessionJson({
         type: "unsubscribe",
         session_id: this.#sessionId,
         entity_ids: [entityId],
@@ -251,7 +331,7 @@ export class HarvestClient {
       );
       return;
     }
-    this.#sendJson({
+    this.#sendSessionJson({
       type: "command",
       session_id: this.#sessionId,
       entity_id: entityId,
@@ -277,7 +357,7 @@ export class HarvestClient {
     };
     if (hours != null) msg.hours = hours;
     if (period != null) msg.period = period;
-    this.#sendJson(msg);
+    this.#sendSessionJson(msg);
   }
 
   /**
@@ -308,12 +388,12 @@ export class HarvestClient {
     return this.#cards.get(entityId) ?? null;
   }
 
-  _getPackRenderer(domain, deviceClass) {
-    if (!this.#activePack) return null;
-    const pack = window.HArvest?._packs?.[this.#activePack];
-    if (!pack) return null;
+  _getRendererOverride(domain, deviceClass) {
+    if (!this.#activeRenderer) return null;
+    const reg = window.HArvest?._renderers?.[this.#activeRenderer];
+    if (!reg) return null;
     const specificKey = deviceClass ? `${domain}.${deviceClass}` : null;
-    return (specificKey && pack[specificKey]) || pack[domain] || null;
+    return (specificKey && reg[specificKey]) || reg[domain] || null;
   }
 
   /**
@@ -325,10 +405,13 @@ export class HarvestClient {
     clearTimeout(this.#reconnectTimer);
     clearTimeout(this.#heartbeatTimer);
     clearTimeout(this.#staleGraceTimer);
+    if (this.#rafId !== null) cancelAnimationFrame(this.#rafId);
     this.#authDebounceTimer = null;
     this.#reconnectTimer = null;
     this.#heartbeatTimer = null;
     this.#staleGraceTimer = null;
+    this.#rafId = null;
+    this.#rafQueue.clear();
     document.removeEventListener("visibilitychange", this.#visibilityHandler);
     if (this.#ws) {
       this.#ws.onclose = null; // suppress reconnect on deliberate destroy
@@ -374,6 +457,13 @@ export class HarvestClient {
 
   async #onOpen() {
     this.#resetHeartbeat();
+    // Prewarm path: WS opened from HArvest.config() before any cards mounted.
+    // Server's auth_timeout_seconds (default 10s) bounds how long the
+    // connection can sit idle before being closed; that's fine because
+    // the first card normally mounts within milliseconds.
+    if (this.#pendingEntityIds.size === 0 && this.#cards.size === 0) {
+      return;
+    }
     try {
       await this.#sendAuth();
     } catch (err) {
@@ -418,6 +508,9 @@ export class HarvestClient {
     this.#heartbeatTimer = null;
     this.#ws = null;
     this.#sessionId = null;
+    this.#authPending = false;
+    this.#renewalPending = false;
+    this.#queuedSessionMessages = [];
 
     if (this.#permanentFailure) return;
     if (_pageUnloading) return;
@@ -439,7 +532,18 @@ export class HarvestClient {
    * (pending set plus already-registered cards that are not yet subscribed).
    */
   async #sendAuth() {
-    // Collect all entity IDs currently known to this client.
+    if (this.#authPending) return;
+    this.#authPending = true;
+
+    // Collect all entity refs currently known to this client. Each entry may
+    // be a real entity ID (from a card with `entity=`) or an alias (from a
+    // card with `alias=`); SPEC.md Section 5.1 explicitly accepts mixed
+    // arrays and the server resolves each ref against the token's entity
+    // list with alias-then-real-id lookup. There is no cross-token namespace
+    // risk here because clients are singletons keyed by (haUrl, tokenId), so
+    // every ref in #cards belongs to the same token's namespace; token swaps
+    // mid-element-life are not a supported code path (hrv-card's
+    // attributeChangedCallback does not swap the client).
     const entityIds = [...new Set([
       ...this.#pendingEntityIds,
       ...this.#cards.keys(),
@@ -453,15 +557,25 @@ export class HarvestClient {
       entity_ids: entityIds,
       page_path: window.location.pathname,
       msg_id: this.#nextMsgId(),
+      // Compatibility handshake (SPEC.md Section 5.1, Section 12).
+      // Server uses this block to detect version drift and surface
+      // banners in the panel; old servers ignore unknown fields, so
+      // including this on every connect is purely additive.
+      client: getClientInfo(),
     };
 
-    if (this.#tokenSecret) {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const nonce = this.#generateNonce();
-      const signature = await this.#buildHmacSignature(timestamp, nonce);
-      msg.timestamp = timestamp;
-      msg.nonce = nonce;
-      msg.signature = signature;
+    try {
+      if (this.#tokenSecret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = this.#generateNonce();
+        const signature = await this.#buildHmacSignature(timestamp, nonce);
+        msg.timestamp = timestamp;
+        msg.nonce = nonce;
+        msg.signature = signature;
+      }
+    } catch (err) {
+      this.#authPending = false;
+      throw err;
     }
 
     // Re-auth after session expiry: include session_id if we have one.
@@ -524,12 +638,19 @@ export class HarvestClient {
     if (this.#permanentFailure) return;
     if (this.#ws && this.#ws.readyState === WebSocket.OPEN) return;
 
-    // Cancel pending backoff reconnect and connect now.
+    // Cancel pending backoff reconnect and connect now. Reset both transient
+    // counters: visibility wake represents a deliberate "user returned"
+    // signal, so previously-accumulated reauth failures (which may be hours
+    // old at this point) should not push the next attempt over MAX_REAUTH_
+    // ATTEMPTS on a single bad reconnect. Permanent error codes still
+    // trip #permanentFailure directly in #handleAuthFailed regardless of
+    // this reset.
     if (this.#reconnectTimer) {
       clearTimeout(this.#reconnectTimer);
       this.#reconnectTimer = null;
     }
     this.#reconnectAttempt = 0;
+    this.#reauthAttempts = 0;
     this.#openConnection();
   }
 
@@ -551,7 +672,7 @@ export class HarvestClient {
       case "error":            return this.#handleError(msg);
       case "theme":            return this.#handleTheme(msg);
       case "token_config":    return this.#handleTokenConfig(msg);
-      case "renderer_pack":   return this.#handleRendererPack(msg);
+      case "renderer":        return this.#handleRenderer(msg);
       case "keepalive":        return; // heartbeat reset already done in #onMessage
       default:
         console.debug("[HArvest] Unknown message type:", msg.type);
@@ -563,23 +684,66 @@ export class HarvestClient {
   // -------------------------------------------------------------------------
 
   #handleAuthOk(msg) {
+    const wasRenewal = this.#renewalPending;
+    this.#authPending = false;
+    this.#renewalPending = false;
     this.#sessionId = msg.session_id;
     this.#reconnectAttempt = 0;
     this.#reauthAttempts = 0;
     this.#malformedTimestamps = [];
     this.#absoluteExpiresAt = msg.absolute_expires_at ? new Date(msg.absolute_expires_at) : null;
-    this.#renewalCount = 0;
+    if (!wasRenewal) this.#renewalCount = 0;
     this.#maxRenewals = msg.max_renewals ?? null;
 
     clearTimeout(this.#staleGraceTimer);
     this.#staleGraceTimer = null;
 
+    if (wasRenewal) {
+      this.#flushQueuedSessionMessages();
+    } else if (this.#pendingEntityIds.size > 0) {
+      const entityIds = [...this.#pendingEntityIds];
+      this.#pendingEntityIds.clear();
+      this.#sendSessionJson({
+        type: "subscribe",
+        session_id: this.#sessionId,
+        entity_ids: entityIds,
+        msg_id: this.#nextMsgId(),
+      });
+    }
+
     console.debug("[HArvest] auth_ok: session=" + msg.session_id);
   }
 
   #handleAuthFailed(msg) {
+    this.#authPending = false;
+    this.#renewalPending = false;
+    this.#queuedSessionMessages = [];
     const code = msg.code ?? "HRV_AUTH_FAILED";
     console.warn("[HArvest] Auth failed:", code);
+
+    // HRV_PROTOCOL_INCOMPATIBLE is its own permanent state, distinct
+    // from the generic auth-failed bucket. The visitor sees a clear
+    // "Widget version cannot connect to this server. Update your
+    // snippet" message rather than the generic "Widget unavailable",
+    // because the cause (stale cached snippet on a public page) is
+    // user-actionable. Server side: SPEC.md Section 5.3, Section 12.
+    if (code === "HRV_PROTOCOL_INCOMPATIBLE") {
+      this.#permanentFailure = true;
+      const serverInfo = msg.server || {};
+      console.error(
+        "[HArvest] Widget version cannot connect: client speaks protocol %d, " +
+        "server accepts [%d, %d]. Server version: %s. Update your snippet.",
+        getClientInfo().protocol,
+        serverInfo.min_client_protocol,
+        serverInfo.protocol,
+        serverInfo.version,
+      );
+      for (const card of this.#cards.values()) {
+        card.setErrorState?.("HRV_INCOMPATIBLE");
+      }
+      this.#ws?.close();
+      return;
+    }
 
     const permanentCodes = [
       "HRV_TOKEN_INVALID", "HRV_TOKEN_EXPIRED",
@@ -616,14 +780,32 @@ export class HarvestClient {
     }
   }
 
-  #handleEntityDefinition(msg) {
-    // Defer until in-flight pack script finishes so the first render uses the
-    // pack renderer directly (no flash of built-in renderer).
-    if (this.#packLoadPromise) {
-      this.#packLoadPromise.then(() => this.#handleEntityDefinition(msg));
+  #handleEntityDefinition(msg, _depth = 0) {
+    // Defer until in-flight renderer script finishes so the first render uses
+    // the override renderer directly (no flash of built-in renderer).
+    //
+    // _depth caps the recursive defer in the pathological case where new
+    // renderer messages keep arriving before each previous one finishes
+    // loading - each defer would otherwise create a new .then() chain. Server
+    // does not spam renderer messages in practice; depth > 5 means message
+    // ordering has gone sideways and dispatching with the currently-loaded
+    // renderer (or built-in fallback) is the safer choice.
+    if (this.#rendererLoadPromise && _depth < 5) {
+      this.#rendererLoadPromise.then(() => this.#handleEntityDefinition(msg, _depth + 1));
       return;
     }
     const entityId = msg.entity_id;
+    // Cache the definition so the next mount can render from localStorage
+    // before this WS round-trip completes. See StateCache.writeDef.
+    try {
+      StateCache.writeDef(this.#tokenId, entityId, msg);
+    } catch {
+      // Cache is best-effort; never block dispatch.
+    }
+    // Definition dispatch is NOT deferred on icon-set loading (unlike the
+    // renderer defer above): the card paints immediately with the MDI or
+    // domain fallback icon and upgrades when the set registers.
+    this.#maybeLoadIconSets(msg);
     const card = this.#cards.get(entityId);
     if (card) {
       card.receiveDefinition?.(msg);
@@ -632,14 +814,76 @@ export class HarvestClient {
     }
   }
 
+  /**
+   * Lazy-load icon-set assets for any non-mdi icon prefix referenced by an
+   * entity definition. Fires once per prefix per client; when the set
+   * registers, every card force-rebuilds so cached fallback icons swap to
+   * the set glyphs.
+   */
+  #maybeLoadIconSets(msg) {
+    const names = [msg.icon, ...Object.values(msg.icon_state_map ?? {})];
+    for (const name of names) {
+      if (typeof name !== "string") continue;
+      const sep = name.indexOf(":");
+      if (sep <= 0) continue;
+      this.#requestIconSet(name.slice(0, sep));
+    }
+  }
+
+  /**
+   * Request a known icon-set asset once per client; force-rebuild all cards
+   * when it registers. No-ops for mdi, unknown prefixes, and repeats.
+   */
+  #requestIconSet(prefix) {
+    if (!prefix || prefix === "mdi" || !KNOWN_ICON_SETS[prefix]) return;
+    if (this.#iconSetsRequested.has(prefix)) return;
+    this.#iconSetsRequested.add(prefix);
+    ensureIconSet(prefix, this.#haUrl).then((loaded) => {
+      if (!loaded) return;
+      for (const card of this.#cards.values()) {
+        card._reRender?.(true);
+      }
+    });
+  }
+
+  /**
+   * Request the asset backing an icon-set id from the token/theme cascade.
+   * Ids are "<prefix>" or "<prefix>-<weight>" ("ph-duotone" loads "ph").
+   */
+  #requestIconSetById(setId) {
+    if (!setId || typeof setId !== "string") return;
+    let prefix = setId;
+    if (!KNOWN_ICON_SETS[prefix]) {
+      const sep = setId.indexOf("-");
+      if (sep > 0) prefix = setId.slice(0, sep);
+    }
+    this.#requestIconSet(prefix);
+  }
+
   #handleStateUpdate(msg) {
     const entityId = msg.entity_id;
     const incoming = new Date(msg.last_updated);
     const existing = this.#entityStates.get(entityId);
 
-    // Discard out-of-order updates unless this is an initial push.
-    if (existing && !msg.initial && incoming <= existing.lastUpdated) {
-      return;
+    // Two distinct checks because JS Date has only millisecond precision while
+    // HA's last_updated has microsecond precision in ISO form. Two genuine
+    // updates within the same millisecond would round to equal Dates, so
+    // using `<=` on Dates alone would silently drop the second.
+    //   - Byte-equal raw string -> true duplicate (e.g. reconnect resend); drop.
+    //   - Parsed Date strictly older -> out-of-order delivery; drop.
+    //   - Same parsed Date, different raw string -> distinct sub-millisecond
+    //     update; let it through, applied in arrival order.
+    if (
+      existing
+      && msg.last_updated != null
+      && existing.lastUpdatedRaw != null
+    ) {
+      if (msg.last_updated === existing.lastUpdatedRaw) {
+        return;
+      }
+      if (incoming < existing.lastUpdated) {
+        return;
+      }
     }
 
     // Merge delta attributes if not initial.
@@ -656,7 +900,12 @@ export class HarvestClient {
       }
     }
 
-    this.#entityStates.set(entityId, { state: msg.state, attributes, lastUpdated: incoming });
+    this.#entityStates.set(entityId, {
+      state: msg.state,
+      attributes,
+      lastUpdated: incoming,
+      lastUpdatedRaw: msg.last_updated,
+    });
 
     // Write to state cache (imported lazily to avoid circular deps at load time).
     try {
@@ -667,14 +916,31 @@ export class HarvestClient {
 
     const card = this.#cards.get(entityId);
     if (card) {
-      card.receiveStateUpdate?.(msg.state, attributes, msg.last_updated);
+      this.#rafQueue.set(entityId, { state: msg.state, attributes, lastUpdated: msg.last_updated });
+      if (this.#rafId === null) {
+        this.#rafId = requestAnimationFrame(() => this.#flushStateUpdates());
+      }
     } else {
+      if (this.#pendingStateUpdates.size >= 200) {
+        const oldest = this.#pendingStateUpdates.keys().next().value;
+        this.#pendingStateUpdates.delete(oldest);
+      }
       this.#pendingStateUpdates.set(entityId, msg);
     }
 
+    // Public API listeners fire synchronously per-message (no batching).
     for (const listener of this.#stateListeners) {
       try { listener(entityId, msg.state, attributes); } catch { /* ignore */ }
     }
+  }
+
+  #flushStateUpdates() {
+    this.#rafId = null;
+    for (const [entityId, update] of this.#rafQueue) {
+      const card = this.#cards.get(entityId);
+      card?.receiveStateUpdate?.(update.state, update.attributes, update.lastUpdated);
+    }
+    this.#rafQueue.clear();
   }
 
   #handleEntityRemoved(msg) {
@@ -694,8 +960,10 @@ export class HarvestClient {
     console.debug("[HArvest] subscribe_ok received");
   }
 
-  #handleSessionExpiring(_msg) {
+  async #handleSessionExpiring(_msg) {
     // The session is about to expire. Attempt renewal unless limits are reached.
+    if (this.#renewalPending) return;
+
     const now = new Date();
 
     const absoluteExpired = this.#absoluteExpiresAt && now >= this.#absoluteExpiresAt;
@@ -709,13 +977,46 @@ export class HarvestClient {
       return;
     }
 
-    // Send renew.
-    this.#sendJson({
+    const sessionId = this.#sessionId;
+    if (!sessionId) return;
+
+    this.#renewalPending = true;
+    const msg = {
       type: "renew",
-      session_id: this.#sessionId,
+      session_id: sessionId,
       token_id: this.#tokenId,
       msg_id: this.#nextMsgId(),
-    });
+    };
+
+    try {
+      if (this.#tokenSecret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = this.#generateNonce();
+        const signature = await this.#buildHmacSignature(timestamp, nonce);
+        msg.timestamp = timestamp;
+        msg.nonce = nonce;
+        msg.signature = signature;
+      }
+    } catch (err) {
+      console.error("[HArvest] HMAC renewal signing failed - entering permanent failure:", err);
+      this.#permanentFailure = true;
+      for (const card of this.#cards.values()) {
+        card.setErrorState?.("HRV_AUTH_FAILED");
+      }
+      this.#ws?.close();
+      return;
+    }
+
+    if (
+      this.#sessionId !== sessionId
+      || !this.#ws
+      || this.#ws.readyState !== WebSocket.OPEN
+    ) {
+      this.#renewalPending = false;
+      return;
+    }
+
+    this.#sendJson(msg);
     this.#renewalCount++;
     // Server responds with auth_ok + entity_definition + state_update for all entities.
   }
@@ -744,11 +1045,43 @@ export class HarvestClient {
 
   #handleTheme(msg) {
     if (!("variables" in msg)) return;
-    const isEmpty = !msg.variables || Object.keys(msg.variables).length === 0;
-    const theme = isEmpty ? null : { variables: msg.variables, dark_variables: msg.dark_variables ?? {} };
+    const isEmpty = (!msg.variables || Object.keys(msg.variables).length === 0)
+      && !msg.icon_set;
+    let theme = null;
+    if (!isEmpty) {
+      theme = {
+        variables: msg.variables ?? {},
+        dark_variables: msg.dark_variables ?? {},
+        icon_set: msg.icon_set ?? null,
+      };
+      this.#requestIconSetById(theme.icon_set);
+      // Forward custom font faces so ThemeLoader can inject @font-face rules.
+      // The server sends root-relative URLs (/api/harvest/themes/.../fonts/...);
+      // absolutize them against the HA origin so the embedding page's own
+      // origin is not used as the base (which would 404 off-HA). Mirrors the
+      // renderer-script URL handling in #handleRenderer.
+      if (Array.isArray(msg.custom_fonts)) {
+        theme.custom_fonts = msg.custom_fonts.map((face) => ({
+          ...face,
+          url: this.#absoluteHaUrl(face.url),
+        }));
+      }
+    }
     for (const card of this.#cards.values()) {
       card.receiveTheme?.(theme);
     }
+  }
+
+  /**
+   * Resolve a possibly-root-relative URL against the HA origin. Absolute URLs
+   * (http(s)://, //, data:, blob:) pass through unchanged.
+   * @param {string} url
+   * @returns {string}
+   */
+  #absoluteHaUrl(url) {
+    if (typeof url !== "string" || url === "") return url;
+    if (/^(https?:|data:|blob:)/i.test(url) || url.startsWith("//")) return url;
+    return this.#haUrl + (url.startsWith("/") ? url : "/" + url);
   }
 
   #handleTokenConfig(msg) {
@@ -756,60 +1089,59 @@ export class HarvestClient {
       lang: msg.lang ?? "auto",
       a11y: msg.a11y ?? "standard",
       colorScheme: msg.color_scheme ?? "auto",
+      iconSet: msg.icon_set ?? null,
       onOffline: msg.on_offline ?? "last-state",
       onError: msg.on_error ?? "message",
       offlineText: msg.offline_text ?? "",
       errorText: msg.error_text ?? "",
     };
+    this.#requestIconSetById(config.iconSet);
     for (const card of this.#cards.values()) {
       card.receiveTokenConfig?.(config);
     }
   }
 
-  #handleRendererPack(msg) {
+  #handleRenderer(msg) {
     if (!msg.url) {
-      this.#activePack = null;
+      this.#activeRenderer = null;
       for (const card of this.#cards.values()) {
         card._reRender?.();
       }
       return;
     }
-    // Strip query string before extracting pack ID so ?v=timestamp never breaks the match.
     const urlPath = msg.url.split("?")[0];
+    if (msg.url && (msg.url.includes("://") || msg.url.startsWith("//"))) {
+      console.warn("[HArvest] Rejected renderer message with absolute URL:", msg.url);
+      return;
+    }
     const match = urlPath.match(/\/([^/]+)\.js$/);
-    const packId = match ? match[1] : null;
-    if (window.HArvest?._packs?.[packId]) {
-      this.#activePack = packId;
+    const rendererId = match ? match[1] : null;
+    if (window.HArvest?._renderers?.[rendererId]) {
+      this.#activeRenderer = rendererId;
       for (const card of this.#cards.values()) {
         card._reRender?.();
       }
       return;
     }
-    // Validate URL is a relative path (defense-in-depth against malicious server messages).
-    if (msg.url && (msg.url.includes("://") || msg.url.startsWith("//"))) {
-      console.warn("[HArvest] Rejected renderer_pack with absolute URL:", msg.url);
-      return;
-    }
-    // Pack not yet loaded - set a promise so entity_definition messages wait.
     let resolve;
-    this.#packLoadPromise = new Promise(r => { resolve = r; });
+    this.#rendererLoadPromise = new Promise(r => { resolve = r; });
     const script = document.createElement("script");
     const sep = msg.url.includes("?") ? "&" : "?";
     script.src = this.#haUrl + msg.url + sep + "_=" + Date.now();
-    script.dataset.packId = packId;
+    script.dataset.rendererId = rendererId;
     script.onload = () => {
       document.head.removeChild(script);
-      this.#activePack = packId;
-      this.#packLoadPromise = null;
+      this.#activeRenderer = rendererId;
+      this.#rendererLoadPromise = null;
       resolve();
       for (const card of this.#cards.values()) {
         card._reRender?.();
       }
     };
     script.onerror = () => {
-      console.warn("[HArvest] Failed to load renderer pack:", msg.url);
+      console.warn("[HArvest] Failed to load renderer:", msg.url);
       document.head.removeChild(script);
-      this.#packLoadPromise = null;
+      this.#rendererLoadPromise = null;
       resolve();
     };
     document.head.appendChild(script);
@@ -895,6 +1227,27 @@ export class HarvestClient {
       } catch (err) {
         console.warn("[HArvest] Failed to send message:", err);
       }
+    }
+  }
+
+  /**
+   * Send a session-bound message, or hold it until renewal installs the new
+   * session ID.
+   * @param {object} payload
+   */
+  #sendSessionJson(payload) {
+    if (this.#renewalPending) {
+      this.#queuedSessionMessages.push(payload);
+      return;
+    }
+    this.#sendJson(payload);
+  }
+
+  #flushQueuedSessionMessages() {
+    const queued = this.#queuedSessionMessages;
+    this.#queuedSessionMessages = [];
+    for (const payload of queued) {
+      this.#sendJson({ ...payload, session_id: this.#sessionId });
     }
   }
 }

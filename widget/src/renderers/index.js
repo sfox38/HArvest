@@ -31,9 +31,13 @@ import { BinarySensorCard }       from "./binary-sensor-card.js";
 import { InputBooleanCard }       from "./input-boolean-card.js";
 import { InputNumberCard }        from "./input-number-card.js";
 import { InputSelectCard }        from "./input-select-card.js";
-import { HarvestActionCard }      from "./harvest-action-card.js";
 import { TimerCard }              from "./timer-card.js";
 import { WeatherCard }            from "./weather-card.js";
+import { LockCard }               from "./lock-card.js";
+import { PersonCard }             from "./person-card.js";
+import { ButtonCard }             from "./button-card.js";
+import { ScriptCard }             from "./script-card.js";
+import { AutomationCard }         from "./automation-card.js";
 import { GenericCard }            from "./generic-card.js";
 import { BadgeCard }              from "./badge-card.js";
 
@@ -65,6 +69,7 @@ const _registry = new Map([
   ["input_boolean",           InputBooleanCard],
   ["input_number",            InputNumberCard],
   ["input_select",            InputSelectCard],
+  ["select",                  InputSelectCard],
 
   // Timer
   ["timer",                   TimerCard],
@@ -72,8 +77,24 @@ const _registry = new Map([
   // Weather
   ["weather",                 WeatherCard],
 
-  // Virtual domain
-  ["harvest_action",          HarvestActionCard],
+  // Lock
+  ["lock",                    LockCard],
+
+  // Person (read-only)
+  ["person",                  PersonCard],
+
+  // Button (momentary press) - input_button shares the same renderer
+  ["button",                  ButtonCard],
+  ["input_button",            ButtonCard],
+
+  // number domain - same UX as input_number
+  ["number",                  InputNumberCard],
+
+  // Script (run once, staleOnMount=false)
+  ["script",                  ScriptCard],
+
+  // Automation (trigger + enable/disable)
+  ["automation",              AutomationCard],
 
   // Badge - capability-routed, not domain-routed
   ["badge",                   BadgeCard],
@@ -113,15 +134,6 @@ export function registerRenderer(key, rendererClass) {
   _registry.set(key, rendererClass);
 }
 
-export const _BUILTIN_CAPABILITIES = {
-  fan:          { display_modes: ["on-off", "continuous", "stepped", "cycle"] },
-  input_number: { display_modes: ["slider", "buttons"] },
-  light:        { features: ["brightness", "color_temp", "rgb"] },
-  climate:      { features: ["hvac_modes", "presets", "fan_mode", "swing_mode"] },
-  cover:        { features: ["position", "tilt"] },
-  media_player: { features: ["transport", "volume", "source"] },
-};
-
 // Re-export all renderer classes so they are accessible via
 // window.HArvest.renderers (assembled in the build entry point).
 export {
@@ -141,9 +153,13 @@ export {
   InputBooleanCard,
   InputNumberCard,
   InputSelectCard,
-  HarvestActionCard,
   TimerCard,
   WeatherCard,
+  LockCard,
+  PersonCard,
+  ButtonCard,
+  ScriptCard,
+  AutomationCard,
   GenericCard,
   BadgeCard,
 };

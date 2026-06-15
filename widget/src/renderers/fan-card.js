@@ -12,6 +12,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const FAN_CARD_STYLES = /* css */`
   [part=card-body] {
@@ -164,16 +165,9 @@ const FAN_CARD_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class FanCard extends BaseCard {
+  /** @type {HTMLButtonElement|null} */ #rowToggle       = null;
   /** @type {HTMLButtonElement|null} */ #toggleBtn       = null;
   /** @type {HTMLInputElement|null}  */ #speedSlider     = null;
   /** @type {HTMLElement|null}       */ #speedValue      = null;
@@ -203,10 +197,14 @@ export class FanCard extends BaseCard {
   get #isStepped()  { return this.#percentageStep > 1; }
   get #isCycleFan() { return this.#isStepped && (this.def.feature_config?.preset_modes?.length > 0); }
   get #speedSteps() {
+    // Return EXACT step values so they land on HA's range-mapping bucket
+    // boundaries. A 6-speed fan has step = 100/6 = 16.6666... and HA's
+    // valid percentages are exactly [16.6666..., 33.3333..., ...]. Sending
+    // a rounded value like 16.6 or 17 makes HA snap to the wrong speed.
     const step = this.#percentageStep;
     const steps = [];
     for (let i = 1; i * step <= 100.001; i++) {
-      steps.push(Math.floor(i * step * 10) / 10);
+      steps.push(i * step);
     }
     return steps;
   }
@@ -253,11 +251,12 @@ export class FanCard extends BaseCard {
     }
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${FAN_CARD_STYLES}</style>
+      <style>${FAN_CARD_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          ${isWritable ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>` : `<span part="row-control"><span part="row-state"></span></span>`}
         </div>
         <div part="card-body">
           ${isWritable ? `<button part="toggle-button" type="button"></button>` : ""}
@@ -292,6 +291,7 @@ export class FanCard extends BaseCard {
       </div>
     `;
 
+    this.#rowToggle     = this.root.querySelector("[part=row-toggle]");
     this.#toggleBtn     = this.root.querySelector("[part=toggle-button]");
     this.#speedSlider   = this.root.querySelector("[part=speed-slider]");
     this.#speedValue    = this.root.querySelector("[part=speed-value]");
@@ -307,20 +307,23 @@ export class FanCard extends BaseCard {
 
     this.renderIcon(this.resolveIcon(this.def.icon, "mdi:fan-off"), "card-icon");
 
-    this._attachGestureHandlers(this.#toggleBtn, {
-      onTap: () => {
-        const tap = this.config.gestureConfig?.tap;
-        if (tap) { this._runAction(tap); return; }
-        this.config.card?.sendCommand(this.#isOn ? "turn_off" : "turn_on", {});
-      },
-    });
+    const onTap = () => {
+      const tap = this.config.gestureConfig?.tap;
+      if (tap) { this._runAction(tap); return; }
+      this.config.card?.sendCommand(this.#isOn ? "turn_off" : "turn_on", {});
+    };
+    this._attachGestureHandlers(this.#toggleBtn, { onTap });
+    this._attachGestureHandlers(this.#rowToggle, { onTap });
 
     if (this.#speedSlider) {
       this.#speedSlider.addEventListener("input", (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (this.#speedValue) this.#speedValue.textContent = `${val}%`;
+        // Number() not parseInt() - preserves fractional step values
+        // (e.g. 16.6666... for a 6-speed fan).
+        const val = Number(e.target.value);
+        if (this.#speedValue) this.#speedValue.textContent = `${Math.round(val)}%`;
         this.#speedDebounce(val);
       });
+      this.guardSlider(this.#speedSlider, this.#speedDebounce);
     }
 
     if (this.#cycleBtn) {
@@ -413,9 +416,17 @@ export class FanCard extends BaseCard {
       this.#toggleBtn.disabled = isUnavailable;
     }
 
-    if (this.#speedSlider && !this.isFocused(this.#speedSlider)) {
+    if (this.#rowToggle) {
+      this.#rowToggle.setAttribute("aria-pressed", String(this.#isOn));
+      this.#rowToggle.disabled = isUnavailable;
+    }
+
+    const rowStateEl = this.root.querySelector("[part=row-state]");
+    if (rowStateEl) rowStateEl.textContent = label;
+
+    if (this.#speedSlider && !this.isSliderActive(this.#speedSlider)) {
       this.#speedSlider.value = String(this.#percentage);
-      if (this.#speedValue) this.#speedValue.textContent = `${this.#percentage}%`;
+      if (this.#speedValue) this.#speedValue.textContent = `${Math.round(this.#percentage)}%`;
     }
 
     if (this.#cycleBtn) {

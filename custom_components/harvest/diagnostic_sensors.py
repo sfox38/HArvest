@@ -5,7 +5,6 @@ HA state machine, enabling dashboards, automations, and alerts.
 """
 from __future__ import annotations
 
-import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -18,24 +17,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_interval
 
+from ._utils import slugify
 from .activity_store import ActivityStore
 from .session_manager import SessionManager
 from .token_manager import TokenManager
 
 _GLOBAL_UPDATE_INTERVAL = timedelta(seconds=30)
-
-
-def _slugify(label: str) -> str:
-    """Convert a token label to a slug suitable for entity_id use.
-
-    Lowercases, replaces spaces and hyphens with underscores, removes all
-    characters that are not alphanumeric or underscore.
-    """
-    slug = label.lower().strip()
-    slug = re.sub(r"[\s\-]+", "_", slug)
-    slug = re.sub(r"[^a-z0-9_]", "", slug)
-    slug = re.sub(r"_+", "_", slug).strip("_")
-    return slug or "unnamed"
 
 
 class DiagnosticSensors:
@@ -90,7 +77,7 @@ class DiagnosticSensors:
         Entity IDs follow: sensor.harvest_{label_slug}_{metric}
         where {label_slug} is the token label slugified.
         """
-        slug = _slugify(label)
+        slug = slugify(label)
         sensors: list[SensorEntity] = [
             HarvestTokenSessionsSensor(token_id, slug, self._session_manager),
             HarvestTokenLastSeenSensor(token_id, slug, self._activity_store),
@@ -330,19 +317,8 @@ class HarvestTokenLastSeenSensor(_TokenSensorBase):
         self._attr_name = f"HArvest {label_slug} Last Seen"
 
     async def async_update(self) -> None:
-        events, _ = await self._activity_store.query_activity(
-            token_id=self._token_id,
-            display_type_filter="AUTH_OK",
-            limit=1,
-            offset=0,
-        )
-        if events:
-            ts = events[0].get("timestamp")
-            if isinstance(ts, str):
-                ts = datetime.fromisoformat(ts)
-            self._attr_native_value = ts
-        else:
-            self._attr_native_value = None
+        ts, _origin = await self._activity_store.get_last_successful_auth(self._token_id)
+        self._attr_native_value = datetime.fromisoformat(ts) if ts else None
 
 
 class HarvestTokenLastOriginSensor(_TokenSensorBase):
@@ -355,16 +331,8 @@ class HarvestTokenLastOriginSensor(_TokenSensorBase):
         self._attr_name = f"HArvest {label_slug} Last Origin"
 
     async def async_update(self) -> None:
-        events, _ = await self._activity_store.query_activity(
-            token_id=self._token_id,
-            display_type_filter="AUTH_OK",
-            limit=1,
-            offset=0,
-        )
-        if events:
-            self._attr_native_value = events[0].get("origin") or None
-        else:
-            self._attr_native_value = None
+        _ts_value, origin = await self._activity_store.get_last_successful_auth(self._token_id)
+        self._attr_native_value = origin
 
 
 class HarvestTokenCommandsTodaySensor(_TokenSensorBase):
@@ -391,10 +359,6 @@ class HarvestTokenCommandsTodaySensor(_TokenSensorBase):
         midnight_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
         midnight_utc = midnight_local.astimezone(timezone.utc)
 
-        _events, total = await self._activity_store.query_activity(
-            token_id=self._token_id,
-            display_type_filter="COMMAND",
-            since=midnight_utc,
-            limit=1,
+        self._attr_native_value = await self._activity_store.count_commands_since(
+            self._token_id, midnight_utc
         )
-        self._attr_native_value = total

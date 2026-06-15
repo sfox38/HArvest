@@ -19,31 +19,62 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
+from ._utils import get_entry_data
 from .activity_store import ActivityStore, AuthEvent, CommandEvent, ErrorEvent, SessionEvent
+from .compatibility import (
+    check_protocol_compatibility,
+    evaluate as evaluate_compatibility,
+    parse_client_block,
+    server_info,
+)
 from .const import (
     CONF_AUTH_TIMEOUT,
-    CONF_KILL_SWITCH,
+    CONF_HEARTBEAT_TIMEOUT,
     CONF_KEEPALIVE_INTERVAL,
+    CONF_KEEPALIVE_TIMEOUT,
+    CONF_KILL_SWITCH,
     CONF_MAX_INBOUND_BYTES,
+    DATA_TIER_BADGE,
+    DATA_TIER_COMPACT,
+    DATA_TIER_COMPANION,
+    DATA_TIER_COMPANION_RW,
+    DATA_TIER_DISPLAY,
     DEFAULTS,
     DOMAIN,
     ERR_ENTITY_NOT_IN_TOKEN,
     ERR_ORIGIN_DENIED,
+    MAX_ENTITIES_HARD_CAP,
     ERR_PERMISSION_DENIED,
+    ERR_PROTOCOL_INCOMPATIBLE,
     ERR_RATE_LIMITED,
     ERR_SERVER_ERROR,
     ERR_SESSION_EXPIRED,
     ERR_SESSION_LIMIT_REACHED,
+    ERR_SIGNATURE_INVALID,
     ERR_TOKEN_INACTIVE,
+    ERR_TOKEN_EXPIRED,
+    ERR_TOKEN_REVOKED,
     WS_PATH,
 )
-from .entity_compatibility import get_custom_domains, validate_action
-from .entity_definition import build_badge_definition, build_entity_definition, filter_attributes, get_blocked_data_keys
+from .entity_compatibility import (
+    COMPANION_INTERACTIVE_DOMAINS,
+    get_custom_domains,
+    get_sensitive_domains,
+    get_support_tier,
+    is_sensitive_domain_blocked,
+    validate_action,
+)
+from .entity_definition import (
+    build_entity_definition,
+    filter_attributes,
+    filter_attributes_for_tier,
+    get_blocked_data_keys,
+    resolve_data_tier,
+)
 from .event_bus import EventBus
-from .harvest_action import HarvestActionManager
 from .rate_limiter import RateLimiter
 from .session_manager import Session, SessionManager
-from .pack_manager import PackManager
+from .renderer_manager import RendererManager
 from .theme_manager import ThemeManager, theme_url_to_id
 from .token_manager import EntityAccess, Token, TokenManager
 
@@ -100,13 +131,21 @@ def _safe_json_value(val: object) -> object:
 _SESSION_EXPIRING_WARN_BEFORE = 600  # 10 minutes
 
 _background_tasks: set[asyncio.Task] = set()  # prevent GC of fire-and-forget tasks
+_MAX_BACKGROUND_SEND_TASKS = 1000
 
 def _fire(coro: object) -> None:
     """Schedule a coroutine as a fire-and-forget task, logging any exception.
 
-    No backpressure: a slow/dead client accumulates tasks until the WS
-    closes. Bounded in practice by push rate limiting and keepalive timeout.
+    The global task cap bounds memory use when clients are slow or dead.
+    New state updates are dropped after the cap is reached.
     """
+    if len(_background_tasks) >= _MAX_BACKGROUND_SEND_TASKS:
+        close = getattr(coro, "close", None)
+        if callable(close):
+            close()
+        _LOGGER.warning("Dropping HArvest outbound update because the send queue is full.")
+        return
+
     async def _wrap(c: object) -> None:
         try:
             await c  # type: ignore[misc]
@@ -138,78 +177,96 @@ _ALLOWED_DATA_KEYS: dict[str, set[str]] = {
         "source", "sound_mode",
     },
     "remote": {"command", "device", "num_repeats", "delay_secs", "hold_secs", "activity"},
-    "harvest_action": set(),
 }
+
+# HA entity-service schemas accept these selectors alongside service-specific
+# data. HArvest always supplies the one authorized entity as the target, so
+# client-provided selectors must never be forwarded.
+_TARGET_SELECTOR_KEYS: frozenset[str] = frozenset({
+    "entity_id", "device_id", "area_id", "floor_id", "label_id",
+})
 
 
 class HarvestWsView(HomeAssistantView):
-    """WebSocket endpoint. requires_auth = False (uses its own token-based auth)."""
+    """WebSocket endpoint for public widget connections.
+
+    requires_auth is False because this endpoint uses HArvest's own
+    token-based auth flow (token ID + optional HMAC), not HA user sessions.
+    Rate limiting, origin checks, and HMAC verification are handled
+    internally by the message loop.
+    """
 
     url = WS_PATH
     name = "api:harvest:ws"
     requires_auth = False
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        token_manager: TokenManager,
-        session_manager: SessionManager,
-        rate_limiter: RateLimiter,
-        activity_store: ActivityStore,
-        event_bus: EventBus,
-        action_manager: HarvestActionManager,
-        config: dict,
-        sensors: object = None,
-        theme_manager: ThemeManager | None = None,
-        pack_manager: PackManager | None = None,
-    ) -> None:
-        self._hass = hass
-        self._token_manager = token_manager
-        self._session_manager = session_manager
-        self._rate_limiter = rate_limiter
-        self._activity_store = activity_store
-        self._event_bus = event_bus
-        self._action_manager = action_manager
-        self._config = config
-        self._sensors = sensors
-        self._theme_manager = theme_manager
-        self._pack_manager = pack_manager
+    def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
+        """Construct the view.
 
-    def _resolve_theme_manager(self) -> ThemeManager | None:
-        """Resolve the theme manager, falling back to hass.data lookup.
-
-        HA's register_view silently skips re-registration when a route with
-        the same name already exists. If the WS view was first registered
-        before ThemeManager was wired in, self._theme_manager is None while
-        hass.data holds the live instance. This getter bridges the gap.
+        The view is registered once with HA's HTTP routing table and survives
+        config-entry reloads. Manager references therefore must NOT be cached
+        as instance fields - on reload the old refs would point at unloaded
+        managers. Each manager is resolved per-request via the @property
+        accessors below, which read live values from
+        ``hass.data[DOMAIN][entry_id]``.
         """
-        if self._theme_manager is not None:
-            return self._theme_manager
-        for entry_data in self._hass.data.get(DOMAIN, {}).values():
-            if isinstance(entry_data, dict) and "theme_manager" in entry_data:
-                return entry_data["theme_manager"]
-        return None
+        self._hass = hass
+        self._entry_id = entry_id
+
+    # --- Live manager accessors ---
+    # Each property reads from hass.data on every access. Returns may be None
+    # during the brief gap between unload and re-setup; callers tolerate this
+    # because no new WS connection should arrive during that gap (HA's
+    # config-entry reload is synchronous from the user's perspective).
+
+    @property
+    def _data(self) -> dict:
+        return get_entry_data(self._hass, self._entry_id)
+
+    @property
+    def _token_manager(self) -> TokenManager:
+        return self._data["token_manager"]
+
+    @property
+    def _session_manager(self) -> SessionManager:
+        return self._data["session_manager"]
+
+    @property
+    def _rate_limiter(self) -> RateLimiter:
+        return self._data["rate_limiter"]
+
+    @property
+    def _activity_store(self) -> ActivityStore:
+        return self._data["activity_store"]
+
+    @property
+    def _event_bus(self) -> EventBus:
+        return self._data["event_bus"]
+
+    @property
+    def _sensors(self) -> object:
+        return self._data.get("sensors")
+
+    @property
+    def _theme_manager(self) -> ThemeManager | None:
+        return self._data.get("theme_manager")
+
+    @property
+    def _renderer_manager(self) -> RendererManager | None:
+        return self._data.get("renderer_manager")
+
+    @property
+    def _config(self) -> dict:
+        return self._get_global_config()
 
     def _get_global_config(self) -> dict:
         """Return the merged global integration config."""
-        from .const import DEFAULTS
+        from .config_validation import normalize_global_config
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
-            return dict(DEFAULTS)
+            return normalize_global_config()
         entry = entries[0]
-        merged: dict = dict(DEFAULTS)
-        merged.update(entry.data)
-        merged.update(entry.options)
-        return merged
-
-    def _resolve_pack_manager(self) -> PackManager | None:
-        """Resolve the pack manager, falling back to hass.data lookup."""
-        if self._pack_manager is not None:
-            return self._pack_manager
-        for entry_data in self._hass.data.get(DOMAIN, {}).values():
-            if isinstance(entry_data, dict) and "pack_manager" in entry_data:
-                return entry_data["pack_manager"]
-        return None
+        return normalize_global_config(entry.data, entry.options)
 
     async def get(self, request: Request) -> WebSocketResponse:
         """Handle incoming WebSocket upgrade.
@@ -217,6 +274,14 @@ class HarvestWsView(HomeAssistantView):
         Checks per-IP rate limit before accepting. Returns HTTP 429 if limited.
         Accepts the WebSocket upgrade and delegates to _handle_connection().
         """
+        # If the integration is currently unloaded (between unload and re-setup,
+        # or fully removed), hass.data[DOMAIN][entry_id] is empty. Reject the
+        # upgrade with 503 so the client retries instead of getting a 500.
+        if not self._data:
+            raise aiohttp.web.HTTPServiceUnavailable(
+                reason="HArvest integration is not currently loaded."
+            )
+
         source_ip = self._get_source_ip(request)
 
         if not self._rate_limiter.check_ip(source_ip):
@@ -230,7 +295,13 @@ class HarvestWsView(HomeAssistantView):
         # Do NOT set receive_timeout here; it would close the connection when
         # no application-level message arrives within the timeout, even though
         # the client is still alive (pong frames do not count as messages).
-        ws = WebSocketResponse(heartbeat=keepalive)
+        max_bytes = self._config.get(CONF_MAX_INBOUND_BYTES, DEFAULTS[CONF_MAX_INBOUND_BYTES])
+        ws = WebSocketResponse(heartbeat=keepalive, max_msg_size=max_bytes)
+        # aiohttp derives pong_heartbeat from heartbeat/2 with no separate parameter.
+        # Override directly so CONF_KEEPALIVE_TIMEOUT is honoured.
+        ws._pong_heartbeat = float(
+            self._config.get(CONF_KEEPALIVE_TIMEOUT, DEFAULTS[CONF_KEEPALIVE_TIMEOUT])
+        )
         await ws.prepare(request)
         await self._handle_connection(ws, request)
         return ws
@@ -263,7 +334,7 @@ class HarvestWsView(HomeAssistantView):
             return
 
         # --- Step 1: Wait for auth message ---
-        # Auth message size is bounded by aiohttp's default max_msg_size (4 MB).
+        # Auth message size is bounded by WebSocketResponse.max_msg_size.
         try:
             raw = await asyncio.wait_for(ws.receive(), timeout=auth_timeout)
         except asyncio.TimeoutError:
@@ -286,6 +357,9 @@ class HarvestWsView(HomeAssistantView):
             return
 
         token_id = msg.get("token_id", "")
+        if not isinstance(token_id, str):
+            await ws.close()
+            return
         raw_entity_refs = msg.get("entity_ids", [])
         if not isinstance(raw_entity_refs, list):
             await ws.close()
@@ -293,20 +367,81 @@ class HarvestWsView(HomeAssistantView):
         if not all(isinstance(r, str) for r in raw_entity_refs):
             await ws.close()
             return
+        if len(raw_entity_refs) > MAX_ENTITIES_HARD_CAP:
+            await ws.close()
+            return
         entity_refs: list[str] = raw_entity_refs
         # Origin is spoofable by non-browser clients; see security.md scenario 3.
         origin: str = request.headers.get("Origin", "")
-        page_path: str | None = msg.get("page_path")
+        page_path = msg.get("page_path")
+        if page_path is not None and not isinstance(page_path, str):
+            await ws.close()
+            return
+        for key, expected_type in (
+            ("timestamp", int),
+            ("nonce", str),
+            ("signature", str),
+        ):
+            value = msg.get(key)
+            if value is not None and (
+                not isinstance(value, expected_type)
+                or (expected_type is int and isinstance(value, bool))
+            ):
+                await ws.close()
+                return
         msg_id = msg.get("msg_id")
 
-        # Per-IP auth rate limit check (distributed brute-force protection).
+        # --- Step 2a: Protocol-compatibility hard check ---
+        # SPEC.md Section 5.3 + Section 12 (Client/Server Compatibility).
+        # If the client speaks a protocol the server cannot, reject before
+        # touching token validation: this is a structural mismatch, not an
+        # auth attempt against a specific token. The reply carries the
+        # `server` block so the widget can render HRV_INCOMPATIBLE rather
+        # than fall into reconnect backoff. Old widgets that omit `client`
+        # default to protocol=1 in parse_client_block and pass through.
+        client_info = parse_client_block(msg.get("client"))
+        srv = server_info()
+        if not check_protocol_compatibility(client_info, srv):
+            await ws.send_json({
+                "type": "auth_failed",
+                "code": ERR_PROTOCOL_INCOMPATIBLE,
+                "msg_id": msg_id,
+                "server": {
+                    "protocol": srv.protocol,
+                    "version": srv.version,
+                    "min_client_protocol": srv.min_client_protocol,
+                },
+            })
+            await ws.close()
+            return
+
+        # Per-IP and per-token auth rate-limit counters target different
+        # attack patterns and are intentionally asymmetric:
+        #
+        #   - Per-IP cap defends against a single misbehaving IP. When it
+        #     fires, only the IP counter is incremented. NOT incrementing the
+        #     token counter here is deliberate: it prevents a single IP from
+        #     locking out a token globally for legitimate users.
+        #
+        #   - Per-token cap defends against distributed brute-force where an
+        #     attacker rotates IPs (each below its own IP cap) but accrues
+        #     attempts against the same token. When it fires, both counters
+        #     are incremented because the attempt was a real signal against
+        #     both the originating IP and the targeted token.
+        #
+        #   - Auth-validation failures (later in this method) likewise
+        #     increment both, because a failed auth is a real signal at both
+        #     levels.
+        #
+
+        # Per-IP auth rate limit check (single-IP brute-force protection).
         if not self._rate_limiter.check_auth_for_ip(source_ip):
             self._rate_limiter.record_auth_attempt_ip(source_ip)
             await ws.send_json({"type": "auth_failed", "code": ERR_RATE_LIMITED, "msg_id": msg_id})
             await ws.close()
             return
 
-        # Per-token auth rate limit check (brute-force protection).
+        # Per-token auth rate limit check (distributed-brute-force protection).
         if not self._rate_limiter.check_auth_for_token(token_id):
             self._rate_limiter.record_auth_attempt(token_id)
             self._rate_limiter.record_auth_attempt_ip(source_ip)
@@ -315,6 +450,11 @@ class HarvestWsView(HomeAssistantView):
             return
 
         # Validate auth (checks all 10 conditions in spec order).
+        # dropped_refs collects entity refs that the integration silently
+        # skipped during step 8 (unresolved or Tier-3). When auth ultimately
+        # succeeds we record each one to the activity log so admins can see
+        # stale or incompatible card references on the page.
+        dropped_refs: list[tuple[str, str]] = []
         token, error_code = self._token_manager.validate_auth(
             token_id=token_id,
             origin=origin,
@@ -324,6 +464,7 @@ class HarvestWsView(HomeAssistantView):
             timestamp=msg.get("timestamp"),
             nonce=msg.get("nonce"),
             signature=msg.get("signature"),
+            dropped_refs=dropped_refs,
         )
 
         if error_code is not None:
@@ -358,13 +499,16 @@ class HarvestWsView(HomeAssistantView):
         real_entity_ids: list[str] = []
         outgoing_ids: dict[str, str] = {}  # real_entity_id -> outgoing id (alias or real)
 
+        sensitive = get_sensitive_domains(self._hass)
         for ref in entity_refs:
             ea = self._resolve_entity_ref(ref, token)
             if ea is not None and ea.entity_id not in outgoing_ids:
+                if is_sensitive_domain_blocked(ea.entity_id.split(".")[0], sensitive):
+                    continue
                 real_entity_ids.append(ea.entity_id)
                 outgoing_ids[ea.entity_id] = ref  # echo back whatever the client sent
 
-        real_entity_ids = _expand_with_companions(real_entity_ids, token, outgoing_ids)
+        real_entity_ids = _expand_with_companions(real_entity_ids, token, outgoing_ids, sensitive)
 
         session_id = self._token_manager.generate_session_id()
 
@@ -390,6 +534,17 @@ class HarvestWsView(HomeAssistantView):
             await ws.close()
             return
 
+        # Attach the client identity + compatibility status to the session
+        # so panel APIs can surface drift banners (SPEC Section 12). The
+        # status is sticky: re-evaluating on every renew would let banners
+        # disappear without the admin acting, which the spec disallows.
+        compatibility = evaluate_compatibility(client_info, srv)
+        session.client_protocol = client_info.protocol
+        session.client_widget_version = client_info.widget
+        session.client_source = client_info.source
+        session.client_source_version = client_info.source_version
+        session.compatibility = compatibility
+
         # --- Step 4: Send auth_ok ---
         await ws.send_json({
             "type": "auth_ok",
@@ -399,6 +554,12 @@ class HarvestWsView(HomeAssistantView):
             "max_renewals": token.session.max_renewals,
             "entity_ids": list(outgoing_ids.values()),  # only accepted refs
             "msg_id": msg_id,
+            "server": {
+                "protocol": srv.protocol,
+                "version": srv.version,
+                "min_client_protocol": srv.min_client_protocol,
+            },
+            "compatibility": compatibility,
         })
 
         # Record successful auth.
@@ -411,6 +572,26 @@ class HarvestWsView(HomeAssistantView):
             timestamp=datetime.now(tz=timezone.utc),
             referer=page_path,
         ))
+
+        # Record any entity refs that validate_auth silently dropped during step 8.
+        # Useful for admins to discover stale or Tier-3 cards on a page without the
+        # connection itself failing.
+        if dropped_refs:
+            now = datetime.now(tz=timezone.utc)
+            for ref, reason in dropped_refs:
+                self._activity_store.record_error(ErrorEvent(
+                    session_id=session.session_id,
+                    code="ENTITY_REF_DROPPED",
+                    message=f"token={token.token_id} ref={ref!r} reason={reason}",
+                    timestamp=now,
+                ))
+            _LOGGER.info(
+                "HArvest auth for token %s succeeded with %d silently-dropped entity ref(s): %s",
+                token.token_id,
+                len(dropped_refs),
+                ", ".join(f"{r!r}({reason})" for r, reason in dropped_refs),
+            )
+
         self._event_bus.session_connected(session.session_id, token.token_id, origin)
         self._activity_store.record_session(SessionEvent(
             session_id=session.session_id,
@@ -458,6 +639,7 @@ class HarvestWsView(HomeAssistantView):
             "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
             "a11y": token.a11y if token.a11y != "standard" else gcfg.get("default_a11y", "standard"),
             "color_scheme": token.color_scheme,
+            "icon_set": token.icon_set,
             "on_offline": token.on_offline if use_custom else gcfg.get("default_on_offline", "last-state"),
             "on_error": token.on_error if use_custom else gcfg.get("default_on_error", "message"),
             "offline_text": token.offline_text if use_custom else gcfg.get("default_offline_text", ""),
@@ -465,37 +647,33 @@ class HarvestWsView(HomeAssistantView):
         })
 
         # --- Step 4a: Send theme data if token has a theme ---
-        theme_mgr = self._resolve_theme_manager()
+        theme_mgr = self._theme_manager
         if theme_mgr and token.theme_url:
             theme_id = theme_url_to_id(token.theme_url)
             theme_def = theme_mgr.get(theme_id)
             if theme_def:
-                await ws.send_json({
-                    "type": "theme",
-                    "variables": theme_def.variables,
-                    "dark_variables": theme_def.dark_variables,
-                })
+                await ws.send_json(theme_mgr.build_runtime_message(theme_id, theme_def))
 
-        # --- Step 4a.2: Send renderer pack URL if token has one ---
+        # --- Step 4a.2: Send renderer URL if token has one ---
         if token.renderer_pack:
-            pack_mgr = self._resolve_pack_manager()
-            pack_path = pack_mgr.get_pack_path(token.renderer_pack) if pack_mgr and pack_mgr.agreed else None
-            if pack_path:
+            renderer_mgr = self._renderer_manager
+            renderer_path = renderer_mgr.get_renderer_path(token.renderer_pack) if renderer_mgr and renderer_mgr.agreed else None
+            if renderer_path:
                 try:
-                    mtime = int(pack_path.stat().st_mtime)
+                    mtime = int(renderer_path.stat().st_mtime)
                 except OSError:
                     mtime = 0
                 await ws.send_json({
-                    "type": "renderer_pack",
-                    "url": f"/api/harvest/packs/{token.renderer_pack}.js?v={mtime}",
+                    "type": "renderer",
+                    "url": f"/api/harvest/renderers/{token.renderer_pack}.js?v={mtime}",
                 })
 
         # --- Steps 4b/6/7: Initial state, message loop, and cleanup ---
         # _send_initial_state and _register_listeners are inside the try block so
         # that a dropped connection during initial state push still triggers cleanup.
         try:
-            await self._send_initial_state(ws, session, real_entity_ids, token, outgoing_ids, forecast_cache)
             self._register_listeners(ws, session, token, outgoing_ids, listener_unsubs, real_entity_ids, forecast_cache, forecast_unsubs)
+            await self._send_initial_state(ws, session, real_entity_ids, token, outgoing_ids, forecast_cache)
             await self._message_loop(ws, session, token, outgoing_ids, listener_unsubs, expiry_warning_holder, forecast_cache, forecast_unsubs)
         finally:
             # --- Step 7: Cleanup ---
@@ -506,6 +684,7 @@ class HarvestWsView(HomeAssistantView):
             for unsub_list in forecast_unsubs.values():
                 for unsub in unsub_list:
                     unsub()
+            self._cancel_deferred_state_pushes(session)
             self._session_manager.terminate(session.session_id)
             self._rate_limiter.cleanup_session(session.session_id)
             self._activity_store.record_session(SessionEvent(
@@ -547,11 +726,13 @@ class HarvestWsView(HomeAssistantView):
                 await ws.send_json({"type": "entity_removed", "entity_id": outgoing_id, "msg_id": None})
                 continue
 
-            is_badge = ea is not None and ea.capabilities == "badge"
+            caps = ea.capabilities if ea else "read"
+            is_companion = ea is not None and ea.companion_of is not None
+            tier = resolve_data_tier(token.entities_block, caps, is_companion)
 
-            # Fetch initial forecast only when show_forecast is explicitly enabled.
+            # Fetch initial forecast only for tiers that send weather attributes.
             if (
-                not is_badge
+                tier not in (DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW)
                 and forecast_cache is not None
                 and real_id.startswith("weather.")
                 and ea is not None
@@ -559,21 +740,21 @@ class HarvestWsView(HomeAssistantView):
             ):
                 await self._fetch_initial_forecast(real_id, forecast_cache)
 
-            # entity_definition
-            if is_badge:
-                defn = build_badge_definition(self._hass, real_id, ea)
+            # entity_definition - tier controls which fields are included.
+            if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW):
+                defn = build_entity_definition(self._hass, real_id, ea, detail_level=tier)
             else:
                 companion_refs = [
                     outgoing_ids.get(comp_ea.entity_id, comp_ea.entity_id)
                     for comp_ea in token.entities
                     if comp_ea.companion_of == real_id
                 ]
-                defn = build_entity_definition(self._hass, real_id, ea, companions=companion_refs)
+                defn = build_entity_definition(self._hass, real_id, ea, companions=companion_refs, detail_level=tier)
             if defn is not None:
                 defn = dict(defn)
                 defn["type"] = "entity_definition"
                 defn["entity_id"] = outgoing_id
-                defn["capabilities"] = ea.capabilities if ea else "read"
+                defn["capabilities"] = caps
                 defn["msg_id"] = None
                 await ws.send_json(defn)
 
@@ -662,9 +843,10 @@ class HarvestWsView(HomeAssistantView):
                 msg_type = msg.get("type")
 
                 client_sid = msg.get("session_id")
-                if client_sid is not None and client_sid != session.session_id:
+                if client_sid != session.session_id:
                     _LOGGER.warning(
-                        "HArvest: session_id mismatch from session %s (got %s). Dropping message.",
+                        "HArvest: missing or mismatched session_id from session %s (got %s). "
+                        "Dropping message.",
                         session.session_id, client_sid,
                     )
                     continue
@@ -700,12 +882,12 @@ class HarvestWsView(HomeAssistantView):
         Validates entity_id scope, capability (read-write required),
         action against ALLOWED_SERVICES, and command rate limit.
         Strips unknown keys from data payload before forwarding.
-        Calls hass.services.async_call() or action_manager.trigger().
+        Calls hass.services.async_call().
         Sends ack. Records command in activity_store.
         """
         msg_id = msg.get("msg_id")
-        entity_ref: str = msg.get("entity_id", "")
-        action: str = msg.get("action", "")
+        entity_ref = msg.get("entity_id", "")
+        action = msg.get("action", "")
         raw_data = msg.get("data")
         data: dict = raw_data if isinstance(raw_data, dict) else {}
 
@@ -718,17 +900,12 @@ class HarvestWsView(HomeAssistantView):
                 "msg_id": msg_id,
             })
 
+        if not isinstance(entity_ref, str) or not isinstance(action, str):
+            await ack_error("ERR_BAD_REQUEST", "entity_id and action must be strings.")
+            return
+
         # Resolve entity_ref (alias or real ID) to EntityAccess.
         ea = self._resolve_entity_ref(entity_ref, token)
-
-        # harvest_action entities are not added to tokens. Allow trigger commands if
-        # the entity is explicitly listed in a gesture_config on this token.
-        if ea is None and entity_ref.startswith("harvest_action.") and action == "trigger":
-            if _is_permitted_gesture_harvest_action(entity_ref, token):
-                ea = EntityAccess(entity_id=entity_ref, capabilities="read-write")
-            else:
-                await ack_error(ERR_ENTITY_NOT_IN_TOKEN, f"harvest_action not permitted on this token: {entity_ref}")
-                return
 
         if ea is None:
             await ack_error(ERR_ENTITY_NOT_IN_TOKEN, f"Entity not in token: {entity_ref}")
@@ -737,13 +914,22 @@ class HarvestWsView(HomeAssistantView):
         real_id = ea.entity_id
         domain = real_id.split(".")[0]
 
+        # Sensitive-domain gate: a Tier 1 domain disabled in global Settings
+        # refuses commands even for tokens that still list the entity. Mirrors
+        # the auth-time filter so closing a gate in Settings takes effect on
+        # every active token, not just on the next reconnect.
+        if is_sensitive_domain_blocked(domain, get_sensitive_domains(self._hass)):
+            await ack_error(ERR_PERMISSION_DENIED, f"Domain '{domain}' is disabled in Settings")
+            return
+
         # Capability check: must be read-write.
         if ea.capabilities != "read-write":
             await ack_error(ERR_PERMISSION_DENIED, f"Write not permitted for entity {entity_ref}")
             return
 
-        # Companions with read capability are never allowed to send commands.
-        # (Checked above by capability check - read-only entities are blocked.)
+        if ea.companion_of is not None and domain not in COMPANION_INTERACTIVE_DOMAINS:
+            await ack_error(ERR_PERMISSION_DENIED, f"Companion domain '{domain}' is display-only")
+            return
 
         # Validate action against ALLOWED_SERVICES + custom domains.
         custom_domains = get_custom_domains(self._hass)
@@ -774,25 +960,26 @@ class HarvestWsView(HomeAssistantView):
             svc_schema = domain_map.get(action)
             if svc_schema and hasattr(svc_schema, "schema") and svc_schema.schema:
                 try:
-                    allowed_keys = {str(k) for k in svc_schema.schema.schema.keys()} - {"entity_id"}
+                    allowed_keys = {
+                        str(k) for k in svc_schema.schema.schema.keys()
+                    } - _TARGET_SELECTOR_KEYS
                 except Exception:
                     allowed_keys = set()
             else:
                 allowed_keys = set()
         blocked_keys = get_blocked_data_keys(ea.exclude_attributes) if ea.exclude_attributes else set()
-        clean_data = {k: v for k, v in data.items() if k in allowed_keys and k not in blocked_keys}
+        clean_data = {
+            k: v for k, v in data.items()
+            if k in allowed_keys and k not in blocked_keys and k not in _TARGET_SELECTOR_KEYS
+        }
 
         # Execute.
         success = True
         try:
-            if domain == "harvest_action":
-                action_id = real_id.split(".", 1)[1]
-                await self._action_manager.trigger(action_id, session)
-            else:
-                await self._hass.services.async_call(
-                    domain, action, clean_data,
-                    target={"entity_id": real_id},
-                    blocking=True,
+            await self._hass.services.async_call(
+                domain, action, clean_data,
+                target={"entity_id": real_id},
+                blocking=True,
                 )
         except Exception:
             _LOGGER.exception(
@@ -839,10 +1026,21 @@ class HarvestWsView(HomeAssistantView):
         """
         msg_id = msg.get("msg_id")
         raw_refs = msg.get("entity_ids", [])
-        if not isinstance(raw_refs, list):
+        if (
+            not isinstance(raw_refs, list)
+            or len(raw_refs) > MAX_ENTITIES_HARD_CAP
+            or not all(isinstance(ref, str) for ref in raw_refs)
+        ):
             await ws.send_json({"type": "error", "code": "ERR_BAD_REQUEST", "msg_id": msg_id})
             return
         refs: list[str] = raw_refs
+
+        # Apply the same domain gates the auth path enforces. Without this a
+        # token holder could auth with an empty entity list and then subscribe
+        # past a gate the admin has closed (Tier 3 reclassification, or a
+        # sensitive Tier 1 domain disabled in Settings). Both are silently
+        # skipped so they simply never appear in the accepted refs.
+        sensitive = get_sensitive_domains(self._hass)
 
         accepted_refs: list[str] = []
         new_real_ids: list[str] = []
@@ -853,6 +1051,11 @@ class HarvestWsView(HomeAssistantView):
                 continue
             if ea.entity_id in session.subscribed_entity_ids:
                 continue  # already subscribed
+            domain = ea.entity_id.split(".")[0]
+            if get_support_tier(domain) == 3:
+                continue
+            if is_sensitive_domain_blocked(domain, sensitive):
+                continue
             accepted_refs.append(ref)
             new_real_ids.append(ea.entity_id)
             outgoing_ids[ea.entity_id] = ref
@@ -861,17 +1064,17 @@ class HarvestWsView(HomeAssistantView):
             await ws.send_json({"type": "subscribe_ok", "entity_ids": [], "msg_id": msg_id})
             return
 
-        new_real_ids = _expand_with_companions(new_real_ids, token, outgoing_ids)
+        new_real_ids = _expand_with_companions(new_real_ids, token, outgoing_ids, sensitive)
 
         self._session_manager.add_subscription(session.session_id, new_real_ids)
 
         await ws.send_json({"type": "subscribe_ok", "entity_ids": accepted_refs, "msg_id": msg_id})
 
-        # Send interleaved entity_definition + state_update for each new entity.
-        await self._send_initial_state(ws, session, new_real_ids, token, outgoing_ids, forecast_cache)
-
         # Register new listeners.
         self._register_listeners(ws, session, token, outgoing_ids, listener_unsubs, new_real_ids, forecast_cache, forecast_unsubs)
+
+        # Send interleaved entity_definition + state_update for each new entity.
+        await self._send_initial_state(ws, session, new_real_ids, token, outgoing_ids, forecast_cache)
 
     async def _handle_unsubscribe(
         self,
@@ -890,7 +1093,14 @@ class HarvestWsView(HomeAssistantView):
         Unregisters state_changed listeners if no other session needs them.
         No response is sent.
         """
-        refs: list[str] = msg.get("entity_ids", [])
+        raw_refs = msg.get("entity_ids", [])
+        if (
+            not isinstance(raw_refs, list)
+            or len(raw_refs) > MAX_ENTITIES_HARD_CAP
+            or not all(isinstance(ref, str) for ref in raw_refs)
+        ):
+            return
+        refs: list[str] = raw_refs
         real_ids: list[str] = []
 
         for ref in refs:
@@ -912,6 +1122,7 @@ class HarvestWsView(HomeAssistantView):
                     real_ids.append(comp_id)
 
         self._session_manager.remove_subscription(session.session_id, real_ids)
+        self._cancel_deferred_state_pushes(session, real_ids)
 
         for real_id in real_ids:
             unsub = listener_unsubs.pop(real_id, None)
@@ -943,6 +1154,45 @@ class HarvestWsView(HomeAssistantView):
         """
         msg_id = msg.get("msg_id")
 
+        live_token = self._token_manager.get(session.token_id)
+        inactive_code = self._live_token_error(live_token)
+        if inactive_code is not None:
+            await ws.send_json({
+                "type": "auth_failed",
+                "code": inactive_code,
+                "msg_id": msg_id,
+            })
+            await ws.close()
+            return
+        token = live_token
+
+        if token.token_secret is not None:
+            timestamp = msg.get("timestamp")
+            nonce = msg.get("nonce")
+            signature = msg.get("signature")
+            valid_signature = (
+                msg.get("token_id") == session.token_id
+                and isinstance(timestamp, int)
+                and not isinstance(timestamp, bool)
+                and isinstance(nonce, str)
+                and isinstance(signature, str)
+                and self._token_manager.verify_hmac(
+                    token.token_secret,
+                    session.token_id,
+                    timestamp,
+                    nonce,
+                    signature,
+                )
+            )
+            if not valid_signature:
+                await ws.send_json({
+                    "type": "auth_failed",
+                    "code": ERR_SIGNATURE_INVALID,
+                    "msg_id": msg_id,
+                })
+                await ws.close()
+                return
+
         # Check max_renewals before calling renew() (session_manager doesn't have token context).
         if (
             token.session.max_renewals is not None
@@ -969,10 +1219,15 @@ class HarvestWsView(HomeAssistantView):
             })
             await ws.close()
             return
+        self._rate_limiter.rekey_session(old_session_id, session.session_id)
 
         # Send new auth_ok with new session_id.
         # entity_ids echoes the outgoing_ids values (what the client originally sent).
+        # server/compatibility are sticky on the session: compatibility was
+        # decided at original auth and is echoed here; re-evaluating on
+        # renew would let banners disappear without admin action (SPEC).
         outgoing_entity_ids = [outgoing_ids.get(eid, eid) for eid in session.subscribed_entity_ids]
+        srv = server_info()
         await ws.send_json({
             "type": "auth_ok",
             "session_id": session.session_id,
@@ -981,6 +1236,12 @@ class HarvestWsView(HomeAssistantView):
             "max_renewals": token.session.max_renewals,
             "entity_ids": outgoing_entity_ids,
             "msg_id": msg_id,
+            "server": {
+                "protocol": srv.protocol,
+                "version": srv.version,
+                "min_client_protocol": srv.min_client_protocol,
+            },
+            "compatibility": session.compatibility,
         })
 
         # Resend interleaved entity_definition + state_update for all subscribed entities.
@@ -1014,6 +1275,14 @@ class HarvestWsView(HomeAssistantView):
         """
         msg_id = msg.get("msg_id")
         entity_ref = msg.get("entity_id", "")
+        if not isinstance(entity_ref, str):
+            await ws.send_json({
+                "type": "error",
+                "code": "ERR_BAD_REQUEST",
+                "message": "entity_id must be a string.",
+                "msg_id": msg_id,
+            })
+            return
 
         real_id = self._ref_to_real_id(entity_ref, session)
         if real_id is None:
@@ -1041,52 +1310,21 @@ class HarvestWsView(HomeAssistantView):
             return
 
         ea_hints = ea.display_hints if ea else {}
-        # hours/period from an authenticated session; non-numeric values
-        # are clamped via max/min which raises TypeError - acceptable
-        # since the session is already authorized and the error is logged.
-        hours = msg.get("hours", ea_hints.get("hours", 24))
+        try:
+            hours = int(msg.get("hours", ea_hints.get("hours", 24)))
+        except (TypeError, ValueError):
+            hours = 24
         hours = max(1, min(hours, 168))
-        period = msg.get("period", ea_hints.get("period", 10))
+        try:
+            period = int(msg.get("period", ea_hints.get("period", 10)))
+        except (TypeError, ValueError):
+            period = 10
         period = max(1, period)
         hours_in_minutes = hours * 60
         if period >= hours_in_minutes:
             period = 10
 
-        points: list[dict[str, str]] = []
-
-        if "recorder" in self._hass.config.components:
-            try:
-                from homeassistant.components.recorder import get_instance, history
-
-                end = datetime.now(tz=timezone.utc)
-                start = end - timedelta(hours=int(hours))
-                instance = get_instance(self._hass)
-                states_dict = await instance.async_add_executor_job(
-                    history.state_changes_during_period,
-                    self._hass,
-                    start,
-                    end,
-                    real_id,
-                    True,  # no_attributes - we only need state values
-                )
-                raw_points: list[tuple[float, float]] = []
-                for state_obj in states_dict.get(real_id, []):
-                    s = state_obj.state
-                    if s in ("unavailable", "unknown", ""):
-                        continue
-                    try:
-                        raw_points.append((
-                            state_obj.last_changed.timestamp(),
-                            float(s),
-                        ))
-                    except (ValueError, TypeError):
-                        continue
-
-                if raw_points:
-                    points = _aggregate_points(raw_points, start.timestamp(), end.timestamp(), period)
-
-            except Exception:
-                _LOGGER.warning("HArvest: failed to fetch history for %s", real_id, exc_info=True)
+        points = await fetch_history_points(self._hass, real_id, hours, period)
 
         await ws.send_json({
             "type": "history_data",
@@ -1116,6 +1354,9 @@ class HarvestWsView(HomeAssistantView):
 
         One listener per entity per session. Stored in listener_unsubs for cleanup.
         Also subscribes to weather forecast updates for weather entities.
+
+        Note: this creates O(sessions * entities) listeners on the HA event bus.
+        Acceptable at expected scale (tens of sessions, dozens of entities each).
         """
         for real_id in entity_ids:
             if real_id in listener_unsubs:
@@ -1166,6 +1407,7 @@ class HarvestWsView(HomeAssistantView):
 
         # Entity was removed from HA entirely (new_state is None).
         if new_state is None:
+            self._cancel_deferred_state_pushes(session, [entity_id])
             outgoing_id = outgoing_ids.get(entity_id, entity_id)
             _fire(ws.send_json({"type": "entity_removed", "entity_id": outgoing_id, "msg_id": None}))
             return
@@ -1173,12 +1415,22 @@ class HarvestWsView(HomeAssistantView):
         # Push rate limit per (session, entity).
         push_rate = token.rate_limits.max_push_per_second
         if not self._rate_limiter.check_push(session.session_id, entity_id, push_rate):
-            outgoing_id = outgoing_ids.get(entity_id, entity_id)
-            self._hass.async_create_task(
-                self._deferred_state_push(ws, entity_id, outgoing_id, token, session, forecast_cache)
-            )
+            pending = session.deferred_state_tasks.get(entity_id)
+            if pending is None or pending.done():
+                outgoing_id = outgoing_ids.get(entity_id, entity_id)
+                session.deferred_state_tasks[entity_id] = self._hass.async_create_task(
+                    self._deferred_state_push(
+                        ws,
+                        entity_id,
+                        outgoing_id,
+                        token,
+                        session,
+                        forecast_cache,
+                    )
+                )
             return
 
+        self._cancel_deferred_state_pushes(session, [entity_id])
         outgoing_id = outgoing_ids.get(entity_id, entity_id)
         update = self._build_state_update_message(
             real_id=entity_id,
@@ -1205,27 +1457,43 @@ class HarvestWsView(HomeAssistantView):
         Called when a state update was rate-limited. Ensures the widget
         converges to the final state even when intermediate updates are dropped.
         """
-        await asyncio.sleep(1.0)
-        if ws.closed:
-            return
-        if entity_id not in session.subscribed_entity_ids:
-            return
-        state = self._hass.states.get(entity_id)
-        if state is None:
-            return
-        update = self._build_state_update_message(
-            real_id=entity_id,
-            outgoing_id=outgoing_id,
-            state=state,
-            token=token,
-            is_initial=False,
-            session=session,
-            forecast_cache=forecast_cache,
-        )
         try:
-            await ws.send_json(update)
-        except Exception:
-            pass
+            await asyncio.sleep(1.0)
+            if ws.closed:
+                return
+            if entity_id not in session.subscribed_entity_ids:
+                return
+            state = self._hass.states.get(entity_id)
+            if state is None:
+                return
+            update = self._build_state_update_message(
+                real_id=entity_id,
+                outgoing_id=outgoing_id,
+                state=state,
+                token=token,
+                is_initial=False,
+                session=session,
+                forecast_cache=forecast_cache,
+            )
+            try:
+                await ws.send_json(update)
+            except Exception:
+                pass
+        finally:
+            if session.deferred_state_tasks.get(entity_id) is asyncio.current_task():
+                session.deferred_state_tasks.pop(entity_id, None)
+
+    @staticmethod
+    def _cancel_deferred_state_pushes(
+        session: Session,
+        entity_ids: list[str] | None = None,
+    ) -> None:
+        """Cancel pending coalesced state pushes for a session."""
+        ids = list(session.deferred_state_tasks) if entity_ids is None else entity_ids
+        for entity_id in ids:
+            task = session.deferred_state_tasks.pop(entity_id, None)
+            if task is not None:
+                task.cancel()
 
     # ------------------------------------------------------------------
     # Message builders
@@ -1243,7 +1511,7 @@ class HarvestWsView(HomeAssistantView):
     ) -> dict:
         """Build a state_update message dict.
 
-        For initial=True: full attributes and extended_attributes.
+        For initial=True: full attributes.
         For initial=False: computes attributes_delta by comparing to
         session.last_sent_attributes[entity_id]. Omits attributes_delta
         if only state changed and no attributes changed.
@@ -1252,20 +1520,93 @@ class HarvestWsView(HomeAssistantView):
         Updates session.last_sent_attributes after building.
         """
         ea = _find_entity_access(real_id, token)
-        if ea is not None and ea.capabilities == "badge":
-            badge_attrs: dict = {}
-            uom = state.attributes.get("unit_of_measurement")
-            if uom is not None:
-                badge_attrs["unit_of_measurement"] = uom
+        state_val = _round_state(state.state, ea)
+        caps = ea.capabilities if ea else "read-write"
+        is_companion = ea is not None and ea.companion_of is not None
+        tier = resolve_data_tier(token.entities_block, caps, is_companion)
+        domain = real_id.split(".")[0]
+
+        # Badge and compact tiers: minimal attributes, no delta mode.
+        if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT):
+            minimal_attrs = filter_attributes_for_tier(domain, dict(state.attributes), tier)
+            minimal_attrs = _safe_json_value(minimal_attrs)
             return {
                 "type": "state_update",
                 "entity_id": outgoing_id,
-                "state": state.state,
-                "attributes": badge_attrs,
+                "state": state_val,
+                "attributes": minimal_attrs,
                 "initial": is_initial,
                 "msg_id": None,
             }
 
+        # Companion tiers: minimal attributes, no delta mode, but keep
+        # last_updated - the client uses it as the out-of-order discard key.
+        if tier in (DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW):
+            minimal_attrs = filter_attributes_for_tier(domain, dict(state.attributes), tier)
+            minimal_attrs = _safe_json_value(minimal_attrs)
+            return {
+                "type": "state_update",
+                "entity_id": outgoing_id,
+                "state": state_val,
+                "attributes": minimal_attrs,
+                "last_changed": state.last_changed.isoformat() if hasattr(state, "last_changed") else None,
+                "last_updated": state.last_updated.isoformat() if hasattr(state, "last_updated") else None,
+                "initial": is_initial,
+                "msg_id": None,
+            }
+
+        # Display tier: domain-specific allowlist, supports delta mode.
+        if tier == DATA_TIER_DISPLAY:
+            display_attrs = filter_attributes_for_tier(domain, dict(state.attributes), tier)
+            display_attrs = _safe_json_value(display_attrs)
+
+            # Inject forecast data for weather entities.
+            if forecast_cache is not None and real_id in forecast_cache:
+                fc = forecast_cache[real_id]
+                daily = fc.get("daily")
+                hourly = fc.get("hourly")
+                if daily is not None:
+                    display_attrs["forecast_daily"] = _safe_json_value(daily)
+                if hourly is not None:
+                    display_attrs["forecast_hourly"] = _safe_json_value(hourly)
+
+            last_changed = state.last_changed.isoformat() if hasattr(state, "last_changed") else None
+            last_updated = state.last_updated.isoformat() if hasattr(state, "last_updated") else None
+
+            if is_initial:
+                msg = {
+                    "type": "state_update",
+                    "entity_id": outgoing_id,
+                    "state": state_val,
+                    "attributes": display_attrs,
+                    "last_changed": last_changed,
+                    "last_updated": last_updated,
+                    "initial": True,
+                    "msg_id": None,
+                }
+                if session is not None:
+                    session.last_sent_attributes[real_id] = display_attrs
+                return msg
+
+            prev = session.last_sent_attributes.get(real_id, {}) if session is not None else {}
+            changed = {k: v for k, v in display_attrs.items() if prev.get(k) != v}
+            removed = [k for k in prev if k not in display_attrs]
+            if session is not None:
+                session.last_sent_attributes[real_id] = display_attrs
+            msg = {
+                "type": "state_update",
+                "entity_id": outgoing_id,
+                "state": state_val,
+                "last_changed": last_changed,
+                "last_updated": last_updated,
+                "initial": False,
+                "msg_id": None,
+            }
+            if changed or removed:
+                msg["attributes_delta"] = {"changed": changed, "removed": removed}
+            return msg
+
+        # Full tier: existing behavior.
         raw_attrs = dict(state.attributes)
 
         # Filter via token denylist and per-entity exclusions.
@@ -1292,7 +1633,7 @@ class HarvestWsView(HomeAssistantView):
             msg = {
                 "type": "state_update",
                 "entity_id": outgoing_id,
-                "state": state.state,
+                "state": state_val,
                 "attributes": attrs,
                 "last_changed": last_changed,
                 "last_updated": last_updated,
@@ -1315,7 +1656,7 @@ class HarvestWsView(HomeAssistantView):
         msg = {
             "type": "state_update",
             "entity_id": outgoing_id,
-            "state": state.state,
+            "state": state_val,
             "last_changed": last_changed,
             "last_updated": last_updated,
             "initial": False,
@@ -1324,7 +1665,6 @@ class HarvestWsView(HomeAssistantView):
 
         if changed or removed:
             msg["attributes_delta"] = {"changed": changed, "removed": removed}
-        # If neither changed nor removed, attributes_delta is omitted entirely per spec.
 
         return msg
 
@@ -1436,15 +1776,26 @@ class HarvestWsView(HomeAssistantView):
     async def _send_keepalive(self, ws: WebSocketResponse, interval: int, session: Session | None = None) -> None:
         """Send periodic keepalive data messages to the client.
 
-        Also checks the kill switch and session expiry each tick; if either
-        condition is met, sends auth_failed and closes the WebSocket from
-        within the handler context so the message loop exits cleanly.
+        Also checks the kill switch, session expiry, and the live paused
+        flag on the underlying token each tick; if any condition is met,
+        sends auth_failed and closes the WebSocket from within the handler
+        context so the message loop exits cleanly.
+
+        The paused check uses a live token lookup (not the snapshot captured
+        at auth time) so that an admin pausing a token immediately stops
+        data flow on existing sessions, not just blocking new connections.
         """
+        heartbeat_timeout = self._config.get(CONF_HEARTBEAT_TIMEOUT, DEFAULTS[CONF_HEARTBEAT_TIMEOUT])
         try:
             while not ws.closed:
                 await asyncio.sleep(interval)
                 if ws.closed:
                     break
+                if session is not None:
+                    elapsed = (datetime.now(tz=timezone.utc) - session.last_message_at).total_seconds()
+                    if elapsed > heartbeat_timeout:
+                        await ws.close()
+                        break
                 if self._is_kill_switch_active():
                     await ws.send_json({"type": "auth_failed", "code": ERR_TOKEN_INACTIVE, "msg_id": None})
                     await ws.close()
@@ -1453,6 +1804,13 @@ class HarvestWsView(HomeAssistantView):
                     await ws.send_json({"type": "auth_failed", "code": ERR_SESSION_EXPIRED, "msg_id": None})
                     await ws.close()
                     break
+                if session is not None:
+                    live_token = self._token_manager.get(session.token_id)
+                    inactive_code = self._live_token_error(live_token)
+                    if inactive_code is not None:
+                        await ws.send_json({"type": "auth_failed", "code": inactive_code, "msg_id": None})
+                        await ws.close()
+                        break
                 await ws.send_json({"type": "keepalive", "msg_id": None})
         except (asyncio.CancelledError, ConnectionResetError):
             pass
@@ -1489,6 +1847,19 @@ class HarvestWsView(HomeAssistantView):
                 return ea
         return None
 
+    def _live_token_error(self, token: Token | None) -> str | None:
+        """Return the auth error for a token that can no longer keep a session."""
+        if token is None or token.status == "revoked":
+            return ERR_TOKEN_REVOKED
+        if token.status == "expired":
+            return ERR_TOKEN_EXPIRED
+        now = datetime.now(tz=timezone.utc)
+        if token.expires is not None and token.expires <= now:
+            return ERR_TOKEN_EXPIRED
+        if token.paused or not self._token_manager.is_schedule_active(token):
+            return ERR_TOKEN_INACTIVE
+        return None
+
     def _ref_to_real_id(self, ref: str, session: Session) -> str | None:
         """Map an outgoing entity_id or alias back to a real entity_id via the session."""
         # ref may be a real entity_id directly in subscribed_entity_ids.
@@ -1506,26 +1877,59 @@ class HarvestWsView(HomeAssistantView):
         if not entries:
             return False
         entry = entries[0]
-        merged = {**entry.data, **entry.options}
-        return bool(merged.get(CONF_KILL_SWITCH, False))
+        from .config_validation import normalize_global_config
+        return normalize_global_config(entry.data, entry.options)[CONF_KILL_SWITCH]
 
     def _get_source_ip(self, request: Request) -> str:
-        """Extract the real client IP.
+        """Extract the real client IP using rightmost-trusted X-Forwarded-For.
 
-        Reads the leftmost X-Forwarded-For entry if the direct peer is a
-        trusted proxy. This is correct for a single-proxy deployment (the
-        common HA setup). Multi-hop chains would need rightmost-trusted
-        extraction, but HA's own trusted_proxies model uses the same pattern.
+        Each proxy in a forwarding chain appends its incoming peer IP to
+        X-Forwarded-For. So a request that traversed
+        client -> cloudflare -> nginx -> HA arrives with XFF resembling
+        "<whatever-client-claimed>, <real-client>, <cloudflare>" and a
+        peer of nginx. The leftmost entry is whatever the client put in
+        the header before any proxy saw it - attacker-controlled in any
+        deployment with two or more trusted hops.
+
+        Algorithm:
+          1. If no trusted_proxies are configured, return the direct peer
+             IP. X-Forwarded-For is unverified and ignored.
+          2. If the direct peer is not in trusted_proxies, return peer IP.
+             XFF header values are unverified.
+          3. Walk X-Forwarded-For from right (most recent hop, written by
+             the trusted peer proxy) to left (whatever the client claimed).
+             Skip entries that are themselves trusted proxies. The first
+             non-trusted entry is the real client.
+          4. If every XFF entry is trusted (admin misconfiguration; they
+             listed the real client as a trusted proxy), fall back to peer
+             IP rather than returning a misleading value.
+
+        Multi-hop deployments must list ALL intermediate proxies in
+        trusted_proxies for this to work correctly.
         """
         trusted_proxies: list[str] = self._config.get("trusted_proxies", [])
         peer = request.transport.get_extra_info("peername")
         peer_ip = peer[0] if peer else ""
 
-        if trusted_proxies and peer_ip and _ip_in_trusted(peer_ip, trusted_proxies):
-            forwarded = request.headers.get("X-Forwarded-For", "")
-            if forwarded:
-                return forwarded.split(",")[0].strip()
+        if not isinstance(trusted_proxies, list) or not trusted_proxies or not peer_ip:
+            return peer_ip
+        if not _ip_in_trusted(peer_ip, trusted_proxies):
+            return peer_ip
 
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        if not forwarded:
+            return peer_ip
+
+        chain = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+        for ip in reversed(chain):
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                return peer_ip
+            if not _ip_in_trusted(ip, trusted_proxies):
+                return ip
+
+        # Every XFF entry is trusted - unusual, fall back to peer.
         return peer_ip
 
 
@@ -1543,6 +1947,8 @@ def _ip_in_trusted(peer_ip: str, trusted: list[str]) -> bool:
     except ValueError:
         return False
     for entry in trusted:
+        if not isinstance(entry, str):
+            continue
         try:
             if "/" in entry:
                 if addr in ipaddress.ip_network(entry, strict=False):
@@ -1559,11 +1965,16 @@ def _aggregate_points(
     start_ts: float,
     end_ts: float,
     period_minutes: int,
+    *,
+    use_last: bool = False,
 ) -> list[dict[str, str]]:
     """Aggregate raw (timestamp, value) pairs into period-sized buckets.
 
-    Each bucket spans period_minutes and contains the average value of all
-    raw points that fall within it. Empty buckets are skipped.
+    Each bucket spans period_minutes and contains the average value of all raw
+    points that fall within it. When use_last is true, each bucket contains the
+    last known value instead, preserving discrete state transitions and
+    carrying the state through buckets without a transition. Empty numeric
+    buckets and discrete buckets before the first known value are skipped.
     Returns list of dicts with ISO timestamp midpoint and string value.
     """
     from datetime import datetime, timezone
@@ -1572,6 +1983,7 @@ def _aggregate_points(
     bucket_start = start_ts
     result: list[dict[str, str]] = []
     idx = 0
+    last_value: float | None = None
     raw.sort(key=lambda p: p[0])
 
     while bucket_start < end_ts:
@@ -1582,18 +1994,83 @@ def _aggregate_points(
             if raw[idx][0] >= bucket_start:
                 total += raw[idx][1]
                 count += 1
+                last_value = raw[idx][1]
+            elif use_last:
+                last_value = raw[idx][1]
             idx += 1
 
-        if count > 0:
+        if count > 0 or (use_last and last_value is not None):
             mid_ts = bucket_start + period_secs / 2
             result.append({
                 "t": datetime.fromtimestamp(mid_ts, tz=timezone.utc).isoformat(),
-                "s": str(round(total / count, 2)),
+                "s": str(last_value if use_last else round(total / count, 2)),
             })
 
         bucket_start = bucket_end
 
     return result
+
+
+async def fetch_history_points(
+    hass: HomeAssistant,
+    real_id: str,
+    hours: int,
+    period: int,
+) -> list[dict[str, str]]:
+    """Fetch and aggregate an entity's recorder history.
+
+    Returns a list of {"t": iso, "s": value} points, period-bucketed. Returns
+    an empty list when the recorder is not loaded or the entity has no numeric
+    history. Shared by the WebSocket history_request handler and the panel
+    preview history view so both produce identical data.
+    """
+    points: list[dict[str, str]] = []
+    if "recorder" not in hass.config.components:
+        return points
+    try:
+        from homeassistant.components.recorder import get_instance, history
+
+        end = datetime.now(tz=timezone.utc)
+        start = end - timedelta(hours=int(hours))
+        instance = get_instance(hass)
+        states_dict = await instance.async_add_executor_job(
+            history.state_changes_during_period,
+            hass,
+            start,
+            end,
+            real_id,
+            True,  # no_attributes - we only need state values
+        )
+        history_domain = real_id.partition(".")[0]
+        raw_points: list[tuple[float, float]] = []
+        for state_obj in states_dict.get(real_id, []):
+            s = state_obj.state
+            if s in ("unavailable", "unknown", ""):
+                continue
+            try:
+                value = (
+                    {"off": 0.0, "on": 1.0}[s]
+                    if history_domain == "binary_sensor"
+                    else float(s)
+                )
+                raw_points.append((
+                    state_obj.last_changed.timestamp(),
+                    value,
+                ))
+            except (KeyError, ValueError, TypeError):
+                continue
+
+        if raw_points:
+            points = _aggregate_points(
+                raw_points,
+                start.timestamp(),
+                end.timestamp(),
+                period,
+                use_last=history_domain == "binary_sensor",
+            )
+    except Exception:
+        _LOGGER.warning("HArvest: failed to fetch history for %s", real_id, exc_info=True)
+    return points
 
 
 def _find_entity_access(entity_id: str, token: Token) -> EntityAccess | None:
@@ -1602,6 +2079,23 @@ def _find_entity_access(entity_id: str, token: Token) -> EntityAccess | None:
         if ea.entity_id == entity_id:
             return ea
     return None
+
+
+def _round_state(state_val: str, ea: EntityAccess | None) -> str:
+    """Round a numeric state value if decimal_places is set in display_hints."""
+    if ea is None:
+        return state_val
+    dp = ea.display_hints.get("decimal_places")
+    if dp is None:
+        return state_val
+    try:
+        n = int(dp)
+        rounded = round(float(state_val), n)
+        if n <= 0:
+            return str(int(rounded))
+        return f"{rounded:.{n}f}"
+    except (ValueError, TypeError, OverflowError):
+        return state_val
 
 
 def _get_companion_ids(primary_entity_id: str, token: Token) -> list[str]:
@@ -1614,38 +2108,29 @@ def _expand_with_companions(
     entity_ids: list[str],
     token: Token,
     outgoing_ids: dict[str, str],
+    sensitive: dict | None = None,
 ) -> list[str]:
     """Expand entity_ids to include auto-subscribed companions.
 
     Appends companions after primaries. Updates outgoing_ids with
-    companion mappings (alias or real_id).
+    companion mappings (alias or real_id). When a sensitive-domain config
+    is supplied, companions whose domain is a sensitive Tier 1 domain
+    currently disabled in Settings are skipped, mirroring the primary-entity
+    gate applied at auth and subscribe time.
     """
     expanded = list(entity_ids)
     seen = set(entity_ids)
     for real_id in entity_ids:
         for ea in token.entities:
             if ea.companion_of == real_id and ea.entity_id not in seen:
+                if sensitive is not None and is_sensitive_domain_blocked(
+                    ea.entity_id.split(".")[0], sensitive
+                ):
+                    continue
                 expanded.append(ea.entity_id)
                 seen.add(ea.entity_id)
                 outgoing_ids[ea.entity_id] = ea.alias or ea.entity_id
     return expanded
-
-
-def _is_permitted_gesture_harvest_action(entity_ref: str, token: Token) -> bool:
-    """Return True if entity_ref is explicitly listed as a trigger-action gesture target on this token.
-
-    harvest_action entities are not added to tokens as regular entities. Instead they
-    are permitted on a per-entity basis by appearing in a gesture_config entry with
-    action="trigger-action" on any entity in the token. This keeps scope narrow: only
-    harvest_actions that the admin explicitly wired to a gesture can be triggered.
-    """
-    for ea in token.entities:
-        for gesture_action in ea.gesture_config.values():
-            if (isinstance(gesture_action, dict)
-                    and gesture_action.get("action") == "trigger-action"
-                    and gesture_action.get("entity_id") == entity_ref):
-                return True
-    return False
 
 
 def _track_flood(count: int, window_start: float) -> tuple[int, float]:

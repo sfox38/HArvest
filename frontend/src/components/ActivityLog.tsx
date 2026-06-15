@@ -205,7 +205,7 @@ export function ActivityLog({ onSelectToken, initialTypeFilter }: ActivityLogPro
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button
           onClick={() => setLoadTick(n => n + 1)}
           className="icon-btn"
@@ -247,10 +247,11 @@ export function ActivityLog({ onSelectToken, initialTypeFilter }: ActivityLogPro
         </Card>
       )}
 
-      {/* Pagination */}
-      {hasChartData && page && page.total > PAGE_LIMIT && (
-        <div className="row" style={{ fontSize: 13 }}>
-          <span className="muted" style={{ flex: 1 }}>
+      {/* Pagination - shown whenever there are more events than fit in one page,
+          regardless of whether the time-binned chart above has enough data to draw. */}
+      {page && page.total > PAGE_LIMIT && (
+        <div className="row fs-13">
+          <span className="muted flex-1">
             {offset + 1}-{Math.min(page.total, offset + PAGE_LIMIT)} of {page.total} events
           </span>
           <button

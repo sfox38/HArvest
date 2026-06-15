@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>HArvest - Documentation</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -17,7 +19,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v1.0 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -47,12 +49,12 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
@@ -66,26 +68,26 @@
           </div>
         </div>
 
-        <img class="hero-img" src="hero.jpg" alt="HArvest panel showing the widget wizard and live card previews">
+        <img class="hero-img" src="hero.jpg" alt="HArvest panel showing the widget wizard and live card previews" width="3264" height="2116">
 
         <section>
         <h2>How it works</h2>
 
-        <p>HArvest is a Home Assistant custom integration. Once installed, you open the HArvest panel in your HA sidebar and create a <em>widget token</em> - a scoped access key that grants a webpage permission to connect to a specific set of your entities.</p>
+        <p>HArvest is a Home Assistant custom integration for adding live device cards to webpages. Open the HArvest panel, choose the entities you want to share, and generate a ready-to-paste embed snippet.</p>
 
-        <p>The panel gives you a wizard that walks through picking entities, setting permissions, restricting access by origin/IP/schedule, choosing a theme, and generating an embed snippet. Paste the snippet into a page. Done.</p>
+        <p>The wizard handles permissions, website restrictions, expiry, and appearance. Paste the generated snippet into your page, and the cards begin receiving live state updates.</p>
 
-        <p>Widgets connect from the visitor's browser directly to your HA instance over WebSocket. State changes push from HA to the widget in real time. No intermediary service.</p>
+        <p>Widgets connect from the visitor's browser directly to your HA instance over WebSocket. State changes push in real time. There is no intermediary service.</p>
         </section>
 
         <section>
         <h2>Key concepts</h2>
 
         <h3>Widget tokens</h3>
-        <p>Every widget has a token - a short random ID (prefixed <code>hwt_</code>) that identifies both the widget and its access rules. The token determines which entities are accessible, whether visitors can control them, which websites are allowed to connect, and more. Tokens can be revoked instantly from the panel.</p>
+        <p>Every widget has a token - a short random ID (prefixed <code>hwt_</code>) that identifies both the widget and its access rules. The token determines which entities are accessible, whether visitors can control them, and which websites are allowed to connect. Tokens can be revoked instantly from the panel.</p>
 
         <h3>Configuration hierarchy</h3>
-        <p>Widget configuration flows through three levels. Each level inherits from the one above and can override any value:</p>
+        <p>Connection settings have three levels. A card inherits its Home Assistant URL, token, and optional HMAC secret from the nearest configured level:</p>
 
         <pre><code class="language-text">Page level:   HArvest.config({ haUrl: "...", token: "..." })
                 |
@@ -95,19 +97,19 @@ Group level:  &lt;hrv-group&gt;     -- optional, groups related cards
                 v
 Card level:   &lt;hrv-card entity="..."&gt;</code></pre>
 
-        <p>In practice, most pages call <code>HArvest.config()</code> once with the HA URL and token, then just drop <code>&lt;hrv-card&gt;</code> elements wherever they want a widget. Groups are useful when you need one section of a page to use a different token or theme from the rest.</p>
+        <p>Most pages call <code>HArvest.config()</code> once with the HA URL and token, then place <code>&lt;hrv-card&gt;</code> elements where needed. Groups are useful when a section needs its own token. Display settings and access rules remain managed by the token in the HArvest panel.</p>
 
         <h3>Entity tiers</h3>
         <p>HArvest divides entity types into three tiers:</p>
         <ul>
-          <li><strong>Tier 1</strong> - 15 domains with dedicated card renderers (lights, fans, climate, sensors, media players, etc.)</li>
+          <li><strong>Tier 1</strong> - 22 domains covered by purpose-built card renderers (lights, fans, climate, sensors, locks, scripts, automations, and more)</li>
           <li><strong>Tier 2</strong> - any other domain gets a generic card with icon, name, and current state</li>
-          <li><strong>Tier 3</strong> - blocked domains (alarm panels, locks, cameras, etc.) that cannot be added to any token</li>
+          <li><strong>Tier 3</strong> - blocked domains (alarm panels, cameras, etc.) that cannot be added to any token</li>
         </ul>
         <p>See <a href="entities.html">Entity types</a> for the full breakdown.</p>
 
         <h3>Companion entities</h3>
-        <p>A companion is a secondary entity displayed inside a primary card. For example, a binary motion sensor rendered as a pill inside a light card. Companions are read-only and are configured per-entity in the panel - they don't need their own card element on the page.</p>
+        <p>A companion is a secondary entity displayed inside a primary card. For example, a binary motion sensor rendered as a pill inside a light card. Interactive companion domains have a read-only toggle, while display-only companion domains always show state without allowing interaction. Companions are configured per-entity in the panel and don't need their own card element on the page.</p>
         </section>
 
         <section>
@@ -127,8 +129,8 @@ Card level:   &lt;hrv-card entity="..."&gt;</code></pre>
             <span>HTML attributes, the JavaScript API, companions, and embed modes.</span>
           </a>
           <a class="nav-card" href="theming.html">
-            <strong>Theming and renderer packs</strong>
-            <span>CSS variables, custom themes, and building your own renderer packs.</span>
+            <strong>Theming and custom renderers</strong>
+            <span>CSS variables, custom themes, and building your own renderer overrides.</span>
           </a>
         </div>
         </section>

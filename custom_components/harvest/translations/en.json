@@ -2,8 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "HArvest",
-        "description": "Install HArvest to embed live Home Assistant controls on any webpage. Access is controlled via scoped tokens you create in the HArvest panel - no HA credentials are ever exposed to the internet."
+        "title": "HArvest"
       }
     },
     "abort": {

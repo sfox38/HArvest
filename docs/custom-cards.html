@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Building Custom Cards - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -17,7 +19,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v1.0 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -37,7 +39,7 @@
           <div class="nav-section-label">Customization</div>
           <a class="nav-item" href="theming.html">Theming</a>
           <a class="nav-item" href="entities.html">Entity types</a>
-          <a class="nav-item active" href="custom-cards.html">Custom cards</a>
+          <a class="nav-item" href="custom-cards.html">Custom cards</a>
         </div>
         <div class="nav-section">
           <div class="nav-section-label">Reference</div>
@@ -47,18 +49,18 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Customization</div>
           <h1>Building custom cards</h1>
-          <p class="lead">A complete guide to creating a custom card renderer for any Home Assistant entity domain, from first line of code to working widget. Uses a robot vacuum as the running example.</p>
+          <p class="lead">How to create a custom card renderer for any Home Assistant entity domain. The examples use a robot vacuum throughout.</p>
         </div>
 
         <div class="toc">
@@ -68,7 +70,7 @@
             <li><a href="#prerequisites">Prerequisites</a></li>
             <li><a href="#basecard-api">The BaseCard API</a></li>
             <li><a href="#write-renderer">Writing a renderer</a></li>
-            <li><a href="#packs">Creating a renderer pack</a></li>
+            <li><a href="#renderer-overrides">Creating a renderer override</a></li>
             <li><a href="#admin-setup">Admin setup: enabling commands</a></li>
             <li><a href="#embed">Embedding on a page</a></li>
             <li><a href="#commands">Sending commands</a></li>
@@ -82,6 +84,13 @@
           </ol>
         </div>
 
+        <div class="nav-cards">
+          <a class="nav-card" href="#complete-example"><strong>Build the example</strong><span>Start with the complete vacuum renderer and its theme definition.</span></a>
+          <a class="nav-card" href="#basecard-api"><strong>Use the API reference</strong><span>Look up BaseCard properties, helpers, and lifecycle methods.</span></a>
+          <a class="nav-card" href="#admin-setup"><strong>Enable commands</strong><span>Allow only the Home Assistant services your renderer needs.</span></a>
+          <a class="nav-card" href="#checklist"><strong>Review before import</strong><span>Check accessibility, read-only behavior, unavailable states, and escaping.</span></a>
+        </div>
+
         <!-- ============================================================ -->
         <section>
         <h2 id="overview">How it works</h2>
@@ -91,21 +100,21 @@
         <ul>
           <li><strong>Tier 1</strong> - domains with built-in card renderers (light, switch, climate, fan, cover, etc.). Commands are pre-approved in a server-side whitelist.</li>
           <li><strong>Tier 2</strong> - all other domains (vacuum, humidifier, valve, siren, etc.). These display with the generic card by default. A custom renderer can replace the generic card for any Tier 2 domain.</li>
-          <li><strong>Tier 3</strong> - blocked domains (lock, alarm_control_panel, camera, etc.). Cannot be used with HArvest at all.</li>
+          <li><strong>Tier 3</strong> - blocked domains (alarm_control_panel, camera, device_tracker, etc.). Cannot be used with HArvest at all.</li>
         </ul>
 
         <p>Building a custom card has two sides:</p>
         <ol>
-          <li><strong>Display</strong> - write a renderer class that extends <code>BaseCard</code> and package it as a renderer pack. The pack is uploaded through the HArvest panel and automatically loaded by the widget for any token that uses the associated theme. No script tags are needed on the embedding page.</li>
+          <li><strong>Display</strong> - write a renderer class that extends <code>BaseCard</code> and save it as <code>renderer.js</code> (this exact filename is required). Bundle it into a theme zip alongside <code>theme.json</code> and import through the HArvest panel. The renderer is automatically loaded by the widget for any token that uses that theme. No script tags are needed on the embedding page.</li>
           <li><strong>Commands</strong> - the HA admin registers allowed services for the domain in the HArvest panel under Settings. This opens the server-side whitelist so the card's commands are accepted.</li>
         </ol>
 
-        <p>Neither side requires changes to the HArvest integration source code. The renderer pack is managed through the panel, and the service allowlist is configured in Settings.</p>
+        <p>Neither side requires changes to the HArvest integration source code. The renderer is managed through the panel as part of the theme zip, and the service allowlist is configured in Settings.</p>
 
         <div class="callout callout-warn">
-          <span class="callout-label">Renderer packs vs. standalone scripts</span>
-          <p>Custom cards are delivered as <strong>renderer packs</strong>. A pack is a JavaScript file uploaded through the HArvest panel and tied to a theme. When a token uses that theme, the widget automatically fetches and loads the pack. The person embedding the widget does not need to add any extra <code>&lt;script&gt;</code> tags.</p>
-          <p>During development, you can use <code>HArvest.registerRenderer()</code> with a local <code>&lt;script&gt;</code> tag for faster iteration. But for production, always package your renderer as a pack. This guide covers both approaches, with pack delivery as the primary path.</p>
+          <span class="callout-label">Renderer overrides vs. standalone scripts</span>
+          <p>Custom cards intended for production are saved as <code>renderer.js</code> (this exact filename is required) and bundled alongside <code>theme.json</code> inside a <code>.zip</code> file. The zip itself can be named anything (e.g. <code>my-vacuum-theme.zip</code>). Import the zip through the HArvest panel - the renderer is activated automatically for any token using that theme. The person embedding the widget does not need to add any extra <code>&lt;script&gt;</code> tags.</p>
+          <p>During development, you can use <code>HArvest.registerRenderer()</code> with a local <code>&lt;script&gt;</code> tag for faster iteration. This guide covers both approaches.</p>
         </div>
         </section>
 
@@ -117,11 +126,11 @@
           <li>A running Home Assistant instance with the HArvest integration installed.</li>
           <li>An entity in the domain you want to build a card for (e.g. <code>vacuum.roomba</code>).</li>
           <li>A HArvest token that includes the entity (Tier 2 entities are already available in the entity picker).</li>
-          <li>Access to the HArvest panel to upload the renderer pack and configure custom domain services.</li>
+          <li>Access to the HArvest panel to import the theme zip and configure custom domain services.</li>
           <li>Basic familiarity with JavaScript classes and the DOM API.</li>
         </ul>
 
-        <p>No build tools are required. Custom renderers are vanilla JavaScript. They are uploaded as renderer packs through the HArvest panel and loaded automatically by the widget.</p>
+        <p>No build tools are required. Custom renderers are vanilla JavaScript. They are bundled in a theme zip and imported through the HArvest panel.</p>
         </section>
 
         <!-- ============================================================ -->
@@ -146,7 +155,7 @@
               <tr>
                 <td><code>this.root</code></td>
                 <td>ShadowRoot</td>
-                <td>The shadow DOM root. Write all HTML and CSS here. Fully isolated from the host page.</td>
+                <td>The shadow DOM root. Write all HTML and CSS here. Host selectors cannot directly reach internal elements, but inherited properties, approved CSS custom properties, and <code>::part()</code> styling can intentionally cross the boundary.</td>
               </tr>
               <tr>
                 <td><code>this.config</code></td>
@@ -210,17 +219,20 @@
           <table>
             <thead><tr><th>Method</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>getSharedStyles()</code></td><td>Returns a CSS string with card layout defaults, companion zone styles, history graph styles, and error/stale indicator styles. Include in your <code>&lt;style&gt;</code> tag.</td></tr>
-              <tr><td><code>renderIcon(iconName, partName)</code></td><td>Inject an MDI SVG icon into the element with <code>part="&lt;partName&gt;"</code>. Caches internally and skips re-render if unchanged.</td></tr>
-              <tr><td><code>resolveIcon(name, fallback)</code></td><td>Returns <code>name</code> if the icon is in the bundled set, otherwise returns <code>fallback</code>.</td></tr>
-              <tr><td><code>isFocused(element)</code></td><td>Returns true if <code>element</code> has focus in the shadow root. Use in <code>applyState()</code> to avoid overwriting user input (e.g. while dragging a slider).</td></tr>
+              <tr><td><em>(no helper)</em></td><td>The shared base CSS (card layout, companion zone, history graph, gesture, error/stale states) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>. Your renderer's <code>&lt;style&gt;</code> tag only emits renderer-specific CSS.</td></tr>
+              <tr><td><code>renderIcon(iconName, partName)</code></td><td>Inject an SVG icon into the element with <code>part="&lt;partName&gt;"</code>. Accepts bundled MDI names plus any name from a registered icon set (<code>fa:</code>, <code>ph:</code>, <code>tabler:</code>). Caches internally and skips re-render if unchanged.</td></tr>
+              <tr><td><code>resolveIcon(name, fallback)</code></td><td>Returns <code>name</code> if the icon is in the bundled set or a registered icon set, otherwise returns <code>fallback</code>.</td></tr>
+              <tr><td><code>isFocused(element)</code></td><td>Returns true if <code>element</code> has focus in the shadow root. Use in <code>applyState()</code> to avoid overwriting user input (e.g. while typing in a number input).</td></tr>
+              <tr><td><code>isSliderActive(element)</code></td><td>Returns true while the user is actively dragging a range slider (pointer down or pending un-grace period after release). Use in <code>applyState()</code> to skip slider updates while the user is interacting.</td></tr>
+              <tr><td><code>guardSlider(slider, debouncedSend)</code></td><td>One-call drag-protection wiring for a <code>&lt;input type="range"&gt;</code>. Adds pointer/keyboard handlers that mark the slider active and flush the debounced send on release. Pair with <code>isSliderActive()</code> in <code>applyState()</code>.</td></tr>
+              <tr><td><code>formatStateLabel(state, domain, deviceClass)</code></td><td>Returns the i18n-localised label for a state string, falling back to the raw state if the key is missing. Handles common domain conventions (sensor numeric values, binary_sensor on/off, etc.).</td></tr>
               <tr><td><code>renderCompanionZoneHTML()</code></td><td>Returns the HTML for the companion pill zone. Empty string if no companions configured.</td></tr>
               <tr><td><code>renderCompanions()</code></td><td>Populates the companion zone with pill elements. Call at the end of <code>render()</code>.</td></tr>
               <tr><td><code>renderHistoryZoneHTML()</code></td><td>Returns the HTML for the history graph placeholder. Empty string if history is not configured.</td></tr>
               <tr><td><code>renderAriaLiveHTML()</code></td><td>Returns a screen-reader announcement region. Include in your template.</td></tr>
               <tr><td><code>announceState(text)</code></td><td>Push text to the aria-live region for screen reader users.</td></tr>
               <tr><td><code>_attachGestureHandlers(element, callbacks, actionConfig)</code></td><td>Attach tap, hold, and double-tap handlers. See <a href="#gestures">Gesture handling</a>.</td></tr>
-              <tr><td><code>_runAction(actionConfig)</code></td><td>Execute a gesture action (toggle, trigger-action, call-service, none).</td></tr>
+              <tr><td><code>_runAction(actionConfig)</code></td><td>Execute a gesture action (toggle, call-service, none).</td></tr>
               <tr><td><code>debounce(fn, ms)</code></td><td>Returns a debounced version of a function. Useful for slider input handlers.</td></tr>
             </tbody>
           </table>
@@ -231,7 +243,7 @@
         <section>
         <h2 id="write-renderer">Writing a renderer</h2>
 
-        <p>A minimal renderer needs two methods: <code>render()</code> to build the DOM, and <code>applyState()</code> to update it. The class extends <code>BaseCard</code>, which is available at <code>HArvest.renderers.BaseCard</code> inside a renderer pack. Here is a stripped-down vacuum card to illustrate the pattern:</p>
+        <p>A minimal renderer needs two methods: <code>render()</code> to build the DOM, and <code>applyState()</code> to update it. The class extends <code>BaseCard</code>, which is available at <code>HArvest.renderers.BaseCard</code> inside a renderer override file. Here is a stripped-down vacuum card to illustrate the pattern:</p>
 
 <pre><code class="language-javascript">class VacuumCard extends HArvest.renderers.BaseCard {
   #statusEl = null;
@@ -243,7 +255,6 @@
 
     this.root.innerHTML = `
       &lt;style&gt;
-        ${this.getSharedStyles()}
         [part=card-body] {
           display: flex;
           align-items: center;
@@ -277,13 +288,13 @@
       &lt;div part="card"&gt;
         &lt;div part="card-header"&gt;
           &lt;span part="card-icon" aria-hidden="true"&gt;&lt;/span&gt;
-          &lt;span part="card-name"&gt;${this._esc(this.def.friendly_name)}&lt;/span&gt;
+          &lt;span part="card-name"&gt;${HArvest.esc(this.def.friendly_name)}&lt;/span&gt;
         &lt;/div&gt;
         &lt;div part="card-body"&gt;
           &lt;span part="status"&gt;&lt;/span&gt;
           ${isWritable ? `
-            &lt;button part="start-btn" type="button"&gt;Start&lt;/button&gt;
-            &lt;button part="stop-btn" type="button"&gt;Stop&lt;/button&gt;
+            &lt;button part="start-btn" type="button" aria-label="Start vacuum"&gt;Start&lt;/button&gt;
+            &lt;button part="stop-btn" type="button" aria-label="Stop vacuum"&gt;Stop&lt;/button&gt;
           ` : ""}
         &lt;/div&gt;
         ${this.renderAriaLiveHTML()}
@@ -332,43 +343,36 @@
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }
 
-  _esc(str) {
-    return String(str ?? "")
-      .replace(/&amp;/g, "&amp;amp;")
-      .replace(/&lt;/g, "&amp;lt;")
-      .replace(/&gt;/g, "&amp;gt;")
-      .replace(/"/g, "&amp;quot;");
-  }
 }</code></pre>
 
         <h3>Key patterns</h3>
 
         <ul>
           <li><strong>Check <code>capabilities</code></strong> - if the entity is <code>"read"</code>, do not render buttons, sliders, or any interactive controls. Only show state. Badge entities (<code>"badge"</code>) are routed to the badge renderer, not your card, so you do not need to handle that case.</li>
-          <li><strong>Include shared styles</strong> - call <code>this.getSharedStyles()</code> at the start of your <code>&lt;style&gt;</code> block. This provides the card layout, companion zone, history graph, and error state styles.</li>
+          <li><strong>Shared styles are automatic</strong> - the card layout, companion zone, history graph, gesture, and error/stale state styles are adopted into your shadow root automatically by <code>BaseCard</code>. Your <code>&lt;style&gt;</code> block only needs renderer-specific CSS.</li>
           <li><strong>Use <code>part</code> attributes</strong> - every meaningful element should have a <code>part="..."</code> attribute so theme authors can target it with <code>::part()</code> selectors.</li>
           <li><strong>Include the standard zones</strong> - your template should include <code>renderAriaLiveHTML()</code>, <code>renderCompanionZoneHTML()</code>, and a <code>&lt;div part="stale-indicator"&gt;</code>. These enable accessibility, companion pills, and the stale-data indicator.</li>
           <li><strong>Call <code>renderCompanions()</code></strong> - at the end of <code>render()</code>, this populates the companion zone.</li>
-          <li><strong>Escape user text</strong> - always escape <code>friendly_name</code> and other user-provided strings before inserting into HTML.</li>
+          <li><strong>Escape user text</strong> - use <code>HArvest.esc(value)</code> for <code>friendly_name</code> and other user-provided strings before inserting them into an HTML template. Values assigned through <code>textContent</code> do not need escaping.</li>
           <li><strong>Guard slider updates</strong> - in <code>applyState()</code>, use <code>this.isFocused(element)</code> before updating slider values to avoid overwriting while the user is dragging.</li>
         </ul>
         </section>
 
         <!-- ============================================================ -->
         <section>
-        <h2 id="packs">Creating a renderer pack</h2>
+        <h2 id="renderer-overrides">Creating a renderer override</h2>
 
-        <p>A renderer pack is a JavaScript file that bundles one or more renderer classes and registers them with HArvest. Packs are the standard way to deliver custom cards. They are uploaded through the HArvest panel and tied to a theme. When a token uses that theme, the widget automatically fetches and loads the pack - the person embedding the widget does not need to add any extra script tags.</p>
+        <p>A renderer override is saved as <code>renderer.js</code> (this exact filename is required) and bundled inside a theme <code>.zip</code> alongside <code>theme.json</code>. It registers one or more custom renderer classes with HArvest. When a token uses the associated theme, the widget automatically activates the renderer - the person embedding the widget does not need to add any extra script tags.</p>
 
-        <h3>Pack structure</h3>
+        <h3>File structure</h3>
 
-        <p>A pack is wrapped in an IIFE (immediately invoked function expression) that accesses <code>BaseCard</code> from the global <code>HArvest</code> object and registers the renderers under a pack key:</p>
+        <p>The file is an IIFE (immediately invoked function expression) that reads <code>BaseCard</code> from the global <code>HArvest</code> object and registers the renderers under the theme's renderer key:</p>
 
 <pre><code class="language-javascript">(function () {
   "use strict";
   const HArvest = window.HArvest;
   if (!HArvest || !HArvest.renderers || !HArvest.renderers.BaseCard) {
-    console.warn("[MyPack] HArvest not loaded.");
+    console.warn("[MyRenderer] HArvest not loaded.");
     return;
   }
 
@@ -379,49 +383,60 @@
     applyState(state, attributes) { /* ... */ }
   }
 
-  // Register under the pack key (resolved automatically by the widget)
-  HArvest._packs = HArvest._packs || {};
-  const _packKey = (document.currentScript &amp;&amp; document.currentScript.dataset.packId)
-    || window.__HARVEST_PACK_ID__
-    || "my-pack";
+  // Register under the renderer key (resolved automatically by the widget)
+  HArvest._renderers = HArvest._renderers || {};
+  const _rendererKey = (document.currentScript &amp;&amp; document.currentScript.dataset.rendererId)
+    || window.__HARVEST_RENDERER_ID__
+    || "my-renderer";
 
-  HArvest._packs[_packKey] = {
+  HArvest._renderers[_rendererKey] = {
     "vacuum": VacuumCard,
-    _capabilities: {
-      vacuum: { features: ["start", "stop", "fan_speed"] },
-    },
   };
 })();</code></pre>
 
         <h3>Key points</h3>
 
         <ul>
-          <li>The pack key (<code>_packKey</code>) is resolved automatically by the widget. Use the boilerplate above as-is.</li>
-          <li>Each entry in the pack object maps a domain key (e.g. <code>"vacuum"</code>) to a renderer class. You can register multiple domains in one pack.</li>
+          <li>The renderer key (<code>_rendererKey</code>) is resolved automatically by the widget from the theme ID. Use the boilerplate above as-is.</li>
+          <li>Each entry maps a domain key (e.g. <code>"vacuum"</code>) to a renderer class. Register multiple domains in one file.</li>
           <li>You can also register for a specific device class: <code>"sensor.temperature": MyTempCard</code>.</li>
-          <li>The <code>_capabilities</code> object declares what features the pack's renderers support. The server uses this to populate <code>supported_features</code> in the entity definition.</li>
-          <li>Registration is last-write-wins. If the key matches a built-in renderer, the pack renderer takes priority for tokens using this pack's theme.</li>
+          <li>Optional renderer capability metadata belongs in <code>theme.json</code>, not <code>renderer.js</code>. The panel uses it to hide display settings that the renderer does not support.</li>
+          <li>The entity definition's <code>supported_features</code> comes from the actual Home Assistant entity and token configuration. Theme metadata does not add entity features or permit commands.</li>
+          <li>Registration is last-write-wins. If the key matches a built-in renderer, the override takes priority for tokens using this theme.</li>
         </ul>
 
-        <h3>Uploading the pack</h3>
+        <h3>Optional capability metadata</h3>
+
+        <p>If your renderer replaces a domain for which the panel offers domain-specific display settings, add a <code>capabilities</code> object to <code>theme.json</code>. The panel uses this metadata only to decide which display-setting controls to show. Omit it when the renderer supports the built-in options or when the domain has no domain-specific display settings, as with the vacuum example.</p>
+
+<pre><code class="language-json">{
+  "name": "Custom Light Theme",
+  "has_renderer": true,
+  "capabilities": {
+    "light": { "features": ["brightness", "color_temp"] }
+  },
+  "variables": {}
+}</code></pre>
+
+        <h3>Importing the renderer</h3>
 
         <ol>
-          <li>In the HArvest panel, go to <strong>Themes</strong>.</li>
-          <li>Create or edit a theme and enable <strong>Renderer pack</strong>.</li>
-          <li>Upload or paste your pack JavaScript in the pack code editor.</li>
-          <li>Assign the theme to a token. Any widget using that token will automatically load the pack.</li>
+          <li>Create a <code>.zip</code> file (name it anything, e.g. <code>my-theme.zip</code>) containing exactly <code>theme.json</code> and <code>renderer.js</code>.</li>
+          <li>In the HArvest panel, go to <strong>Themes</strong> and click <strong>Import .zip</strong>.</li>
+          <li>The panel shows a renderer consent dialog before completing every import or overwrite.</li>
+          <li>Assign the theme to a token. Any widget using that token will automatically load the renderer override.</li>
         </ol>
 
         <h3>Lookup order</h3>
 
         <p>When the widget needs a renderer for a domain, it checks in this order:</p>
         <ol>
-          <li>The active pack's registry (if the token's theme has a renderer pack).</li>
+          <li>The active theme's renderer override (if the theme includes a <code>renderer.js</code>).</li>
           <li>The global renderer registry (built-in renderers and any <code>registerRenderer()</code> calls).</li>
           <li>The generic card fallback.</li>
         </ol>
 
-        <p>This means pack renderers only affect tokens using that pack's theme. Other tokens continue to use the built-in renderers, keeping everything isolated.</p>
+        <p>Renderer overrides only affect tokens using that theme. Other tokens continue to use the built-in renderers.</p>
         </section>
 
         <!-- ============================================================ -->
@@ -433,16 +448,16 @@
         <ol>
           <li>Open the HArvest panel in Home Assistant and go to <strong>Settings</strong>.</li>
           <li>Scroll to the <strong>Custom Domains</strong> card.</li>
-          <li>Select the domain from the dropdown (e.g. <code>vacuum</code>). The list shows all Tier 2 domains that have entities in your HA instance.</li>
+          <li>Select the domain from the dropdown (e.g. <code>vacuum</code>). The list shows Tier 2 domains that currently have at least one entity and registered HA service.</li>
           <li>Toggle on the services your renderer needs (e.g. <code>start</code>, <code>stop</code>, <code>pause</code>, <code>return_to_base</code>). The available services come directly from HA's service registry for that domain.</li>
           <li>Click <strong>Add</strong>. The domain and its allowed services are saved immediately.</li>
         </ol>
 
-        <p>Once registered, commands for those services are accepted by the server. Commands for services that were not toggled on are still rejected with <code>HRV_PERMISSION_DENIED</code>.</p>
+        <p>Once registered, commands for those services can pass the server allowlist. Commands for services that were not selected are still rejected with <code>HRV_PERMISSION_DENIED</code>. The target entity must also be included in the widget token with Control access. To change the service selection, remove the domain and add it again.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Security note</span>
-          <p>Only enable the specific services your renderer actually uses. This follows the principle of least privilege. You can always add more services later if needed. Tier 3 domains (lock, alarm, camera, etc.) cannot be added as custom domains regardless of this setting.</p>
+          <p>Only enable the specific services your renderer actually uses. This follows the principle of least privilege. You can always add more services later if needed. Tier 3 domains (alarm, camera, etc.) cannot be added as custom domains regardless of this setting.</p>
         </div>
 
         <h3>Read-only cards</h3>
@@ -454,9 +469,9 @@
         <section>
         <h2 id="embed">Embedding on a page</h2>
 
-        <p>Because your renderer is delivered as a pack, the embedding page needs nothing beyond the standard HArvest setup. The widget automatically loads the pack when it connects and finds the token's theme has a renderer pack. No extra script tags, no manual registration.</p>
+        <p>Because your renderer is delivered as part of a theme zip, the embedding page needs nothing beyond the standard HArvest setup. The widget automatically loads the renderer when it connects and finds the token's theme has a renderer override. No extra script tags, no manual registration.</p>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
 &lt;/script&gt;
@@ -497,7 +512,7 @@
 
         <ol>
           <li><strong>Service whitelist</strong> - the action must be in the built-in <code>ALLOWED_SERVICES</code> list (for Tier 1 domains) or the admin-registered custom domains list (for Tier 2). If not, the command is rejected with <code>HRV_PERMISSION_DENIED</code>.</li>
-          <li><strong>Data key filtering</strong> - for Tier 1 domains, only keys in the hardcoded <code>_ALLOWED_DATA_KEYS</code> map are forwarded. For custom domains, the server queries HA's service schema to determine which data keys the service accepts. Unknown keys are silently stripped.</li>
+          <li><strong>Data key filtering</strong> - for Tier 1 domains, only keys in the hardcoded <code>_ALLOWED_DATA_KEYS</code> map are forwarded. For custom domains, the server queries HA's service schema to determine which data keys the service accepts. Unknown keys are silently stripped. Target selectors such as <code>entity_id</code>, <code>device_id</code>, <code>area_id</code>, <code>floor_id</code>, and <code>label_id</code> are always stripped because HArvest supplies the single token-authorized entity as the target.</li>
         </ol>
 
         <p>If the entity's capability is <code>"read"</code> or <code>"badge"</code>, all commands are rejected regardless of the whitelist.</p>
@@ -557,10 +572,10 @@
 
         <h3>CSS custom properties</h3>
 
-        <p>Use HArvest's CSS custom properties for colours, spacing, typography, and card structure. This ensures your card adapts to theme changes and dark mode automatically. The full list is on the <a href="theming.html">Theming</a> page. The most commonly used:</p>
+        <p>Use HArvest's CSS custom properties for colors, spacing, typography, and card structure. This ensures your card adapts to theme changes and dark mode automatically. The full list is on the <a href="theming.html">Theming</a> page. The most commonly used:</p>
 
 <pre><code class="language-css">/* Colours */
-var(--hrv-color-primary)            /* Accent colour */
+var(--hrv-color-primary)            /* Accent color */
 var(--hrv-color-surface)            /* Card background */
 var(--hrv-color-text)               /* Primary text */
 var(--hrv-color-text-secondary)     /* Muted text */
@@ -568,7 +583,7 @@ var(--hrv-color-state-on)           /* Active/on state */
 var(--hrv-color-state-off)          /* Inactive/off state */
 var(--hrv-color-success)            /* Positive actions */
 var(--hrv-color-error)              /* Negative actions / errors */
-var(--hrv-color-text-inverse)       /* Text on coloured backgrounds */
+var(--hrv-color-text-inverse)       /* Text on colored backgrounds */
 
 /* Spacing and sizing */
 var(--hrv-spacing-xs)  /* 4px */    var(--hrv-spacing-s)  /* 8px */
@@ -599,7 +614,7 @@ var(--hrv-transition-speed)  /* 150ms */</code></pre>
     // Check if server has a custom tap action configured
     const tap = this.config.gestureConfig?.tap;
     if (tap) { this._runAction(tap); return; }
-    // Default behaviour
+    // Default behavior
     this.config.card?.sendCommand("start", {});
   },
 });</code></pre>
@@ -639,9 +654,9 @@ var(--hrv-transition-speed)  /* 150ms */</code></pre>
         <section>
         <h2 id="dev-testing">Development and testing</h2>
 
-        <p>During development, uploading a pack after every change is slow. For faster iteration, you can use <code>HArvest.registerRenderer()</code> with a local script tag. This registers the renderer globally (not scoped to a theme) so you can test it immediately.</p>
+        <p>During development, re-importing a zip after every change is slow. For faster iteration, you can use <code>HArvest.registerRenderer()</code> with a local script tag. This registers the renderer globally (not scoped to a theme) so you can test it immediately.</p>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script src="vacuum-card.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({ haUrl: "https://myhome.example.com", token: "hwt_..." });
@@ -655,22 +670,42 @@ var(--hrv-transition-speed)  /* 150ms */</code></pre>
 }
 HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
 
-        <p>This approach requires a <code>&lt;script&gt;</code> tag on the embedding page, which is fine for local testing. Once your renderer is working, wrap it in the pack IIFE format (see <a href="#packs">Creating a renderer pack</a>) and upload it through the panel. The pack format is the production delivery mechanism; the person embedding your widget should never need to add script tags for custom cards.</p>
+        <p>This approach requires a <code>&lt;script&gt;</code> tag on the embedding page, which is fine for local testing. Once your renderer is working, wrap it in the renderer IIFE format (see <a href="#renderer-overrides">Creating a renderer override</a>) and bundle it in a theme zip through the panel. The zip format is the production delivery mechanism; the person embedding your widget should never need to add script tags for custom cards.</p>
 
         <div class="callout callout-tip">
           <span class="callout-label">Device class registrations</span>
-          <p>Both packs and standalone registration support device-class-specific keys: <code>HArvest.registerRenderer("sensor.temperature", MyTempCard)</code>. This overrides the renderer only for sensors with <code>device_class: "temperature"</code>, leaving other sensors on their default renderer.</p>
+          <p>Both renderer overrides and standalone registration support device-class-specific keys: <code>HArvest.registerRenderer("sensor.temperature", MyTempCard)</code>. This overrides the renderer only for sensors with <code>device_class: "temperature"</code>, leaving other sensors on their default renderer.</p>
         </div>
+
+        <h3 id="icon-sets">Icon sets</h3>
+        <p>Renderers are not limited to the bundled Material Design icons. HArvest ships curated subsets of Font Awesome solid (<code>fa:</code>), Phosphor (<code>ph:</code>, all six weights), and Tabler (<code>tabler:</code>) that load on demand, and your renderer can use those names anywhere it would use an <code>mdi:</code> name - <code>renderIcon("fa:bolt", "card-icon")</code> works once the set is loaded. Until then <code>resolveIcon()</code> falls back gracefully, so always pass a bundled MDI fallback.</p>
+        <p>Packs can also register their own icon set:</p>
+        <pre><code>HArvest.registerIconSet("mypack", {
+  icons: {
+    "mypack:dino": { body: '&lt;path d="..." fill="currentColor"/&gt;', viewBox: "0 0 24 24" },
+  },
+  aliases: {},
+});</code></pre>
+        <p>Entries are <code>{ body, viewBox }</code> where <code>body</code> is the icon's inner SVG markup (paths, strokes, multiple elements all work). Registration is last-write-wins with a console warning on collision, the same semantics as <code>registerRenderer()</code>. <code>HArvest.getIconSet(key)</code> returns a registered set.</p>
         </section>
 
         <!-- ============================================================ -->
         <section>
         <h2 id="complete-example">Complete example: vacuum card</h2>
 
-        <p>This is a full, working vacuum card packaged as a renderer pack. It displays state, battery level, and fan speed, with start, stop, and return-to-base buttons. Copy this code into the pack editor in the HArvest panel (Themes, enable Renderer pack, paste code).</p>
+        <p>This is a full, working vacuum card packaged as a renderer override. It displays state, battery level, and fan speed, with start, stop, and return-to-base buttons. Save the following two files as <code>theme.json</code> and <code>renderer.js</code>, zip them together (e.g. <code>vacuum-theme.zip</code>), and import the zip via the Themes tab. The vacuum renderer does not need a <code>capabilities</code> entry because the panel has no vacuum-specific display settings to filter.</p>
+
+<pre><code class="language-json">{
+  "name": "Vacuum Card",
+  "author": "Your Name",
+  "version": "1.0",
+  "harvest_version": 1,
+  "has_renderer": true,
+  "variables": {}
+}</code></pre>
 
 <pre><code class="language-javascript">/**
- * vacuum-pack.js - HArvest renderer pack for robot vacuums.
+ * vacuum-renderer.js - HArvest renderer override for robot vacuums.
  *
  * Displays current status, battery level, and fan speed.
  * Controls: Start, Stop, Return to base.
@@ -687,12 +722,6 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
     return;
   }
   const BaseCard = HArvest.renderers.BaseCard;
-
-  function esc(str) {
-    return String(str ?? "")
-      .replace(/&amp;/g, "&amp;amp;").replace(/&lt;/g, "&amp;lt;")
-      .replace(/&gt;/g, "&amp;gt;").replace(/"/g, "&amp;quot;");
-  }
 
   const STYLES = `
     [part=card-body] {
@@ -769,11 +798,11 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
       const w = this.def.capabilities === "read-write";
 
       this.root.innerHTML = `
-        &lt;style&gt;${this.getSharedStyles()}${STYLES}&lt;/style&gt;
+        &lt;style&gt;${STYLES}&lt;/style&gt;
         &lt;div part="card"&gt;
           &lt;div part="card-header"&gt;
             &lt;span part="card-icon" aria-hidden="true"&gt;&lt;/span&gt;
-            &lt;span part="card-name"&gt;${esc(this.def.friendly_name)}&lt;/span&gt;
+            &lt;span part="card-name"&gt;${HArvest.esc(this.def.friendly_name)}&lt;/span&gt;
           &lt;/div&gt;
           &lt;div part="card-body"&gt;
             &lt;div part="status-row"&gt;
@@ -783,9 +812,9 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
             &lt;div part="fan-speed"&gt;&lt;/div&gt;
             ${w ? `
               &lt;div part="controls"&gt;
-                &lt;button part="start-btn" type="button"&gt;Start&lt;/button&gt;
-                &lt;button part="stop-btn" type="button"&gt;Stop&lt;/button&gt;
-                &lt;button part="dock-btn" type="button"&gt;Dock&lt;/button&gt;
+                &lt;button part="start-btn" type="button" aria-label="Start vacuum"&gt;Start&lt;/button&gt;
+                &lt;button part="stop-btn" type="button" aria-label="Stop vacuum"&gt;Stop&lt;/button&gt;
+                &lt;button part="dock-btn" type="button" aria-label="Return vacuum to dock"&gt;Dock&lt;/button&gt;
               &lt;/div&gt;
             ` : ""}
           &lt;/div&gt;
@@ -873,30 +902,27 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
     }
   }
 
-  // Pack registration
-  HArvest._packs = HArvest._packs || {};
-  const _packKey = (document.currentScript &amp;&amp; document.currentScript.dataset.packId)
-    || window.__HARVEST_PACK_ID__
-    || "vacuum-pack";
+  // Renderer registration
+  HArvest._renderers = HArvest._renderers || {};
+  const _rendererKey = (document.currentScript &amp;&amp; document.currentScript.dataset.rendererId)
+    || window.__HARVEST_RENDERER_ID__
+    || "vacuum-renderer";
 
-  HArvest._packs[_packKey] = {
+  HArvest._renderers[_rendererKey] = {
     "vacuum": VacuumCard,
-    _capabilities: {
-      vacuum: { features: ["start", "stop", "return_to_base", "fan_speed"] },
-    },
   };
 })();</code></pre>
 
         <h3>Setup steps</h3>
 
         <ol>
-          <li>In the HArvest panel, go to <strong>Themes</strong>. Create or edit a theme, enable <strong>Renderer pack</strong>, and paste the code above into the pack editor.</li>
+          <li>In the HArvest panel, go to <strong>Themes</strong>. Create a <code>.zip</code> containing the <code>theme.json</code> and <code>renderer.js</code> above (both filenames must be exact), then import it via <strong>Import .zip</strong>.</li>
           <li>Add <code>vacuum.roomba</code> to a HArvest token with <code>read-write</code> capability. Assign the theme you just configured.</li>
           <li>In <strong>Settings &gt; Custom Domains</strong>, select <code>vacuum</code> and enable: <code>start</code>, <code>stop</code>, <code>pause</code>, <code>return_to_base</code>, <code>set_fan_speed</code>.</li>
-          <li>Embed the widget on a page. No extra script tags are needed - the pack loads automatically:</li>
+          <li>Embed the widget on a page. No extra script tags are needed - the renderer loads automatically:</li>
         </ol>
 
-<pre><code class="language-html">&lt;script src="harvest.min.js"&gt;&lt;/script&gt;
+<pre><code class="language-html">&lt;script src="https://myhome.example.com/harvest_assets/harvest.min.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   HArvest.config({
     haUrl: "https://myhome.example.com",
@@ -906,7 +932,7 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
 
 &lt;hrv-card entity="vacuum.roomba"&gt;&lt;/hrv-card&gt;</code></pre>
 
-        <p>The widget fetches the pack from the server because the token's theme has a renderer pack enabled. The vacuum card renders automatically with no additional setup on the embedding page.</p>
+        <p>The widget fetches the renderer from the server because the token's theme has a renderer override. The vacuum card renders automatically with no additional setup on the embedding page.</p>
         </section>
 
         <!-- ============================================================ -->
@@ -922,14 +948,15 @@ HArvest.registerRenderer("vacuum", VacuumCard);</code></pre>
               <tr><td>Read-only mode</td><td>Card renders cleanly when <code>capabilities</code> is <code>"read"</code> (no buttons, sliders, or interactive controls).</td></tr>
               <tr><td>Unavailable state</td><td><code>applyState("unavailable", {})</code> disables controls and shows a clear status.</td></tr>
               <tr><td>Part attributes</td><td>Every meaningful element has a <code>part="..."</code> so themes can target it.</td></tr>
-              <tr><td>Shared styles</td><td><code>getSharedStyles()</code> is included in the style tag.</td></tr>
+              <tr><td>Shared styles</td><td>Adopted automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>; the renderer's <code>&lt;style&gt;</code> tag only contains renderer-specific CSS.</td></tr>
               <tr><td>Companion zone</td><td><code>renderCompanionZoneHTML()</code> in template, <code>renderCompanions()</code> called at end of <code>render()</code>.</td></tr>
               <tr><td>Accessibility</td><td><code>renderAriaLiveHTML()</code> in template, <code>announceState()</code> called in <code>applyState()</code>, interactive elements have <code>aria-label</code>.</td></tr>
               <tr><td>Stale indicator</td><td><code>&lt;div part="stale-indicator"&gt;</code> included in template.</td></tr>
               <tr><td>Reduced motion</td><td>Animations are disabled when <code>prefers-reduced-motion: reduce</code> is set.</td></tr>
-              <tr><td>HTML escaping</td><td>User-provided strings (friendly name, state text) are escaped before insertion.</td></tr>
+              <tr><td>HTML escaping</td><td>User-provided strings inserted into HTML templates are escaped with <code>HArvest.esc(value)</code>. Values assigned through <code>textContent</code> do not need escaping.</td></tr>
               <tr><td>Slider focus guard</td><td>If you have sliders, <code>isFocused()</code> is checked in <code>applyState()</code> before updating values.</td></tr>
-              <tr><td>Pack format</td><td>Renderer is wrapped in the IIFE pack format with proper <code>_packKey</code> resolution and <code>_capabilities</code> declaration.</td></tr>
+              <tr><td>Renderer format</td><td>Renderer is wrapped in the IIFE format with proper <code>_rendererKey</code> resolution.</td></tr>
+              <tr><td>Capability metadata</td><td>If the renderer changes which panel-defined display options it supports, those options are declared in the <code>capabilities</code> object in <code>theme.json</code>.</td></tr>
               <tr><td>Custom domain registered</td><td>Admin has registered the domain's services in Settings if the card sends commands.</td></tr>
               <tr><td>CSS custom properties</td><td>Colours, spacing, and typography use <code>--hrv-*</code> variables, not hardcoded values.</td></tr>
             </tbody>

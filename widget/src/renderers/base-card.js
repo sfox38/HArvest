@@ -13,12 +13,19 @@
  *   renderIcon()           - Inject an MDI SVG into a [part] slot.
  *   renderCompanionZoneHTML() - Return the companion zone placeholder HTML.
  *   renderCompanions()     - Populate the companion zone with live data.
- *   getSharedStyles()      - Return the common CSS block every renderer needs.
  *   debounce()             - Create a debounced wrapper around a function.
  *   setAriaLabel()         - Set aria-label on an element.
+ *
+ * Shared base CSS (variables, card layout, companion zone, stale indicator,
+ * skeleton, gesture, history) is adopted automatically into each card's
+ * shadow root by the BaseCard constructor via a single module-level
+ * CSSStyleSheet. Renderers only need to inline their renderer-specific CSS
+ * in a per-shadow <style> block; the shared base is parsed once and shared
+ * across all cards instead of being duplicated 50+ times in inline <style>
+ * tags. See _getSharedSheet() below.
  */
 
-import { renderIconSVG, resolveIcon as _resolveIcon, MDI_ICONS } from "../icons.js";
+import { renderIconSVG, resolveIcon as _resolveIcon, iconNameForSet, iconSetIdOf, MDI_ICONS } from "../icons.js";
 import { getErrorStateStyles } from "../error-states.js";
 
 const HOLD_MS = 500;
@@ -37,10 +44,13 @@ const _DOMAIN_FALLBACK = {
   media_player:   "mdi:cast",
   input_number:   "mdi:numeric",
   input_select:   "mdi:format-list-bulleted",
+  select:         "mdi:format-list-bulleted",
   remote:         "mdi:remote",
   timer:          "mdi:timer-outline",
-  harvest_action: "mdi:play-circle-outline",
 };
+const _INTERACTIVE_COMPANION_DOMAINS = new Set([
+  "light", "switch", "input_boolean", "fan", "lock", "button", "input_button",
+]);
 const DOUBLE_TAP_MS = 250;
 
 // Device-class-aware on/off labels for binary_sensor entities.
@@ -78,7 +88,7 @@ const _BINARY_SENSOR_DC_LABELS = {
 // ---------------------------------------------------------------------------
 // Shared CSS custom property defaults
 // These values are overridden by the theme system (ThemeLoader.apply()) when
-// a theme-url or inline theme is configured. They serve as safe fallbacks
+// the server pushes a token theme. They serve as safe fallbacks
 // when no theme is applied, targeting a clean neutral appearance.
 // ---------------------------------------------------------------------------
 
@@ -144,15 +154,19 @@ const SHARED_CSS_VARS = /* css */`
     display: block;
     width: 100%;
     position: relative;
-    min-width: var(--hrv-card-min-width, 180px);
+    min-width: min(var(--hrv-card-min-width, 180px), 100%);
     overflow: hidden;
+    border-radius: var(--hrv-card-radius);
     box-sizing: border-box;
     contain: inline-size;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 80px;
     font-family: var(--hrv-font-family);
   }
 
   :host([preview]) {
     contain: none;
+    content-visibility: visible;
   }
 
   /* Dark mode overrides - applied when no explicit theme is set */
@@ -190,6 +204,11 @@ const SHARED_CSS_VARS = /* css */`
       transition-duration: 0.01ms !important;
     }
   }
+
+  :where(button, input, select, textarea, [role=button], [role=slider]):focus-visible {
+    outline: 2px solid var(--hrv-color-primary) !important;
+    outline-offset: 3px !important;
+  }
 `;
 
 const CARD_BASE_CSS = /* css */`
@@ -218,7 +237,7 @@ const CARD_BASE_CSS = /* css */`
     height: var(--hrv-icon-size);
     flex-shrink: 0;
     color: var(--hrv-color-icon);
-    display: flex;
+    display: var(--hrv-icon-display, flex);
     align-items: center;
     justify-content: center;
   }
@@ -273,6 +292,113 @@ const CARD_BASE_CSS = /* css */`
     display: none;
   }
 
+  /* ------------------------------------------------------------------
+   * Row layout mode - layout="row" on hrv-card strips the card chrome
+   * and renders as a single compact horizontal line. The parent
+   * .hrv-entities-block container provides shared card appearance.
+   * ------------------------------------------------------------------ */
+  :host([layout=row]) {
+    min-width: unset;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  :host([layout=row]) [part=card] {
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
+    min-height: var(--hrv-row-height, 40px);
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  /* When a row has an explicit color scheme set, show its own surface so the color is visible. */
+  :host([layout=row][data-color-scheme]) [part=card] {
+    background: var(--hrv-color-surface);
+  }
+  :host([layout=row][data-color-scheme][data-highlight=even]) [part=card] {
+    background: var(--hrv-color-surface-alt);
+  }
+
+  :host([layout=row]) [part=card-header] {
+    display: flex;
+    align-items: center;
+    gap: var(--hrv-spacing-s);
+    margin-bottom: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  :host([layout=row]) [part=card-name] {
+    flex: 1;
+    font-size: var(--hrv-font-size-s);
+  }
+
+  :host([layout=row]) [part=card-body],
+  :host([layout=row]) [part=companion-zone],
+  :host([layout=row]) [part=stale-indicator] {
+    display: none !important;
+  }
+
+  [part=row-control] {
+    display: none;
+    align-items: center;
+    flex-shrink: 0;
+    gap: var(--hrv-spacing-xs);
+  }
+
+  :host([layout=row]) [part=row-control] {
+    display: flex;
+  }
+
+  [part=row-toggle] {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    border: none;
+    border-radius: 10px;
+    padding: 0;
+    font-size: 0;
+    color: transparent;
+    overflow: hidden;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  [part=row-toggle]::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s;
+    pointer-events: none;
+  }
+  [part=row-toggle][aria-pressed=true] {
+    background: var(--hrv-color-state-on, #22c55e);
+  }
+  [part=row-toggle][aria-pressed=false] {
+    background: var(--hrv-color-state-off, #d1d5db);
+  }
+  [part=row-toggle][aria-pressed=true]::after {
+    transform: translateX(16px);
+  }
+  [part=row-toggle]:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  [part=row-state],
+  [part=row-value] {
+    font-size: var(--hrv-font-size-xs, 12px);
+    color: var(--hrv-color-text-secondary);
+  }
+
   /* Unavailable / unknown state overlay */
   :host([data-harvest-avail=unavailable]) [part=card],
   :host([data-harvest-avail=unknown]) [part=card] {
@@ -323,21 +449,63 @@ const HISTORY_CSS = /* css */`
 `;
 
 // ---------------------------------------------------------------------------
-// Gesture CSS
-// ---------------------------------------------------------------------------
-
-const GESTURE_CSS = ``;
-
-// ---------------------------------------------------------------------------
 // BaseCard
 // ---------------------------------------------------------------------------
 
+/**
+ * Lazily-constructed module-level CSSStyleSheet holding the shared base CSS.
+ * Adopted into every card's shadow root by the BaseCard constructor so the
+ * browser parses this CSS once instead of N times for N cards on a page.
+ * Returns null in environments that do not support constructable stylesheets
+ * (very old browsers; some test runners). In that case renderers fall back
+ * silently to no shared CSS - a per-renderer <style> block can include the
+ * needed properties if a renderer is built specifically for such an env.
+ */
+let _sharedSheet = null;
+let _sharedSheetTried = false;
+
+function _getSharedSheet() {
+  if (_sharedSheetTried) return _sharedSheet;
+  _sharedSheetTried = true;
+  if (typeof CSSStyleSheet !== "function") return null;
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(
+      SHARED_CSS_VARS + CARD_BASE_CSS + getErrorStateStyles() +
+      COMPANION_CSS + HISTORY_CSS
+    );
+    _sharedSheet = sheet;
+  } catch {
+    // CSSStyleSheet exists but constructor threw (older Safari, sandboxed iframe).
+    _sharedSheet = null;
+  }
+  return _sharedSheet;
+}
+
 export class BaseCard {
+  /**
+   * Whether this renderer is safe to instantiate from a cached
+   * entity_definition + state pair before the live WebSocket has
+   * authenticated. Default false: showing a stale state (e.g. a stale "off"
+   * for a light that's now "on") can mislead the user into a redundant
+   * action. Subclasses for read-only Tier 1 entities (sensors, weather,
+   * binary sensors, timers) override this to true since stale numeric or
+   * status data is harmless and improves perceived load time.
+   *
+   * @type {boolean}
+   */
+  static staleOnMount = false;
+
   /** @type {object} */ def;
   /** @type {ShadowRoot} */ root;
   /** @type {object} */ config;
   /** @type {object} */ i18n;
   /** @type {Map<string,string>} */ #iconCache = new Map();
+
+  /** True when layout="row" is set on the containing hrv-card. */
+  get isRow() {
+    return this.config.layout === "row";
+  }
 
   /**
    * @param {object}     def    - EntityDefinition from server
@@ -350,6 +518,13 @@ export class BaseCard {
     this.root   = root;
     this.config = config;
     this.i18n   = i18n;
+    // Adopt the shared base stylesheet (CSS vars, card layout, companion zone,
+    // stale indicator, skeleton, gesture, history). Renderer-specific CSS
+    // still goes in a per-shadow <style> block in the renderer's render().
+    const sheet = _getSharedSheet();
+    if (sheet && root && "adoptedStyleSheets" in root) {
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -362,6 +537,21 @@ export class BaseCard {
    */
   render() {
     throw new Error(`${this.constructor.name} must implement render()`);
+  }
+
+  /**
+   * Enforce universal renderer contracts after render().
+   */
+  finalizeRender() {
+    const selector = "button, input, select, textarea, a[href], [role=button], [role=slider]";
+    const friendlyName = String(this.def.friendly_name ?? "").trim();
+    for (const element of this.root.querySelectorAll(selector)) {
+      if (!element.hasAttribute("part")) element.setAttribute("part", "control");
+      const label = element.getAttribute("aria-label");
+      if (friendlyName && label && !label.toLowerCase().includes(friendlyName.toLowerCase())) {
+        element.setAttribute("aria-label", `${friendlyName}: ${label}`);
+      }
+    }
   }
 
   /**
@@ -407,6 +597,10 @@ export class BaseCard {
    * @param {string} partName  - value of the part="" attribute on the container
    */
   renderIcon(iconName, partName) {
+    // Translate mdi: names to the active icon set (token/theme icon_set
+    // cascade) before caching, so a forced re-render after a set loads
+    // swaps the glyph even when the renderer passes the same mdi name.
+    iconName = iconNameForSet(iconName, this.config?.iconSet);
     if (this.#iconCache.get(partName) === iconName) return;
     this.#iconCache.set(partName, iconName);
     const container = this.root.querySelector(`[part=${partName}]`);
@@ -436,7 +630,22 @@ export class BaseCard {
    * @returns {string}
    */
   resolveIcon(name, fallback) {
-    return _resolveIcon(name, fallback);
+    return _resolveIcon(iconNameForSet(name, this.config?.iconSet), fallback);
+  }
+
+  /**
+   * Resolve a companion icon. Companions inherit their parent card's icon
+   * set: when the primary icon is a per-entity set pick (e.g.
+   * "ph:lightbulb-fill"), companion icons translate into that same set;
+   * otherwise the token/theme icon_set cascade applies as usual.
+   *
+   * @param {string} name
+   * @param {string} fallback
+   * @returns {string}
+   */
+  resolveCompanionIcon(name, fallback) {
+    const setId = iconSetIdOf(this.def?.icon) ?? this.config?.iconSet;
+    return _resolveIcon(iconNameForSet(name, setId), fallback);
   }
 
   /**
@@ -493,7 +702,14 @@ export class BaseCard {
     }
     const key = `state.${state}`;
     const localized = this.i18n.t(key);
-    return localized !== key ? localized : state;
+    if (localized !== key) return localized;
+    // input_select / select options are slugs with no i18n key. Prettify the
+    // fallback (capitalize, underscores to spaces) so cards and badges show a
+    // friendly value instead of the raw slug.
+    if ((d === "input_select" || d === "select") && state) {
+      return state.charAt(0).toUpperCase() + state.slice(1).replace(/_/g, " ");
+    }
+    return state;
   }
 
   /**
@@ -519,19 +735,21 @@ export class BaseCard {
     zone.innerHTML = "";
 
     for (const companion of this.config.companions) {
-      const isInteractive = companion.capabilities === "read-write";
+      const isInteractive = companion.capabilities === "read-write"
+        && _INTERACTIVE_COMPANION_DOMAINS.has(companion.domain);
       const pill = document.createElement(isInteractive ? "button" : "div");
       pill.className = "hrv-companion";
       pill.setAttribute("part", "companion");
       pill.setAttribute("data-entity", companion.entityId);
       pill.setAttribute("aria-label", companion.entityId);
+      pill.dataset.domain = companion.domain ?? "";
 
       if (isInteractive) {
         pill.type = "button";
         pill.setAttribute("data-interactive", "true");
         this._attachGestureHandlers(pill, {
           onTap: () => {
-            this.config.card?._sendCompanionCommand(companion.entityId, "toggle", {});
+            this._sendCompanionTap(companion.entityId, pill);
           },
         }, {});
       }
@@ -561,6 +779,15 @@ export class BaseCard {
     const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
     if (!pill) return;
 
+    const shouldBeInteractive = (def.capabilities ?? "read") === "read-write"
+      && _INTERACTIVE_COMPANION_DOMAINS.has(def.domain);
+    const isCurrentlyInteractive = pill.hasAttribute("data-interactive");
+
+    if (shouldBeInteractive !== isCurrentlyInteractive) {
+      this._rebuildCompanionPill(entityId, def);
+      return;
+    }
+
     pill.dataset.domain = def.domain ?? "";
     pill.dataset.deviceClass = def.device_class ?? "";
     if (def.icon_state_map) {
@@ -571,16 +798,80 @@ export class BaseCard {
       const iconWrap = pill.querySelector("[part=companion-icon]");
       if (iconWrap) {
         const domainFallback = _DOMAIN_FALLBACK[def.domain] ?? "mdi:circle-small";
-        iconWrap.innerHTML = renderIconSVG(_resolveIcon(def.icon, domainFallback), "companion-icon-svg");
+        iconWrap.innerHTML = renderIconSVG(this.resolveCompanionIcon(def.icon, domainFallback), "companion-icon-svg");
       }
     }
     if (def.friendly_name) {
-      // Preserve any existing state suffix (e.g. " - on") when updating the name.
       const existing = pill.getAttribute("aria-label") ?? "";
       const stateSuffix = existing.match(/ - (.+)$/)?.[0] ?? "";
       pill.setAttribute("aria-label", `${def.friendly_name}${stateSuffix}`);
       pill.title = `${def.friendly_name}${stateSuffix}`;
     }
+  }
+
+  _rebuildCompanionPill(entityId, def) {
+    const zone = this.root.querySelector("[part=companion-zone]");
+    const oldPill = zone?.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
+    if (!zone || !oldPill) return;
+
+    const companion = this.config.companions?.find((c) => c.entityId === entityId);
+    const isInteractive = (def.capabilities ?? "read") === "read-write"
+      && _INTERACTIVE_COMPANION_DOMAINS.has(def.domain);
+    const pill = document.createElement(isInteractive ? "button" : "div");
+    pill.className = "hrv-companion";
+    pill.setAttribute("part", "companion");
+    pill.setAttribute("data-entity", entityId);
+    pill.dataset.domain = def.domain ?? "";
+    pill.dataset.deviceClass = def.device_class ?? "";
+    if (oldPill.dataset.state) pill.dataset.state = oldPill.dataset.state;
+    if (oldPill.hasAttribute("data-on")) pill.setAttribute("data-on", oldPill.getAttribute("data-on"));
+    if (def.icon_state_map) {
+      pill.dataset.iconStateMap = JSON.stringify(def.icon_state_map);
+    }
+
+    if (isInteractive) {
+      pill.type = "button";
+      pill.setAttribute("data-interactive", "true");
+      this._attachGestureHandlers(pill, {
+        onTap: () => {
+          this._sendCompanionTap(entityId, pill);
+        },
+      }, {});
+    }
+
+    const iconWrap = document.createElement("span");
+    iconWrap.setAttribute("part", "companion-icon");
+    const domainFallback = _DOMAIN_FALLBACK[def.domain] ?? "mdi:circle-small";
+    const icon = def.icon ? this.resolveCompanionIcon(def.icon, domainFallback) : "mdi:help-circle";
+    iconWrap.innerHTML = renderIconSVG(icon, "companion-icon-svg");
+
+    const stateEl = document.createElement("span");
+    stateEl.setAttribute("part", "companion-state");
+    stateEl.className = "hrv-companion__state";
+
+    const oldState = oldPill.querySelector("[part=companion-state]");
+    if (oldState) stateEl.innerHTML = oldState.innerHTML;
+
+    pill.appendChild(iconWrap);
+    pill.appendChild(stateEl);
+
+    if (def.friendly_name) {
+      pill.setAttribute("aria-label", def.friendly_name);
+      pill.title = def.friendly_name;
+    }
+
+    zone.replaceChild(pill, oldPill);
+  }
+
+  _sendCompanionTap(entityId, pill) {
+    const domain = pill.dataset.domain ?? "";
+    let action = "toggle";
+    if (domain === "lock") {
+      action = pill.dataset.state === "locked" ? "unlock" : "lock";
+    } else if (domain === "button" || domain === "input_button") {
+      action = "press";
+    }
+    this.config.card?._sendCompanionCommand(entityId, action, {});
   }
 
   /**
@@ -589,19 +880,23 @@ export class BaseCard {
    *
    * @param {string} entityId
    * @param {string} state
-   * @param {object} _attributes
+   * @param {object} attributes
    */
-  updateCompanionState(entityId, state, _attributes) {
+  updateCompanionState(entityId, state, attributes) {
     const pill = this.root.querySelector(`[part=companion][data-entity="${CSS.escape(entityId)}"]`);
     if (!pill) return;
-    const label = this.formatStateLabel(
+    let label = this.formatStateLabel(
       state, pill.dataset.domain || null, pill.dataset.deviceClass || null,
     );
+    const unit = attributes?.unit_of_measurement;
+    const isNumeric = state != null && state !== "" && !Number.isNaN(Number(state));
+    if (unit && isNumeric) label = `${label} ${unit}`;
     const stateEl = pill.querySelector("[part=companion-state]");
     if (stateEl) stateEl.textContent = label;
     const name = pill.getAttribute("aria-label")?.replace(/ - .*$/, "") ?? entityId;
     pill.setAttribute("aria-label", `${name} - ${label}`);
     pill.setAttribute("data-on", String(state === "on"));
+    pill.dataset.state = state;
     pill.title = `${name} - ${label}`;
 
     const iconStateMap = pill.dataset.iconStateMap ? JSON.parse(pill.dataset.iconStateMap) : null;
@@ -612,37 +907,77 @@ export class BaseCard {
         if (iconWrap) {
           const domain = pill.dataset.domain ?? "";
           const domainFallback = _DOMAIN_FALLBACK[domain] ?? "mdi:circle-small";
-          iconWrap.innerHTML = renderIconSVG(_resolveIcon(iconName, domainFallback), "companion-icon-svg");
+          iconWrap.innerHTML = renderIconSVG(this.resolveCompanionIcon(iconName, domainFallback), "companion-icon-svg");
         }
       }
     }
   }
 
   /**
-   * Return the CSS string that every renderer must include in its shadow DOM
-   * <style> tag. Contains: CSS custom property defaults, card base layout,
-   * companion zone, stale indicator, skeleton, and message overlay styles.
-   *
-   * @returns {string}
-   */
-  getSharedStyles() {
-    return SHARED_CSS_VARS + CARD_BASE_CSS + getErrorStateStyles() + COMPANION_CSS + HISTORY_CSS + GESTURE_CSS;
-  }
-
-  /**
    * Create a debounced version of fn that delays execution by ms milliseconds.
-   * The timer resets on each call. Useful for slider input events.
+   * The timer resets on each call. The returned function exposes a flush()
+   * method that fires the pending call immediately.
    *
    * @param {Function} fn
    * @param {number}   ms
-   * @returns {Function}
+   * @returns {Function & { flush: () => void }}
    */
   debounce(fn, ms) {
     let timer = null;
-    return (...args) => {
+    let lastArgs = null;
+    const wrapped = (...args) => {
+      lastArgs = args;
       clearTimeout(timer);
-      timer = setTimeout(() => { timer = null; fn(...args); }, ms);
+      timer = setTimeout(() => { timer = null; fn(...lastArgs); lastArgs = null; }, ms);
     };
+    wrapped.flush = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+        if (lastArgs) { fn(...lastArgs); lastArgs = null; }
+      }
+    };
+    return wrapped;
+  }
+
+  /**
+   * Track whether the user is actively dragging a slider via pointer/touch
+   * events. While interacting, applyState() should skip programmatic value
+   * writes so server echoes do not snap the thumb backward mid-drag.
+   *
+   * Optionally pass a debounced send wrapper to flush its pending value on
+   * pointer release so the final position sends immediately.
+   *
+   * @param {HTMLInputElement|null} slider
+   * @param {Function & { flush?: () => void }} [debouncedSend]
+   */
+  guardSlider(slider, debouncedSend) {
+    if (!slider) return;
+    const start = () => { slider.dataset.hrvInteracting = "1"; };
+    const end = () => {
+      delete slider.dataset.hrvInteracting;
+      if (debouncedSend?.flush) debouncedSend.flush();
+    };
+    slider.addEventListener("pointerdown", start);
+    slider.addEventListener("pointerup", end);
+    slider.addEventListener("pointercancel", end);
+    slider.addEventListener("touchstart", start, { passive: true });
+    slider.addEventListener("touchend", end);
+    slider.addEventListener("touchcancel", end);
+  }
+
+  /**
+   * Return true if element currently has focus OR is being actively dragged
+   * (set by guardSlider). Use as the guard before programmatic slider writes
+   * in applyState().
+   *
+   * @param {HTMLElement|null} element
+   * @returns {boolean}
+   */
+  isSliderActive(element) {
+    if (!element) return false;
+    if (this.root.activeElement === element) return true;
+    return element.dataset.hrvInteracting === "1";
   }
 
   // -------------------------------------------------------------------------
@@ -666,15 +1001,32 @@ export class BaseCard {
   _attachGestureHandlers(element, callbacks = {}, actionConfig = null) {
     if (!element) return;
     const cfg = actionConfig !== null ? actionConfig : this.config;
+    const gestureConfig = this.config.layout === "row"
+      ? {}
+      : (cfg.gestureConfig ?? {});
 
-    const onTap       = callbacks.onTap       ?? (() => { const t = cfg.gestureConfig?.tap;        if (t) this._runAction(t); });
-    const onHold      = callbacks.onHold      ?? (() => { const h = cfg.gestureConfig?.hold;       if (h) this._runAction(h); });
-    const onDoubleTap = callbacks.onDoubleTap ?? (() => { const d = cfg.gestureConfig?.double_tap; if (d) this._runAction(d); });
+    const onTap       = callbacks.onTap       ?? (() => { const t = gestureConfig.tap;        if (t) this._runAction(t); });
+    const onHold      = callbacks.onHold      ?? (() => { const h = gestureConfig.hold;       if (h) this._runAction(h); });
+    const onDoubleTap = callbacks.onDoubleTap ?? (() => { const d = gestureConfig.double_tap; if (d) this._runAction(d); });
 
     let holdTimer = null;
     let tapTimer  = null;
     let lastTapAt = 0;
     let didHold   = false;
+    const interactiveSelector = "button, input, select, textarea, a[href]";
+    const isNestedInteractive = (target) => {
+      const interactive = target?.closest?.(interactiveSelector);
+      return interactive && interactive !== element;
+    };
+
+    const hasGesture = Object.keys(callbacks).length > 0 ||
+      !!gestureConfig.tap ||
+      !!gestureConfig.hold ||
+      !!gestureConfig.double_tap;
+    if (hasGesture && !element.matches(interactiveSelector)) {
+      if (!element.hasAttribute("tabindex")) element.tabIndex = 0;
+      if (!element.hasAttribute("role")) element.setAttribute("role", "button");
+    }
 
     const cancel = () => {
       clearTimeout(holdTimer);
@@ -687,7 +1039,7 @@ export class BaseCard {
 
     element.addEventListener("pointerdown", (e) => {
       if (e.button !== undefined && e.button !== 0) return;
-      if (e.target !== element && e.target.matches?.("button, input, select, textarea, a[href]")) return;
+      if (isNestedInteractive(e.target)) return;
       didHold = false;
       element.setAttribute("data-pressing", "true");
       element.setAttribute("data-gesture-hold", "pending");
@@ -704,6 +1056,7 @@ export class BaseCard {
     });
 
     element.addEventListener("pointerup", (e) => {
+      if (isNestedInteractive(e.target)) return;
       if (didHold) { cancel(); return; }
       if (!holdTimer) return;
       clearTimeout(holdTimer);
@@ -712,12 +1065,12 @@ export class BaseCard {
       element.removeAttribute("data-gesture-hold");
 
       const now = Date.now();
-      if (cfg.gestureConfig?.double_tap && (now - lastTapAt) < DOUBLE_TAP_MS) {
+      if (gestureConfig.double_tap && (now - lastTapAt) < DOUBLE_TAP_MS) {
         clearTimeout(tapTimer);
         tapTimer  = null;
         lastTapAt = 0;
         onDoubleTap();
-      } else if (cfg.gestureConfig?.double_tap) {
+      } else if (gestureConfig.double_tap) {
         lastTapAt = now;
         tapTimer  = setTimeout(() => { tapTimer = null; onTap(); }, DOUBLE_TAP_MS);
       } else {
@@ -729,7 +1082,14 @@ export class BaseCard {
     element.addEventListener("pointerleave",  cancel);
     element.addEventListener("pointercancel", cancel);
     element.addEventListener("contextmenu", (e) => {
-      if (cfg.gestureConfig?.hold) e.preventDefault();
+      if (gestureConfig.hold) e.preventDefault();
+    });
+    element.addEventListener("keydown", (e) => {
+      if (isNestedInteractive(e.target)) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.repeat) return;
+      e.preventDefault();
+      onTap();
     });
   }
 
@@ -755,11 +1115,6 @@ export class BaseCard {
       case "turn_off":
         this.config.card?.sendCommand("turn_off", data ?? {});
         break;
-      case "trigger-action": {
-        const targetId = actionConfig.entity_id;
-        if (targetId) this.config.card?._sendCompanionCommand(targetId, "trigger", {});
-        break;
-      }
       case "call-service":
       case "call_service": {
         const svc     = data?.service ?? data?.action;
@@ -798,7 +1153,7 @@ export class BaseCard {
    *
    * @param {Array<{t:string, s:string}>} points
    * @param {number} hours
-   * @param {string} graphType - "line" or "bar"
+   * @param {string} graphType - "line", "bar", or "step"
    */
   receiveHistoryData(points, hours, graphType) {
     this.#historyHours = hours || 24;
@@ -806,13 +1161,8 @@ export class BaseCard {
 
     this.#historyPoints = [];
     for (const p of points) {
-      let v = parseFloat(p.s);
-      if (isNaN(v)) {
-        const lower = String(p.s).toLowerCase();
-        if (lower === "on" || lower === "true" || lower === "home") v = 1;
-        else if (lower === "off" || lower === "false" || lower === "not_home") v = 0;
-        else continue;
-      }
+      const v = historyValue(p.s);
+      if (v === null) continue;
       this.#historyPoints.push({ t: new Date(p.t).getTime(), s: v });
     }
 
@@ -825,8 +1175,8 @@ export class BaseCard {
    * @param {string} stateValue
    */
   appendHistoryPoint(stateValue) {
-    const v = parseFloat(stateValue);
-    if (isNaN(v)) return;
+    const v = historyValue(stateValue);
+    if (v === null) return;
     if (this.#historyPoints.length === 0) return;
 
     const now = Date.now();
@@ -936,6 +1286,16 @@ export class BaseCard {
       <path d="${path}" fill="none" stroke="var(--hrv-color-primary)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
     </svg>`;
   }
+}
+
+function historyValue(value) {
+  const numeric = parseFloat(value);
+  if (!isNaN(numeric)) return numeric;
+
+  const lower = String(value).toLowerCase();
+  if (lower === "on" || lower === "true" || lower === "home") return 1;
+  if (lower === "off" || lower === "false" || lower === "not_home") return 0;
+  return null;
 }
 
 // ---------------------------------------------------------------------------

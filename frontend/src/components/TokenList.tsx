@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Token, TokenStatus } from "../types";
 import { api } from "../api";
-import { StatusBadge, EmptyState, Spinner, ErrorBanner } from "./Shared";
+import { StatusBadge, EmptyState, Spinner, ErrorBanner, SearchInput } from "./Shared";
 import { Icon } from "./Icon";
 import { TokenDetail } from "./TokenDetail";
 
@@ -18,6 +18,7 @@ import { TokenDetail } from "./TokenDetail";
 
 interface TokenListProps {
   onOpenWizard: () => void;
+  onOpenConverter: () => void;
   initialTokenId: string | null;
   onInitialTokenConsumed: () => void;
 }
@@ -124,7 +125,7 @@ function WidgetRow({ token: t, onSelect, highlighted }: {
       </div>
       <div className="widget-meta widget-hide-sm">
         <span className="widget-meta-num">{t.active_sessions}</span>
-        <div className="muted" style={{ fontSize: 11 }}>live</div>
+        <div className="muted fs-11">live</div>
       </div>
       <StatusBadge status={t.status} />
     </div>
@@ -135,7 +136,7 @@ function WidgetRow({ token: t, onSelect, highlighted }: {
 // TokenList
 // ---------------------------------------------------------------------------
 
-export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed }: TokenListProps) {
+export function TokenList({ onOpenWizard, onOpenConverter, initialTokenId, onInitialTokenConsumed }: TokenListProps) {
   const [tokens,       setTokens]       = useState<Token[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState<string | null>(null);
@@ -179,9 +180,10 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
     return (
       <TokenDetail
         tokenId={selectedId}
-        onBack={() => setSelectedId(null)}
+        onBack={() => { setSelectedId(null); load(); }}
         onOpenWizard={onOpenWizard}
         onDeleted={() => { setSelectedId(null); load(); }}
+        onDuplicated={(newId) => { setSelectedId(newId); load(); }}
       />
     );
   }
@@ -192,17 +194,13 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
 
       {/* Toolbar */}
       <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-        <div className="search" style={{ flex: "1 1 240px", maxWidth: 400 }}>
-          <Icon name="search" size={15} />
-          <input
-            className="input"
-            type="search"
-            placeholder="Search widgets by name or origin..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            aria-label="Search widgets"
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search widgets by name or origin..."
+          ariaLabel="Search widgets"
+          style={{ flex: "1 1 240px", maxWidth: 400 }}
+        />
         <div className="segmented" role="group" aria-label="Filter by status">
           {FILTER_OPTIONS.map(({ value, label }) => (
             <button key={value} aria-pressed={filter === value} onClick={() => { setFilter(value); localStorage.setItem("hrv_filter_tab", value); }}>
@@ -210,7 +208,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
             </button>
           ))}
         </div>
-        <div style={{ flex: 1 }} />
+        <div className="flex-1" />
         <button className="btn btn-ghost" onClick={() => { const next = !showArchived; setShowArchived(next); localStorage.setItem("hrv_show_archived", String(next)); }}>
           <Icon name="clock" size={14} />
           {showArchived ? "Hide" : "Show"} archived
@@ -223,6 +221,10 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
         >
           <Icon name={viewMode === "grid" ? "list" : "grid"} size={15} />
         </button>
+        <button className="btn btn-ghost" onClick={onOpenConverter} title="Convert a Lovelace dashboard to HArvest HTML">
+          <Icon name="download" size={14} />
+          <span className="btn-label-sm">Convert</span>
+        </button>
         <button className="btn btn-primary" onClick={onOpenWizard}>
           <Icon name="plus" size={14} />
           <span className="btn-label-sm">New widget</span>
@@ -230,7 +232,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+        <div className="center-spinner">
           <Spinner size={40} />
         </div>
       ) : active.length === 0 && archived.length === 0 ? (
@@ -269,7 +271,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           )}
 
           {active.length === 0 && filter !== "all" && (
-            <div className="card card-info card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
+            <div className="card card-info card-pad muted text-center-13">
               No widgets match this filter.
             </div>
           )}
@@ -300,7 +302,7 @@ export function TokenList({ onOpenWizard, initialTokenId, onInitialTokenConsumed
           )}
 
           {showArchived && archived.length === 0 && (
-            <div className="card card-info card-pad muted" style={{ textAlign: "center", fontSize: 13 }}>
+            <div className="card card-info card-pad muted text-center-13">
               No archived widgets.
             </div>
           )}

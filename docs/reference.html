@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Full Reference - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -17,7 +19,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v1.0 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -47,18 +49,18 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Reference</div>
           <h1>Full reference</h1>
-          <p class="lead">Token settings, widget attributes, JavaScript API, WordPress shortcodes, CSS variables, and global settings.</p>
+          <p class="lead">Covers token settings, widget attributes, the JavaScript API, WordPress shortcodes, CSS variables, and global settings.</p>
         </div>
 
         <div class="toc">
@@ -71,6 +73,7 @@
             <li><a href="#token-fields">Token fields</a></li>
             <li><a href="#entity-settings">Per-entity settings</a></li>
             <li><a href="#global-settings">Global settings</a></li>
+            <li><a href="#custom-domains">Custom domains</a></li>
             <li><a href="#css-vars">CSS variables</a></li>
             <li><a href="#theme-json">Theme JSON schema</a></li>
             <li><a href="#error-codes">Error codes</a></li>
@@ -83,10 +86,10 @@
           <table>
             <thead><tr><th>Attribute</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>entity</code></td><td>Yes*</td><td>HA entity ID. e.g. <code>light.bedroom_main</code>. Use either <code>entity</code> or <code>alias</code>.</td></tr>
               <tr><td><code>alias</code></td><td>Yes*</td><td>8-character random alias as assigned in the panel. Alternative to <code>entity</code>.</td></tr>
+              <tr><td><code>entity</code></td><td>Yes*</td><td>HA entity ID. e.g. <code>light.bedroom_main</code>. Use either <code>entity</code> or <code>alias</code>.</td></tr>
+              <tr><td><code>ha-url</code></td><td>No</td><td>HA URL reachable by widget visitors. Use HTTPS when the embedding page uses HTTPS. Inherits from group or <code>HArvest.config()</code> if not set.</td></tr>
               <tr><td><code>token</code></td><td>No</td><td>Widget token ID. Inherits from group or <code>HArvest.config()</code> if not set.</td></tr>
-              <tr><td><code>ha-url</code></td><td>No</td><td>HA external HTTPS URL. Inherits from group or <code>HArvest.config()</code> if not set.</td></tr>
               <tr><td><code>token-secret</code></td><td>No</td><td>HMAC signing secret. Required when the token has HMAC enabled.</td></tr>
             </tbody>
           </table>
@@ -98,8 +101,8 @@
           <table>
             <thead><tr><th>Attribute</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>token</code></td><td>Token ID inherited by all child cards</td></tr>
               <tr><td><code>ha-url</code></td><td>HA URL inherited by all child cards</td></tr>
+              <tr><td><code>token</code></td><td>Token ID inherited by all child cards</td></tr>
               <tr><td><code>token-secret</code></td><td>HMAC secret inherited by all child cards</td></tr>
             </tbody>
           </table>
@@ -113,11 +116,13 @@
             <tbody>
               <tr><td><code>HArvest.config(options)</code></td><td>Set page-level defaults. Merges on repeated calls. See <a href="#pageconfig-options">PageConfig options</a>.</td></tr>
               <tr><td><code>HArvest.create(config)</code></td><td>Programmatically create and mount an HrvCard. Returns the element.</td></tr>
-              <tr><td><code>HArvest.getCard(entityId)</code></td><td>Get the HrvCard instance for an entity ID, or null.</td></tr>
+              <tr><td><code>HArvest.esc(value)</code></td><td>Escape a value for safe insertion into an HTML string. Use this for user-provided text such as entity friendly names inside renderer templates.</td></tr>
+              <tr><td><code>HArvest.getCard(entityId)</code></td><td>Get the most recently registered HrvCard for an entity ID or alias on the page-level client, or null.</td></tr>
               <tr><td><code>HArvest.registerRenderer(key, Class)</code></td><td>Register a custom renderer for a domain or domain.device_class. Last write wins.</td></tr>
               <tr><td><code>HArvest.renderers</code></td><td>Object containing all built-in renderer classes for extension.</td></tr>
-              <tr><td><code>HArvest.track.anyState(callback)</code></td><td>Register a callback for all entity state changes on the page.</td></tr>
-              <tr><td><code>HArvest._packs</code> <span class="badge badge-grey">internal</span></td><td>Renderer pack namespace. Used by renderer pack authors to register alternative card renderers. Not part of the public API; may change between versions.</td></tr>
+              <tr><td><code>HArvest.track.anyState(callback)</code></td><td>Register a callback for every state update on the page-level client configured by <code>HArvest.config()</code>.</td></tr>
+              <tr><td><code>hrv-state-change</code> event</td><td>Bubbling event dispatched by an <code>&lt;hrv-card&gt;</code> after each confirmed state update. Detail contains current and previous state and attributes.</td></tr>
+              <tr><td><code>HArvest._renderers</code> <span class="badge badge-grey">internal</span></td><td>Renderer override namespace. Used by renderer override authors to register alternative card renderers. Not part of the public API; may change between versions.</td></tr>
             </tbody>
           </table>
         </div>
@@ -127,10 +132,10 @@
           <table>
             <thead><tr><th>Option</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>haUrl</code></td><td>string</td><td>-</td><td>HA external HTTPS URL</td></tr>
+              <tr><td><code>colorScheme</code></td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Page-level color scheme fallback. Token server setting takes priority.</td></tr>
+              <tr><td><code>haUrl</code></td><td>string</td><td>-</td><td>HA URL reachable by widget visitors. Use HTTPS when the embedding page uses HTTPS.</td></tr>
               <tr><td><code>token</code></td><td>string</td><td>-</td><td>Widget token ID</td></tr>
               <tr><td><code>tokenSecret</code></td><td>string</td><td>-</td><td>HMAC signing secret</td></tr>
-              <tr><td><code>colorScheme</code></td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Page-level color scheme fallback. Token server setting takes priority.</td></tr>
             </tbody>
           </table>
         </div>
@@ -142,9 +147,9 @@
           <table>
             <thead><tr><th>Parameter</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>token</code></td><td>Yes</td><td>Widget token ID</td></tr>
-              <tr><td><code>entity</code></td><td>Yes*</td><td>HA entity ID</td></tr>
               <tr><td><code>alias</code></td><td>Yes*</td><td>8-character entity alias. Use <code>entity</code> or <code>alias</code>, not both.</td></tr>
+              <tr><td><code>entity</code></td><td>Yes*</td><td>HA entity ID</td></tr>
+              <tr><td><code>token</code></td><td>Yes</td><td>Widget token ID</td></tr>
               <tr><td><code>token-secret</code></td><td>No</td><td>HMAC signing secret</td></tr>
             </tbody>
           </table>
@@ -169,24 +174,36 @@
           <table>
             <thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td>Label</td><td>string</td><td>-</td><td>Display name in the panel. Not exposed to visitors.</td></tr>
-              <tr><td>Entities</td><td>list</td><td>-</td><td>List of entity IDs with per-entity capability and settings.</td></tr>
-              <tr><td>Allowed origins</td><td>list</td><td>-</td><td>Websites allowed to connect. Empty = any (if allow_any is set) or rejection.</td></tr>
-              <tr><td>Allow any origin</td><td>boolean</td><td>false</td><td>Skip origin checking entirely.</td></tr>
-              <tr><td>Expires at</td><td>ISO datetime | null</td><td>null</td><td>Token expiry. Null = never expires.</td></tr>
-              <tr><td>Active schedule</td><td>object | null</td><td>null</td><td>Day/hour restriction with IANA timezone.</td></tr>
-              <tr><td>Allowed IPs</td><td>CIDR list</td><td>-</td><td>IP allowlist. Requires trusted_proxies in HA config.</td></tr>
-              <tr><td>Token secret</td><td>string | null</td><td>null</td><td>HMAC signing secret. Null = HMAC disabled.</td></tr>
-              <tr><td>Max sessions</td><td>integer | null</td><td>null</td><td>Max concurrent sessions. Null = unlimited.</td></tr>
-              <tr><td>Session lifetime</td><td>minutes</td><td>60</td><td>Session duration before renewal required.</td></tr>
-              <tr><td>Max session lifetime</td><td>minutes</td><td>1440</td><td>Maximum total duration via renewals.</td></tr>
-              <tr><td>Theme</td><td>theme ID | null</td><td>null</td><td>Theme assigned to this token. Null = Default theme.</td></tr>
-              <tr><td>Lang</td><td>BCP 47 | "auto"</td><td>"auto"</td><td>Widget language. "auto" follows browser language.</td></tr>
               <tr><td>A11y</td><td>"standard" | "enhanced"</td><td>"standard"</td><td>Accessibility mode.</td></tr>
-              <tr><td>On offline</td><td>string</td><td>"last-state"</td><td>"dim", "hide", "message", or "last-state".</td></tr>
-              <tr><td>On error</td><td>string</td><td>"message"</td><td>"dim", "hide", or "message".</td></tr>
-              <tr><td>Offline text</td><td>string</td><td>""</td><td>Custom message shown when entity is offline.</td></tr>
+              <tr><td>Active schedule</td><td>object | null</td><td>null</td><td>Day/hour restriction with IANA timezone.</td></tr>
+              <tr><td>Allow any origin</td><td>boolean</td><td>false</td><td>Skip origin checking entirely.</td></tr>
+              <tr><td>Allowed paths</td><td>path list</td><td>-</td><td>Optional exact page-path allowlist evaluated when the widget sends <code>page_path</code>. Each path starts with <code>/</code> and cannot contain a query string, fragment, or <code>..</code>.</td></tr>
+              <tr><td>Allowed IPs</td><td>CIDR list</td><td>-</td><td>IP allowlist. Behind a proxy or tunnel, configure trusted proxies in HArvest integration settings.</td></tr>
+              <tr><td>Allowed origins</td><td>list</td><td>-</td><td>Websites allowed to connect. Empty = any (if allow_any is set) or rejection.</td></tr>
+              <tr><td>Color scheme</td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Widget-level color scheme used unless an entity overrides it.</td></tr>
+              <tr><td>Custom messages</td><td>boolean</td><td>false</td><td>When false, offline and error behavior inherits the global display defaults.</td></tr>
+              <tr><td>Embed mode</td><td>"single" | "group" | "page"</td><td>"single"</td><td>Generated snippet and layout mode.</td></tr>
+              <tr><td>Entities</td><td>list</td><td>-</td><td>List of entity IDs with per-entity capability and settings.</td></tr>
+              <tr><td>Entities block</td><td>boolean and block settings</td><td>false</td><td>Enables the compact entities-block layout. Related settings control its label, icon, row highlighting, icons, border, access mode, and color mode.</td></tr>
               <tr><td>Error text</td><td>string</td><td>""</td><td>Custom message shown on connection error.</td></tr>
+              <tr><td>Expires at</td><td>ISO datetime | null</td><td>null</td><td>Token expiry. Null = never expires.</td></tr>
+              <tr><td>Icon set</td><td>set ID | null</td><td>null</td><td>Render all entity icons in this set ("fa", "tabler", "ph", or a Phosphor weight like "ph-duotone"). Null follows the theme's icon set, Material Design otherwise. Icons with no equivalent in the chosen set render in Material Design. Per-entity icon picks always win.</td></tr>
+              <tr><td>Label</td><td>string</td><td>-</td><td>Display name in the panel. Not exposed to visitors.</td></tr>
+              <tr><td>Lang</td><td>BCP 47 | "auto"</td><td>"auto"</td><td>Widget language. "auto" follows browser language.</td></tr>
+              <tr><td>Max commands per minute</td><td>integer</td><td>30</td><td>Per-token command rate limit.</td></tr>
+              <tr><td>Max push per second</td><td>integer</td><td>1</td><td>Per-token state update rate limit.</td></tr>
+              <tr><td>Max renewals</td><td>integer | null</td><td>null</td><td>Maximum session renewals. Null = unlimited.</td></tr>
+              <tr><td>Max session lifetime</td><td>minutes</td><td>1440</td><td>Maximum total duration via renewals.</td></tr>
+              <tr><td>Max sessions</td><td>integer | null</td><td>null</td><td>Max concurrent sessions. Null = unlimited.</td></tr>
+              <tr><td>Offline text</td><td>string</td><td>""</td><td>Custom message shown when entity is offline.</td></tr>
+              <tr><td>On error</td><td>string</td><td>"message"</td><td>"dim", "hide", or "message".</td></tr>
+              <tr><td>On offline</td><td>string</td><td>"last-state"</td><td>"dim", "hide", "message", or "last-state".</td></tr>
+              <tr><td>Override rate-limit defaults</td><td>boolean</td><td>false</td><td>False merges token limits with global defaults; true uses the token values exclusively.</td></tr>
+              <tr><td>Paused</td><td>boolean</td><td>false</td><td>Blocks new sessions and drops active sessions without permanently revoking the token.</td></tr>
+              <tr><td>Renderer pack</td><td>string</td><td>""</td><td>Renderer override associated with the selected theme, when present.</td></tr>
+              <tr><td>Session lifetime</td><td>minutes</td><td>60</td><td>Session duration before renewal required.</td></tr>
+              <tr><td>Theme</td><td>theme ID | null</td><td>null</td><td>Theme assigned to this token. Null = Default theme.</td></tr>
+              <tr><td>Token secret</td><td>string | null</td><td>null</td><td>HMAC signing secret. Null = HMAC disabled.</td></tr>
             </tbody>
           </table>
         </div>
@@ -199,25 +216,25 @@
           <table>
             <thead><tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td>Display name</td><td>string | null</td><td>null</td><td>Overrides the entity's HA friendly name in the widget. Null = use HA name.</td></tr>
-              <tr><td>Icon</td><td>mdi:&lt;name&gt; | null</td><td>null</td><td>Overrides the auto-detected icon for all states. Null = use domain default.</td></tr>
-              <tr><td>Force color scheme</td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Forces the widget card into light or dark mode regardless of the visitor's OS setting.</td></tr>
-              <tr><td>Capability</td><td>"badge" | "read" | "read-write"</td><td>"read-write"</td><td>"badge" renders a compact pill indicator with no controls, companions, or gestures. "read" is a full card, view only. "read-write" is a full card with control (service calls).</td></tr>
               <tr><td>Alias</td><td>string | null</td><td>null</td><td>8-character random alias. Generated in the wizard, or manually in the detail screen.</td></tr>
-              <tr><td>Exclude attributes</td><td>string list</td><td>-</td><td>HA attribute names to strip before sending to widget. Bidirectionally linked with domain-specific display controls.</td></tr>
-              <tr><td>Graph type</td><td>"line" | "bar" | null</td><td>null</td><td>History graph for sensors and input_number. Null = no graph. Stored in <code>display_hints.graph</code>.</td></tr>
-              <tr><td>Graph hours</td><td>1-168</td><td>24</td><td>Time window for history graph. Stored in <code>display_hints.hours</code>.</td></tr>
-              <tr><td>Graph period</td><td>1-60</td><td>10</td><td>Aggregation period in minutes per data point. Stored in <code>display_hints.period</code>.</td></tr>
-              <tr><td>Fan display mode</td><td>"auto" | "on-off" | "continuous" | "stepped" | "cycle"</td><td>"auto"</td><td>Controls which fan speed UI is shown. "auto" lets the renderer decide based on the entity's features. Stored in <code>display_hints.display_mode</code>. Only visible when the active theme pack supports it.</td></tr>
               <tr><td>Animate fan</td><td>boolean</td><td>false</td><td>Spin the fan icon when entity is on. Stored in <code>display_hints.animate</code>.</td></tr>
-              <tr><td>Companions</td><td>entity list</td><td>-</td><td>Companion entities displayed inside this card. Managed in the Entity Settings card; do not appear in the entity list. 50-entity token budget applies. See <a href="entities.html#companions">companion eligibility</a>.</td></tr>
+              <tr><td>Badge: icon color</td><td>string</td><td>"auto"</td><td>Icon color when entity is active. Auto derives from domain. Options: auto, red, orange, amber, yellow, green, teal, cyan, blue, indigo, purple, pink, grey. Stored in <code>display_hints.badge_icon_color</code>.</td></tr>
               <tr><td>Badge: show icon</td><td>boolean</td><td>true</td><td>Show icon in badge pill. Only visible when capability is <code>"badge"</code>. Stored in <code>display_hints.badge_show_icon</code>.</td></tr>
               <tr><td>Badge: show name</td><td>boolean</td><td>true</td><td>Show name in badge pill. Stored in <code>display_hints.badge_show_name</code>.</td></tr>
               <tr><td>Badge: show state</td><td>boolean</td><td>true</td><td>Show state in badge pill. Stored in <code>display_hints.badge_show_state</code>.</td></tr>
-              <tr><td>Badge: icon color</td><td>string</td><td>"auto"</td><td>Icon color when entity is active. Auto derives from domain. Options: auto, red, orange, amber, yellow, green, teal, cyan, blue, indigo, purple, pink, grey. Stored in <code>display_hints.badge_icon_color</code>.</td></tr>
-              <tr><td>Gesture: tap</td><td>action | null</td><td>null</td><td>Action on single tap: toggle, trigger a Harvest Action, or no action. Not available for badge entities.</td></tr>
-              <tr><td>Gesture: hold</td><td>action | null</td><td>null</td><td>Action on hold. Not available for badge entities.</td></tr>
+              <tr><td>Capability</td><td>"badge" | "read" | "read-write"</td><td>"read-write"</td><td>"badge" renders a compact pill indicator with no controls, companions, or gestures. "read" is a full card, view only. "read-write" is a full card with control (service calls).</td></tr>
+              <tr><td>Companions</td><td>entity list</td><td>-</td><td>Companion entities displayed inside this card. Managed in the Entity Settings card; do not appear in the entity list. Primaries and companions count toward the internal 250-entity safety cap per token. See <a href="entities.html#companions">companion eligibility</a>.</td></tr>
+              <tr><td>Display name</td><td>string | null</td><td>null</td><td>Overrides the entity's HA friendly name in the widget. Null = use HA name.</td></tr>
+              <tr><td>Exclude attributes</td><td>string list</td><td>-</td><td>HA attribute names to strip before sending to widget. Bidirectionally linked with domain-specific display controls.</td></tr>
+              <tr><td>Fan display mode</td><td>"auto" | "on-off" | "continuous" | "stepped" | "cycle"</td><td>"auto"</td><td>Controls which fan speed UI is shown. "auto" lets the renderer decide based on the entity's features. Stored in <code>display_hints.display_mode</code>. Only visible when the active theme renderer supports it.</td></tr>
+              <tr><td>Force color scheme</td><td>"auto" | "light" | "dark"</td><td>"auto"</td><td>Forces the widget card into light or dark mode regardless of the visitor's OS setting.</td></tr>
               <tr><td>Gesture: double tap</td><td>action | null</td><td>null</td><td>Action on double tap. Not available for badge entities.</td></tr>
+              <tr><td>Gesture: hold</td><td>action | null</td><td>null</td><td>Action on hold. Not available for badge entities.</td></tr>
+              <tr><td>Gesture: tap</td><td>action | null</td><td>null</td><td>Action on single tap: toggle, trigger a Harvest Action, or no action. Not available for badge entities.</td></tr>
+              <tr><td>Graph hours</td><td>1-168</td><td>24</td><td>Time window for history graph. Stored in <code>display_hints.hours</code>.</td></tr>
+              <tr><td>Graph period</td><td>1-60</td><td>10</td><td>Aggregation period in minutes per data point. Stored in <code>display_hints.period</code>.</td></tr>
+              <tr><td>Graph type</td><td>"line" | "bar" | "step" | null</td><td>null</td><td>History graph for sensor, binary_sensor, input_number, and number. Step is available for binary_sensor. Null = no graph. Stored in <code>display_hints.graph</code>.</td></tr>
+              <tr><td>Icon</td><td>mdi: | fa: | ph: | tabler:&lt;name&gt; | null</td><td>null</td><td>Overrides the auto-detected icon for all states. Accepts Material Design (mdi:), Font Awesome (fa:), Phosphor (ph:), and Tabler (tabler:) names, max 64 characters. Null = use domain default. Non-Material sets load on demand in the widget.</td></tr>
             </tbody>
           </table>
         </div>
@@ -230,20 +247,51 @@
           <table>
             <thead><tr><th>Setting</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td>Auth timeout</td><td>10s</td><td>WebSocket auth must complete within this window.</td></tr>
-              <tr><td>Keepalive interval</td><td>30s</td><td>Server-to-client ping frequency.</td></tr>
-              <tr><td>Client heartbeat timeout</td><td>60s</td><td>Session dropped if no client message within this window.</td></tr>
-              <tr><td>Max entities per token</td><td>50</td><td>Hard cap on entities per token.</td></tr>
-              <tr><td>Auth attempts per token/min</td><td>10</td><td>Failed attempts before token is temporarily blocked.</td></tr>
-              <tr><td>Auth attempts per IP/min</td><td>20</td><td>Failed attempts per IP before blocking.</td></tr>
-              <tr><td>Kill switch</td><td>Off</td><td>Drops all sessions globally and blocks new connections.</td></tr>
-              <tr><td>Default session lifetime</td><td>60 min</td><td>Session duration before renewal required.</td></tr>
-              <tr><td>Max session lifetime</td><td>1440 min</td><td>Maximum total duration via renewals.</td></tr>
               <tr><td>Absolute session cap</td><td>72 hours</td><td>Hard session expiry regardless of renewals.</td></tr>
               <tr><td>Activity log retention</td><td>30 days</td><td>How long events are stored before deletion.</td></tr>
+              <tr><td>Auth attempts per IP/min</td><td>20</td><td>Failed attempts per IP before blocking.</td></tr>
+              <tr><td>Auth attempts per token/min</td><td>10</td><td>Failed attempts before token is temporarily blocked.</td></tr>
+              <tr><td>Auth timeout</td><td>10s</td><td>WebSocket auth must complete within this window.</td></tr>
+              <tr><td>Client heartbeat timeout</td><td>60s</td><td>Session dropped if no client message within this window.</td></tr>
+              <tr><td>Default display behavior</td><td>Auto / standard defaults</td><td>Global language, accessibility, offline behavior, error behavior, and fallback message defaults.</td></tr>
+              <tr><td>Default rate limits</td><td>1 push/s, 30 commands/min</td><td>Global defaults merged with token limits unless the token overrides them.</td></tr>
+              <tr><td>Default session lifetime</td><td>60 min</td><td>Session duration before renewal required.</td></tr>
+              <tr><td>External port</td><td>Disabled</td><td>Starts the optional alternate widget transport server when set.</td></tr>
+              <tr><td>HA event bus events</td><td>Security events enabled</td><td>Controls which HArvest lifecycle and security events are fired on the HA event bus.</td></tr>
+              <tr><td>Keepalive interval</td><td>30s</td><td>Server-to-client ping frequency.</td></tr>
+              <tr><td>Keepalive timeout</td><td>10s</td><td>How long the server waits for a keepalive response before closing a session.</td></tr>
+              <tr><td>Kill switch</td><td>Off</td><td>Drops all sessions globally and blocks new connections.</td></tr>
+              <tr><td>Max connections per minute</td><td>100</td><td>Global inbound connection-attempt limit.</td></tr>
+              <tr><td>Max inbound message size</td><td>4096 bytes</td><td>Closes connections that send larger WebSocket frames.</td></tr>
+              <tr><td>Max session lifetime</td><td>1440 min</td><td>Maximum total duration via renewals.</td></tr>
+              <tr><td>Override host</td><td>(empty)</td><td>The public URL the panel uses when generating snippets and computing the HA-served widget script URL. Empty means use the URL of whatever HA host the admin is currently visiting. Set this to your external HA URL when admins access HA via a different domain than visitors will use.</td></tr>
+              <tr><td>Sensitive domains</td><td>Disabled</td><td>Controls whether locks, covers, scripts, automations, buttons, and input buttons can be added to tokens.</td></tr>
+              <tr><td>Trusted proxies</td><td>-</td><td>Known proxy IPs or CIDRs allowed to supply forwarded client addresses.</td></tr>
+              <tr><td>Widget script source</td><td>HA-served</td><td>Three options: HA-served (default, snippet uses <code>{HA_URL}/harvest_assets/harvest.min.js</code>; always matches the running integration), Alternate port (lightweight server for the widget script, WebSocket connection, and runtime assets, for installs where the main HA port is not reachable from the embed site), or Custom URL (admin-supplied). The alternate server is plain HTTP unless placed behind a TLS proxy or secure tunnel. HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration.</td></tr>
             </tbody>
           </table>
         </div>
+
+        <h3 id="custom-domains">Custom domains</h3>
+
+        <p><strong>Settings &gt; Custom Domains</strong> defines the global service allowlist for Tier 2 domains. Each entry has this shape:</p>
+
+<pre><code class="language-json">{
+  "domain": "vacuum",
+  "allowed_services": ["start", "stop", "return_to_base"]
+}</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Field</th><th>Type</th><th>Rules</th></tr></thead>
+            <tbody>
+              <tr><td><code>domain</code></td><td>string</td><td>Lowercase HA domain name. Must not be a built-in Tier 1 domain or blocked Tier 3 domain.</td></tr>
+              <tr><td><code>allowed_services</code></td><td>string[]</td><td>One or more HA service names permitted for the domain. The panel lists services currently registered in HA.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The allowlist is read for every command, so additions and removals take effect immediately for active sessions. Registration alone never permits a command. The target entity must also belong to the token with <code>read-write</code> capability, the command must pass rate limits, and the service data is filtered against HA's registered service schema. Unknown service data keys are silently removed. HA target selectors such as <code>entity_id</code>, <code>device_id</code>, <code>area_id</code>, <code>floor_id</code>, and <code>label_id</code> are always removed so the call remains scoped to the token-authorized entity.</p>
 
         <h2 id="css-vars">CSS variables (summary)</h2>
 
@@ -253,8 +301,8 @@
           <table>
             <thead><tr><th>Category</th><th>Variables</th></tr></thead>
             <tbody>
-              <tr><td>Colors</td><td><code>--hrv-color-primary</code>, <code>--hrv-color-primary-dim</code>, <code>--hrv-color-on-primary</code>, <code>--hrv-color-surface</code>, <code>--hrv-color-surface-alt</code>, <code>--hrv-color-border</code>, <code>--hrv-color-text</code>, <code>--hrv-color-text-secondary</code>, <code>--hrv-color-text-inverse</code>, <code>--hrv-color-icon</code>, <code>--hrv-color-state-on</code>, <code>--hrv-color-state-off</code>, <code>--hrv-color-state-unavailable</code>, <code>--hrv-color-warning</code>, <code>--hrv-color-error</code>, <code>--hrv-color-success</code>, <code>--hrv-color-overlay</code>, <code>--hrv-color-overlay-text</code></td></tr>
-              <tr><td>Card</td><td><code>--hrv-card-background</code>, <code>--hrv-card-radius</code>, <code>--hrv-card-shadow</code>, <code>--hrv-card-padding</code></td></tr>
+              <tr><td>Colors</td><td><code>--hrv-color-border</code>, <code>--hrv-color-error</code>, <code>--hrv-color-icon</code>, <code>--hrv-color-on-primary</code>, <code>--hrv-color-overlay</code>, <code>--hrv-color-overlay-text</code>, <code>--hrv-color-primary</code>, <code>--hrv-color-primary-dim</code>, <code>--hrv-color-state-off</code>, <code>--hrv-color-state-on</code>, <code>--hrv-color-state-unavailable</code>, <code>--hrv-color-success</code>, <code>--hrv-color-surface</code>, <code>--hrv-color-surface-alt</code>, <code>--hrv-color-text</code>, <code>--hrv-color-text-inverse</code>, <code>--hrv-color-text-secondary</code>, <code>--hrv-color-warning</code></td></tr>
+              <tr><td>Card</td><td><code>--hrv-card-background</code>, <code>--hrv-card-padding</code>, <code>--hrv-card-radius</code>, <code>--hrv-card-shadow</code></td></tr>
               <tr><td>Typography</td><td><code>--hrv-font-family</code>, <code>--hrv-font-size-xs</code>, <code>--hrv-font-size-s</code>, <code>--hrv-font-size-m</code>, <code>--hrv-font-size-l</code>, <code>--hrv-font-weight-normal</code>, <code>--hrv-font-weight-medium</code>, <code>--hrv-font-weight-bold</code></td></tr>
               <tr><td>Spacing</td><td><code>--hrv-spacing-xs</code>, <code>--hrv-spacing-s</code>, <code>--hrv-spacing-m</code>, <code>--hrv-spacing-l</code>, <code>--hrv-radius-s</code>, <code>--hrv-radius-m</code>, <code>--hrv-radius-l</code>, <code>--hrv-icon-size</code>, <code>--hrv-transition-speed</code></td></tr>
             </tbody>
@@ -275,37 +323,50 @@
     "...": "..."
   },
   "author": "string (optional)",
+  "description": "string (optional)",
   "version": "string (optional)",
-  "renderer_pack": "pack-id | true (optional)"
+  "has_renderer": "boolean (optional)",
+  "capabilities": "object (optional)",
+  "renderer_settings": ["optional", "setting", "ids"],
+  "custom_fonts": ["optional font-face definitions"],
+  "icon_set": "optional icon-set id"
 }</code></pre>
+
+        <p><code>name</code> and <code>variables</code> are required when importing a theme zip. <code>harvest_version</code> defaults to <code>1</code>. A bundled <code>renderer.js</code> file sets <code>has_renderer</code> automatically.</p>
 
         <h2 id="error-codes">Error codes</h2>
 
-        <p>Error codes appear in auth failure activity log events and in WebSocket error messages.</p>
+        <p>All error codes are <code>HRV_</code>-prefixed. They appear in auth failure activity log events, in <code>auth_failed</code> WebSocket messages, and in <code>ack</code> error responses. Permanent errors stop reconnect attempts; temporary availability and rate-limit errors may be retried with backoff.</p>
 
         <div class="table-wrap">
           <table>
             <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
             <tbody>
-              <tr><td><code>TOKEN_NOT_FOUND</code></td><td>Token ID doesn't exist</td></tr>
-              <tr><td><code>TOKEN_REVOKED</code></td><td>Token has been revoked</td></tr>
-              <tr><td><code>TOKEN_EXPIRED</code></td><td>Token has passed its expiry date</td></tr>
-              <tr><td><code>TOKEN_PAUSED</code></td><td>Token is manually paused</td></tr>
-              <tr><td><code>TOKEN_SCHEDULE</code></td><td>Outside the token's active schedule</td></tr>
-              <tr><td><code>ORIGIN_DENIED</code></td><td>Origin not in the token's allowed origins list</td></tr>
-              <tr><td><code>IP_DENIED</code></td><td>Client IP not in the token's allowed IP ranges</td></tr>
-              <tr><td><code>HMAC_INVALID</code></td><td>HMAC signature verification failed</td></tr>
-              <tr><td><code>HMAC_STALE</code></td><td>HMAC timestamp is more than 60 seconds old</td></tr>
-              <tr><td><code>ENTITY_NOT_FOUND</code></td><td>Entity ID or alias not in the token's entity list</td></tr>
-              <tr><td><code>ENTITY_BLOCKED</code></td><td>Entity domain is Tier 3 (blocked)</td></tr>
-              <tr><td><code>SERVICE_NOT_ALLOWED</code></td><td>Requested service call not in the allowed whitelist</td></tr>
-              <tr><td><code>READ_ONLY</code></td><td>Service call attempted on a read-only entity</td></tr>
-              <tr><td><code>SESSION_LIMIT</code></td><td>Token has reached its max concurrent session limit</td></tr>
-              <tr><td><code>RATE_LIMITED</code></td><td>Rate limit exceeded (token or IP)</td></tr>
-              <tr><td><code>AUTH_TIMEOUT</code></td><td>Auth message not received within the timeout window</td></tr>
+              <tr><td><code>HRV_AUTH_FAILED</code></td><td>Generic auth failure surfaced to the visitor when a more specific code would leak token state.</td></tr>
+              <tr><td><code>HRV_BAD_REQUEST</code></td><td>Malformed message that included a <code>msg_id</code>. The session stays open.</td></tr>
+              <tr><td><code>HRV_ENTITY_INCOMPATIBLE</code></td><td>Entity domain is on the Tier 3 blocked list. Returned at token creation time; per-ref incompatibility during auth is silently skipped (and logged as <code>ENTITY_REF_DROPPED</code>).</td></tr>
+              <tr><td><code>HRV_ENTITY_MISSING</code></td><td>Entity not found in HA at runtime.</td></tr>
+              <tr><td><code>HRV_ENTITY_NOT_IN_TOKEN</code></td><td>None of the submitted entity references resolved within the token's scope. Individual unresolvable refs are silently skipped during auth and logged to the activity store with internal code <code>ENTITY_REF_DROPPED</code>; this code is returned only when zero refs resolve.</td></tr>
+              <tr><td><code>HRV_ENTITY_REMOVED</code></td><td>Entity was deleted from HA after auth. Permanent for the lifetime of the session.</td></tr>
+              <tr><td><code>HRV_IP_DENIED</code></td><td>Client IP not in the token's <code>allowed_ips</code> ranges.</td></tr>
+              <tr><td><code>HRV_MESSAGE_TOO_LARGE</code></td><td>Inbound WebSocket frame exceeded the 4 KB limit. The connection is closed.</td></tr>
+              <tr><td><code>HRV_ORIGIN_DENIED</code></td><td>Origin (or <code>page_path</code>) not in the token's allowed list.</td></tr>
+              <tr><td><code>HRV_PERMISSION_DENIED</code></td><td>Capability not granted for the requested action, or the service is not in the <code>ALLOWED_SERVICES</code> whitelist.</td></tr>
+              <tr><td><code>HRV_PROTOCOL_INCOMPATIBLE</code></td><td>The widget speaks a WebSocket protocol version the server cannot accept. Typically a stale cached snippet outliving an integration update. The <code>auth_failed</code> response includes a <code>server</code> block (with <code>protocol</code>, <code>version</code>, and <code>min_client_protocol</code>) so the widget can render a useful diagnostic. Visitors see "Widget version cannot connect to this server. Update your snippet" rather than the generic "Widget unavailable". Permanent; no reconnect.</td></tr>
+              <tr><td><code>HRV_RATE_LIMITED</code></td><td>Rate limit exceeded (per-token or per-IP). The <code>ack</code> includes a <code>retry_after</code> value in seconds.</td></tr>
+              <tr><td><code>HRV_SERVER_ERROR</code></td><td>Internal HA or integration error.</td></tr>
+              <tr><td><code>HRV_SESSION_EXPIRED</code></td><td>Session lifetime exceeded; client must re-authenticate.</td></tr>
+              <tr><td><code>HRV_SESSION_LIMIT_REACHED</code></td><td>Token's <code>max_sessions</code> or <code>max_renewals</code> limit reached.</td></tr>
+              <tr><td><code>HRV_SIGNATURE_INVALID</code></td><td>HMAC signature verification failed (bad signature, stale timestamp, or timestamp more than 5 seconds in the future).</td></tr>
+              <tr><td><code>HRV_TOKEN_EXPIRED</code></td><td>Token has passed its <code>expires</code> date.</td></tr>
+              <tr><td><code>HRV_TOKEN_INACTIVE</code></td><td>Token is paused, outside its <code>active_schedule</code> window, or the kill switch is active. Retryable with backoff.</td></tr>
+              <tr><td><code>HRV_TOKEN_INVALID</code></td><td>Token ID not found, or syntactically malformed. Both cases collapse to the same code intentionally so a probing attacker cannot distinguish format errors from missing tokens.</td></tr>
+              <tr><td><code>HRV_TOKEN_REVOKED</code></td><td>Token has been manually revoked.</td></tr>
             </tbody>
           </table>
         </div>
+
+        <p>The widget defines four additional client-only states that never appear in server activity logs: <code>HRV_CONNECTING</code> (initial handshake in progress), <code>HRV_INCOMPATIBLE</code> (the widget-side state name set when an <code>auth_failed</code> with <code>HRV_PROTOCOL_INCOMPATIBLE</code> arrives; permanent, no reconnect), <code>HRV_OFFLINE</code> (cannot reach the server), and <code>HRV_STALE</code> (heartbeat timeout).</p>
 
       </div>
     </main>

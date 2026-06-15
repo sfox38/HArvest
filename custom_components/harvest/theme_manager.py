@@ -28,6 +28,68 @@ _BUNDLED_IDS = {"default", "glass", "access", "minimus", "shrooms"}
 
 _MAX_THUMBNAIL_BYTES = 512 * 1024  # 500 KB
 _ALLOWED_THUMBNAIL_TYPES = {".png", ".jpg", ".jpeg"}
+_CUSTOM_FONT_FILENAME_RE = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._-]{0,126}\.(?:woff|woff2)$",
+    re.IGNORECASE,
+)
+_CUSTOM_FONT_WEIGHT_RE = re.compile(
+    r"^(?:normal|bold|(?:[1-9]\d{0,2}|1000)(?: (?:[1-9]\d{0,2}|1000))?)$",
+)
+_CUSTOM_FONT_STYLES = {"normal", "italic", "oblique"}
+_CUSTOM_FONT_SIGNATURES = {
+    ".woff": b"wOFF",
+    ".woff2": b"wOF2",
+}
+
+
+def _is_valid_custom_font_filename(filename: str) -> bool:
+    """Return whether a custom font filename is a safe WOFF basename."""
+    return bool(
+        _CUSTOM_FONT_FILENAME_RE.fullmatch(filename)
+        and ".." not in filename
+        and "/" not in filename
+        and "\\" not in filename
+    )
+
+
+def validate_custom_font(
+    filename: str,
+    data: bytes,
+    *,
+    family: str,
+    weight: str = "normal",
+    style: str = "normal",
+) -> dict[str, str]:
+    """Validate and normalize one custom font definition."""
+    if not _is_valid_custom_font_filename(filename):
+        raise ValueError("Custom font filename must be a basename ending in .woff or .woff2.")
+
+    normalized_family = family.strip()
+    if (
+        not normalized_family
+        or len(normalized_family) > 100
+        or any(ord(char) < 32 or ord(char) == 127 for char in normalized_family)
+    ):
+        raise ValueError("Custom font family must be 1 to 100 printable characters.")
+
+    normalized_weight = weight.strip().lower() or "normal"
+    if not _CUSTOM_FONT_WEIGHT_RE.fullmatch(normalized_weight):
+        raise ValueError("Custom font weight must be normal, bold, 1-1000, or a numeric range.")
+
+    normalized_style = style.strip().lower() or "normal"
+    if normalized_style not in _CUSTOM_FONT_STYLES:
+        raise ValueError("Custom font style must be normal, italic, or oblique.")
+
+    extension = Path(filename).suffix.lower()
+    if not data.startswith(_CUSTOM_FONT_SIGNATURES[extension]):
+        raise ValueError(f"Custom font {filename} does not contain valid {extension[1:].upper()} data.")
+
+    return {
+        "family": normalized_family,
+        "file": filename,
+        "weight": normalized_weight,
+        "style": normalized_style,
+    }
 
 
 @dataclasses.dataclass
@@ -41,11 +103,14 @@ class ThemeDefinition:
     variables: dict[str, str]
     dark_variables: dict[str, str]
     created_at: str
-    has_renderer_pack: bool = False
+    has_renderer: bool = False
     created_by: str = ""
     is_bundled: bool = False
     capabilities: dict | None = None
-    pack_settings: list[str] = dataclasses.field(default_factory=list)
+    renderer_settings: list[str] = dataclasses.field(default_factory=list)
+    description: str = ""
+    custom_fonts: list[dict] = dataclasses.field(default_factory=list)
+    icon_set: str | None = None  # icon-set id ("fa", "ph-duotone", ...); None means MDI
 
 
 class ThemeManager:
@@ -80,9 +145,11 @@ class ThemeManager:
                     harvest_version=raw.get("harvest_version", 1),
                     variables=raw.get("variables", {}),
                     dark_variables=raw.get("dark_variables", {}),
-                    has_renderer_pack=bool(raw.get("renderer_pack", False)),
+                    has_renderer=bool(raw.get("has_renderer", raw.get("renderer_pack", False))),
                     capabilities=raw.get("capabilities") or None,
-                    pack_settings=list(raw.get("pack_settings") or []),
+                    renderer_settings=list(raw.get("renderer_settings", raw.get("pack_settings") or []) or []),
+                    description=raw.get("description", ""),
+                    icon_set=(str(raw["icon_set"]).strip() or None) if raw.get("icon_set") else None,
                     created_by="system",
                     created_at="",
                     is_bundled=True,
@@ -164,9 +231,12 @@ class ThemeManager:
         created_by: str,
         author: str = "",
         version: str = "1.0",
-        has_renderer_pack: bool = False,
+        has_renderer: bool = False,
         capabilities: dict | None = None,
-        pack_settings: list[str] | None = None,
+        renderer_settings: list[str] | None = None,
+        description: str = "",
+        custom_fonts: list[dict] | None = None,
+        icon_set: str | None = None,
     ) -> ThemeDefinition:
         """Create and persist a new user theme."""
         theme = ThemeDefinition(
@@ -177,9 +247,12 @@ class ThemeManager:
             harvest_version=1,
             variables=variables,
             dark_variables=dark_variables or {},
-            has_renderer_pack=has_renderer_pack,
+            has_renderer=has_renderer,
             capabilities=capabilities or None,
-            pack_settings=list(pack_settings or []),
+            renderer_settings=list(renderer_settings or []),
+            description=description,
+            custom_fonts=list(custom_fonts or []),
+            icon_set=icon_set,
             created_by=created_by,
             created_at=datetime.now(tz=timezone.utc).isoformat(),
             is_bundled=False,
@@ -196,7 +269,7 @@ class ThemeManager:
         if theme is None:
             raise KeyError(f"Theme not found: {theme_id}")
 
-        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer_pack", "capabilities", "pack_settings"}
+        _UPDATABLE = {"name", "author", "version", "variables", "dark_variables", "has_renderer", "capabilities", "renderer_settings", "description", "custom_fonts", "icon_set"}
         for field, value in updates.items():
             if field in _UPDATABLE:
                 setattr(theme, field, value)
@@ -212,6 +285,7 @@ class ThemeManager:
             raise KeyError(f"Theme not found: {theme_id}")
         del self._user[theme_id]
         self.delete_thumbnail(theme_id)
+        self.delete_custom_fonts(theme_id)
         await self._hass.async_add_executor_job(self._delete_theme_file, theme_id)
 
     @staticmethod
@@ -285,6 +359,107 @@ class ThemeManager:
                 return True
         return False
 
+    # -- Custom font helpers --------------------------------------------------
+
+    def _custom_fonts_dir(self, theme_id: str) -> Path:
+        """Return the directory for a theme's custom font files."""
+        return _USER_THEMES_DIR / f"{theme_id}-fonts"
+
+    def get_custom_font_path(self, theme_id: str, filename: str) -> Path | None:
+        """Return the path to a specific custom font file, or None if absent."""
+        if not self._safe_theme_id(theme_id):
+            return None
+        if not _is_valid_custom_font_filename(filename):
+            return None
+        path = self._custom_fonts_dir(theme_id) / filename
+        return path if path.is_file() else None
+
+    def get_custom_font_files(self, theme_id: str) -> list[str]:
+        """Return a list of custom font filenames for a theme."""
+        d = self._custom_fonts_dir(theme_id)
+        if not d.is_dir():
+            return []
+        return sorted(f.name for f in d.iterdir() if f.is_file())
+
+    def build_custom_font_urls(
+        self,
+        theme_id: str,
+        theme: ThemeDefinition,
+    ) -> list[dict[str, str]]:
+        """Build cache-busted public URLs for a theme's custom fonts."""
+        result: list[dict[str, str]] = []
+        for face in theme.custom_fonts:
+            filename = face.get("file", "")
+            if not filename:
+                continue
+            url = f"/api/harvest/themes/{theme_id}/fonts/{filename}"
+            path = self.get_custom_font_path(theme_id, filename)
+            if path is not None:
+                try:
+                    url = f"{url}?v={path.stat().st_mtime_ns}"
+                except OSError:
+                    pass
+            entry = {
+                "family": face.get("family", ""),
+                "url": url,
+            }
+            if face.get("weight"):
+                entry["weight"] = face["weight"]
+            if face.get("style"):
+                entry["style"] = face["style"]
+            result.append(entry)
+        return result
+
+    def build_runtime_message(
+        self,
+        theme_id: str,
+        theme: ThemeDefinition | None,
+    ) -> dict:
+        """Build the complete runtime theme payload sent to widget sessions."""
+        if theme is None:
+            return {
+                "type": "theme",
+                "variables": {},
+                "dark_variables": {},
+                "icon_set": None,
+                "custom_fonts": [],
+            }
+        return {
+            "type": "theme",
+            "variables": theme.variables,
+            "dark_variables": theme.dark_variables,
+            "icon_set": theme.icon_set,
+            "custom_fonts": self.build_custom_font_urls(theme_id, theme),
+        }
+
+    def save_custom_font(self, theme_id: str, filename: str, data: bytes) -> Path:
+        """Save a custom font file for a user theme."""
+        if not self._safe_theme_id(theme_id):
+            raise ValueError(f"Invalid theme id: {theme_id}")
+        if not _is_valid_custom_font_filename(filename):
+            raise ValueError(f"Invalid font filename: {filename}")
+        extension = Path(filename).suffix.lower()
+        if not data.startswith(_CUSTOM_FONT_SIGNATURES[extension]):
+            raise ValueError(f"Invalid {extension[1:].upper()} font data.")
+        if theme_id not in self._user:
+            raise KeyError(f"Theme not found: {theme_id}")
+        d = self._custom_fonts_dir(theme_id)
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / filename
+        path.write_bytes(data)
+        return path
+
+    def delete_custom_fonts(self, theme_id: str) -> bool:
+        """Delete all custom font files for a theme. Returns True if any removed."""
+        if not self._safe_theme_id(theme_id):
+            return False
+        d = self._custom_fonts_dir(theme_id)
+        if not d.is_dir():
+            return False
+        import shutil
+        shutil.rmtree(d)
+        return True
+
 
 def _theme_to_dict(theme: ThemeDefinition) -> dict:
     """Serialise a ThemeDefinition to a JSON-compatible dict for storage."""
@@ -296,14 +471,20 @@ def _theme_to_dict(theme: ThemeDefinition) -> dict:
         "harvest_version": theme.harvest_version,
         "variables": theme.variables,
         "dark_variables": theme.dark_variables,
-        "renderer_pack": theme.has_renderer_pack,
+        "has_renderer": theme.has_renderer,
         "created_by": theme.created_by,
         "created_at": theme.created_at,
     }
+    if theme.description:
+        d["description"] = theme.description
     if theme.capabilities:
         d["capabilities"] = theme.capabilities
-    if theme.pack_settings:
-        d["pack_settings"] = theme.pack_settings
+    if theme.renderer_settings:
+        d["renderer_settings"] = theme.renderer_settings
+    if theme.custom_fonts:
+        d["custom_fonts"] = theme.custom_fonts
+    if theme.icon_set:
+        d["icon_set"] = theme.icon_set
     return d
 
 
@@ -317,22 +498,32 @@ def _theme_from_dict(d: dict) -> ThemeDefinition:
         harvest_version=d.get("harvest_version", 1),
         variables=d.get("variables", {}),
         dark_variables=d.get("dark_variables", {}),
-        has_renderer_pack=bool(d.get("renderer_pack", False)),
+        has_renderer=bool(d.get("has_renderer", d.get("renderer_pack", False))),
         capabilities=d.get("capabilities") or None,
-        pack_settings=list(d.get("pack_settings") or []),
+        renderer_settings=list(d.get("renderer_settings", d.get("pack_settings") or []) or []),
+        description=d.get("description", ""),
+        custom_fonts=list(d.get("custom_fonts") or []),
+        icon_set=(str(d["icon_set"]).strip() or None) if d.get("icon_set") else None,
         created_by=d.get("created_by", ""),
         created_at=d.get("created_at", ""),
         is_bundled=False,
     )
 
 
-def theme_to_api_dict(theme: ThemeDefinition, has_thumbnail: bool = False) -> dict:
+def theme_to_api_dict(
+    theme: ThemeDefinition,
+    has_thumbnail: bool = False,
+    custom_font_urls: list[dict] | None = None,
+) -> dict:
     """Serialise a ThemeDefinition for API responses (includes is_bundled)."""
     d = _theme_to_dict(theme)
     d["is_bundled"] = theme.is_bundled
     d["has_thumbnail"] = has_thumbnail
+    d["description"] = theme.description
     d["capabilities"] = theme.capabilities
-    d["pack_settings"] = theme.pack_settings
+    d["renderer_settings"] = theme.renderer_settings
+    d["custom_fonts"] = custom_font_urls or []
+    d["icon_set"] = theme.icon_set
     return d
 
 

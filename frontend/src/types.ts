@@ -60,6 +60,7 @@ export interface EntityAccess {
   icon_override: string | null;
   color_scheme: "auto" | "light" | "dark";
   display_hints: Record<string, unknown>;
+  service_data?: Record<string, unknown>;
 }
 
 export type TokenStatus = "active" | "inactive" | "expiring_soon" | "expired" | "revoked";
@@ -84,11 +85,22 @@ export interface Token {
   active_sessions: number;
   paused: boolean;
   embed_mode: "single" | "group" | "page";
+  entities_block: boolean;
+  block_label: string | null;
+  block_icon: string | null;
+  block_show_label: boolean;
+  block_highlight_rows: boolean;
+  block_show_icons: boolean;
+  block_widget_border: string | null;
+  block_access_mode: "override" | "per_entity";
+  block_color_mode: "override" | "per_entity";
   theme_url: string;
   renderer_pack: string;
   lang: string;
   a11y: "standard" | "enhanced";
   color_scheme: "auto" | "light" | "dark";
+  /** Global icon set ("fa", "ph-duotone", ...); null follows the theme's icon_set. */
+  icon_set: string | null;
   custom_messages: boolean;
   on_offline: "dim" | "hide" | "message" | "last-state";
   on_error: "dim" | "hide" | "message";
@@ -111,6 +123,39 @@ export interface Session {
   ip_address: string | null;
   renewal_count: number;
   subscribed_entity_ids: string[];
+  // Compatibility-handshake fields (SPEC.md Section 12). Optional in the
+  // type so old serializer responses don't break tsc; the panel's drift
+  // banner ignores sessions that lack these fields (treats as "ok").
+  client?: {
+    protocol: number;
+    widget: string | null;
+    source: "wp" | "html" | "panel" | "unknown";
+    source_version: string | null;
+  };
+  compatibility?: "ok" | "client_outdated" | "server_outdated";
+}
+
+// ---------------------------------------------------------------------------
+// Warnings (drift-banner dismissal state) - SPEC.md Section 12
+// ---------------------------------------------------------------------------
+
+export interface WarningsState {
+  current_version: string;
+  dismissed_at_version: string | null;
+  dismissed: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// URL reachability probe (mirror of WP plugin's AJAX check)
+// ---------------------------------------------------------------------------
+
+export type UrlCheckReason = "reachable" | "unreachable" | "relative" | "invalid";
+
+export interface UrlCheckResult {
+  ok: boolean;
+  status: number;
+  reason: UrlCheckReason;
+  message: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,10 +174,12 @@ export type ActivityEventType =
   | "SUSPICIOUS_ORIGIN"
   | "FLOOD_PROTECTION"
   | "RATE_LIMITED"
-  | "ERROR";
+  | "ERROR"
+  | "SERVER_STARTED"
+  | "SERVER_STOPPED";
 
 export interface ActivityEvent {
-  id: number;
+  id: string;
   type: ActivityEventType;
   timestamp: string;
   token_id: string | null;
@@ -154,31 +201,14 @@ export interface ActivityPage {
 }
 
 // ---------------------------------------------------------------------------
-// Harvest action
-// ---------------------------------------------------------------------------
-
-export interface ServiceCallDef {
-  domain: string;
-  service: string;
-  data: Record<string, unknown>;
-}
-
-export interface HarvestAction {
-  action_id: string;
-  label: string;
-  icon: string;
-  service_calls: ServiceCallDef[];
-  created_by: string;
-  created_at: string;
-}
-
-// ---------------------------------------------------------------------------
 // Theme
 // ---------------------------------------------------------------------------
 
 export interface ThemeCapabilities {
   fan?: { display_modes?: string[] };
   input_number?: { display_modes?: string[] };
+  input_select?: { display_modes?: string[] };
+  select?: { display_modes?: string[] };
   light?: { features?: string[] };
   climate?: { features?: string[] };
   cover?: { features?: string[] };
@@ -190,26 +220,30 @@ export interface ThemeDefinition {
   name: string;
   author: string;
   version: string;
+  description: string;
   harvest_version: number;
   variables: Record<string, string>;
   dark_variables: Record<string, string>;
-  renderer_pack: boolean;
-  has_pack: boolean;
+  has_renderer: boolean;
+  has_renderer_file: boolean;
   is_bundled: boolean;
   has_thumbnail: boolean;
+  custom_fonts: { family: string; url: string; weight?: string; style?: string }[];
   usage_count: number;
   created_by: string;
   created_at: string;
   capabilities: ThemeCapabilities | null;
-  pack_settings: string[];
+  renderer_settings: string[];
+  /** Theme-level icon set ("fa", "ph-thin", ...); null means MDI. */
+  icon_set: string | null;
 }
 
 // ---------------------------------------------------------------------------
-// Renderer packs
+// Renderers
 // ---------------------------------------------------------------------------
 
-export interface RendererPack {
-  pack_id: string;
+export interface RendererDefinition {
+  renderer_id: string;
   name: string;
   description: string;
   version: string;
@@ -217,9 +251,9 @@ export interface RendererPack {
   is_bundled: boolean;
 }
 
-export interface PacksResponse {
+export interface RenderersResponse {
   agreed: boolean;
-  packs: RendererPack[];
+  renderers: RendererDefinition[];
 }
 
 // ---------------------------------------------------------------------------
@@ -251,9 +285,55 @@ export interface AvailableDomain {
   services: string[];
 }
 
+export interface ServiceFieldSelector {
+  number?: { min?: number; max?: number; step?: number; unit_of_measurement?: string; mode?: string };
+  boolean?: Record<string, unknown>;
+  text?: { multiline?: boolean; type?: string; suffix?: string; prefix?: string } | null;
+  select?: { options?: (string | { value: string; label: string })[]; translation_key?: string };
+  color_rgb?: Record<string, unknown>;
+  color_temp?: { unit?: string; min?: number; max?: number };
+  object?: Record<string, unknown>;
+  constant?: { value: unknown; label?: string };
+  state?: Record<string, unknown>;
+  entity?: { domain?: string | string[]; integration?: string; device_class?: string | string[] } | null;
+  target?: { entity?: { domain?: string | string[] }; device?: Record<string, unknown> } | null;
+  time?: Record<string, unknown> | null;
+  date?: Record<string, unknown> | null;
+  datetime?: Record<string, unknown> | null;
+  template?: Record<string, unknown> | null;
+  area?: Record<string, unknown> | null;
+  floor?: Record<string, unknown> | null;
+  device?: Record<string, unknown> | null;
+  label?: Record<string, unknown> | null;
+  attribute?: { entity_id?: string } | null;
+  location?: Record<string, unknown> | null;
+  duration?: { enable_day?: boolean; enable_millisecond?: boolean } | null;
+}
+
+export interface ServiceFieldSchema {
+  name?: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  example?: unknown;
+  selector?: ServiceFieldSelector;
+  advanced?: boolean;
+  filter?: Record<string, unknown>;
+  fields?: Record<string, ServiceFieldSchema>;
+  collapsed?: boolean;
+}
+
+export interface ServiceDescription {
+  domain: string;
+  service: string;
+  name: string;
+  description: string;
+  fields: Record<string, ServiceFieldSchema>;
+}
+
 export interface IntegrationConfig {
   auth_timeout_seconds: number;
-  max_entities_per_token: number;
+  entity_hard_cap: number;
   keepalive_interval_seconds: number;
   keepalive_timeout_seconds: number;
   heartbeat_timeout_seconds: number;
@@ -263,6 +343,7 @@ export interface IntegrationConfig {
   max_auth_attempts_per_ip_per_minute: number;
   override_host: string;
   widget_script_url: string;
+  external_port: number;
   trusted_proxies: string[];
   kill_switch: boolean;
   default_lang: string;
@@ -278,6 +359,7 @@ export interface IntegrationConfig {
   ha_event_bus: HaEventBusConfig;
   custom_domains: CustomDomainEntry[];
   available_domains?: AvailableDomain[];
+  sensitive_domains: Record<string, boolean>;
   platform_version?: string;
 }
 
@@ -314,12 +396,22 @@ export interface HAEntity {
   friendly_name: string;
   domain: string;
   state: string;
+  /** MDI icon the widget card shows by default (resolved server-side).
+      Absent on entries built from raw HA states (api.ha.statesByDomain). */
+  icon?: string;
 }
 
 export interface HAEntityDetail {
   entity_id: string;
   state: string;
   attributes: Record<string, unknown>;
+}
+
+export interface HARegistries {
+  areas: { id: string; name: string; floor_id: string | null }[];
+  floors: { id: string; name: string; level: number | null }[];
+  devices: { id: string; name: string; area_id: string | null }[];
+  labels: { id: string; name: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -330,7 +422,6 @@ export interface HAEntityDetail {
 // Shared constants
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_WIDGET_SCRIPT_URL = "";
 
 // ---------------------------------------------------------------------------
 // Shared validation
@@ -365,4 +456,4 @@ export interface TokenUpdateResponse extends Token {
 // Panel navigation
 // ---------------------------------------------------------------------------
 
-export type Screen = "dashboard" | "widgets" | "themes" | "actions" | "activity" | "sessions" | "settings";
+export type Screen = "dashboard" | "widgets" | "themes" | "activity" | "sessions" | "settings";

@@ -5,6 +5,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const HUMIDITY_STYLES = /* css */`
   [part=card-body] {
@@ -18,7 +19,7 @@ const HUMIDITY_STYLES = /* css */`
   [part=sensor-value] {
     font-size: 2rem;
     font-weight: var(--hrv-font-weight-bold);
-    color: var(--hrv-color-primary);
+    color: var(--hrv-color-text);
     line-height: 1;
   }
 
@@ -28,25 +29,21 @@ const HUMIDITY_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class HumiditySensorCard extends BaseCard {
-  /** @type {HTMLElement|null} */ #valueEl = null;
+  static staleOnMount = true;
+
+  /** @type {HTMLElement|null} */ #valueEl  = null;
+  /** @type {HTMLElement|null} */ #rowValue = null;
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${HUMIDITY_STYLES}</style>
+      <style>${HUMIDITY_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-value"></span></span>
         </div>
         <div part="card-body">
           <span part="sensor-value" aria-live="polite">-</span>
@@ -59,8 +56,9 @@ export class HumiditySensorCard extends BaseCard {
       </div>
     `;
 
-    this.#valueEl = this.root.querySelector("[part=sensor-value]");
-    this.renderIcon(this.def.icon ?? "mdi:water-percent", "card-icon");
+    this.#valueEl  = this.root.querySelector("[part=sensor-value]");
+    this.#rowValue = this.root.querySelector("[part=row-value]");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:water-percent"), "card-icon");
     this.renderCompanions();
     this._attachGestureHandlers(this.root.querySelector("[part=card]"));
   }
@@ -68,6 +66,7 @@ export class HumiditySensorCard extends BaseCard {
   applyState(state, _attributes) {
     if (this.#valueEl) this.#valueEl.textContent = state;
     const unit = this.def.unit_of_measurement ?? "%";
+    if (this.#rowValue) this.#rowValue.textContent = `${state} ${unit}`;
     this.announceState(`${this.def.friendly_name}, ${state} ${unit}`);
   }
 }

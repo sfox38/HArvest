@@ -5,12 +5,14 @@
  * Used by the Themes tab, Wizard Step 5, and TokenDetail ThemeEditor.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { ThemeDefinition, HAEntityDetail } from "../types";
 import { api, getHaDarkMode } from "../api";
+import { usePanelDark } from "../panelTheme";
 import { Toggle } from "./Toggle";
 import { EntityAutocomplete } from "./Shared";
 import { Icon } from "./Icon";
+import { iconSetAsset } from "./IconPicker";
 import buildVersion from "../buildVersion.json";
 
 // ---------------------------------------------------------------------------
@@ -38,6 +40,7 @@ export const DOMAIN_FEATURES: Record<string, FeatureOption[]> = {
   ],
   cover: [
     { key: "current_position", label: "Position slider", default: true },
+    { key: "current_tilt_position", label: "Tilt slider", default: true },
     { key: "buttons", label: "Open / Stop / Close", default: true },
   ],
   climate: [
@@ -54,6 +57,12 @@ export const DOMAIN_FEATURES: Record<string, FeatureOption[]> = {
   weather: [
     { key: "forecast", label: "Forecast", default: true },
   ],
+  number: [
+    { key: "slider", label: "Value slider", default: true },
+  ],
+  automation: [
+    { key: "toggle", label: "Enable/disable toggle", default: true },
+  ],
 };
 
 type GraphType = "none" | "line" | "bar" | "step";
@@ -61,12 +70,14 @@ type GraphType = "none" | "line" | "bar" | "step";
 const GRAPH_DOMAINS: Record<string, GraphType[]> = {
   sensor:        ["none", "line", "bar"],
   input_number:  ["none", "line", "bar"],
+  number:        ["none", "line", "bar"],
   binary_sensor: ["none", "step"],
 };
 
 const DEFAULT_GRAPH: Record<string, GraphType> = {
   sensor: "none",
   input_number: "none",
+  number: "none",
   binary_sensor: "none",
 };
 
@@ -129,15 +140,20 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   switch:         { domain: "switch",         label: "Switch",         friendly_name: "Pump Motor",       state: "on",       attributes: {} },
   sensor:         { domain: "sensor",         label: "Sensor",         friendly_name: "Temperature",      state: "22.4",     unit: "°C", attributes: { device_class: "temperature", state_class: "measurement" } },
   climate:        { domain: "climate",        label: "Climate",        friendly_name: "Living Room",      state: "heat",     attributes: { current_temperature: 21.5, temperature: 22, hvac_modes: ["off", "heat", "cool", "auto"] } },
-  cover:          { domain: "cover",          label: "Cover",          friendly_name: "Blinds",           state: "open",     attributes: { current_position: 65 } },
+  cover:          { domain: "cover",          label: "Cover",          friendly_name: "Blinds",           state: "open",     attributes: { current_position: 65, current_tilt_position: 35 } },
   fan:            { domain: "fan",            label: "Fan",            friendly_name: "Ceiling Fan",      state: "on",       attributes: { percentage: 65, oscillating: false, direction: "forward", preset_mode: "normal", preset_modes: ["normal", "nature", "sleep", "auto"] } },
   binary_sensor:  { domain: "binary_sensor",  label: "Binary Sensor",  friendly_name: "Motion Sensor",    state: "on",       attributes: { device_class: "motion" } },
   input_boolean:  { domain: "input_boolean",  label: "Input Boolean",  friendly_name: "Guest Mode",       state: "on",       attributes: {} },
   input_number:   { domain: "input_number",   label: "Input Number",   friendly_name: "Target Humidity",  state: "42",       unit: "%",  attributes: { min: 0, max: 100, step: 1 } },
   input_select:   { domain: "input_select",   label: "Input Select",   friendly_name: "Scene Mode",       state: "Option B", attributes: { options: ["Option A", "Option B", "Option C"] } },
-  media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Bohemian Rhapsody", media_artist: "Queen", volume_level: 0.7 } },
-  remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: {} },
-  harvest_action: { domain: "harvest_action", label: "Action",         friendly_name: "Good Night",       state: "idle",     attributes: {} },
+  media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Starting Today", media_artist: "Secret Friend", volume_level: 0.7, source: "Spotify", source_list: ["Spotify", "AirPlay", "Bluetooth"], media_duration: 237, media_position: 42, media_position_updated_at: new Date().toISOString() } },
+  number:         { domain: "number",         label: "Number",         friendly_name: "LED Brightness",   state: "75",       unit: "%",  attributes: { min: 0, max: 100, step: 1 } },
+  lock:           { domain: "lock",           label: "Lock",           friendly_name: "Front Door",       state: "locked",   attributes: {} },
+  person:         { domain: "person",         label: "Person",         friendly_name: "Alice",            state: "home",     attributes: {} },
+  button:         { domain: "button",         label: "Button",         friendly_name: "Restart Server",   state: "unknown",  attributes: {} },
+  script:         { domain: "script",         label: "Script",         friendly_name: "Goodnight",        state: "off",      attributes: {} },
+  automation:     { domain: "automation",     label: "Automation",     friendly_name: "Motion Lights",    state: "on",       attributes: {} },
+  remote:         { domain: "remote",         label: "Remote",         friendly_name: "TV Remote",        state: "on",       attributes: { supported_features: 4, current_activity: "Watch TV", activity_list: ["Watch TV", "Apple TV", "PlayStation 5", "Nintendo Switch", "Listen to Music"] } },
   timer:          { domain: "timer",          label: "Timer",          friendly_name: "Oven Timer",       state: "idle",     attributes: { duration: "0:25:00", remaining: "0:25:00" } },
   weather:        { domain: "weather",        label: "Weather",        friendly_name: "Weather",          state: "sunny",    attributes: { temperature: 24, temperature_unit: "°C", humidity: 45, wind_speed: 12, wind_speed_unit: "km/h", pressure: 1013, pressure_unit: "hPa", forecast_daily: [
     { datetime: "2026-05-02", condition: "partlycloudy", temperature: 22, templow: 14 },
@@ -177,13 +193,20 @@ declare global {
         state: string,
         attributes: Record<string, unknown>,
         themeVars?: Record<string, string> | { variables: Record<string, string>; dark_variables?: Record<string, string> },
-        options?: { graph?: string; hours?: number; historyData?: Array<{ t: string; s: string }>; packId?: string },
+        options?: { graph?: string; hours?: number; historyData?: Array<{ t: string; s: string }>; rendererId?: string },
       ) => HTMLElement;
       buildEntityDef: (
         rawEntity: { domain: string; state: string; friendly_name: string; attributes: Record<string, unknown>; unit?: string },
         options?: { capabilities?: string; features?: Record<string, boolean>; iconOverride?: string; nameOverride?: string; colorScheme?: string; displayHints?: Record<string, unknown>; gestureConfig?: Record<string, unknown> },
       ) => Record<string, unknown>;
       filterAttributes: (attributes: Record<string, unknown>) => Record<string, unknown>;
+      registerIconSet: (
+        key: string,
+        set: { icons: Record<string, { body: string; viewBox: string }>; aliases?: Record<string, string> },
+      ) => void;
+      getIconSet: (
+        key: string,
+      ) => { icons: Record<string, { body: string; viewBox: string }>; aliases: Record<string, string> } | undefined;
     };
   }
 }
@@ -205,46 +228,77 @@ export function loadWidgetScript(): Promise<void> {
   return _widgetScriptLoading;
 }
 
-const _loadedPacks = new Set<string>();
-const _loadingPacks = new Map<string, Promise<void>>();
-const _packCacheBust = new Map<string, string>();
+const _loadedRenderers = new Set<string>();
+const _loadingRenderers = new Map<string, Promise<void>>();
+const _rendererCacheBust = new Map<string, string>();
 
-export function isPackLoaded(packId: string): boolean {
-  return _loadedPacks.has(packId);
+export function isRendererLoaded(rendererId: string): boolean {
+  return _loadedRenderers.has(rendererId);
 }
 
-export function loadPackScript(packId: string): Promise<void> {
-  if (_loadedPacks.has(packId)) return Promise.resolve();
-  const existing = _loadingPacks.get(packId);
+export async function loadRendererScript(rendererId: string): Promise<void> {
+  if (_loadedRenderers.has(rendererId)) return Promise.resolve();
+  const existing = _loadingRenderers.get(rendererId);
   if (existing) return existing;
-  const bust = _packCacheBust.get(packId) || String(buildVersion.build);
-  const p = new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `/api/harvest/packs/${encodeURIComponent(packId)}.js?v=${bust}`;
-    // Tell the pack IIFE which ID to register under (may differ from its hardcoded default)
-    (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = packId;
-    script.onload = () => {
-      (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = null;
-      _loadedPacks.add(packId);
-      _loadingPacks.delete(packId);
-      resolve();
-    };
-    script.onerror = () => {
-      (window as { __HARVEST_PACK_ID__?: string | null }).__HARVEST_PACK_ID__ = null;
-      _loadingPacks.delete(packId);
-      reject(new Error(`Failed to load pack ${packId}`));
-    };
-    document.head.appendChild(script);
+  const bust = _rendererCacheBust.get(rendererId) || String(buildVersion.build);
+  const p = (async () => {
+    const renderers = await api.renderers.list();
+    if (!renderers.agreed) {
+      throw new Error("Renderer consent is required before loading custom renderer JavaScript.");
+    }
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = `/api/harvest/renderers/${encodeURIComponent(rendererId)}.js?v=${bust}`;
+      script.dataset.rendererId = rendererId;
+      script.onload = () => {
+        _loadedRenderers.add(rendererId);
+        resolve();
+      };
+      script.onerror = () => {
+        reject(new Error(`Failed to load renderer ${rendererId}`));
+      };
+      document.head.appendChild(script);
+    });
+  })().finally(() => {
+    _loadingRenderers.delete(rendererId);
   });
-  _loadingPacks.set(packId, p);
+  _loadingRenderers.set(rendererId, p);
   return p;
 }
 
-/** Call after uploading new pack JS to force a fresh script fetch on next preview render. */
-export function clearPackCache(packId: string): void {
-  _loadedPacks.delete(packId);
-  _loadingPacks.delete(packId);
-  _packCacheBust.set(packId, String(Date.now()));
+export function clearRendererCache(rendererId: string): void {
+  _loadedRenderers.delete(rendererId);
+  _loadingRenderers.delete(rendererId);
+  _rendererCacheBust.set(rendererId, String(Date.now()));
+}
+
+const _loadingIconSets = new Map<string, Promise<void>>();
+
+/**
+ * Load an icon-set asset (icon-sets/<setId>.js) once. Awaits the widget
+ * bundle first so window.HArvest.registerIconSet exists when the asset's
+ * IIFE runs. Release-busted (?v=) like the widget bundle itself: these are
+ * build-generated assets, not admin-edited packs.
+ */
+export function loadIconSetScript(setId: string): Promise<void> {
+  if (window.HArvest?.getIconSet?.(setId)) return Promise.resolve();
+  const existing = _loadingIconSets.get(setId);
+  if (existing) return existing;
+  const p = loadWidgetScript().then(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = `/harvest_assets/icon-sets/${encodeURIComponent(setId)}.js?v=${buildVersion.build}`;
+        script.onload = () => resolve();
+        script.onerror = () => {
+          _loadingIconSets.delete(setId);
+          reject(new Error(`Failed to load icon set ${setId}`));
+        };
+        document.head.appendChild(script);
+      }),
+  );
+  _loadingIconSets.set(setId, p);
+  return p;
 }
 
 export function resolveVars(
@@ -306,13 +360,13 @@ export function generateMockHistory(domain: string, graphType: GraphType, state:
 // RealWidget - renders a single hrv-card preview
 // ---------------------------------------------------------------------------
 
-function RealWidget({ mock, themeObj, capability, features, graphType, packId, colorScheme }: {
+function RealWidget({ mock, themeObj, capability, features, graphType, rendererId, colorScheme }: {
   mock: MockEntity;
-  themeObj: { variables: Record<string, string>; dark_variables: Record<string, string> };
+  themeObj: { variables: Record<string, string>; dark_variables: Record<string, string>; icon_set?: string | null };
   capability: "read" | "read-write" | "badge";
   features: Record<string, boolean>;
   graphType: GraphType;
-  packId?: string;
+  rendererId?: string;
   colorScheme?: "light" | "dark" | "auto";
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -320,20 +374,25 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId, c
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
+  const iconSetPrefix = iconSetAsset(themeObj.icon_set);
   useEffect(() => {
     const load = async () => {
-      if (packId && !_loadedPacks.has(packId)) {
+      // Gate readiness on the icon-set asset too, or the preview would be
+      // created before the set registers and keep showing mdi glyphs.
+      if ((rendererId && !_loadedRenderers.has(rendererId))
+          || (iconSetPrefix && !window.HArvest?.getIconSet?.(iconSetPrefix))) {
         setReady(false);
       }
       await loadWidgetScript();
-      if (packId) await loadPackScript(packId).catch(() => {});
+      if (rendererId) await loadRendererScript(rendererId).catch(() => {});
+      if (iconSetPrefix) await loadIconSetScript(iconSetPrefix).catch(() => {});
       setReady(true);
     };
     load().catch(() => setLoadError(true));
-  }, [packId]);
+  }, [rendererId, iconSetPrefix]);
 
   const featKey = Object.entries(features).filter(([, v]) => v).map(([k]) => k).sort().join(",");
-  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${packId ?? ""}:${colorScheme ?? "auto"}`;
+  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${rendererId ?? ""}:${colorScheme ?? "auto"}:${themeObj.icon_set ?? ""}`;
 
   useEffect(() => {
     if (!ready || !containerRef.current || !window.HArvest) return;
@@ -356,7 +415,7 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId, c
       graphOpts.hours = 24;
       graphOpts.historyData = generateMockHistory(mock.domain, graphType, mock.state);
     }
-    if (packId) graphOpts.packId = packId;
+    if (rendererId) graphOpts.rendererId = rendererId;
     if (features.animate) graphOpts.animate = true;
     const opts = Object.keys(graphOpts).length > 0 ? graphOpts : undefined;
 
@@ -369,14 +428,14 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId, c
     };
   }, [ready, cardKey]);
 
-  const themeJson = JSON.stringify(themeObj);
+  const themeJson = useMemo(() => JSON.stringify(themeObj), [themeObj]);
   useEffect(() => {
     const card = cardRef.current as (HTMLElement & { applyPreviewTheme?: (v: Record<string, unknown>) => void }) | null;
     if (!card?.applyPreviewTheme) return;
     card.applyPreviewTheme(themeObj);
   }, [themeJson]);
 
-  const stateKey = `${mock.state}:${JSON.stringify(mock.attributes)}`;
+  const stateKey = useMemo(() => `${mock.state}:${JSON.stringify(mock.attributes)}`, [mock.state, mock.attributes]);
   useEffect(() => {
     if (!window.HArvest) return;
     const card = cardRef.current as (HTMLElement & { updatePreviewState?: (s: string, a: Record<string, unknown>) => void }) | null;
@@ -405,7 +464,9 @@ function RealWidget({ mock, themeObj, capability, features, graphType, packId, c
 interface WidgetPreviewProps {
   variables: Record<string, string>;
   darkVariables?: Record<string, string>;
-  packId?: string;
+  rendererId?: string;
+  /** Theme-level icon set; previews render mdi icons through it like the live card. */
+  iconSet?: string | null;
 }
 
 const _ls = {
@@ -414,7 +475,7 @@ const _ls = {
   del: (k: string) => { try { localStorage.removeItem(k); } catch { /* */ } },
 };
 
-export function WidgetPreview({ variables, darkVariables, packId }: WidgetPreviewProps) {
+export function WidgetPreview({ variables, darkVariables, rendererId, iconSet }: WidgetPreviewProps) {
   const _initRenderer = _ls.get("hrv_preview_renderer") ?? "light";
   const _initEntity   = _ls.get("hrv_preview_entity") ?? "";
 
@@ -427,6 +488,11 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
     const stored = _ls.get("hrv_preview_color_mode");
     return (stored === "light" || stored === "dark" || stored === "auto") ? stored : "auto";
   });
+  const haDark = usePanelDark();
+  // "Auto" follows the panel's effective theme (HArvest Theme setting,
+  // "auto" following HA), not the OS. Resolve before handing the scheme to
+  // the widget, which would otherwise fall back to prefers-color-scheme.
+  const effectiveColorMode: "light" | "dark" = colorMode === "auto" ? (haDark ? "dark" : "light") : colorMode;
   const [bgGray, setBgGray] = useState<number | null>(null);
   const [features, setFeatures] = useState<Record<string, boolean>>(defaultFeatures(_initRenderer));
   const [graphType, setGraphType] = useState<GraphType>(() => {
@@ -514,7 +580,7 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
   const domainFeatures = DOMAIN_FEATURES[effectiveDomain] ?? [];
   const graphOptions = GRAPH_DOMAINS[effectiveDomain];
 
-  const themeObj = { variables, dark_variables: darkVariables ?? {} };
+  const themeObj = { variables, dark_variables: darkVariables ?? {}, icon_set: iconSet ?? null };
 
   return (
     <div className="col" style={{ gap: 12 }}>
@@ -596,7 +662,7 @@ export function WidgetPreview({ variables, darkVariables, packId }: WidgetPrevie
             background: bgGray == null ? undefined : `rgb(${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)},${Math.round(bgGray * 2.55)})`,
           }}
         >
-          <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} packId={packId} colorScheme={colorMode} />
+          <RealWidget mock={previewMock} themeObj={themeObj} capability={capability} features={features} graphType={graphType} rendererId={rendererId} colorScheme={effectiveColorMode} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingBottom: 12 }}>
           <input

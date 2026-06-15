@@ -3,6 +3,7 @@
   "author": "sfox38",
   "version": "1.0",
   "harvest_version": 1,
+  "description": "Frosted glass aesthetic with backdrop blur and translucent surfaces.",
   "variables": {
     "--hrv-card-min-width":        "260px",
     "--hrv-color-primary":         "#6200ea",
@@ -22,6 +23,7 @@
     "--hrv-card-shadow":           "0 8px 32px rgba(0,0,0,0.12)",
     "--hrv-card-padding":          "18px",
     "--hrv-card-background":       "linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.18) 100%)",
+    "--hrv-menu-background":       "rgba(245,245,250,0.82)",
     "--hrv-card-backdrop-filter":  "blur(12px) saturate(1.4)",
     "--hrv-card-border":           "1px solid rgba(255,255,255,0.4)",
     "--hrv-icon-size":             "24px",
@@ -43,6 +45,7 @@
     "--hrv-color-state-unavailable": "#7878a0",
     "--hrv-color-error":           "#ef5350",
     "--hrv-card-background":       "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.08) 100%)",
+    "--hrv-menu-background":       "rgba(26,26,40,0.88)",
     "--hrv-card-backdrop-filter":  "blur(14px) saturate(1.5)",
     "--hrv-card-border":           "1px solid rgba(255,255,255,0.15)",
     "--hrv-card-shadow":           "0 8px 32px rgba(0,0,0,0.3)"

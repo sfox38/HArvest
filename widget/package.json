@@ -1,6 +1,6 @@
 {
   "name": "@harvest/widget",
-  "version": "1.6.3",
+  "version": "1.0.0",
   "description": "HArvest widget - live Home Assistant entity cards for any webpage",
   "type": "module",
   "scripts": {
@@ -9,9 +9,14 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "esbuild": "^0.20.0",
+    "@iconify-json/fa7-solid": "1.2.4",
+    "@iconify-json/ph": "1.2.2",
+    "@iconify-json/tabler": "1.2.35",
+    "@mdi/font": "^7.4.47",
+    "@mdi/svg": "^7.4.47",
+    "esbuild": "^0.28.0",
     "jsdom": "^29.0.2",
-    "vitest": "^1.0.0"
+    "vitest": "^4.1.8"
   },
   "license": "MIT",
   "repository": {

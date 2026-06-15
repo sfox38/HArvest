@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from enum import IntEnum
 
-from .const import ERR_ENTITY_INCOMPATIBLE, ERR_PERMISSION_DENIED
+from .const import ERR_ENTITY_INCOMPATIBLE, ERR_PERMISSION_DENIED, CONF_SENSITIVE_DOMAINS
 
 
 class SupportTier(IntEnum):
@@ -29,9 +29,16 @@ TIER1_DOMAINS: dict[str, str] = {
     "input_boolean":   "InputBooleanCard",
     "input_number":    "InputNumberCard",
     "input_select":    "InputSelectCard",
-    "harvest_action":  "HarvestActionCard",
+    "select":          "InputSelectCard",
     "timer":           "TimerCard",
     "weather":         "WeatherCard",
+    "lock":            "LockCard",
+    "person":          "PersonCard",
+    "button":          "ButtonCard",
+    "input_button":    "ButtonCard",
+    "number":          "InputNumberCard",
+    "script":          "ScriptCard",
+    "automation":      "AutomationCard",
 }
 
 SENSOR_DEVICE_CLASS_RENDERERS: dict[str, str] = {
@@ -42,15 +49,10 @@ SENSOR_DEVICE_CLASS_RENDERERS: dict[str, str] = {
 
 TIER3_DOMAINS: dict[str, str] = {
     "alarm_control_panel": "Security-critical. Publicly embeddable alarm control is too high risk.",
-    "lock":                "Physical security risk.",
-    "person":              "Exposes real-time location data of named individuals.",
-    "device_tracker":      "Same privacy concern as person.",
+    "device_tracker":      "Privacy concern - exposes real-time location. Use person domain instead.",
     "camera":              "Video streaming is out of scope.",
-    "script":              "Use harvest_action instead.",
-    "automation":          "Same concern as script.",
     "scene":               "Could trigger wide device effects. Deferred to v2.",
     "update":              "Triggering firmware updates from a public page is too risky.",
-    "button":              "Use harvest_action instead.",
 }
 
 ALLOWED_SERVICES: dict[str, set[str]] = {
@@ -59,25 +61,43 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
     "fan":            {"turn_on", "turn_off", "toggle", "set_percentage",
                        "oscillate", "set_direction", "set_preset_mode",
                        "increase_speed", "decrease_speed"},
-    "cover":          {"open_cover", "close_cover", "stop_cover", "set_cover_position"},
+    "cover":          {"open_cover", "close_cover", "stop_cover", "set_cover_position",
+                       "set_cover_tilt_position"},
     "climate":        {"turn_on", "turn_off", "set_temperature", "set_hvac_mode",
                        "set_fan_mode", "set_preset_mode", "set_swing_mode"},
     "input_boolean":  {"turn_on", "turn_off", "toggle"},
     "input_number":   {"set_value"},
     "input_select":   {"select_option"},
+    "select":         {"select_option"},
     "timer":          {"start", "pause", "cancel", "finish"},
     "media_player":   {"media_play_pause", "media_next_track", "media_previous_track",
                        "volume_up", "volume_down", "volume_set", "volume_mute",
                        "select_source", "turn_on", "turn_off"},
     "remote":         {"turn_on", "turn_off", "send_command"},
-    "harvest_action": {"trigger"},
-    # sensor and binary_sensor are intentionally absent: read-only domains with no HA
-    # services. They never send commands so they never reach this check. Not an omission.
+    "lock":           {"lock", "unlock", "open"},
+    "button":         {"press"},
+    "input_button":   {"press"},
+    "number":         {"set_value"},
+    "script":         {"turn_on"},
+    "automation":     {"trigger", "turn_on", "turn_off"},
+    # sensor, binary_sensor, person are intentionally absent: read-only, no HA services.
 }
 
 COMPANION_ALLOWED_DOMAINS: frozenset[str] = frozenset({
     "light", "switch", "binary_sensor",
-    "input_boolean", "cover", "remote", "lock",
+    "input_boolean", "cover", "remote", "fan", "sensor", "lock",
+    "button", "input_button", "number", "input_number",
+    "person", "timer", "weather",
+})
+
+COMPANION_INTERACTIVE_DOMAINS: frozenset[str] = frozenset({
+    "light", "switch", "input_boolean", "fan", "lock", "button", "input_button",
+})
+
+# Tier 1 domains that are disabled by default. Admins must explicitly enable
+# each one in Settings before tokens can include entities from that domain.
+SENSITIVE_DOMAINS: frozenset[str] = frozenset({
+    "lock", "script", "automation", "button", "input_button", "cover",
 })
 
 
@@ -134,15 +154,33 @@ def is_companion_allowed(domain: str) -> bool:
 
 def get_custom_domains(hass) -> list[dict]:
     """Read the custom_domains allowlist from the live config entry."""
-    from .const import DOMAIN, DEFAULTS
+    from .config_validation import normalize_global_config
+    from .const import DOMAIN
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
         return []
     entry = entries[0]
-    merged = {**DEFAULTS, **entry.data, **entry.options}
-    return merged.get("custom_domains", [])
+    return normalize_global_config(entry.data, entry.options)["custom_domains"]
 
 
 def get_blocked_reason(domain: str) -> str | None:
     """Return the human-readable reason a Tier 3 domain is blocked, or None."""
     return TIER3_DOMAINS.get(domain)
+
+
+def is_sensitive_domain_blocked(domain: str, sensitive_config: dict) -> bool:
+    """Return True if domain is sensitive and not enabled in global config."""
+    if domain not in SENSITIVE_DOMAINS:
+        return False
+    return not sensitive_config.get(domain, False)
+
+
+def get_sensitive_domains(hass) -> dict:
+    """Read the sensitive_domains config from the live config entry."""
+    from .config_validation import normalize_global_config
+    from .const import DOMAIN, DEFAULTS
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return dict(DEFAULTS[CONF_SENSITIVE_DOMAINS])
+    entry = entries[0]
+    return normalize_global_config(entry.data, entry.options)[CONF_SENSITIVE_DOMAINS]

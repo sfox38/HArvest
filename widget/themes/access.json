@@ -3,6 +3,7 @@
   "author": "sfox38",
   "version": "1.0",
   "harvest_version": 1,
+  "description": "High-contrast accessible theme with no animations and strong borders.",
   "variables": {
     "--hrv-card-min-width":        "260px",
     "--hrv-color-primary":         "#0047ab",
@@ -19,6 +20,7 @@
     "--hrv-color-state-unavailable": "#767676",
     "--hrv-color-error":           "#9b1c1c",
     "--hrv-card-radius":           "4px",
+    "--hrv-badge-radius":          "2px",
     "--hrv-card-shadow":           "none",
     "--hrv-card-border":           "2px solid #000000",
     "--hrv-card-padding":          "16px",
@@ -31,6 +33,7 @@
   },
   "dark_variables": {
     "--hrv-color-primary":         "#6699ff",
+    "--hrv-color-on-primary":      "#000000",
     "--hrv-color-primary-dim":     "#1a2a4a",
     "--hrv-color-surface":         "#000000",
     "--hrv-color-surface-alt":     "#1a1a1a",

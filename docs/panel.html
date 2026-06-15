@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Panel Guide - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -17,7 +20,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v1.0 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -47,18 +50,18 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Using HArvest</div>
           <h1>Panel guide</h1>
-          <p class="lead">A walkthrough of every screen in the HArvest panel - dashboard, token management, the wizard, themes, settings, and the activity log.</p>
+          <p class="lead">Use the panel to create widgets, adjust what they expose, change their appearance, and review activity. Start with the task you need below, or read through each screen in order.</p>
         </div>
 
         <div class="toc">
@@ -68,31 +71,38 @@
             <li><a href="#token-list">Widget list</a></li>
             <li><a href="#token-detail">Widget detail</a></li>
             <li><a href="#wizard">Widget wizard</a></li>
+            <li><a href="#converter">Dashboard converter</a></li>
             <li><a href="#themes">Themes</a></li>
             <li><a href="#settings">Settings</a></li>
             <li><a href="#activity">Activity log</a></li>
           </ol>
         </div>
 
+        <div class="nav-cards">
+          <a class="nav-card" href="#wizard"><strong>Create a widget</strong><span>Choose entities, permissions, appearance, and access restrictions.</span></a>
+          <a class="nav-card" href="#token-detail"><strong>Change a widget</strong><span>Edit entities, code, preferences, security, and sessions.</span></a>
+          <a class="nav-card" href="#converter"><strong>Convert a dashboard</strong><span>Generate an HTML page from a supported HA dashboard.</span></a>
+          <a class="nav-card" href="#activity"><strong>Investigate activity</strong><span>Filter connection, command, lifecycle, and error events.</span></a>
+        </div>
+
         <h2 id="dashboard">Dashboard</h2>
 
-        <p>The dashboard is the first screen you see when opening the panel. It shows a real-time snapshot of what's happening across all your widgets.</p>
+        <p>The dashboard is the first screen you see when you open the panel. It shows a real-time snapshot of what's happening across all your widgets.</p>
 
         <div class="screenshot">
-          <img src="dashboard.jpg">
+          <img src="dashboard.jpg" alt="HArvest dashboard showing stat cards, activity graphs, and recent events" loading="lazy">
         </div>
 
         <h3>Stat cards</h3>
-        <p>Five sensor cards across the top of the dashboard:</p>
+        <p>Four statistic cards across the top of the dashboard:</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Card</th><th>What it shows</th></tr></thead>
             <tbody>
               <tr><td>Active Sessions</td><td>Number of widget sessions currently connected</td></tr>
               <tr><td>Active Tokens</td><td>Total non-expired, non-revoked tokens</td></tr>
-              <tr><td>Commands Today</td><td>Service calls sent through HArvest in the last 24 hours</td></tr>
-              <tr><td>Errors Today</td><td>Auth failures and flood protection events in the last 24 hours</td></tr>
-              <tr><td>DB Size</td><td>Current activity log database size</td></tr>
+              <tr><td>Commands Today</td><td>Service calls sent through HArvest since midnight in the Home Assistant timezone</td></tr>
+              <tr><td>Errors Today</td><td>Authentication failures recorded since midnight in the Home Assistant timezone</td></tr>
             </tbody>
           </table>
         </div>
@@ -103,12 +113,16 @@
         <h3>Sidebar sections</h3>
         <p>Below the graphs: a quick view of the last four activity events (click any to open the widget detail), and a list of widgets expiring in the next 7 days.</p>
 
+        <h3>Version drift banner</h3>
+        <p>When one of your sites is running a HArvest WordPress plugin or widget bundle that's older than your HA integration, a yellow banner appears at the top of the Dashboard listing each affected site. This typically happens when you've updated HArvest in HACS but haven't updated the WordPress plugin yet, or when a visitor's browser is loading an old cached version of the widget JS. The banner tells you exactly what's outdated and how to fix it.</p>
+        <p>Click <strong>Dismiss</strong> to hide the banner. It stays hidden until your next HArvest update, at which point any drift that still exists reappears for re-evaluation. There is no per-site dismiss; one click hides everything from this version onward.</p>
+
         <h2 id="token-list">Widget list</h2>
 
         <p>The Widgets tab lists all your widgets. Each row shows the widget name, status badge, primary origin (or "any website"), entity count, active session count, and expiry date.</p>
 
         <div class="screenshot">
-          <img src="widget-list.jpg">
+          <img src="widget-list.jpg" alt="Widget list showing token names, status badges, origins, and session counts" loading="lazy">
         </div>
 
         <h3>Status badges</h3>
@@ -134,8 +148,15 @@
         <p>Clicking a widget opens the widget detail screen. This is where you manage everything about a specific widget: its entities, access rules, appearance, and embed code.</p>
 
         <div class="screenshot">
-          <img src="widget-detail.jpg">
+          <img src="widget-detail.jpg" alt="Widget detail screen with entity list, theme picker, live preview, and settings tabs" loading="lazy">
         </div>
+
+        <p>The header shows the widget name (editable inline), a status badge, and action buttons:</p>
+        <ul>
+          <li><strong>Pause / Resume</strong> - temporarily suspend the widget, dropping all active sessions. Resume restores normal operation.</li>
+          <li><strong>Duplicate</strong> - create a new widget that copies all settings (entities, origins, theme, display, rate limits) from this one. The copy gets a fresh token, fresh aliases, no expiry, and no HMAC secret. The name is set to "... (copy)".</li>
+          <li><strong>Revoke</strong> - permanently disable the widget. This cannot be undone.</li>
+        </ul>
 
         <p>The detail screen uses a single-column layout with five tabs across the top:</p>
         <ul>
@@ -153,10 +174,11 @@
         <p>Each row shows a domain icon, the entity ID, and an alias badge (if set). Click a row to select it. Only primary entities appear here; companion entities are managed inside the selected entity's settings card. Use the search input at the top to add new entities with fuzzy matching.</p>
 
         <h4>Theme card</h4>
-        <p>The theme picker is always visible at the top of the right panel, even when no entity is selected. It shows a horizontal scrollable strip of theme thumbnails. A text filter below the strip narrows the list by theme name or ID. Themes that include a renderer pack are marked with a <span class="badge badge-amber">☆</span> badge. Selecting a theme applies it to the widget and updates the live preview immediately.</p>
+        <p>The theme picker is always visible at the top of the right panel, even when no entity is selected. It shows a horizontal scrollable strip of theme thumbnails. A text filter below the strip narrows the list by theme name or ID. Themes that include a renderer override are marked with a <span class="badge badge-amber">★</span> badge (shown as <span class="badge badge-amber">⚠</span> if the renderer JS file is missing), and themes that bundle a custom font are marked with an <span class="badge badge-grey">F</span> badge (hovering shows the font family names). Selecting a theme applies it to the widget and updates the live preview immediately.</p>
 
         <h4>Live preview</h4>
         <p>When an entity is selected, a live preview card appears below the theme picker. It renders the selected entity using the current theme and all applied settings. The preview updates automatically as you change settings, switch themes, or modify display options. It also respects the entity's forced color scheme setting (Auto, Light, or Dark).</p>
+        <p>When a graph is enabled for an entity, the preview shows that entity's real recorded history, fetched from Home Assistant's recorder using the same logic the live widget uses. If the recorder has no numeric history for the entity (for example a brand-new helper, or a recorder that is not storing that entity), the preview falls back to sample data so the card is never blank.</p>
 
         <h4>Entity settings card</h4>
         <p>Below the preview, the settings card shows all configuration for the selected entity. Settings are grouped into universal controls (available for all entity types) and domain-specific controls.</p>
@@ -166,47 +188,69 @@
           <table>
             <thead><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
             <tbody>
-              <tr><td>Icon</td><td>icon picker</td><td>Replaces the auto-detected icon with any icon from the widget's built-in set (~113 icons). Click the icon button to the left of the Display name field to open the picker. Select an icon, or use "Reset to default" to clear the override.</td></tr>
+              <tr><td>Icon</td><td>icon picker</td><td>Replaces the auto-detected icon with any icon from the widget's built-in Material Design set (currently 158 icons) or an available alternate icon set. Click the icon button to the left of the Display name field to open the picker. Select an icon, or use "Reset to default" to clear the override.</td></tr>
               <tr><td>Display name</td><td>text input</td><td>Overrides the entity's Home Assistant friendly name. Leave blank to use the HA name.</td></tr>
               <tr><td>Force color scheme</td><td>Auto, Light, Dark</td><td>Forces the widget card to render in that color scheme regardless of the visitor's system settings. Auto follows the page's color scheme.</td></tr>
-              <tr><td>Access</td><td>Badge, Read only, Read + Control</td><td>Badge renders a compact pill indicator (icon, name, state) with no controls, companions, or gestures. Read only displays a full card without controls. Read + Control displays a full card that can send commands (e.g. toggle a light).</td></tr>
+              <tr><td>Access</td><td>Badge, Read only, Read + Control</td><td>Badge renders a compact pill indicator (icon, name, state) with no controls, companions, or gestures. Read only displays a full card without controls or gestures. Read + Control displays a full card that can send commands (e.g. toggle a light) and supports gestures.</td></tr>
+              <tr><td>Decimal rounding</td><td>0-6, or None</td><td>Rounds the entity's numeric state to a fixed number of decimal places. Available for sensor, input_number, counter, and number entities. Set to 0 for integer values, or leave as None for the raw HA value. Rounding is applied server-side so all themes display the same precision.</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p><strong>Badge settings:</strong> when Access is set to Badge, domain-specific controls, companions, and gestures are hidden. In their place, badge-specific settings appear: <strong>Show icon</strong>, <strong>Show name</strong>, and <strong>Show state</strong> toggles, plus an <strong>Icon color</strong> picker with color swatches (Auto, Red, Orange, Amber, Yellow, Green, Teal, Cyan, Blue, Indigo, Purple, Pink, Grey). Auto derives the color from the entity's domain.</p>
+        <p><strong>Badge settings:</strong> when Access is set to Badge, domain-specific controls, companions, and gestures are hidden. In their place, badge-specific settings appear: <strong>Show icon</strong>, <strong>Show name</strong>, and <strong>Show state</strong> toggles, plus an <strong>Icon color</strong> picker with color swatches (Auto, Red, Orange, Amber, Yellow, Green, Teal, Cyan, Blue, Indigo, Purple, Pink, Gray). Auto derives the color from the entity's domain.</p>
 
-        <p><strong>Domain-specific controls</strong> appear based on the entity's domain and what the active theme's renderer pack supports. If the current theme has no renderer pack, only universal settings are shown. These controls are hidden when Access is Badge.</p>
+        <p><strong>Domain-specific controls</strong> appear based on the entity's domain. By default, the panel shows all display options supported by the built-in renderer. A theme's optional capability metadata can filter these controls to show only the options its renderer override supports. These controls are hidden when Access is Badge or the widget uses entities block mode.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Domain</th><th>Available controls</th></tr></thead>
             <tbody>
-              <tr><td>light</td><td>Show brightness, Show color temperature, Show RGB color</td></tr>
-              <tr><td>fan</td><td>Animate fan icon, Display mode (Auto, On-Off, Continuous, Stepped, Cycle)</td></tr>
-              <tr><td>climate</td><td>Show HVAC modes, Show presets, Show fan mode, Show swing mode</td></tr>
-              <tr><td>cover</td><td>Show position slider, Show tilt control</td></tr>
-              <tr><td>media_player</td><td>Show transport controls, Show volume, Show source selector</td></tr>
-              <tr><td>sensor, binary_sensor</td><td>Graph type (None, Line, Bar), Hours (1-168), Period (1-60 min)</td></tr>
-              <tr><td>input_number</td><td>Display mode (Slider, Buttons), Graph settings</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> light</td><td>Show brightness, Show color temperature, Show RGB color</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> fan</td><td>Animate fan icon, Display mode (Auto, On-Off, Continuous, Stepped, Cycle)</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-thermostat"></span> climate</td><td>Show HVAC modes, Show presets, Show fan mode, Show swing mode</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> cover</td><td>Show position slider, Show tilt control</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> media_player</td><td>Show transport controls, Show volume, Show source selector</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-weather-partly-cloudy"></span> weather</td><td>Show forecast (disabled by default)</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> sensor, <span class="mdi mdi-radiobox-marked"></span> binary_sensor</td><td>Graph type (None, Line, Bar, plus Step for binary sensors), Hours (1-168), Period (1-60 min)</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-ray-vertex"></span> input_number</td><td>Display mode (Slider, Buttons), Graph settings</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p><strong>Companions:</strong> add or remove companion entities that display inside the selected entity's card. Companion entities do not appear in the left entity list. This section auto-opens when companions already exist. Hidden when Access is Badge.</p>
+        <p><strong>Companions:</strong> add or remove companion entities that display inside the selected entity's card. Companion entities do not appear in the left entity list. This section auto-opens when companions already exist and is hidden when Access is Badge. Interactive companion domains have a small "Read only" toggle that defaults to on; disable it to allow visitors to toggle, lock or unlock, or press the companion. Display-only companion domains do not show the toggle. The toggle only appears when the primary entity's Access is set to Control; read-only primaries force all companions to read-only.</p>
 
         <p><strong>Excluded attributes:</strong> a grid of toggles for each attribute the entity exposes. Excluding an attribute prevents it from being sent to the widget. These toggles are linked to the domain-specific controls above: disabling "Show brightness" for a light also excludes the brightness attribute, and vice versa.</p>
 
-        <p><strong>Gestures:</strong> maps tap, hold, and double-tap interactions on the card to actions. Hidden when Access is Badge.</p>
+        <p><strong>Gestures:</strong> maps tap, hold, and double-tap interactions on the card to actions. Gestures require Read + Control access, so the section is hidden when Access is Badge or Read only. Switching a card from Read + Control to Read only or Badge clears any gestures it had.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Gesture</th><th>Available actions</th></tr></thead>
             <tbody>
-              <tr><td>Tap</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
-              <tr><td>Hold</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
-              <tr><td>Double tap</td><td>Toggle entity, trigger a Harvest Action, no action</td></tr>
+              <tr><td>Tap</td><td>Default, Toggle, Perform action, None (disable)</td></tr>
+              <tr><td>Hold</td><td>Default, Toggle, Perform action, None (disable)</td></tr>
+              <tr><td>Double tap</td><td>Default, Toggle, Perform action, None (disable)</td></tr>
             </tbody>
           </table>
         </div>
+        <p>"Perform action" calls a Home Assistant service (e.g. <code>light.turn_on</code>) with optional service data in JSON format. The service must be in the entity domain's allowed service list.</p>
+
+        <h4>Entities block settings</h4>
+        <p>When a widget is configured as an entities block, the entity list shows a virtual "Entities Block" header row at the top. Selecting it shows block-level settings that apply to the entire block:</p>
+        <p>Gestures are unavailable in entities block mode. Existing gesture settings remain stored but inactive, and become active again if entities block mode is disabled.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Display name</td><td>icon picker + text</td><td>Sets the block header label and icon. Leave empty for no header.</td></tr>
+              <tr><td>Access</td><td>View only, Control, Per entity</td><td>View only and Control override all entities to that level. Per entity allows each entity to have its own access setting (View only or Control, no Badge in block mode).</td></tr>
+              <tr><td>Always use</td><td>Auto, Light, Dark, Per entity</td><td>Sets the color scheme for the whole block. Per entity allows each entity to choose its own color scheme.</td></tr>
+              <tr><td>Display header</td><td>toggle</td><td>Show or hide the block header bar.</td></tr>
+              <tr><td>Highlight rows</td><td>toggle</td><td>Alternating row highlights for readability.</td></tr>
+              <tr><td>Show entity icons</td><td>toggle</td><td>Show or hide the icon on each entity row.</td></tr>
+              <tr><td>Widget border</td><td>Outer, None</td><td>Outer shows a border around the entire block container.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>When Access or Always use is set to "Per entity", selecting an individual entity in the list shows that entity's own Access or color scheme toggle. Each entity can also have its own decimal rounding setting for numeric domains.</p>
 
         <h3>Embed tab</h3>
         <p>Ready-to-paste embed snippets that update in real time as you change entity or alias settings. The snippet panel has two tabs (HTML and WordPress) and a toggle to switch between <code>entity=</code> and <code>alias=</code> format. The alias format is useful when you don't want entity IDs visible in your page source.</p>
@@ -214,17 +258,17 @@
         <h3>Preferences tab</h3>
         <p>Collapsible sections for:</p>
         <ul>
-          <li><strong>Origins</strong> - which websites can use this widget. Add specific URLs (e.g. <code>https://mysite.com</code>) with optional path restrictions, or enable "allow any origin".</li>
+          <li><strong>Origins</strong> - which websites can use this widget. Add specific URLs, optionally restrict them to exact normalized page paths, or enable "allow any origin".</li>
           <li><strong>Schedule</strong> - restrict access to specific days of the week and hours of the day, in a chosen timezone.</li>
           <li><strong>Rate limits</strong> - per-widget override for the global rate limit defaults.</li>
-          <li><strong>Display defaults</strong> - language, accessibility mode, and offline/error message settings.</li>
+          <li><strong>Display defaults</strong> - language, icon set (render all entity icons in Material Design, Font Awesome, Phosphor, or Tabler; "Theme default" follows the theme's choice), accessibility mode, and offline/error message settings.</li>
         </ul>
 
         <h3>Security tab</h3>
         <p>Token secret for HMAC-signed auth, IP allowlists, and session lifetime limits. See the <a href="security.html">Security page</a> for details on each option.</p>
 
         <h3>Widget Info tab</h3>
-        <p>Usage stats (total sessions, commands, last connection time), a live list of active sessions with the ability to end individual sessions, and a recent activity feed for this widget. This is the same session and activity data that was previously shown in the right sidebar.</p>
+        <p>Usage stats (total sessions, commands, last connection time), a live list of active sessions with the ability to end individual sessions, and a recent activity feed for this widget.</p>
 
         <h2 id="wizard">Widget wizard</h2>
 
@@ -238,6 +282,9 @@
         <h3>Live preview</h3>
         <p>Step 1 shows a live preview of your selected entity as you configure it. The preview updates in real time when you change the permission level, select a different entity, or pick a theme. Companions also appear in the preview.</p>
 
+        <h3>Script variables</h3>
+        <p>When you add a <code>script</code> entity with <strong>View and control</strong> permission, the wizard shows a form for the script's input variables (if any are defined in the script's YAML <code>fields:</code> config). Each variable renders as a typed input matching its HA selector: dropdowns for areas, floors, devices, entities, and select lists; number inputs with min/max constraints; checkboxes for booleans; and text inputs for everything else. Default values from the script definition are pre-filled. These values are baked into the widget and sent automatically when a visitor clicks Run. The same form is available in the widget detail editor under <strong>Script variables</strong>.</p>
+
         <h3>Alias toggle (Step 4)</h3>
         <p>The code snippet in Step 4 (Done) has an <strong>Aliases</strong> toggle. When enabled, the snippet uses 8-character random aliases instead of real entity IDs in the embed code. Both formats work - aliases are just privacy aliases, not a different access mechanism. Aliases for each entity are generated when you select the entity in Step 1 and are stored with the widget permanently.</p>
 
@@ -248,31 +295,70 @@
           <li><strong>Data attribute</strong> - uses plain <code>&lt;div class="hrv-mount"&gt;</code> elements with <code>data-</code> attributes, for environments where custom elements are blocked or inconvenient</li>
         </ul>
 
+        <h2 id="converter">Dashboard converter</h2>
+
+        <p>The dashboard converter lets you turn an existing HA Lovelace dashboard into a standalone HTML page with HArvest widgets. Open it from the <strong>Convert</strong> button in the Widget list toolbar.</p>
+
+        <h3>How it works</h3>
+        <ol>
+          <li><strong>Select a dashboard</strong> - pick from your installed Lovelace dashboards (default or custom).</li>
+          <li><strong>Configure</strong> - choose which views to include, set entity capabilities (Smart, Read only, Control, or Badge), pick a theme, optionally restrict the origin, and set the max cards per group (5-100, default 40).</li>
+          <li><strong>Generate</strong> - the wizard creates HArvest widgets (one per view, automatically split if a view exceeds the max cards per group setting) and renders the HTML.</li>
+          <li><strong>Download</strong> - save the generated HTML file. Upload it to your web server, open it locally, or paste the code into your site.</li>
+        </ol>
+
+        <h3>What gets converted</h3>
+        <p>The converter handles most standard Lovelace card types: single-entity cards (light, thermostat, sensor, tile, etc.), multi-entity cards (entities, glance), stacks and grids, heading cards with inline badges, and view-level badges. Text-only cards appear as styled text blocks. Unsupported cards show a placeholder with contextual information.</p>
+
+        <h3>Custom card support</h3>
+        <p>Popular custom card sets have dedicated conversion support:</p>
+        <ul>
+          <li><strong>Mushroom cards</strong> - all single-entity mushroom cards (entity, light, fan, cover, climate, lock, media-player, vacuum, humidifier, number, update, alarm, person, select) are converted with proper entity extraction. Mushroom chips cards convert to HArvest badges. Template cards are skipped (Jinja templates cannot be converted).</li>
+          <li><strong>Bubble Card</strong> - button, climate, cover, media-player, select, and calendar card types are converted. Sub-buttons are automatically mapped to HArvest companion entities so they appear alongside the primary card. Separators, empty columns, and pop-ups are skipped.</li>
+          <li><strong>Button Card</strong> - the primary entity is extracted and converted. Template-based custom fields and variables that reference entities via JS templates are not converted.</li>
+          <li><strong>mini-graph-card</strong> - all entities from the card's entities list are extracted and converted.</li>
+          <li><strong>mini-media-player</strong> - the primary entity is extracted and converted.</li>
+          <li><strong>simple-thermostat</strong> - the primary entity is extracted and converted.</li>
+          <li><strong>Stack containers</strong> - stack-in-card, vertical-stack-in-card, layout-card, swipe-card, and tabbed-card are treated as layout containers and their child cards are recursively converted.</li>
+        </ul>
+        <p>Other custom cards not listed above still have their entities extracted via a deep scan of the card config, though this may pick up entity IDs from action targets or template variables that are not the card's primary entity.</p>
+
+        <h3>Limitations</h3>
+        <ul>
+          <li>Tier 3 entities (cameras, alarm panels, device trackers, scenes, updates) are excluded for security.</li>
+          <li>Visual styling is not copied from Lovelace; cards use the selected HArvest theme instead.</li>
+          <li>Bubble Card sub-buttons are auto-detected as companions, but other companion relationships are not. You can add companions manually after conversion.</li>
+          <li>Gesture actions that HArvest supports (toggle, none, call-service / perform-action) are converted. Other Lovelace actions (more-info, navigate, url) have no HArvest equivalent and are skipped.</li>
+          <li>Conditional card logic is dropped (the inner card is included unconditionally).</li>
+        </ul>
+
+        <p>Created widgets are labeled with a "Converted:" prefix so they are easy to identify in the widget list. You can edit any converted widget's settings, entities, theme, or security options after conversion.</p>
+
         <h2 id="themes">Themes</h2>
 
-        <p>Theme management lives inside each widget's Entities tab. There is no separate global Themes screen. Each widget picks its own theme, and theme selection affects all entities within that widget.</p>
+        <p>Theme selection is per-widget, managed in each widget's Entities tab. Each widget picks its own theme, and the selection affects all entities within that widget. Creating and editing themes happens in the dedicated Themes tab.</p>
 
         <p>HArvest ships five bundled themes (Default, Glass, Access, Minimus, Shrooms) and supports unlimited custom themes and user-contributed themes.</p>
 
         <div class="screenshot">
-          <img src="theme.jpg">
+          <img src="theme.jpg" alt="Theme picker strip showing bundled and custom theme thumbnails" loading="lazy">
         </div>
 
         <h3>Theme picker strip</h3>
-        <p>The theme card at the top of the Entities tab's right panel shows a horizontal scrollable strip of theme thumbnails. Bundled themes are marked with a <span class="badge badge-grey">System</span> badge. Themes that include a renderer pack are marked with a <span class="badge badge-amber">☆</span> badge. A text filter below the strip narrows results by theme name or ID.</p>
+        <p>The theme card at the top of the Entities tab's right panel shows a horizontal scrollable strip of theme thumbnails. Bundled themes are marked with a <span class="badge badge-grey">System</span> badge. Renderer themes show a <span class="badge badge-amber">★</span> indicator, or a <span class="badge badge-amber">⚠</span> if the renderer JavaScript file is missing. Themes that bundle a custom font show an <span class="badge badge-grey">F</span> indicator; hovering over it shows the font family names. A text filter below the strip narrows results by theme name or ID.</p>
 
-        <h3>Renderer packs</h3>
-        <p>Some themes include a renderer pack, which replaces the default card renderers with custom designs. When a pack theme is active, the domain-specific controls in the entity settings card are filtered to show only options the pack supports. Switching between themes preserves your display settings; options the new theme does not support are hidden but kept in storage.</p>
+        <h3>Renderer overrides</h3>
+        <p>Some themes include a renderer override, which replaces the default card renderers with custom designs. When a theme with a renderer is active, the domain-specific controls in the entity settings card are filtered to show only options the renderer supports. Switching between themes preserves your display settings; options the new theme does not support are hidden but kept in storage.</p>
 
         <h3>Custom themes</h3>
-        <p>Custom themes are created and managed from the global Settings screen. The theme JSON editor lets you modify CSS variables, preview changes in real time, and export themes as JSON files. See the <a href="theming.html">Theming page</a> for the full theme JSON format and variable reference.</p>
+        <p>Custom themes are created and managed in the Themes tab. The theme JSON editor lets you modify CSS variables and preview changes in real time. Themes are exported as <code>.zip</code> files. See the <a href="theming.html">Theming page</a> for the full theme JSON format and variable reference.</p>
 
         <h3>Sharing themes</h3>
-        <p>Any theme can be exported as a JSON file. Custom themes can be imported on any HArvest instance. This is how third-party themes are distributed: the theme author exports their JSON file and shares it, and other users import it.</p>
+        <p>Any theme can be exported as a <code>.zip</code> file. Custom themes can be imported on any HArvest instance. This is how third-party themes are distributed: the theme author exports the zip and shares it, and other users import it via the Themes tab.</p>
 
         <h2 id="settings">Settings</h2>
 
-        <p>The Settings screen has collapsible sections for every global configuration option.</p>
+        <p>The Settings screen has collapsible sections for every global configuration option. The server validates all updates before saving them, including nested settings and numeric ranges. Invalid updates are rejected without changing the current configuration. If malformed values exist because storage was edited manually or migrated from an older version, HArvest ignores them at runtime and uses documented defaults; malformed sensitive-domain settings remain blocked.</p>
 
         <h3>Allowed origins</h3>
         <p>A registry of websites that widgets can reference. Rather than typing a URL each time you create a widget, you add sites here once with a friendly name. These then appear as options in the wizard and widget detail screen. You can add origins directly from the widget editor too - they sync to this registry.</p>
@@ -282,11 +368,61 @@
           <table>
             <thead><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
             <tbody>
+              <tr><td>Override host</td><td>(empty)</td><td>The public URL the panel uses when generating embed snippets and the HA-served widget URL. Leave empty to use the URL of whatever HA host the admin is currently visiting. Set this if admins access HA via a different domain than visitors.</td></tr>
+              <tr><td>Widget script source</td><td>HA-served</td><td>Three options: <strong>HA-served</strong> (snippet uses <code>{HA URL}/harvest_assets/harvest.min.js</code>; always matches the running integration version), <strong>Alternate port</strong> (starts a lightweight server for the widget script, WebSocket connection, and runtime assets, useful when HA's main port is not reachable from the embed site), or <strong>Custom URL</strong> (admin-supplied). The alternate server is plain HTTP unless placed behind a TLS proxy or secure tunnel. HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration's own files.</td></tr>
               <tr><td>Auth timeout</td><td>10 seconds</td><td>Time to complete WebSocket auth before disconnect</td></tr>
               <tr><td>Keepalive interval</td><td>30 seconds</td><td>How often the server pings connected clients</td></tr>
               <tr><td>Client heartbeat timeout</td><td>60 seconds</td><td>Session dropped if no client message within this window</td></tr>
             </tbody>
           </table>
+        </div>
+
+        <p>Both URL fields show a live reachability indicator that probes public HTTP and HTTPS URLs from your Home Assistant server (so it works regardless of browser-side CORS). For security, the check refuses to request private, loopback, link-local, or other internal network addresses. Every redirect destination is checked under the same rules.</p>
+        <ul>
+          <li><strong>✓ (green)</strong> - the URL responded with HTTP 2xx. Reachable.</li>
+          <li><strong>⚠ (amber)</strong> - the URL did not respond, or returned a 4xx/5xx. Doesn't necessarily mean visitors will fail to load the widget: visitors may be on a different network than HA. Save anyway if you know the URL is correct.</li>
+          <li><strong>ⓘ (amber)</strong> - the URL is a relative path or bare filename. Cannot be probed because it only resolves against the visitor's embed page; you'll need to verify it manually.</li>
+          <li><strong>✗ (red)</strong> - the URL is malformed, uses a disallowed scheme, or resolves to an internal network address. Malformed URLs and disallowed schemes cannot be used. Internal URLs may still be saved, but the reachability check will not request them.</li>
+        </ul>
+        <p>The check is informational only and never blocks save. Verify internal URLs from the network where widget visitors will use them.</p>
+
+        <h3>Security</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Auth attempts per token/min</td><td>10</td><td>Failed auth attempts before that token is rate-limited</td></tr>
+              <tr><td>Auth attempts per IP/min</td><td>20</td><td>Failed auth attempts from a single IP before it is rate-limited</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>Sensitive domains</h4>
+        <p>Six Tier 1 domains are disabled by default because their actions carry higher real-world risk. Five settings control them: the Button setting governs both <code>button</code> and <code>input_button</code>. When disabled, entities from the affected domain are hidden from the entity picker, rejected at token creation, and silently dropped from active sessions.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Domain</th><th>Default</th><th>Risk if enabled</th></tr></thead>
+            <tbody>
+              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> <code>lock</code></td><td>Disabled</td><td>Physical lock/unlock control</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> <code>cover</code></td><td>Disabled</td><td>Garage doors, gates, motorized blinds</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-script-text"></span> <code>script</code></td><td>Disabled</td><td>Arbitrary HA script execution</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-robot"></span> <code>automation</code></td><td>Disabled</td><td>Trigger, enable, or disable HA automations</td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> <code>button</code>, <code>input_button</code></td><td>Disabled</td><td>One-shot press actions, controlled together by the Button setting</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>Custom domains</h4>
+        <p>The Custom domains card extends HArvest's server-side service allowlist for Tier 2 domains, such as third-party integration domains. It is a global setting shared by all widgets. It does not add controls to the generic card or grant Control access to an entity.</p>
+        <ol>
+          <li>Select a domain. The dropdown only lists non-built-in, non-blocked domains that currently have at least one entity and registered HA service.</li>
+          <li>Select the specific services that HArvest widgets may call.</li>
+          <li>Click <strong>Add</strong>. The allowlist applies immediately to current and future sessions.</li>
+        </ol>
+        <p>To change a domain's services, remove it and add it again. Removing it immediately blocks later commands without disconnecting active sessions. Commands still require the entity to be included in the widget token with Control access, and must be sent by a configured gesture or custom renderer.</p>
+        <div class="callout callout-warn">
+          <span class="callout-label">Security note</span>
+          <p>Custom Domains permits actions globally. Enable only the services your widgets require. Tier 1 domains use HArvest's built-in allowlist, and Tier 3 domains cannot be added.</p>
         </div>
 
         <h3>Rate limiting</h3>
@@ -296,8 +432,6 @@
             <tbody>
               <tr><td>State pushes per second</td><td>-</td><td>Max state update messages sent per client per second</td></tr>
               <tr><td>Commands per minute</td><td>-</td><td>Max service calls per token per minute</td></tr>
-              <tr><td>Auth attempts per token/min</td><td>10</td><td>Failed auth attempts before token is blocked</td></tr>
-              <tr><td>Auth attempts per IP/min</td><td>20</td><td>Failed auth attempts per IP before blocking</td></tr>
             </tbody>
           </table>
         </div>
@@ -342,7 +476,7 @@
         <p>The Activity tab shows a searchable, filterable log of all events across all tokens. Events are retained for the configured retention period (default 30 days).</p>
 
         <div class="screenshot">
-          <img src="activity.jpg">
+          <img src="activity.jpg" alt="Activity log with event rows, date filters, and widget filter controls" loading="lazy">
         </div>
 
         <h3>Filters</h3>

@@ -6,6 +6,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const BINARY_SENSOR_STYLES = /* css */`
   [part=card-body] {
@@ -23,25 +24,21 @@ const BINARY_SENSOR_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class BinarySensorCard extends BaseCard {
+  static staleOnMount = true;
+
   /** @type {HTMLElement|null} */ #stateLabel = null;
+  /** @type {HTMLElement|null} */ #rowValue   = null;
 
   render() {
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${BINARY_SENSOR_STYLES}</style>
+      <style>${BINARY_SENSOR_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          <span part="row-control"><span part="row-value"></span></span>
         </div>
         <div part="card-body">
           <span part="state-label" aria-live="polite">-</span>
@@ -54,9 +51,10 @@ export class BinarySensorCard extends BaseCard {
     `;
 
     this.#stateLabel = this.root.querySelector("[part=state-label]");
+    this.#rowValue   = this.root.querySelector("[part=row-value]");
 
     this.renderIcon(
-      this.def.icon ?? "mdi:checkbox-blank-circle-outline",
+      this.resolveIcon(this.def.icon, "mdi:checkbox-blank-circle-outline"),
       "card-icon",
     );
     this.renderCompanions();
@@ -68,11 +66,11 @@ export class BinarySensorCard extends BaseCard {
     const label = this.formatStateLabel(state);
 
     if (this.#stateLabel) this.#stateLabel.textContent = label;
+    if (this.#rowValue) this.#rowValue.textContent = label;
 
-    const iconName = this.def.icon_state_map?.[state]
-      ?? this.def.icon
-      ?? (isOn ? "mdi:checkbox-blank-circle" : "mdi:checkbox-blank-circle-outline");
-    this.renderIcon(iconName, "card-icon");
+    const defaultIcon = isOn ? "mdi:checkbox-blank-circle" : "mdi:checkbox-blank-circle-outline";
+    const rawIcon = this.def.icon_state_map?.[state] ?? this.def.icon ?? defaultIcon;
+    this.renderIcon(this.resolveIcon(rawIcon, defaultIcon), "card-icon");
 
     this.announceState(`${this.def.friendly_name}, ${label}`);
   }

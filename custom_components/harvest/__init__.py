@@ -14,18 +14,20 @@ from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import async_track_time_interval
 
 from .activity_store import ActivityStore
-from .const import DEFAULTS, DOMAIN
+from .const import DOMAIN, CONF_EXTERNAL_PORT
+from .config_validation import normalize_global_config
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
-from .harvest_action import HarvestActionManager
 from .http_views import register_views
-from .pack_manager import PackManager
+from .renderer_manager import RendererManager
+from .secondary_server import SecondaryServer
 from .theme_manager import ThemeManager
 from .panel import register_panel
 from .rate_limiter import RateLimiter
 from .session_manager import SessionManager
 from .token_manager import TokenManager
+from .warnings_store import WarningsStore
 from .ws_proxy import HarvestWsView
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,8 +47,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Schedules daily activity log purge and preview token cleanup.
     Stores all managers in hass.data[DOMAIN][entry.entry_id].
     """
+    retired_keys = {"max_entities_per_token", "max_entities_hard_cap"}
+    data = {key: value for key, value in entry.data.items() if key not in retired_keys}
+    options = {key: value for key, value in entry.options.items() if key not in retired_keys}
+    if data != dict(entry.data) or options != dict(entry.options):
+        hass.config_entries.async_update_entry(entry, data=data, options=options)
+
     # Build effective config: defaults < entry.data < entry.options.
-    config: dict = {**DEFAULTS, **entry.data, **entry.options}
+    config = normalize_global_config(data, options)
 
     # --- Instantiate in dependency order ---
     activity_store = ActivityStore(hass, config)
@@ -59,13 +67,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     rate_limiter = RateLimiter(config)
     event_bus = EventBus(hass, config)
 
-    action_manager = HarvestActionManager(hass)
-    await action_manager.load()
-
     theme_manager = ThemeManager(hass)
     await theme_manager.load()
-    pack_manager = PackManager(hass)
-    await pack_manager.load()
+    renderer_manager = RendererManager(hass)
+    await renderer_manager.load()
+
+    warnings_store = WarningsStore(hass)
+    await warnings_store.load()
 
     # DiagnosticSensors takes token_manager in addition to the spec's 3 args
     # because HarvestActiveTokensSensor needs to query get_active().
@@ -73,22 +81,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     controls = ControlEntities(hass, entry, token_manager, session_manager)
 
     # --- Register WebSocket view ---
-    ws_view = HarvestWsView(
-        hass, token_manager, session_manager,
-        rate_limiter, activity_store, event_bus,
-        action_manager, config,
-        sensors=sensors,
-        theme_manager=theme_manager,
-        pack_manager=pack_manager,
-    )
+    # The view is registered once per HA process; HA's HTTP layer has no
+    # unregister API. To avoid stale-manager refs across config-entry reloads,
+    # the view holds only (hass, entry_id) and resolves managers per-request
+    # from hass.data[DOMAIN][entry_id]. See _utils.get_entry_data.
+    ws_view = HarvestWsView(hass, entry.entry_id)
     hass.http.register_view(ws_view)
 
     # --- Register HTTP panel API views ---
-    register_views(hass, token_manager, session_manager,
-                   activity_store, action_manager, sensors, event_bus,
-                   theme_manager=theme_manager,
-                   pack_manager=pack_manager,
-                   controls=controls)
+    # Views resolve managers from hass.data[DOMAIN][entry.entry_id] live on
+    # each request, so they only need the entry_id at registration time.
+    register_views(hass, entry.entry_id)
 
     # --- Register sidebar panel ---
     await register_panel(hass)
@@ -140,21 +143,43 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     unsub_preview = async_track_time_interval(hass, _cleanup_expired_previews, timedelta(seconds=60))
 
+    # --- Start optional secondary server ---
+    from pathlib import Path
+    widget_dir = Path(hass.config.path("custom_components", DOMAIN, "panel"))
+    secondary_server = SecondaryServer(
+        widget_dir,
+        ws_view,
+        activity_store,
+        theme_manager,
+        renderer_manager,
+    )
+    ext_port = int(config.get(CONF_EXTERNAL_PORT, 0) or 0)
+    if ext_port:
+        try:
+            await secondary_server.start(ext_port)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception(
+                "HArvest alternate-port server failed to start on port %s. "
+                "Continuing without it.",
+                ext_port,
+            )
+
     # --- Store all managers - must happen before platform forwarding ---
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         **hass.data.get(DOMAIN, {}).get(entry.entry_id, {}),
-        "token_manager":   token_manager,
-        "session_manager": session_manager,
-        "rate_limiter":    rate_limiter,
-        "activity_store":  activity_store,
-        "event_bus":       event_bus,
-        "action_manager":  action_manager,
-        "theme_manager":   theme_manager,
-        "pack_manager":    pack_manager,
-        "sensors":         sensors,
-        "controls":        controls,
-        "unsub_purge":     unsub_purge,
-        "unsub_preview":   unsub_preview,
+        "token_manager":    token_manager,
+        "session_manager":  session_manager,
+        "rate_limiter":     rate_limiter,
+        "activity_store":   activity_store,
+        "event_bus":        event_bus,
+        "theme_manager":    theme_manager,
+        "renderer_manager": renderer_manager,
+        "warnings_store":   warnings_store,
+        "sensors":          sensors,
+        "controls":         controls,
+        "unsub_purge":      unsub_purge,
+        "unsub_preview":    unsub_preview,
+        "secondary_server": secondary_server,
     }
 
     # --- Register switch and button platforms ---
@@ -184,12 +209,26 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if unsub := data.get(key):
             unsub()
 
-    # Signal the running sensor to go offline before teardown.
+    # Signal the running sensor to go offline, then remove all diagnostic
+    # entities from HA's state machine. Without this, the entity_id slots
+    # remain occupied; the next async_setup_entry (e.g., after HACS
+    # reinstall, which does not restart HA) tries to register sensors with
+    # the same unique_ids and HA's _entity_id_already_exists check aborts
+    # the addition - leaving the new install with no diagnostic sensors.
     if sensors := data.get("sensors"):
         sensors.stop_updates()
         for entity in sensors.get_entities():
             if hasattr(entity, "set_running"):
                 entity.set_running(False)
+            if entity.hass is not None:
+                try:
+                    await entity.async_remove()
+                except Exception:  # noqa: BLE001 - best-effort teardown
+                    _LOGGER.exception("Failed to remove diagnostic entity %s", entity.entity_id)
+
+    # Stop the secondary server if it was running.
+    if secondary_server := data.get("secondary_server"):
+        await secondary_server.stop()
 
     # Flush and close the activity store.
     if activity_store := data.get("activity_store"):

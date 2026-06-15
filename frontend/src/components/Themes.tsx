@@ -7,21 +7,54 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { ThemeDefinition, Token, PacksResponse } from "../types";
+import type { ThemeDefinition, Token, RenderersResponse } from "../types";
 import { api } from "../api";
-import { Card, ConfirmDialog, Spinner, ErrorBanner, useThemeThumbs } from "./Shared";
+import { Card, ConfirmDialog, Spinner, ErrorBanner, ThemeStrip, SearchInput, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
-import { WidgetPreview, clearPackCache } from "./WidgetPreview";
+import { WidgetPreview, clearRendererCache } from "./WidgetPreview";
+import { ICON_SETS, IconSetSelect } from "./IconPicker";
 
 // ---------------------------------------------------------------------------
 // Theme URL mapping helpers
 // ---------------------------------------------------------------------------
 
-function themeUrlToId(themeUrl: string): string {
-  if (!themeUrl) return "default";
-  if (themeUrl.startsWith("bundled:")) return themeUrl.slice(8);
-  if (themeUrl.startsWith("user:")) return themeUrl.slice(5);
-  return themeUrl;
+function useDialogFocus(open: boolean, onClose: () => void) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!open || !dialogRef.current) return;
+    const dialog = dialogRef.current;
+    const selector = 'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    previousFocus.current = document.activeElement as HTMLElement | null;
+    dialog.querySelector<HTMLElement>(selector)?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(dialog.querySelectorAll<HTMLElement>(selector));
+      if (!controls.length) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        last.focus();
+        event.preventDefault();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        first.focus();
+        event.preventDefault();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      previousFocus.current?.focus();
+    };
+  }, [open]);
+  return dialogRef;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +98,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   // Code editor state
   const [editedJson, setEditedJson] = useState("");
@@ -74,81 +108,126 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const [parsedVars, setParsedVars] = useState<Record<string, string> | null>(null);
   const [parsedDarkVars, setParsedDarkVars] = useState<Record<string, string> | null>(null);
 
-  // Renderer pack state
-  const [packsData, setPacksData] = useState<PacksResponse | null>(null);
-  const [packCode, setPackCode] = useState<string | null>(null);
-  const [packCodeDirty, setPackCodeDirty] = useState(false);
-  const [packCodeSaving, setPackCodeSaving] = useState(false);
+  // Code editor visibility (hidden by default, auto-shown for new themes)
+  const [showCodeEditors, setShowCodeEditors] = useState(false);
+
+  // Renderer state
+  const [renderersData, setRenderersData] = useState<RenderersResponse | null>(null);
+  const [rendererCode, setRendererCode] = useState<string | null>(null);
+  const [rendererCodeDirty, setRendererCodeDirty] = useState(false);
+  const [rendererCodeSaving, setRendererCodeSaving] = useState(false);
   const [showAgree, setShowAgree] = useState(false);
   const [agreeText, setAgreeText] = useState("");
   const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null);
 
 
-  // Pack upload reminder (shown after importing a theme that has a renderer_pack)
-  const [showPackReminder, setShowPackReminder] = useState(false);
+  // Renderer upload reminder (shown after importing a theme with has_renderer)
+  const [showRendererReminder, setShowRendererReminder] = useState(false);
 
-  // Incremented after a pack JS is uploaded to force the widget preview to remount
+  // Incremented after a renderer JS is uploaded to force the widget preview to remount
   const [previewKey, setPreviewKey] = useState(0);
 
   // Delete confirm
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Overwrite confirm (when importing a zip whose name already exists)
+  const [overwriteConflict, setOverwriteConflict] = useState<{ name: string; theme_id: string } | null>(null);
+  const [pendingOverwriteFile, setPendingOverwriteFile] = useState<File | null>(null);
+
   // Thumbnail state
   const [thumbKey, setThumbKey] = useState(0);
-  const thumbUrls = useThemeThumbs(themes, thumbKey);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const thumbRef = useRef<HTMLInputElement>(null);
-  const packJsRef = useRef<HTMLInputElement>(null);
+  const rendererJsRef = useRef<HTMLInputElement>(null);
+  const closeRendererReminder = () => setShowRendererReminder(false);
+  const closeAgree = () => {
+    setShowAgree(false);
+    setAgreeText("");
+    setPendingAction(null);
+  };
+  const rendererReminderDialogRef = useDialogFocus(showRendererReminder, closeRendererReminder);
+  const agreeDialogRef = useDialogFocus(showAgree, closeAgree);
 
   const reload = useCallback(async () => {
-    try {
-      const [t, tk] = await Promise.all([api.themes.list(), api.tokens.list()]);
-      setThemes(t);
-      setTokens(tk);
-      return t;
-    } catch (e) {
-      setError(String(e));
+    // allSettled: themes is the primary content; tokens is only used for
+    // "in use" badge counts. A tokens-list failure should not blank the page.
+    const [t, tk] = await Promise.allSettled([api.themes.list(), api.tokens.list()]);
+    if (t.status === "fulfilled") setThemes(t.value);
+    if (tk.status === "fulfilled") setTokens(tk.value);
+
+    setLoading(false);
+
+    if (t.status === "rejected") {
+      // Without themes there is nothing useful to show.
+      setError(String(t.reason));
       return null;
-    } finally {
-      setLoading(false);
     }
+    if (tk.status === "rejected") {
+      // Themes loaded but tokens did not. Page renders without in-use badges.
+      console.warn("[HArvest panel] themes reload: tokens list failed:", tk.reason);
+    }
+    return t.value;
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
-  useEffect(() => { api.packs.list().then(setPacksData).catch(() => {}); }, []);
+  useEffect(() => { api.renderers.list().then(setRenderersData).catch(() => {}); }, []);
 
   const selectedTheme = themes.find(t => t.theme_id === selected) ?? null;
-  const packId = selectedTheme?.renderer_pack ? selectedTheme.theme_id : null;
-  const selectedPack = packId
-    ? packsData?.packs.find(p => p.pack_id === packId) ?? null
+
+  const filteredThemes = (() => {
+    const words = search.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return themes;
+    return themes.filter(t => {
+      const hay = t.name.toLowerCase();
+      return words.every(w => hay.includes(w));
+    });
+  })();
+  const rendererId = selectedTheme?.has_renderer ? selectedTheme.theme_id : null;
+  const selectedRenderer = rendererId
+    ? renderersData?.renderers.find(r => r.renderer_id === rendererId) ?? null
     : null;
 
   useEffect(() => {
-    if (!packId) { setPackCode(null); setPackCodeDirty(false); return; }
-    api.packs.getCode(packId).then(r => setPackCode(r.code)).catch(() => setPackCode(null));
-    setPackCodeDirty(false);
-  }, [packId]);
+    if (!rendererId) { setRendererCode(null); setRendererCodeDirty(false); return; }
+    api.renderers.getCode(rendererId).then(r => setRendererCode(r.code)).catch(() => setRendererCode(null));
+    setRendererCodeDirty(false);
+  }, [rendererId]);
 
-  const requireConsent = (action: () => Promise<void>) => {
-    if (packsData?.agreed) { action(); return; }
+  const requireConsent = (action: () => Promise<void>, forceDialog = false) => {
+    // The AGREE dialog (rendered later in this file as role="dialog"
+    // aria-modal="true" with a backdrop) blocks UI interaction while shown,
+    // so the captured `action` closure cannot race against changes to
+    // `selectedTheme` or `editedJson` during the consent window. If a future
+    // change adds a periodic refresh or other background mutation of the
+    // Themes screen, this assumption breaks and `action` should be replaced
+    // with an intent (themeId + action type) re-resolved inside confirmAgree.
+    if (renderersData?.agreed && !forceDialog) { action(); return; }
     setPendingAction(() => action);
     setShowAgree(true);
   };
 
   const confirmAgree = async () => {
     try {
-      await api.packs.agree(true);
-      setPacksData(prev => prev ? { ...prev, agreed: true } : prev);
+      if (!renderersData?.agreed) {
+        await api.renderers.agree(true);
+        setRenderersData(prev => prev ? { ...prev, agreed: true } : prev);
+      }
       setShowAgree(false);
       setAgreeText("");
       if (pendingAction) { await pendingAction(); setPendingAction(null); }
-    } catch (e) { setError(String(e)); }
+    } catch (e) {
+      setError(String(e));
+      // Drop the pending action if the AGREE call itself failed; the user
+      // must re-trigger to start a fresh consent flow.
+      setPendingAction(null);
+    }
   };
 
-  // When selection changes, sync the code editor
+  // When selection changes, sync the code editor and hide editors by default
   useEffect(() => {
+    setShowCodeEditors(false);
     if (!selectedTheme) { setEditedJson(""); setDirty(false); setJsonError(null); setParsedVars(null); setParsedDarkVars(null); return; }
     const obj: Record<string, unknown> = {
       name: selectedTheme.name,
@@ -156,14 +235,17 @@ export function Themes({ onSelectToken }: ThemesProps) {
       version: selectedTheme.version,
       harvest_version: selectedTheme.harvest_version,
     };
-    if (selectedTheme.renderer_pack) {
-      obj.renderer_pack = true;
+    if (selectedTheme.has_renderer) {
+      obj.has_renderer = true;
     }
     if (selectedTheme.capabilities) {
       obj.capabilities = selectedTheme.capabilities;
     }
-    if (selectedTheme.pack_settings?.length) {
-      obj.pack_settings = selectedTheme.pack_settings;
+    if (selectedTheme.renderer_settings?.length) {
+      obj.renderer_settings = selectedTheme.renderer_settings;
+    }
+    if (selectedTheme.icon_set) {
+      obj.icon_set = selectedTheme.icon_set;
     }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
@@ -188,10 +270,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
   // Returns a name that doesn't conflict with any existing theme name
   const uniqueThemeName = (base: string): string => {
-    if (!themes.some(t => t.name.toLowerCase() === base.toLowerCase())) return base;
-    let i = 2;
-    while (themes.some(t => t.name.toLowerCase() === `${base} (${i})`.toLowerCase())) i++;
-    return `${base} (${i})`;
+    const stripped = base.replace(/\(\d+\)$/, "").trimEnd();
+    if (!themes.some(t => t.name.toLowerCase() === stripped.toLowerCase())) return stripped;
+    let i = 1;
+    while (themes.some(t => t.name.toLowerCase() === `${stripped}(${i})`.toLowerCase())) i++;
+    return `${stripped}(${i})`;
   };
 
   // Usage count helper
@@ -230,7 +313,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
         dark_variables: themes.find(t => t.theme_id === "default")?.dark_variables ?? {},
       });
       const updated = await reload();
-      if (updated) setSelected(theme.theme_id);
+      if (updated) {
+        setSelected(theme.theme_id);
+        setShowCodeEditors(true);
+      }
     } catch (e) { setError(String(e)); }
   };
 
@@ -239,20 +325,20 @@ export function Themes({ onSelectToken }: ThemesProps) {
     const doDuplicate = async () => {
       try {
         const theme = await api.themes.create({
-          name: uniqueThemeName(`Copy of ${selectedTheme.name}`),
+          name: uniqueThemeName(selectedTheme.name),
           variables: selectedTheme.variables,
           dark_variables: selectedTheme.dark_variables,
           author: "",
           version: "1.0",
-          renderer_pack: selectedTheme.renderer_pack,
+          has_renderer: selectedTheme.has_renderer,
           capabilities: selectedTheme.capabilities ?? undefined,
-          pack_settings: selectedTheme.pack_settings?.length ? selectedTheme.pack_settings : undefined,
+          renderer_settings: selectedTheme.renderer_settings?.length ? selectedTheme.renderer_settings : undefined,
         });
-        if (selectedTheme.renderer_pack && selectedTheme.has_pack) {
+        if (selectedTheme.has_renderer && selectedTheme.has_renderer_file) {
           try {
-            const src = await api.packs.getCode(selectedTheme.theme_id);
-            if (src?.code) await api.packs.updateCode(theme.theme_id, src.code);
-          } catch (_e) { /* pack copy is best-effort */ }
+            const src = await api.renderers.getCode(selectedTheme.theme_id);
+            if (src?.code) await api.renderers.updateCode(theme.theme_id, src.code);
+          } catch (_e) { /* renderer copy is best-effort */ }
         }
         const updated = await reload();
         if (updated) {
@@ -263,9 +349,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
             version: theme.version,
             harvest_version: theme.harvest_version,
           };
-          if (theme.renderer_pack) obj.renderer_pack = true;
+          if (theme.has_renderer) obj.has_renderer = true;
           if (theme.capabilities) obj.capabilities = theme.capabilities;
-          if (theme.pack_settings?.length) obj.pack_settings = theme.pack_settings;
+          if (theme.renderer_settings?.length) obj.renderer_settings = theme.renderer_settings;
           obj.variables = theme.variables;
           if (Object.keys(theme.dark_variables ?? {}).length > 0) obj.dark_variables = theme.dark_variables;
           setEditedJson(JSON.stringify(obj, null, 2));
@@ -276,7 +362,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
         }
       } catch (e) { setError(String(e)); }
     };
-    if (selectedTheme.renderer_pack) { requireConsent(doDuplicate); }
+    if (selectedTheme.has_renderer) { requireConsent(doDuplicate); }
     else { doDuplicate(); }
   };
 
@@ -292,47 +378,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
   const handleExport = async () => {
     if (!selectedTheme) return;
-    const obj: Record<string, unknown> = {
-      name: selectedTheme.name,
-      author: selectedTheme.author,
-      version: selectedTheme.version,
-      harvest_version: selectedTheme.harvest_version,
-    };
-    if (selectedTheme.renderer_pack) {
-      obj.renderer_pack = true;
-    }
-    if (selectedTheme.capabilities) {
-      obj.capabilities = selectedTheme.capabilities;
-    }
-    if (selectedTheme.pack_settings?.length) {
-      obj.pack_settings = selectedTheme.pack_settings;
-    }
-    obj.variables = selectedTheme.variables;
-    if (Object.keys(selectedTheme.dark_variables).length > 0) {
-      obj.dark_variables = selectedTheme.dark_variables;
-    }
-    const slug = selectedTheme.name.toLowerCase().replace(/\s+/g, "-");
-    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${slug}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    if (packId) {
-      try {
-        const result = await api.packs.getCode(packId);
-        if (result.code) {
-          const jsBlob = new Blob([result.code], { type: "application/javascript" });
-          const jsUrl = URL.createObjectURL(jsBlob);
-          const jsA = document.createElement("a");
-          jsA.href = jsUrl;
-          jsA.download = `${slug}.js`;
-          jsA.click();
-          URL.revokeObjectURL(jsUrl);
-        }
-      } catch { /* pack code unavailable - skip JS export */ }
+    try {
+      await api.themes.exportZip(selectedTheme.theme_id);
+    } catch (e) {
+      setError(String(e));
     }
   };
 
@@ -342,12 +391,16 @@ export function Themes({ onSelectToken }: ThemesProps) {
     setReloading(true);
     const t0 = Date.now();
     try {
-      const result = await api.themes.reload();
-      if (result?.errors && Object.keys(result.errors).length > 0) {
-        const msgs = Object.entries(result.errors).map(([id, err]) => `${id}: ${err}`).join("; ");
-        setError(`Theme reload failed for: ${msgs}`);
+      if (selected) {
+        await api.themes.reloadById(selected);
+      } else {
+        const result = await api.themes.reload();
+        if (result?.errors && Object.keys(result.errors).length > 0) {
+          const msgs = Object.entries(result.errors).map(([id, err]) => `${id}: ${err}`).join("; ");
+          setError(`Theme reload failed for: ${msgs}`);
+        }
       }
-      if (packId) clearPackCache(packId);
+      if (rendererId) clearRendererCache(rendererId);
       await reload();
       setPreviewKey(k => k + 1);
     } catch (e) { setError(String(e)); }
@@ -359,42 +412,50 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!parsed.name || !parsed.variables || typeof parsed.variables !== "object") {
-        setError("Invalid theme file: must contain 'name' and 'variables'.");
-        return;
-      }
-      const importNameError = validateThemeName(String(parsed.name));
-      if (importNameError) { setError(importNameError); if (fileRef.current) fileRef.current.value = ""; return; }
-      if (themes.some(t => t.name.toLowerCase() === String(parsed.name).toLowerCase())) {
-        setError(`A theme named "${parsed.name}" already exists. Rename the existing theme first, or edit the JSON before importing.`);
-        if (fileRef.current) fileRef.current.value = "";
-        return;
-      }
-      const doImport = async () => {
-        const theme = await api.themes.create({
-          name: parsed.name,
-          variables: parsed.variables,
-          dark_variables: parsed.dark_variables,
-          author: parsed.author ?? "",
-          version: parsed.version ?? "1.0",
-          renderer_pack: !!parsed.renderer_pack,
-          capabilities: parsed.capabilities ?? undefined,
-        });
-        const updated = await reload();
-        if (updated) setSelected(theme.theme_id);
-        if (parsed.renderer_pack) {
-          setShowPackReminder(true);
+    const doImport = async (rendererConfirmed = false) => {
+      try {
+        const result = await api.themes.importZip(file, false, rendererConfirmed);
+        if ("error" in result && result.error === "renderer_consent_required") {
+          requireConsent(() => doImport(true), true);
+          return;
         }
-      };
-      if (parsed.renderer_pack) { requireConsent(doImport); }
-      else { await doImport(); }
-    } catch (err) {
-      setError(String(err));
-    }
+        if ("error" in result && result.error === "theme_already_exists") {
+          setPendingOverwriteFile(file);
+          setOverwriteConflict({ name: result.name, theme_id: result.theme_id });
+          return;
+        }
+        const updated = await reload();
+        if (updated) setSelected(result.theme_id);
+      } catch (err) {
+        setError(String(err));
+      }
+    };
+    await doImport();
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleOverwriteConfirm = async () => {
+    const file = pendingOverwriteFile;
+    const conflict = overwriteConflict;
+    if (!file || !conflict) return;
+    setOverwriteConflict(null);
+    setPendingOverwriteFile(null);
+    const doOverwrite = async (rendererConfirmed = false) => {
+      try {
+        const result = await api.themes.importZip(file, true, rendererConfirmed);
+        if ("error" in result && result.error === "renderer_consent_required") {
+          requireConsent(() => doOverwrite(true), true);
+          return;
+        }
+        if ("error" in result) return;
+        await reload();
+        setSelected(result.theme_id ?? conflict.theme_id);
+        setPreviewKey(k => k + 1);
+      } catch (err) {
+        setError(String(err));
+      }
+    };
+    await doOverwrite();
   };
 
   const handleSave = async () => {
@@ -409,9 +470,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
           version: parsed.version ?? selectedTheme.version,
           variables: parsed.variables,
           dark_variables: parsed.dark_variables ?? {},
-          renderer_pack: !!parsed.renderer_pack,
+          has_renderer: !!parsed.has_renderer,
           capabilities: parsed.capabilities ?? null,
-          pack_settings: parsed.pack_settings ?? [],
+          renderer_settings: parsed.renderer_settings ?? [],
+          icon_set: parsed.icon_set ?? null,
         });
         setDirty(false);
         setParsedVars(null);
@@ -422,7 +484,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
     };
     try {
       const parsed = JSON.parse(editedJson);
-      if (parsed.renderer_pack && !selectedTheme.renderer_pack) {
+      if (parsed.has_renderer && !selectedTheme.has_renderer) {
         requireConsent(doSave);
       } else {
         await doSave();
@@ -438,14 +500,17 @@ export function Themes({ onSelectToken }: ThemesProps) {
       version: selectedTheme.version,
       harvest_version: selectedTheme.harvest_version,
     };
-    if (selectedTheme.renderer_pack) {
-      obj.renderer_pack = true;
+    if (selectedTheme.has_renderer) {
+      obj.has_renderer = true;
     }
     if (selectedTheme.capabilities) {
       obj.capabilities = selectedTheme.capabilities;
     }
-    if (selectedTheme.pack_settings?.length) {
-      obj.pack_settings = selectedTheme.pack_settings;
+    if (selectedTheme.renderer_settings?.length) {
+      obj.renderer_settings = selectedTheme.renderer_settings;
+    }
+    if (selectedTheme.icon_set) {
+      obj.icon_set = selectedTheme.icon_set;
     }
     obj.variables = selectedTheme.variables;
     if (Object.keys(selectedTheme.dark_variables).length > 0) {
@@ -484,6 +549,15 @@ export function Themes({ onSelectToken }: ThemesProps) {
     } catch (e) { setError(String(e)); }
   };
 
+  const handleIconSetChange = async (setId: string | null) => {
+    if (!selectedTheme || selectedTheme.is_bundled) return;
+    if ((setId ?? null) === (selectedTheme.icon_set ?? null)) return;
+    try {
+      await api.themes.update(selectedTheme.theme_id, { icon_set: setId });
+      await reload();
+    } catch (e) { setError(String(e)); }
+  };
+
   const handleVersionBlur = async (newVersion: string) => {
     if (!selectedTheme || selectedTheme.is_bundled) return;
     const trimmed = newVersion.trim();
@@ -494,31 +568,41 @@ export function Themes({ onSelectToken }: ThemesProps) {
     } catch (e) { setError(String(e)); }
   };
 
-  const handlePackJsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDescriptionBlur = async (newDescription: string) => {
+    if (!selectedTheme || selectedTheme.is_bundled) return;
+    const trimmed = newDescription.trim();
+    if (trimmed === selectedTheme.description) return;
+    try {
+      await api.themes.update(selectedTheme.theme_id, { description: trimmed });
+      await reload();
+    } catch (e) { setError(String(e)); }
+  };
+
+  const handleRendererJsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedTheme?.renderer_pack) return;
+    if (!file || !selectedTheme?.has_renderer) return;
     const expectedName = `${selectedTheme.name.toLowerCase()}.js`;
     if (file.name.toLowerCase() !== expectedName) {
-      setError(`Expected file "${expectedName}" but got "${file.name}". The pack JS file must match the theme name.`);
-      if (packJsRef.current) packJsRef.current.value = "";
+      setError(`Expected file "${expectedName}" but got "${file.name}". The renderer JS file must match the theme name.`);
+      if (rendererJsRef.current) rendererJsRef.current.value = "";
       return;
     }
     try {
       const code = await file.text();
-      const pid = selectedTheme.theme_id;
-      await api.packs.updateCode(pid, code);
+      const rid = selectedTheme.theme_id;
+      await api.renderers.updateCode(rid, code);
       const [updated, codeResult] = await Promise.all([
-        api.packs.list(),
-        api.packs.getCode(pid),
+        api.renderers.list(),
+        api.renderers.getCode(rid),
       ]);
-      setPacksData(updated);
-      setPackCode(codeResult.code);
-      setPackCodeDirty(false);
-      clearPackCache(pid);
+      setRenderersData(updated);
+      setRendererCode(codeResult.code);
+      setRendererCodeDirty(false);
+      clearRendererCache(rid);
       setPreviewKey(k => k + 1);
       await reload();
     } catch (err) { setError(String(err)); }
-    if (packJsRef.current) packJsRef.current.value = "";
+    if (rendererJsRef.current) rendererJsRef.current.value = "";
   };
 
   const handleThumbnailUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -546,11 +630,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const previewDarkVars = parsedDarkVars ?? selectedTheme?.dark_variables ?? {};
 
   const jsonCopy = useCopy(editedJson);
-  const packCodeCopy = useCopy(packCode ?? "");
+  const rendererCodeCopy = useCopy(rendererCode ?? "");
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+      <div className="center-spinner">
         <Spinner size={40} />
       </div>
     );
@@ -568,52 +652,41 @@ export function Themes({ onSelectToken }: ThemesProps) {
               <Icon name="plus" size={14} /> New Theme
             </button>
             <button className="theme-tray-action" onClick={() => fileRef.current?.click()}>
-              <Icon name="upload" size={14} /> Import
+              <Icon name="upload" size={14} /> Import .zip
             </button>
             <button className="theme-tray-action" onClick={handleReload} disabled={reloading}>
               {reloading ? <Spinner size={14} /> : <Icon name="refresh" size={14} />}
               {reloading ? "Reloading..." : "Reload"}
             </button>
           </div>
-          <div className="theme-strip">
-            {themes.map(t => (
-              <button
-                key={t.theme_id}
-                className={`theme-strip-item${selected === t.theme_id ? " selected" : ""}`}
-                onClick={() => setSelected(t.theme_id)}
-              >
-                <div className="theme-thumb-wrap">
-                  {thumbUrls[t.theme_id] ? (
-                    <img
-                      className="theme-strip-thumb"
-                      src={thumbUrls[t.theme_id]}
-                      alt={t.name}
-                      draggable={false}
-                    />
-                  ) : (
-                    <div className="theme-strip-thumb" />
-                  )}
-                  {t.renderer_pack && (
-                    <span
-                      className={`theme-pack-star${!t.has_pack ? " pack-missing" : ""}`}
-                      title={t.has_pack ? "Theme includes a custom renderer pack" : "Renderer pack JS file is missing"}
-                    >
-                      {t.has_pack ? "★" : "⚠"}
-                    </span>
-                  )}
-                </div>
-                <span className="theme-strip-name">{t.name}</span>
+          <div className="theme-tray-main">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Filter themes by name..."
+              ariaLabel="Filter themes"
+              style={{ width: "100%" }}
+            />
+            <ThemeStrip
+              themes={filteredThemes}
+              selectedId={selected ?? ""}
+              onSelect={setSelected}
+              thumbRefreshKey={thumbKey}
+              renderMeta={t => (
                 <div className="theme-strip-meta">
                   {t.is_bundled && <span className="badge badge-muted">System</span>}
-                  <span className="muted" style={{ fontSize: 11 }}>{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
+                  <span className="muted fs-11">{usageForTheme(t.theme_id)} widget{usageForTheme(t.theme_id) !== 1 ? "s" : ""}</span>
                 </div>
-              </button>
-            ))}
+              )}
+            />
+            {filteredThemes.length === 0 && (
+              <div className="muted fs-12" style={{ padding: "8px 0" }}>No themes match "{search}".</div>
+            )}
           </div>
         </div>
-        <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
+        <input ref={fileRef} type="file" accept=".zip" style={{ display: "none" }} onChange={handleImport} />
         <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />
-        <input ref={packJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handlePackJsUpload} />
+        <input ref={rendererJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handleRendererJsUpload} />
       </Card>
 
       {selectedTheme && (
@@ -623,11 +696,16 @@ export function Themes({ onSelectToken }: ThemesProps) {
             title="Theme Info"
             action={
               <div className="row" style={{ gap: 6 }}>
+                {!selectedTheme.is_bundled && (
+                  <button className="btn btn-sm btn-ghost" onClick={() => setShowCodeEditors(v => !v)}>
+                    <Icon name={showCodeEditors ? "eye-off" : "code"} size={13} /> {showCodeEditors ? "Hide editor" : "Show editor"}
+                  </button>
+                )}
                 <button className="btn btn-sm" onClick={handleDuplicate}>
                   <Icon name="copy" size={13} /> Duplicate
                 </button>
                 <button className="btn btn-sm" onClick={handleExport}>
-                  <Icon name="download" size={13} /> Export
+                  <Icon name="download" size={13} /> Export .zip
                 </button>
                 {!selectedTheme.is_bundled && (
                   <button className="btn btn-sm btn-danger" onClick={() => setConfirmDelete(true)}>
@@ -655,32 +733,69 @@ export function Themes({ onSelectToken }: ThemesProps) {
               {selectedTheme.is_bundled ? (
                 <>
                   {selectedTheme.author && (
-                    <div className="muted" style={{ fontSize: 12 }}>Author: {selectedTheme.author}</div>
+                    <div className="muted fs-12">Author: {selectedTheme.author}</div>
                   )}
                   {selectedTheme.version && (
-                    <div className="muted" style={{ fontSize: 12 }}>Version: {selectedTheme.version}</div>
+                    <div className="muted fs-12">Version: {selectedTheme.version}</div>
+                  )}
+                  {selectedTheme.description && (
+                    <div className="muted fs-12" style={{ fontStyle: "italic" }}>{selectedTheme.description}</div>
                   )}
                 </>
               ) : (
-                <div className="row" style={{ gap: 8 }}>
+                <>
+                  <div className="row gap-8">
+                    <input
+                      className="input"
+                      defaultValue={selectedTheme.author}
+                      key={`author-${selectedTheme.theme_id}`}
+                      placeholder="Author"
+                      style={{ flex: 1, fontSize: 12 }}
+                      onBlur={e => handleAuthorBlur(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    />
+                    <input
+                      className="input"
+                      defaultValue={selectedTheme.version}
+                      key={`version-${selectedTheme.theme_id}`}
+                      placeholder="Version"
+                      style={{ width: 80, fontSize: 12 }}
+                      onBlur={e => handleVersionBlur(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    />
+                  </div>
                   <input
                     className="input"
-                    defaultValue={selectedTheme.author}
-                    key={`author-${selectedTheme.theme_id}`}
-                    placeholder="Author"
-                    style={{ flex: 1, fontSize: 12 }}
-                    onBlur={e => handleAuthorBlur(e.target.value)}
+                    defaultValue={selectedTheme.description}
+                    key={`desc-${selectedTheme.theme_id}`}
+                    placeholder="Description (optional)"
+                    style={{ fontSize: 12 }}
+                    onBlur={e => handleDescriptionBlur(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
                   />
-                  <input
-                    className="input"
-                    defaultValue={selectedTheme.version}
-                    key={`version-${selectedTheme.theme_id}`}
-                    placeholder="Version"
-                    style={{ width: 80, fontSize: 12 }}
-                    onBlur={e => handleVersionBlur(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                </>
+              )}
+
+              {selectedTheme.is_bundled ? (
+                <div className="muted fs-12">
+                  Icons: {ICON_SETS.find(s => s.id === selectedTheme.icon_set)?.label ?? selectedTheme.icon_set ?? "Material Design"}
+                </div>
+              ) : (
+                <div className="row" style={{ gap: 6, alignItems: "center" }}>
+                  <span className="muted fs-12">Icons</span>
+                  <IconSetSelect
+                    value={selectedTheme.icon_set}
+                    onChange={handleIconSetChange}
+                    ariaLabel="Theme icon set"
+                    className="input fs-12"
                   />
+                </div>
+              )}
+
+              {selectedTheme.custom_fonts?.length > 0 && (
+                <div className="row" style={{ gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <span className="badge badge-accent">Bundled Font</span>
+                  <span className="muted fs-12">{selectedTheme.custom_fonts.map(f => f.family).join(", ")}</span>
                 </div>
               )}
 
@@ -714,125 +829,129 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
           {/* Preview card */}
           <Card title="Preview">
-            <WidgetPreview key={`preview-${selected}-${previewKey}`} variables={previewVars} darkVariables={previewDarkVars} packId={packId || undefined} />
+            <WidgetPreview key={`preview-${selected}-${previewKey}`} variables={previewVars} darkVariables={previewDarkVars} rendererId={rendererId || undefined} iconSet={selectedTheme?.icon_set ?? null} />
           </Card>
 
-          {/* Code card */}
-          <Card
-            title="Theme JSON"
-            action={
-              <button className={`btn btn-ghost btn-sm${jsonCopy.copied ? " btn-success" : ""}`} onClick={jsonCopy.copy}>
-                <Icon name="copy" size={13} /> {jsonCopy.copied ? "Copied" : "Copy"}
-              </button>
-            }
-          >
-            <div className="col" style={{ gap: 8 }}>
-              <textarea
-                className={`theme-code-textarea${jsonError ? " error" : ""}`}
-                value={editedJson}
-                onChange={e => handleJsonChange(e.target.value)}
-                readOnly={selectedTheme.is_bundled}
-                spellCheck={false}
-              />
-              {jsonError && <div className="theme-code-error">{jsonError}</div>}
-              {!selectedTheme.is_bundled && (
-                <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
-                  <button className="btn btn-sm" onClick={handleCancel} disabled={!dirty}>Cancel</button>
-                  <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={!dirty || !!jsonError || saving}>
-                    {saving ? "Saving..." : "Save"}
+          {showCodeEditors && (
+            <>
+              {/* Theme JSON editor */}
+              <Card
+                title="Theme JSON"
+                action={
+                  <button className={`btn btn-ghost btn-sm${jsonCopy.copied ? " btn-success" : ""}`} onClick={jsonCopy.copy}>
+                    <Icon name="copy" size={13} /> {jsonCopy.copied ? "Copied" : "Copy"}
                   </button>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* Renderer Pack card - bundled pack */}
-          {packId && selectedPack && (
-            <Card title="Renderer Pack">
-              <div className="col" style={{ gap: 10 }}>
-                <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                  <strong>{selectedPack.name}</strong>
-                  {selectedPack.is_bundled && <span className="badge badge-muted">Bundled</span>}
-                </div>
-                {selectedPack.description && (
-                  <div className="muted" style={{ fontSize: 12 }}>{selectedPack.description}</div>
-                )}
-                {packCode !== null && (
-                  <div className="col" style={{ gap: 8, marginTop: 4 }}>
-                    <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>Pack Source</div>
-                      <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
-                        <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
-                      </button>
-                    </div>
-                    <textarea
-                      className="theme-code-textarea"
-                      value={packCode}
-                      readOnly
-                      spellCheck={false}
-                      style={{ minHeight: 200 }}
-                    />
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Renderer Pack card - user pack with code loaded */}
-          {packId && !selectedPack && packCode !== null && (
-            <Card title="Renderer Pack">
-              <div className="col" style={{ gap: 10 }}>
-                <div className="col" style={{ gap: 8 }}>
-                  <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600 }}>Pack Source</div>
-                    <button className={`btn btn-ghost btn-sm${packCodeCopy.copied ? " btn-success" : ""}`} onClick={packCodeCopy.copy}>
-                      <Icon name="copy" size={13} /> {packCodeCopy.copied ? "Copied" : "Copy"}
-                    </button>
-                  </div>
+                }
+              >
+                <div className="col gap-8">
                   <textarea
-                    className="theme-code-textarea"
-                    value={packCode}
-                    onChange={e => { setPackCode(e.target.value); setPackCodeDirty(true); }}
+                    className={`theme-code-textarea${jsonError ? " error" : ""}`}
+                    value={editedJson}
+                    onChange={e => handleJsonChange(e.target.value)}
                     readOnly={selectedTheme.is_bundled}
                     spellCheck={false}
-                    style={{ minHeight: 200 }}
                   />
+                  {jsonError && <div className="theme-code-error">{jsonError}</div>}
                   {!selectedTheme.is_bundled && (
                     <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
-                      <button className="btn btn-sm" onClick={() => {
-                        if (packId) api.packs.getCode(packId).then(r => { setPackCode(r.code); setPackCodeDirty(false); }).catch(() => {});
-                      }} disabled={!packCodeDirty}>Cancel</button>
-                      <button className="btn btn-sm btn-primary" disabled={!packCodeDirty || packCodeSaving} onClick={async () => {
-                        if (!packId) return;
-                        setPackCodeSaving(true);
-                        try {
-                          await api.packs.updateCode(packId, packCode);
-                          setPackCodeDirty(false);
-                        } catch (e) { setError(String(e)); }
-                        setPackCodeSaving(false);
-                      }}>
-                        {packCodeSaving ? "Saving..." : "Save"}
+                      <button className="btn btn-sm" onClick={handleCancel} disabled={!dirty}>Cancel</button>
+                      <button className="btn btn-sm btn-primary" onClick={handleSave} disabled={!dirty || !!jsonError || saving}>
+                        {saving ? "Saving..." : "Save"}
                       </button>
                     </div>
                   )}
                 </div>
-              </div>
-            </Card>
-          )}
+              </Card>
 
-          {/* Renderer Pack card - pack JS not yet uploaded */}
-          {packId && !selectedPack && packCode === null && (
-            <Card title="Renderer Pack">
-              <div className="col" style={{ gap: 10 }}>
-                <div className="muted" style={{ fontSize: 13 }}>
-                  This theme expects a renderer pack but the JS file is not installed yet.
-                </div>
-                <div style={{ fontSize: 12 }}>Upload <code>{selectedTheme.name.toLowerCase()}.js</code> to enable the renderer pack.</div>
-                <button className="btn btn-sm btn-primary" style={{ alignSelf: "flex-start" }} onClick={() => packJsRef.current?.click()}>
-                  <Icon name="upload" size={13} /> Upload Pack JS
-                </button>
-              </div>
-            </Card>
+              {/* Renderer card - bundled renderer */}
+              {rendererId && selectedRenderer && (
+                <Card title="Renderer">
+                  <div className="col" style={{ gap: 10 }}>
+                    <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                      <strong>{selectedRenderer.name}</strong>
+                      {selectedRenderer.is_bundled && <span className="badge badge-muted">Bundled</span>}
+                    </div>
+                    {selectedRenderer.description && (
+                      <div className="muted fs-12">{selectedRenderer.description}</div>
+                    )}
+                    {rendererCode !== null && (
+                      <div className="col" style={{ gap: 8, marginTop: 4 }}>
+                        <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
+                          <div className="label-strong">Renderer Source</div>
+                          <button className={`btn btn-ghost btn-sm${rendererCodeCopy.copied ? " btn-success" : ""}`} onClick={rendererCodeCopy.copy}>
+                            <Icon name="copy" size={13} /> {rendererCodeCopy.copied ? "Copied" : "Copy"}
+                          </button>
+                        </div>
+                        <textarea
+                          className="theme-code-textarea"
+                          value={rendererCode}
+                          readOnly
+                          spellCheck={false}
+                          style={{ minHeight: 200 }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+
+              {/* Renderer card - user renderer with code loaded */}
+              {rendererId && !selectedRenderer && rendererCode !== null && (
+                <Card title="Renderer">
+                  <div className="col" style={{ gap: 10 }}>
+                    <div className="col gap-8">
+                      <div className="row" style={{ alignItems: "center", justifyContent: "space-between" }}>
+                        <div className="label-strong">Renderer Source</div>
+                        <button className={`btn btn-ghost btn-sm${rendererCodeCopy.copied ? " btn-success" : ""}`} onClick={rendererCodeCopy.copy}>
+                          <Icon name="copy" size={13} /> {rendererCodeCopy.copied ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <textarea
+                        className="theme-code-textarea"
+                        value={rendererCode}
+                        onChange={e => { setRendererCode(e.target.value); setRendererCodeDirty(true); }}
+                        readOnly={selectedTheme.is_bundled}
+                        spellCheck={false}
+                        style={{ minHeight: 200 }}
+                      />
+                      {!selectedTheme.is_bundled && (
+                        <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+                          <button className="btn btn-sm" onClick={() => {
+                            if (rendererId) api.renderers.getCode(rendererId).then(r => { setRendererCode(r.code); setRendererCodeDirty(false); }).catch(() => {});
+                          }} disabled={!rendererCodeDirty}>Cancel</button>
+                          <button className="btn btn-sm btn-primary" disabled={!rendererCodeDirty || rendererCodeSaving} onClick={async () => {
+                            if (!rendererId) return;
+                            setRendererCodeSaving(true);
+                            try {
+                              await api.renderers.updateCode(rendererId, rendererCode);
+                              setRendererCodeDirty(false);
+                            } catch (e) { setError(String(e)); }
+                            setRendererCodeSaving(false);
+                          }}>
+                            {rendererCodeSaving ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Renderer card - renderer JS not yet uploaded */}
+              {rendererId && !selectedRenderer && rendererCode === null && (
+                <Card title="Renderer">
+                  <div className="col" style={{ gap: 10 }}>
+                    <div className="muted fs-13">
+                      This theme includes a custom renderer but the JS file is not installed yet.
+                    </div>
+                    <div className="fs-12">Upload <code>{selectedTheme.name.toLowerCase()}.js</code> to enable it.</div>
+                    <button className="btn btn-sm btn-primary" style={{ alignSelf: "flex-start" }} onClick={() => rendererJsRef.current?.click()}>
+                      <Icon name="upload" size={13} /> Upload Renderer JS
+                    </button>
+                  </div>
+                </Card>
+              )}
+            </>
           )}
         </>
       )}
@@ -841,6 +960,16 @@ export function Themes({ onSelectToken }: ThemesProps) {
         <div className="muted" style={{ textAlign: "center", padding: 32, fontSize: 14 }}>
           Select a theme above to view and edit it.
         </div>
+      )}
+
+      {overwriteConflict && (
+        <ConfirmDialog
+          title="Theme already exists"
+          message={`A theme named "${overwriteConflict.name}" already exists. Overwrite it with the imported version?`}
+          confirmLabel="Overwrite"
+          onConfirm={handleOverwriteConfirm}
+          onCancel={() => { setOverwriteConflict(null); setPendingOverwriteFile(null); }}
+        />
       )}
 
       {confirmDelete && selectedTheme && (
@@ -859,20 +988,20 @@ export function Themes({ onSelectToken }: ThemesProps) {
       )}
 
 
-      {showPackReminder && (
-        <div className="overlay" onClick={() => setShowPackReminder(false)}>
-          <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 className="dialog-title">Upload Renderer Pack</h3>
+      {showRendererReminder && (
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="renderer-remind-title" onClick={closeRendererReminder}>
+          <div ref={rendererReminderDialogRef} className="dialog" onClick={e => e.stopPropagation()}>
+            <h3 id="renderer-remind-title" className="dialog-title">Upload Renderer</h3>
             <div className="dialog-body">
               <p>
-                This theme includes a renderer pack. Select the matching <code>.js</code> file to enable it.
+                This theme includes custom renderers. Select the matching <code>.js</code> file to enable them.
               </p>
             </div>
             <div className="dialog-actions">
-              <button className="btn" onClick={() => setShowPackReminder(false)}>
+              <button className="btn" onClick={() => setShowRendererReminder(false)}>
                 Skip
               </button>
-              <button className="btn btn-primary" autoFocus onClick={() => { setShowPackReminder(false); setTimeout(() => packJsRef.current?.click(), 100); }}>
+              <button className="btn btn-primary" autoFocus onClick={() => { setShowRendererReminder(false); setTimeout(() => rendererJsRef.current?.click(), 100); }}>
                 Upload JS
               </button>
             </div>
@@ -881,13 +1010,14 @@ export function Themes({ onSelectToken }: ThemesProps) {
       )}
 
       {showAgree && (
-        <div className="overlay" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
-          <div className="dialog" onClick={e => e.stopPropagation()}>
-            <h3 className="dialog-title">Renderer Pack Warning</h3>
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="renderer-agree-title" onClick={closeAgree}>
+          <div ref={agreeDialogRef} className="dialog" onClick={e => e.stopPropagation()}>
+            <h3 id="renderer-agree-title" className="dialog-title">Renderer Warning</h3>
             <div className="dialog-body">
               <p>
-                This theme includes a renderer pack that executes JavaScript from your HA instance
-                inside the widget on the embedding page. Only enable themes with packs you trust.
+                This theme includes custom renderer JavaScript that executes with the embedding
+                page's privileges. It can access the page DOM, browser storage, non-HttpOnly
+                cookies, and widget credentials. Only enable renderers you fully trust.
               </p>
               <p style={{ marginTop: 12 }}>
                 Type <strong>AGREE</strong> below to confirm.
@@ -903,7 +1033,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
               />
             </div>
             <div className="dialog-actions">
-              <button className="btn btn-ghost" onClick={() => { setShowAgree(false); setAgreeText(""); setPendingAction(null); }}>
+              <button className="btn btn-ghost" onClick={closeAgree}>
                 Cancel
               </button>
               <button className="btn btn-primary" disabled={agreeText !== "AGREE"} onClick={confirmAgree}>

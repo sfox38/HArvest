@@ -13,7 +13,10 @@ import { api } from "../api";
 import { Spinner, ErrorBanner, Card, Hint, fmtBytes } from "./Shared";
 import { Icon } from "./Icon";
 import { Toggle } from "./Toggle";
+import { UrlReachabilityIndicator } from "./UrlReachabilityIndicator";
 import buildVersion from "../buildVersion.json";
+import { refreshEntityCache } from "../entityCache";
+import { resolveWidgetConnectionUrls } from "../connectionUrls";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,7 +77,7 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
         {hint && <div className="settings-field-hint">{hint}</div>}
       </dt>
       <dd>
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row gap-8">
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <input
               type="number"
@@ -90,10 +93,10 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
               <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
             )}
           </div>
-          {suffix && <span className="muted" style={{ fontSize: 13 }}>{suffix}</span>}
+          {suffix && <span className="muted fs-13">{suffix}</span>}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -165,7 +168,7 @@ function TextField({ label, value: initial, placeholder, hint, validate, onChang
           )}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -184,17 +187,275 @@ function validateOverrideHost(v: string): string | null {
   }
 }
 
+
 function validateWidgetScriptUrl(v: string): string | null {
-  if (!v) return null;
-  if (v.startsWith("/")) return null;
-  try {
-    const u = new URL(v);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return "Must be a path (e.g. /harvest.min.js) or a full https:// URL";
-    return null;
-  } catch {
-    return "Must be a path (e.g. /harvest.min.js) or a full https:// URL";
+  // The widget script src can legitimately be a full URL, an absolute path,
+  // or a relative path / bare filename (for HTML files served alongside
+  // harvest.min.js). The previous version rejected the relative-path forms,
+  // which surprised admins. Match the WP plugin's sanitize_custom_url():
+  // accept any of those three forms; reject only obviously dangerous values.
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+
+  // Reject characters that would break out of the script src="" attribute
+  // or open a new attribute. Internal whitespace is also invalid for a
+  // script URL (anyone who needs a literal space can URL-encode).
+  if (/[\s"'<>`]/.test(trimmed)) {
+    return "URL must not contain spaces or quotes";
   }
+  // Control characters are never legitimate inside a URL here.
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) {
+    return "URL must not contain control characters";
+  }
+  // XSS vectors.
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("vbscript:")) {
+    return "URL must not use a javascript:, data:, or vbscript: scheme";
+  }
+  // For full URLs, gate on http/https only. Other schemes (file:, ftp:)
+  // are not useful here.
+  const schemeMatch = trimmed.match(/^([a-z][a-z0-9+.\-]*):/i);
+  if (schemeMatch && !/^https?:\/\//i.test(trimmed)) {
+    return "Full URLs must use http:// or https://";
+  }
+  return null;
 }
+
+// ---------------------------------------------------------------------------
+// WidgetScriptSourceField - SPEC.md Section 12 (Widget Script URL Settings)
+// ---------------------------------------------------------------------------
+//
+// Three radios: HA-served, Alternate port, Custom URL.
+//
+// Storage mapping:
+//   - HA-served: widget_script_url="" and external_port=0
+//   - Alternate port: widget_script_url="" and external_port=N
+//   - Custom URL: widget_script_url="<url>" (external_port unchanged)
+//
+// HA-served preview is computed live from override_host (or the panel's
+// current origin) so admins see the literal URL their snippet will carry.
+
+interface WidgetScriptSourceFieldProps {
+  value: string;                                    // current widget_script_url
+  overrideHost: string;                             // current override_host (for preview)
+  externalPort: number;
+  onScriptUrlChange: (v: string) => Promise<void>;
+  onPortChange: (v: number) => Promise<void>;
+}
+
+function WidgetScriptSourceField({ value, overrideHost, externalPort, onScriptUrlChange, onPortChange }: WidgetScriptSourceFieldProps) {
+  const haBase = (overrideHost || window.location.origin).replace(/\/+$/, "");
+  const haPreview = `${haBase}/harvest_assets/harvest.min.js`;
+  const haPort = (() => { try { return Number(new URL(haBase).port) || (new URL(haBase).protocol === "https:" ? 443 : 80); } catch { return 8123; } })();
+
+  type SourceMode = "ha" | "alt-port" | "custom";
+  const derivedMode: SourceMode = value.trim() !== "" ? "custom" : externalPort > 0 ? "alt-port" : "ha";
+
+  const [uiMode, setUiMode] = useState<SourceMode>(derivedMode);
+  const [localPort, setLocalPort] = useState(String(externalPort || ""));
+  const [portState, setPortState] = useState<SaveState>("idle");
+  const [portErr, setPortErr] = useState("");
+  const [reachTrigger, setReachTrigger] = useState(0);
+
+  useEffect(() => { setUiMode(derivedMode); }, [derivedMode]);
+  useEffect(() => { setLocalPort(String(externalPort || "")); }, [externalPort]);
+
+  const altPortCommitted = externalPort > 0
+    ? resolveWidgetConnectionUrls(haBase, "", externalPort).scriptUrl
+    : "";
+
+  const activeUrl = uiMode === "custom" ? value.trim() : uiMode === "alt-port" ? altPortCommitted : haPreview;
+  const reachUrl = uiMode === "alt-port" ? altPortCommitted : activeUrl;
+
+  const switchToHa = async () => {
+    setUiMode("ha");
+    if (value.trim()) await onScriptUrlChange("");
+    if (externalPort > 0) await onPortChange(0);
+  };
+
+  const switchToAltPort = async () => {
+    setUiMode("alt-port");
+    if (value.trim()) await onScriptUrlChange("");
+  };
+
+  const switchToCustom = () => {
+    setUiMode("custom");
+  };
+
+  const commitPort = useCallback(async (raw: string) => {
+    const trimmed = raw.trim();
+    const n = Number(trimmed);
+    if (!trimmed || n === 0 || n === haPort) {
+      setLocalPort("");
+      setPortState("saving");
+      setPortErr("");
+      try { await onPortChange(0); setPortState("idle"); }
+      catch (e) { setPortState("error"); setPortErr(String(e)); }
+      return;
+    }
+    if (isNaN(n) || !Number.isInteger(n)) { setPortState("error"); setPortErr("Must be a number."); return; }
+    if (n < 1 || n > 65535) { setPortState("error"); setPortErr("Must be 1-65535."); return; }
+    setPortState("saving");
+    setPortErr("");
+    try {
+      await onPortChange(n);
+      setPortState("idle");
+      setTimeout(() => setReachTrigger(t => t + 1), 1000);
+    }
+    catch (e) { setPortState("error"); setPortErr(String(e)); }
+  }, [onPortChange, haPort]);
+
+  return (
+    <div className="kv" style={{ paddingBottom: 8 }}>
+      <dt>
+        Widget script source
+        <div className="settings-field-hint">
+          Where snippets fetch the widget JS from.
+        </div>
+      </dt>
+      <dd>
+        <div className="col" style={{ gap: 10 }}>
+          {/* Active URL + reachability */}
+          {activeUrl && (
+            <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <div className="mono fs-12" style={{ overflowWrap: "anywhere", color: "var(--text-secondary)" }}>{activeUrl}</div>
+              <UrlReachabilityIndicator url={reachUrl} triggerKey={reachTrigger} />
+            </div>
+          )}
+          {portState === "error" && portErr && <div className="error-msg-tight">{portErr}</div>}
+
+          {/* HA-served */}
+          <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="widget_script_source"
+              value="ha"
+              checked={uiMode === "ha"}
+              onChange={switchToHa}
+              style={{ marginTop: 4 }}
+            />
+            <div>HA-served <span className="muted fs-12">(recommended)</span></div>
+          </label>
+
+          {/* Alternate port */}
+          <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="widget_script_source"
+              value="alt-port"
+              checked={uiMode === "alt-port"}
+              onChange={switchToAltPort}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
+              <div className="row gap-8" style={{ alignItems: "center" }}>
+                <span>Alternate widget transport port</span>
+                {uiMode === "alt-port" && (
+                  <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={localPort}
+                      placeholder={String(haPort)}
+                      onChange={e => { setLocalPort(e.target.value); setPortState("idle"); }}
+                      onBlur={() => commitPort(localPort)}
+                      onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                      onClick={e => e.stopPropagation()}
+                      className="input"
+                      style={{ width: 90, borderColor: portState === "error" ? "var(--danger)" : undefined }}
+                    />
+                    {portState === "saving" && (
+                      <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="settings-field-hint">
+                Serves the widget script, WebSocket connection, and runtime assets. Plain HTTP requires a trusted network or TLS reverse proxy.
+              </div>
+            </div>
+          </label>
+
+          {/* Custom URL */}
+          <label className="row" style={{ gap: 8, alignItems: "flex-start", cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="widget_script_source"
+              value="custom"
+              checked={uiMode === "custom"}
+              onChange={switchToCustom}
+              style={{ marginTop: 4 }}
+            />
+            <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
+              <div>Custom URL</div>
+              {uiMode === "custom" && (
+                <WidgetScriptUrlInput value={value} onChange={onScriptUrlChange} />
+              )}
+            </div>
+          </label>
+        </div>
+      </dd>
+    </div>
+  );
+}
+
+// Inline-only URL input for the Custom radio, with the same debounce/save
+// behavior as TextField. Inlined rather than reusing TextField because we
+// need it without the surrounding kv/dt/dd wrapper.
+function WidgetScriptUrlInput({ value, onChange }: { value: string; onChange: (v: string) => Promise<void> }) {
+  const [localVal, setLocalVal] = useState(value);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [errMsg, setErrMsg] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { setLocalVal(value); }, [value]);
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
+  const commit = useCallback(async (raw: string) => {
+    const err = validateWidgetScriptUrl(raw.trim());
+    if (err) { setSaveState("error"); setErrMsg(err); return; }
+    setSaveState("saving");
+    setErrMsg("");
+    try {
+      await onChange(raw.trim());
+      setSaveState("idle");
+    } catch (e) {
+      setSaveState("error");
+      setErrMsg(String(e));
+    }
+  }, [onChange]);
+
+  const handleChange = (v: string) => {
+    setLocalVal(v);
+    setSaveState("idle");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => commit(v), 500);
+  };
+
+  return (
+    <div>
+      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+        <input
+          type="text"
+          value={localVal}
+          placeholder="https://example.com/harvest.min.js, /harvest.min.js, or harvest.min.js"
+          onChange={e => handleChange(e.target.value)}
+          onBlur={() => commit(localVal)}
+          className="input"
+          style={{ width: "100%", borderColor: saveState === "error" ? "var(--danger)" : undefined }}
+        />
+        {saveState === "saving" && (
+          <span style={{ position: "absolute", right: 6 }}><Spinner size={14} /></span>
+        )}
+      </div>
+      {saveState === "error" && errMsg && (
+        <div className="error-msg-tight">{errMsg}</div>
+      )}
+    </div>
+  );
+}
+
 
 // ---------------------------------------------------------------------------
 // ToggleField
@@ -227,7 +488,7 @@ function ToggleField({ label, value, onChange, hint }: ToggleFieldProps) {
       </div>
       <div className="row" style={{ gap: 8, flexShrink: 0 }}>
         <Toggle checked={value} onChange={toggle} disabled={saving} />
-        {err && <span style={{ fontSize: 12, color: "var(--danger)" }}>{err}</span>}
+        {err && <span className="error-msg">{err}</span>}
       </div>
     </div>
   );
@@ -269,12 +530,11 @@ function SelectField({ label, value, options, onChange, hint }: SelectFieldProps
           value={value}
           onChange={e => commit(e.target.value)}
           disabled={saving}
-          className="input"
-          style={{ fontSize: 13 }}
+          className="input fs-13"
         >
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        {err && <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{err}</div>}
+        {err && <div className="error-msg-tight">{err}</div>}
       </dd>
     </div>
   );
@@ -363,7 +623,7 @@ function TrustedProxiesField({ value, onChange }: TrustedProxiesFieldProps) {
           )}
         </div>
         {saveState === "error" && errMsg && (
-          <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2 }}>{errMsg}</div>
+          <div className="error-msg-tight">{errMsg}</div>
         )}
       </dd>
     </div>
@@ -441,7 +701,7 @@ function CustomDomainsField({ value, availableDomains, onChange }: CustomDomains
         <div key={entry.domain} className="row" style={{ justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
             <span style={{ fontWeight: 600 }}>{entry.domain}</span>
-            <span className="muted" style={{ fontSize: 12 }}>{entry.allowed_services.join(", ")}</span>
+            <span className="muted fs-12">{entry.allowed_services.join(", ")}</span>
           </div>
           <button
             className="btn btn-icon"
@@ -456,10 +716,9 @@ function CustomDomainsField({ value, availableDomains, onChange }: CustomDomains
 
       <div style={{ marginTop: value.length ? 12 : 0 }}>
         <select
-          className="input"
+          className="input fs-13"
           value={selectedDomain}
           onChange={e => onDomainSelect(e.target.value)}
-          style={{ fontSize: 13 }}
         >
           <option value="">
             {eligibleDomains.length ? "Select a domain..." : "No custom domains available"}
@@ -544,9 +803,21 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.config.get(), api.stats.get()])
-      .then(([cfg, st]) => { setConfig(cfg); setStats(st); })
-      .catch(e => setError(String(e)))
+    // allSettled so a stats-fetch failure does not block config editing, and
+    // a config-fetch failure does not hide the stats info table.
+    Promise.allSettled([api.config.get(), api.stats.get()])
+      .then(([cfg, st]) => {
+        if (cfg.status === "fulfilled") setConfig(cfg.value);
+        if (st.status === "fulfilled") setStats(st.value);
+
+        const rejections = [cfg, st].filter(r => r.status === "rejected") as PromiseRejectedResult[];
+        if (rejections.length === 2) {
+          setError(String(rejections[0].reason));
+        } else if (rejections.length > 0) {
+          for (const r of rejections) console.warn("[HArvest panel] settings load:", r.reason);
+          setError("Some settings data couldn't be loaded.");
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -571,7 +842,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 64 }}>
+      <div className="center-spinner">
         <Spinner size={40} />
       </div>
     );
@@ -591,10 +862,10 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Appearance */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="eye" size={14} /> Appearance</span>}
+        title={<span className="row gap-8"><Icon name="eye" size={14} /> Appearance</span>}
       >
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
-        <div style={{ height: 1, background: "var(--divider)", margin: "8px 0 12px" }} />
+        <div className="divider" style={{ margin: "8px 0 12px" }} />
         <div className="muted" style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>
           Widget defaults
         </div>
@@ -606,7 +877,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
               { value: "standard", label: "Standard" },
               { value: "enhanced", label: "Enhanced" },
             ]}
-            hint="Enhanced adds aria-live announcements for state changes."
+            hint="Enhanced adds accessibility announcements for state changes."
             onChange={v => patch({ default_a11y: v } as Partial<IntegrationConfig>)}
           />
           <SelectField
@@ -660,14 +931,14 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
               { value: "dim", label: "Dim card" },
               { value: "hide", label: "Hide card" },
             ]}
-            hint="Default behavior on auth failure or missing entity."
+            hint="Default behavior when a widget fails to connect or an entity is unavailable."
             onChange={v => patch({ default_on_error: v } as Partial<IntegrationConfig>)}
           />
           <TextField
             label="Default error message"
             value={config.default_error_text}
             placeholder="Auto (i18n)"
-            hint="Shown on auth failure or missing entity. Leave blank for the localized default."
+            hint="Shown when a widget fails to connect or an entity is unavailable. Leave blank for the localized default."
             validate={v => {
               if (v.length > 200) return "200 characters max.";
               if (v && /[<>"';\\]|--|\/\*|\*\/|\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|UNION|EXEC)\b/i.test(v)) return "Contains disallowed characters.";
@@ -680,17 +951,14 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Security */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="shield" size={14} /> Security</span>}
+        title={<span className="row gap-8"><Icon name="shield" size={14} /> Security</span>}
       >
         <dl>
-          <NumberField label="Max entities per widget" value={config.max_entities_per_token} min={1} max={250}
-            hint="Maximum number of HA entities a single widget token can expose."
-            onChange={patchNum("max_entities_per_token")} />
           <NumberField label="Max auth attempts per widget / min" value={config.max_auth_attempts_per_token_per_minute} suffix="/ min" min={1}
-            hint="Rate limit on failed auth attempts per widget. Protects against brute-force token guessing."
+            hint="How many failed login attempts a single widget allows per minute before blocking further tries."
             onChange={patchNum("max_auth_attempts_per_token_per_minute")} />
           <NumberField label="Max auth attempts per IP / min" value={config.max_auth_attempts_per_ip_per_minute} suffix="/ min" min={1}
-            hint="Rate limit on failed auth attempts from a single IP address."
+            hint="How many failed login attempts a single visitor IP is allowed per minute."
             onChange={patchNum("max_auth_attempts_per_ip_per_minute")} />
           <TrustedProxiesField
             value={config.trusted_proxies ?? []}
@@ -704,23 +972,48 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             validate={validateOverrideHost}
             onChange={v => patch({ override_host: v })}
           />
-          <TextField
-            label="Widget script URL"
+          <WidgetScriptSourceField
             value={config.widget_script_url}
-            placeholder="https://example.com/harvest.min.js"
-            hint="URL for the widget JS. Accepts a full URL or a path (e.g. /js/harvest.min.js). Leave blank to serve the bundled file."
-            validate={validateWidgetScriptUrl}
-            onChange={v => patch({ widget_script_url: v })}
+            overrideHost={config.override_host}
+            externalPort={config.external_port ?? 0}
+            onScriptUrlChange={v => patch({ widget_script_url: v })}
+            onPortChange={patchNum("external_port")}
           />
         </dl>
+        <div className="divider" style={{ margin: "8px 0 12px" }} />
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Sensitive domains</div>
+        <div className="settings-field-hint" style={{ marginBottom: 12 }}>
+          These domains are disabled by default because they control physical devices or run automations. Enable each one to allow widgets to include entities from that domain. Changing this disconnects active sessions so they pick up the new setting.
+        </div>
+        {([
+          { key: "lock",       label: "Lock",       hint: "lock.* entities - physical lock/unlock control" },
+          { key: "cover",      label: "Cover",      hint: "cover.* entities - garage doors, gates, blinds" },
+          { key: "script",     label: "Script",     hint: "script.* entities - arbitrary HA script execution" },
+          { key: "automation", label: "Automation", hint: "automation.* entities - trigger, enable, or disable automations" },
+          { key: "button",     label: "Button",     hint: "button.* and input_button.* entities - one-shot press actions" },
+        ] as const).map(({ key, label, hint }) => (
+          <ToggleField
+            key={key}
+            label={label}
+            hint={hint}
+            value={!!(config.sensitive_domains ?? {})[key]}
+            onChange={async (v) => {
+              const extra: Record<string, boolean> = key === "button"
+                ? { input_button: v }
+                : {};
+              await patch({ sensitive_domains: { ...(config.sensitive_domains ?? {}), [key]: v, ...extra } });
+              refreshEntityCache();
+            }}
+          />
+        ))}
       </Card>
 
       {/* Custom Domains */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="puzzle" size={14} /> Custom domains</span>}
+        title={<span className="row gap-8"><Icon name="puzzle" size={14} /> Custom domains</span>}
       >
         <div className="settings-field-hint" style={{ marginBottom: 12 }}>
-          Allow command execution for custom entity domains with third-party card renderers.
+          Allow widgets to control entities from custom domains (e.g. third-party integrations).
           Built-in and blocked domains cannot be added.
         </div>
         <CustomDomainsField
@@ -732,7 +1025,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Sessions */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="plug" size={14} /> Sessions</span>}
+        title={<span className="row gap-8"><Icon name="plug" size={14} /> Sessions</span>}
       >
         <ToggleField
           label="Kill switch"
@@ -743,7 +1036,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
             onKillSwitchChange?.(v);
           }}
         />
-        <div style={{ height: 1, background: "var(--divider)", margin: "8px 0 12px" }} />
+        <div className="divider" style={{ margin: "8px 0 12px" }} />
         <dl>
           <NumberField label="Default session lifetime" value={config.default_session.lifetime_minutes} suffix="minutes" min={1}
             onChange={patchDefaultSession("lifetime_minutes")} />
@@ -757,7 +1050,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Performance */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="bolt" size={14} /> Performance</span>}
+        title={<span className="row gap-8"><Icon name="bolt" size={14} /> Performance</span>}
       >
         <dl>
           <NumberField label="Auth timeout" value={config.auth_timeout_seconds} suffix="seconds" min={1} max={60}
@@ -777,7 +1070,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* Activity log */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="database" size={14} /> Activity log</span>}
+        title={<span className="row gap-8"><Icon name="database" size={14} /> Activity log</span>}
       >
         <dl>
           <NumberField label="Retention" value={config.activity_log_retention_days} suffix="days" min={1} max={365}
@@ -791,7 +1084,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
 
       {/* HA Event Bus */}
       <Card
-        title={<span className="row" style={{ gap: 8 }}><Icon name="waves" size={14} /> HA event bus <Hint text="Enable or disable specific harvest_* events fired on the HA event bus. Automations can listen for these." /></span>}
+        title={<span className="row gap-8"><Icon name="waves" size={14} /> HA event bus <Hint text="Enable or disable specific harvest_* events fired on the HA event bus. Automations can listen for these." /></span>}
       >
         {(Object.keys(config.ha_event_bus) as (keyof HaEventBusConfig)[]).map(key => (
           <ToggleField
@@ -804,7 +1097,7 @@ export function Settings({ theme, onThemeChange, onKillSwitchChange }: SettingsP
       </Card>
 
       {/* Integration info */}
-      <Card title={<span className="row" style={{ gap: 8 }}><Icon name="info" size={14} /> Integration info</span>}>
+      <Card title={<span className="row gap-8"><Icon name="info" size={14} /> Integration info</span>}>
         <table className="info-table">
           <tbody>
             <tr>

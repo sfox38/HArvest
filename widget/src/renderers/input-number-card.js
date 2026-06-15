@@ -7,6 +7,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 const INPUT_NUMBER_STYLES = /* css */`
   [part=card-body] {
@@ -18,6 +19,7 @@ const INPUT_NUMBER_STYLES = /* css */`
   .hrv-number-row {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: var(--hrv-spacing-s);
   }
 
@@ -55,14 +57,6 @@ const INPUT_NUMBER_STYLES = /* css */`
   }
 `;
 
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export class InputNumberCard extends BaseCard {
   /** @type {HTMLInputElement|null} */ #slider     = null;
@@ -85,7 +79,7 @@ export class InputNumberCard extends BaseCard {
     const unit = this.def.unit_of_measurement  ?? "";
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${INPUT_NUMBER_STYLES}</style>
+      <style>${INPUT_NUMBER_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
@@ -126,13 +120,14 @@ export class InputNumberCard extends BaseCard {
       this.root.querySelector("[part=card]")?.setAttribute("data-readonly", "true");
     }
 
-    this.renderIcon(this.def.icon ?? "mdi:ray-vertex", "card-icon");
+    this.renderIcon(this.resolveIcon(this.def.icon, "mdi:ray-vertex"), "card-icon");
 
     this.#slider?.addEventListener("input", (e) => {
       const v = parseFloat(e.target.value);
       if (this.#numberInput) this.#numberInput.value = String(v);
       this.#sendDebounce(v);
     });
+    this.guardSlider(this.#slider, this.#sendDebounce);
 
     this.#numberInput?.addEventListener("input", (e) => {
       const v = parseFloat(e.target.value);
@@ -147,7 +142,7 @@ export class InputNumberCard extends BaseCard {
   applyState(state, _attributes) {
     const value = parseFloat(state);
     if (!isNaN(value)) {
-      if (this.#slider      && !this.isFocused(this.#slider))      this.#slider.value      = String(value);
+      if (this.#slider      && !this.isSliderActive(this.#slider)) this.#slider.value      = String(value);
       if (this.#numberInput && !this.isFocused(this.#numberInput)) this.#numberInput.value = String(value);
     }
     if (this.#stateLabel && this.def.capabilities !== "read-write") {

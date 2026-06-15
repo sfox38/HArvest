@@ -26,18 +26,13 @@ import { applyErrorState }      from "./error-states.js";
 import { ThemeLoader }          from "./theme-loader.js";
 import { I18n }                 from "./i18n.js";
 import { lookupRenderer }       from "./renderers/index.js";
+import { getPageConfig, onPageConfigChange } from "./page-config.js";
 
-// Page-level config set by HArvest.config(). Shared across all card instances.
-// Exported so harvest-client.js and hrv-mount.js can call getPageConfig().
-const _pageConfig = {};
+// Re-exported so existing harvest-entry.js imports continue to work.
+export { config, getPageConfig } from "./page-config.js";
 
-export function config(options) {
-  Object.assign(_pageConfig, options);
-}
-
-export function getPageConfig() {
-  return _pageConfig;
-}
+// Local alias to the shared page-config object (same reference).
+const _pageConfig = getPageConfig();
 
 // ---------------------------------------------------------------------------
 // Color scheme resolution
@@ -55,7 +50,7 @@ function _resolveColorScheme(cs) {
   const computed = getComputedStyle(document.documentElement).colorScheme || "";
   if (computed === "light") return "light";
   if (computed === "dark") return "dark";
-  return "light";
+  return "auto";
 }
 
 // ---------------------------------------------------------------------------
@@ -74,12 +69,17 @@ export class HrvCard extends HTMLElement {
   /** @type {ReturnType<typeof setTimeout>|null} */ #optimisticTimer = null;
   /** @type {object|null}  */ #i18n          = null;
   /** @type {object|null}  */ #entityDef     = null;
+  /** @type {string}       */ #tokenColorScheme  = "auto";
+  /** @type {string}       */ #entityColorScheme = "auto";
   /** @type {string|null}  */ #lastState     = null;
   /** @type {object|null}  */ #lastAttributes = null;
   /** @type {Map<string, {state:string, attributes:object}>} */ #lastCompanionStates = new Map();
   /** @type {Map<string, object>} */ #lastCompanionDefs   = new Map();
   /** @type {{points:object[], hours:number}|null} */ #lastHistoryData = null;
   /** @type {object|null} */ #lastTheme = null;
+  /** @type {(() => void)|null} */ #pageConfigUnsubscribe = null;
+  /** @type {string|null} */ #tokenIconSet = null;
+  /** @type {string|null} */ #themeIconSet = null;
 
   // -------------------------------------------------------------------------
   // Observed attributes
@@ -99,7 +99,8 @@ export class HrvCard extends HTMLElement {
 
     if (!this.shadowRoot) this.attachShadow({ mode: "open" });
 
-    // Stamp data-color-scheme so the base-card CSS fallback can force light/dark.
+    // Stamp data-color-scheme only when the page explicitly forces light/dark.
+    // True auto mode stays unforced so base CSS follows prefers-color-scheme.
     // Read directly from _pageConfig too in case HArvest.config() was called
     // before this element connected (common script loading order).
     const cs = _resolveColorScheme(this.#config.colorScheme || _pageConfig.colorScheme || "");
@@ -121,11 +122,7 @@ export class HrvCard extends HTMLElement {
 
     // Validate required config before connecting.
     if (!this.#config.haUrl || !this.#config.tokenId) {
-      console.error(
-        "[HArvest] <hrv-card> missing required ha-url or token. " +
-        "Set them as attributes, inside an <hrv-group>, or via HArvest.config().",
-      );
-      this.setErrorState("HRV_AUTH_FAILED");
+      this.#waitForPageConfig();
       return;
     }
 
@@ -153,12 +150,45 @@ export class HrvCard extends HTMLElement {
     this.#config.card = this;
 
     this.#client.registerCard(entityRef, this);
+
+    // Stale-render fast path: if both an entity_definition AND state are
+    // cached from a previous visit, AND the renderer opts in via static
+    // staleOnMount = true, build the renderer right now and apply the
+    // cached state. The card is visible before the WS auth round-trip.
+    // When the real entity_definition arrives, receiveDefinition's
+    // JSON.stringify-equality check rebuilds only if the schema actually
+    // changed; identical defs are a no-op so there is no visible flicker.
+    // staleOnMount defaults to false on BaseCard - controllable entities
+    // (lights, switches, locks, climate, etc.) skip this path because
+    // showing a stale state could mislead the user into a redundant action.
+    if (this.#optimisticState) {
+      const cachedDef = StateCache.readDef(this.#config.tokenId, entityRef);
+      if (cachedDef) {
+        const isBadge = cachedDef.capabilities === "badge";
+        const RendererClass = isBadge
+          ? lookupRenderer("badge", null)
+          : lookupRenderer(cachedDef.domain, cachedDef.device_class ?? null);
+        if (RendererClass?.staleOnMount === true) {
+          this.receiveDefinition(cachedDef);
+        }
+      }
+    }
   }
 
   disconnectedCallback() {
+    this.#stopWaitingForPageConfig();
     if (this.shadowRoot) ThemeLoader.detach(this.shadowRoot);
     clearTimeout(this.#optimisticTimer);
     this.#optimisticTimer = null;
+
+    // Tear down the active renderer's external resources before the host
+    // element is GC'd. Renderers may hold setInterval handles (TimerCard),
+    // document/window listeners (InputSelectCard, override ClimateCard,
+    // SensorCard), or RAF/pointer momentum-scroll handlers (WeatherCard).
+    // Without this, a single-page app or CMS page builder that mounts and
+    // unmounts hrv-card elements leaks one set of handles per cycle.
+    this.#renderer?.destroy?.();
+    this.#renderer = null;
 
     if (!this.#client) return;
 
@@ -171,10 +201,16 @@ export class HrvCard extends HTMLElement {
   }
 
   attributeChangedCallback(_name, oldVal, newVal) {
-    // Re-resolve config when attributes change after mounting.
+    // Connection identity changes must detach the old registration before
+    // resolving and registering the new one.
     // Skip if shadow root does not exist yet (called before connectedCallback).
     if (!this.shadowRoot || oldVal === newVal) return;
-    this.#resolveConfig();
+    if (this.hasAttribute("preview")) {
+      this.#resolveConfig();
+      return;
+    }
+    this.disconnectedCallback();
+    this.connectedCallback();
   }
 
   // -------------------------------------------------------------------------
@@ -188,6 +224,27 @@ export class HrvCard extends HTMLElement {
    * @param {object} def - EntityDefinition from server
    */
   receiveDefinition(def) {
+    // Skip the full rebuild if the incoming definition is structurally equal
+    // to the one we already have. Renew flows (every lifetime_minutes) and
+    // reconnects resend entity_definitions with identical content; rebuilding
+    // the renderer mid-interaction would snap a slider thumb (or any active
+    // input) back to the server-confirmed value because the new renderer's
+    // isSliderActive() resets to false. JSON.stringify is byte-stable for
+    // server-delivered JSON (insertion order is consistent), so equal output
+    // means structurally equal input. Renderer swaps go through _reRender(), not
+    // this path, so this check does not interfere with style updates.
+    if (this.#entityDef && this.#renderer
+        && JSON.stringify(def) === JSON.stringify(this.#entityDef)) {
+      // The renderer is unchanged, but history still needs to be (re)requested.
+      // The stale-on-mount fast path renders a cached definition before the WS
+      // is open, so its history request is a no-op; the matching server
+      // definition then short-circuits here. Without this call the graph would
+      // never load on a warm-cache page load (only after a config change forces
+      // a non-matching definition). See _ensureHistory().
+      this.#ensureHistory();
+      return;
+    }
+
     this.#entityDef = def;
 
     // Apply server-side config from entity_definition.
@@ -198,11 +255,15 @@ export class HrvCard extends HTMLElement {
     this.#config.period = hints.period ?? 10;
     this.#config.animate = !!hints.animate;
     // Entity-level color_scheme overrides token-level only if explicitly set.
-    // "auto" means "defer to token_config", not "reset to auto".
+    // "auto" defers to the token-level scheme (#tokenColorScheme), which in
+    // turn falls back to the page-level scheme. The previous version only
+    // wrote to colorScheme when entityCS was non-auto, which meant flipping
+    // an entity from "dark" back to "auto" left colorScheme stuck on "dark".
     const entityCS = def.color_scheme ?? "auto";
-    if (entityCS !== "auto") {
-      this.#config.colorScheme = entityCS;
-    }
+    this.#entityColorScheme = entityCS;
+    this.#config.colorScheme = (entityCS !== "auto")
+      ? entityCS
+      : (this.#tokenColorScheme ?? "auto");
     this.#config.displayHints = hints;
 
     // Reflect color scheme on the host element and re-apply theme.
@@ -213,7 +274,11 @@ export class HrvCard extends HTMLElement {
       this.removeAttribute("data-color-scheme");
     }
     if (this.#lastTheme && this.shadowRoot) {
-      ThemeLoader.apply(this.#lastTheme, this.shadowRoot, csNow);
+      ThemeLoader.apply(
+        this.#lastTheme,
+        this.shadowRoot,
+        this.#config.colorScheme || _pageConfig.colorScheme || "auto",
+      );
     }
 
     // Reconcile companion proxies from server-delivered list.
@@ -241,15 +306,20 @@ export class HrvCard extends HTMLElement {
 
     const isBadge = def.capabilities === "badge";
     const RendererClass = isBadge
-      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
-      : (this.#client?._getPackRenderer?.(def.domain, def.device_class ?? null)
-        || lookupRenderer(def.domain, def.device_class ?? null));
+      ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getRendererOverride?.(def.domain, def.device_class ?? null)
+          || lookupRenderer(def.domain, def.device_class ?? null));
 
     if (isBadge) this.setAttribute("data-hrv-badge", "");
     else this.removeAttribute("data-hrv-badge");
 
+    // Tear down the previous renderer (if any) so its observers and document
+    // listeners are released before the new instance is constructed.
+    this.#renderer?.destroy?.();
+
     this.#renderer = new RendererClass(def, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
+    this.#renderer.finalizeRender?.();
 
     // Replay last known state so the card is not blank after a re-definition.
     if (this.#lastState !== null) {
@@ -261,6 +331,7 @@ export class HrvCard extends HTMLElement {
       );
       this.#optimisticState = null;
     }
+    this.#renderer.finalizeRender?.();
 
     // Replay companion definitions then states so friendly names appear in tooltips.
     for (const [entityId, compDef] of this.#lastCompanionDefs) {
@@ -270,18 +341,28 @@ export class HrvCard extends HTMLElement {
       this.#renderer.updateCompanionState?.(entityId, state, attributes);
     }
 
-    if (this.#config.graph) {
-      if (this.#lastHistoryData) {
-        this.#renderer.receiveHistoryData?.(
-          this.#lastHistoryData.points,
-          this.#lastHistoryData.hours,
-          this.#config.graph,
-        );
-      }
-      if (this.#client) {
-        const entityRef = this.#entityId || this.#alias;
-        this.#client.requestHistory(entityRef);
-      }
+    this.#ensureHistory();
+  }
+
+  /**
+   * Replay cached history and request fresh history from the server when a
+   * graph is configured. Safe to call on every definition arrival (including
+   * structurally-identical ones): requestHistory no-ops until the WS is open
+   * and authed, so the real server definition - which arrives over an open
+   * connection - is what actually triggers the fetch.
+   */
+  #ensureHistory() {
+    if (!this.#config.graph) return;
+    if (this.#lastHistoryData) {
+      this.#renderer?.receiveHistoryData?.(
+        this.#lastHistoryData.points,
+        this.#lastHistoryData.hours,
+        this.#config.graph,
+      );
+    }
+    if (this.#client) {
+      const entityRef = this.#entityId || this.#alias;
+      this.#client.requestHistory(entityRef);
     }
   }
 
@@ -290,9 +371,11 @@ export class HrvCard extends HTMLElement {
    *
    * @param {string} state
    * @param {object} attributes
-   * @param {string} _lastUpdated - ISO 8601 timestamp (used by client for ordering)
+   * @param {string} lastUpdated - ISO 8601 timestamp (used by client for ordering)
    */
-  receiveStateUpdate(state, attributes, _lastUpdated) {
+  receiveStateUpdate(state, attributes, lastUpdated) {
+    const previousState = this.#lastState;
+    const previousAttributes = this.#lastAttributes;
     this.#lastState = state;
     this.#lastAttributes = attributes;
     // Cancel any pending optimistic revert.
@@ -319,6 +402,7 @@ export class HrvCard extends HTMLElement {
     if (this.#renderer) {
       requestAnimationFrame(() => {
         this.#renderer?.applyState(state, attributes);
+        this.#renderer?.finalizeRender?.();
       });
       if (this.#config.graph && state !== "unavailable" && state !== "unknown") {
         this.#renderer.appendHistoryPoint?.(state);
@@ -329,6 +413,20 @@ export class HrvCard extends HTMLElement {
     if (this.#currentState !== "live") {
       this.setErrorState("live");
     }
+
+    const entityRef = this.#entityId || this.#alias;
+    this.dispatchEvent(new CustomEvent("hrv-state-change", {
+      bubbles: true,
+      composed: true,
+      detail: {
+        entityId: entityRef,
+        state,
+        attributes,
+        previousState,
+        previousAttributes,
+        lastUpdated,
+      },
+    }));
   }
 
   /**
@@ -342,18 +440,37 @@ export class HrvCard extends HTMLElement {
   }
 
   /**
+   * Recompute the effective icon set from the cascade: token icon_set wins
+   * over the theme's, null means MDI. A change force-rebuilds the renderer
+   * so already-rendered mdi glyphs swap (or swap back). The set asset
+   * itself is loaded by HarvestClient when the token_config/theme message
+   * arrives; until it registers, translation is a no-op and MDI shows.
+   */
+  #updateIconSet() {
+    const effective = this.#tokenIconSet ?? this.#themeIconSet ?? null;
+    if (effective === (this.#config.iconSet ?? null)) return;
+    this.#config.iconSet = effective;
+    this._reRender(true);
+  }
+
+  /**
    * Called when the server pushes a theme update for this token.
-   * @param {object} theme - { variables, dark_variables }
+   * @param {object} theme - { variables, dark_variables, icon_set }
    */
   receiveTheme(theme) {
     this.#lastTheme = theme || null;
+    this.#themeIconSet = theme?.icon_set ?? null;
+    this.#updateIconSet();
     if (!this.shadowRoot) return;
     if (theme) {
-      const cs = _resolveColorScheme(this.#config.colorScheme || _pageConfig.colorScheme || "");
-      ThemeLoader.apply(theme, this.shadowRoot, cs);
+      ThemeLoader.apply(
+        theme,
+        this.shadowRoot,
+        this.#config.colorScheme || _pageConfig.colorScheme || "auto",
+      );
     } else {
       ThemeLoader.detach(this.shadowRoot);
-      /** @type {HTMLElement} */ (this.shadowRoot.host).style.cssText = "";
+      ThemeLoader.clear(this.shadowRoot);
     }
   }
 
@@ -364,13 +481,20 @@ export class HrvCard extends HTMLElement {
   receiveTokenConfig(config) {
     this.#config.lang = config.lang ?? "auto";
     this.#config.a11y = config.a11y ?? "standard";
+    this.#tokenIconSet = config.iconSet ?? null;
+    this.#updateIconSet();
     this.#config.onOffline = config.onOffline ?? "last-state";
     this.#config.onError = config.onError ?? "message";
     this.#config.offlineText = config.offlineText ?? "";
     this.#config.errorText = config.errorText ?? "";
     const newScheme = config.colorScheme ?? "auto";
-    const schemeChanged = newScheme !== this.#config.colorScheme;
-    this.#config.colorScheme = newScheme;
+    this.#tokenColorScheme = newScheme;
+    // Effective scheme: entity override (if explicit) wins over the token's.
+    const effective = (this.#entityColorScheme && this.#entityColorScheme !== "auto")
+      ? this.#entityColorScheme
+      : newScheme;
+    const schemeChanged = effective !== this.#config.colorScheme;
+    this.#config.colorScheme = effective;
     if (schemeChanged) {
       const cs = _resolveColorScheme(this.#config.colorScheme || _pageConfig.colorScheme || "");
       if (cs === "light" || cs === "dark") {
@@ -379,7 +503,11 @@ export class HrvCard extends HTMLElement {
         this.removeAttribute("data-color-scheme");
       }
       if (this.#lastTheme && this.shadowRoot) {
-        ThemeLoader.apply(this.#lastTheme, this.shadowRoot, cs);
+        ThemeLoader.apply(
+          this.#lastTheme,
+          this.shadowRoot,
+          this.#config.colorScheme || _pageConfig.colorScheme || "auto",
+        );
       }
     }
     if (this.#i18n) {
@@ -392,13 +520,15 @@ export class HrvCard extends HTMLElement {
     if (!this.#entityDef || !this.#renderer) return;
     this.#renderer.destroy?.();
     const Cls = this.#entityDef.capabilities === "badge"
-      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
-      : (this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
+      ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getRendererOverride?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
         || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null));
     this.#renderer = new Cls(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
+    this.#renderer.finalizeRender?.();
     if (this.#lastState !== null) {
       this.#renderer.applyState(this.#lastState, this.#lastAttributes);
+      this.#renderer.finalizeRender?.();
     }
     for (const [entityId, def] of this.#lastCompanionDefs) {
       this.#renderer.updateCompanionDefinition?.(entityId, def);
@@ -415,18 +545,23 @@ export class HrvCard extends HTMLElement {
     }
   }
 
-  _reRender() {
+  _reRender(force = false) {
     if (!this.#entityDef || !this.#renderer) return;
     const NewRenderer = this.#entityDef.capabilities === "badge"
-      ? (this.#client?._getPackRenderer?.("badge", null) || lookupRenderer("badge", null))
-      : (this.#client?._getPackRenderer?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
+      ? (this.#client?._getRendererOverride?.("badge", null) || lookupRenderer("badge", null))
+      : (this.#client?._getRendererOverride?.(this.#entityDef.domain, this.#entityDef.device_class ?? null)
         || lookupRenderer(this.#entityDef.domain, this.#entityDef.device_class ?? null));
-    if (NewRenderer === this.#renderer.constructor) return;
+    // force bypasses the renderer-class short-circuit: after an icon set
+    // loads, the same renderer class must still rebuild so icons rendered
+    // with the fallback glyph swap to the now-registered set glyphs.
+    if (!force && NewRenderer === this.#renderer.constructor) return;
     this.#renderer.destroy?.();
     this.#renderer = new NewRenderer(this.#entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
+    this.#renderer.finalizeRender?.();
     if (this.#lastState !== null) {
       this.#renderer.applyState(this.#lastState, this.#lastAttributes);
+      this.#renderer.finalizeRender?.();
     }
     for (const [entityId, def] of this.#lastCompanionDefs) {
       this.#renderer.updateCompanionDefinition?.(entityId, def);
@@ -464,11 +599,10 @@ export class HrvCard extends HTMLElement {
    * Called when an ack message is routed to this card.
    * @param {object} _msg
    */
-  receiveAck(msg) {
-    console.warn(
-      `[HArvest] ack: ${msg?.entity_id} success=${msg?.success}`,
-      msg?.success ? "" : `${msg?.error_code} ${msg?.error_message ?? ""}`,
-    );
+  receiveAck(_msg) {
+    // Acks are routed here per the message-dispatch contract but currently
+    // have no per-card UI effect. Failure cases surface via setErrorState
+    // upstream; success cases are reflected by the ensuing state_update.
   }
 
   /**
@@ -499,7 +633,7 @@ export class HrvCard extends HTMLElement {
    * @param {object}   attributes - Entity attributes ({brightness: 180, ...})
    * @param {object}   [themeVars] - CSS custom properties to apply
    */
-  setPreview(entityDef, state, attributes, themeVars, packId, graphType = null, animate = false) {
+  setPreview(entityDef, state, attributes, themeVars, rendererId, graphType = null, animate = false) {
     if (!this.shadowRoot) return;
 
     // Force read-write unless entityDef says otherwise.
@@ -513,6 +647,9 @@ export class HrvCard extends HTMLElement {
     this.#config.animate = animate || !!hints.animate;
     this.#config.colorScheme = entityDef.color_scheme ?? "auto";
     this.#config.displayHints = hints;
+    // Panel previews pass the effective icon set on the theme object so the
+    // preview matches the live cascade (token icon_set ?? theme icon_set).
+    this.#config.iconSet = themeVars?.icon_set ?? null;
 
     const csNow = _resolveColorScheme(this.#config.colorScheme || "auto");
     if (csNow === "light" || csNow === "dark") {
@@ -531,18 +668,18 @@ export class HrvCard extends HTMLElement {
     }));
     this.#config.companions = this.#companions;
 
-    // Check pack renderer first, then fall back to global registry.
+    // Check renderer override first, then fall back to global registry.
     let RendererClass = null;
     const isBadge = entityDef.capabilities === "badge";
-    if (packId) {
-      const pack = window.HArvest?._packs?.[packId];
-      if (pack) {
+    if (rendererId) {
+      const reg = window.HArvest?._renderers?.[rendererId];
+      if (reg) {
         if (isBadge) {
-          RendererClass = pack["badge"] || null;
+          RendererClass = reg["badge"] || null;
         } else {
           const dc = entityDef.device_class ?? null;
           const specificKey = dc ? `${entityDef.domain}.${dc}` : null;
-          RendererClass = (specificKey && pack[specificKey]) || pack[entityDef.domain] || null;
+          RendererClass = (specificKey && reg[specificKey]) || reg[entityDef.domain] || null;
         }
       }
     }
@@ -553,9 +690,11 @@ export class HrvCard extends HTMLElement {
     }
     this.#renderer = new RendererClass(entityDef, this.shadowRoot, this.#config, this.#i18n);
     this.#renderer.render();
+    this.#renderer.finalizeRender?.();
 
     // Apply state.
     this.#renderer.applyState(state, attributes);
+    this.#renderer.finalizeRender?.();
 
     // Default controls to expanded so the user sees the full card layout.
     // Unlike the live path, this is just an initial default - the user can
@@ -585,7 +724,7 @@ export class HrvCard extends HTMLElement {
   applyPreviewTheme(themeVars) {
     if (!this.shadowRoot) return;
     ThemeLoader.detach(this.shadowRoot);
-    const cs = _resolveColorScheme(this.#config.colorScheme || "auto");
+    const cs = this.#config.colorScheme || "auto";
     if (themeVars.variables) {
       ThemeLoader.apply(themeVars, this.shadowRoot, cs);
     } else {
@@ -602,6 +741,7 @@ export class HrvCard extends HTMLElement {
   updatePreviewState(state, attributes) {
     if (this.#renderer) {
       this.#renderer.applyState(state, attributes);
+      this.#renderer.finalizeRender?.();
     }
   }
 
@@ -704,6 +844,29 @@ export class HrvCard extends HTMLElement {
   // -------------------------------------------------------------------------
 
   /**
+   * Retry connection setup when a later HArvest.config() call supplies the
+   * missing page-level connection values. Connected cards never subscribe,
+   * so changing page defaults does not disturb active explicit/group config.
+   */
+  #waitForPageConfig() {
+    if (this.#pageConfigUnsubscribe) return;
+    this.#pageConfigUnsubscribe = onPageConfigChange(() => {
+      if (!this.isConnected) return;
+      this.#resolveConfig();
+      if (!this.#config.haUrl || !this.#config.tokenId) return;
+
+      this.#stopWaitingForPageConfig();
+      this.style.removeProperty("display");
+      this.connectedCallback();
+    });
+  }
+
+  #stopWaitingForPageConfig() {
+    this.#pageConfigUnsubscribe?.();
+    this.#pageConfigUnsubscribe = null;
+  }
+
+  /**
    * Resolve configuration from (in priority order):
    *   1. HTML attributes on this element
    *   2. Parent <hrv-group> element attributes
@@ -725,6 +888,9 @@ export class HrvCard extends HTMLElement {
     this.#entityId = entityAttr || "";
     this.#alias    = entityAttr ? null : aliasAttr;
 
+    const layoutAttr = (this.getAttribute("layout") ?? "").toLowerCase();
+    if (layoutAttr) this.setAttribute("layout", layoutAttr);
+
     this.#config = {
       tokenId:      this.getAttribute("token")        ?? "",
       haUrl:        this.getAttribute("ha-url")       ?? "",
@@ -732,9 +898,8 @@ export class HrvCard extends HTMLElement {
       entity:       entityAttr,
       alias:        this.#alias,
       entityRef:    entityAttr || aliasAttr || "",
+      layout:       layoutAttr,
       lang:         "auto",
-      themeUrl:     null,
-      theme:        null,
       onOffline:    "last-state",
       onError:      "message",
       offlineText:  "",
@@ -745,6 +910,7 @@ export class HrvCard extends HTMLElement {
       period:       10,
       animate:      false,
       a11y:         "standard",
+      iconSet:      null,
       companions:   this.#companions,
       card:         this,
     };
@@ -754,13 +920,21 @@ export class HrvCard extends HTMLElement {
   }
 
   /**
-   * Walk up the DOM to find the nearest <hrv-group> ancestor and inherit
-   * any config values not already set by this card's own attributes.
+   * Walk up the DOM to find ancestor <hrv-group> or <hrv-entities-block>
+   * elements and inherit config values not already set by this card's own
+   * attributes. <hrv-entities-block> forces row layout on its children.
    */
   #inheritFromGroup() {
     let ancestor = this.parentElement;
     while (ancestor) {
-      if (ancestor.tagName?.toLowerCase() === "hrv-group") {
+      const tag = ancestor.tagName?.toLowerCase();
+      if (tag === "hrv-entities-block") {
+        if (!this.#config.layout) {
+          this.#config.layout = "row";
+          this.setAttribute("layout", "row");
+        }
+      }
+      if (tag === "hrv-group") {
         if (!this.#config.tokenId) this.#config.tokenId = ancestor.getAttribute("token") ?? "";
         if (!this.#config.haUrl)   this.#config.haUrl   = ancestor.getAttribute("ha-url") ?? "";
         if (!this.#config.tokenSecret) this.#config.tokenSecret = ancestor.getAttribute("token-secret") ?? null;

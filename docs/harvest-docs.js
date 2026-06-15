@@ -42,7 +42,11 @@
     var useDark = theme === "dark" || (theme === "auto" && prefersDark);
     document.documentElement.dataset.theme = useDark ? "dark" : "light";
     var btn = document.getElementById("themeToggle");
-    if (btn) btn.textContent = useDark ? "Light mode" : "Dark mode";
+    if (btn) {
+      btn.textContent = useDark ? "Light mode" : "Dark mode";
+      btn.setAttribute("aria-pressed", String(useDark));
+      btn.setAttribute("aria-label", useDark ? "Switch to light mode" : "Switch to dark mode");
+    }
   }
 
   function toggleTheme() {
@@ -74,24 +78,67 @@
     if (!toggle || !sidebar) return;
 
     function openSidebar() {
+      sidebar.inert = false;
       sidebar.classList.add("open");
-      if (overlay) overlay.classList.add("open");
+      if (overlay) {
+        overlay.classList.add("open");
+        overlay.setAttribute("aria-hidden", "false");
+      }
+      toggle.setAttribute("aria-expanded", "true");
+      toggle.setAttribute("aria-label", "Close menu");
       document.body.style.overflow = "hidden";
+      var firstLink = sidebar.querySelector("a.nav-item");
+      if (firstLink) firstLink.focus();
     }
 
-    function closeSidebar() {
+    function closeSidebar(returnFocus) {
       sidebar.classList.remove("open");
-      if (overlay) overlay.classList.remove("open");
+      if (overlay) {
+        overlay.classList.remove("open");
+        overlay.setAttribute("aria-hidden", "true");
+      }
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-label", "Open menu");
       document.body.style.overflow = "";
+      if (window.innerWidth <= 700) sidebar.inert = true;
+      if (returnFocus) toggle.focus();
+    }
+
+    function syncSidebarState() {
+      if (window.innerWidth <= 700 && !sidebar.classList.contains("open")) {
+        sidebar.inert = true;
+      } else {
+        sidebar.inert = false;
+      }
     }
 
     toggle.addEventListener("click", function () {
-      sidebar.classList.contains("open") ? closeSidebar() : openSidebar();
+      sidebar.classList.contains("open") ? closeSidebar(false) : openSidebar();
     });
+    window.addEventListener("resize", syncSidebarState);
 
     if (overlay) {
-      overlay.addEventListener("click", closeSidebar);
+      overlay.addEventListener("click", function () { closeSidebar(true); });
     }
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && sidebar.classList.contains("open")) {
+        closeSidebar(true);
+      }
+      if (e.key === "Tab" && sidebar.classList.contains("open")) {
+        var focusable = sidebar.querySelectorAll("a[href], button:not([disabled])");
+        if (!focusable.length) return;
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    });
 
     // Close sidebar when a nav link is clicked on mobile
     var navLinks = sidebar.querySelectorAll("a.nav-item");
@@ -100,6 +147,7 @@
         if (window.innerWidth <= 700) closeSidebar();
       });
     });
+    syncSidebarState();
   }
 
   // ---- Active nav link ------------------------------------------------------
@@ -109,10 +157,21 @@
     var links = document.querySelectorAll("a.nav-item");
     links.forEach(function (link) {
       var href = link.getAttribute("href") || "";
-      var linkPage = href.split("/").pop() || "index.html";
+      var linkPage = (href.split("/").pop() || "index.html").split("#")[0];
       if (linkPage === page) {
         link.classList.add("active");
+        link.setAttribute("aria-current", "page");
       }
+    });
+  }
+
+  function improveDocumentSemantics() {
+    document.querySelectorAll(".toc").forEach(function (toc) {
+      toc.setAttribute("role", "navigation");
+      toc.setAttribute("aria-label", "On this page");
+    });
+    document.querySelectorAll('a[target="_blank"]').forEach(function (link) {
+      link.setAttribute("rel", "noopener noreferrer");
     });
   }
 
@@ -230,6 +289,7 @@
 
     setupMobileSidebar();
     setActiveNav();
+    improveDocumentSemantics();
     highlightAll();
 
     // Stamp nav links with current theme hash so navigation preserves it

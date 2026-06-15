@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>WordPress - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -17,7 +19,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v1.0 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -47,12 +49,12 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
@@ -82,12 +84,12 @@
             <tbody>
               <tr><td>WordPress</td><td>5.0+</td></tr>
               <tr><td>PHP</td><td>7.4+ (8.0+ recommended)</td></tr>
-              <tr><td>Editor</td><td>Classic Editor or any page builder that allows raw HTML</td></tr>
+              <tr><td>Editor</td><td>Any context that processes shortcodes for <code>[harvest]</code>, or any raw HTML/code context for the <code>hrv-mount</code> div format. Classic Editor is optional.</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>The plugin works with any WordPress theme. It enqueues the widget script in the page footer and injects the required Content-Security-Policy header automatically.</p>
+        <p>The plugin works with any WordPress theme. It enqueues the widget script in the page footer and adds the configured Home Assistant origins to the page's Content Security Policy header. If another plugin or your web server manages CSP separately, you may need to add the origins there instead.</p>
         </section>
 
         <section>
@@ -98,7 +100,7 @@
             <div class="step-num">1</div>
             <div class="step-body">
               <h4>Download the plugin</h4>
-              <p>Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank">GitHub Releases</a>. Inside the zip, find <code>harvest.zip</code> in the <code>wordpress/</code> folder. This is the WordPress plugin.</p>
+              <p>Download the latest release zip from <a href="https://github.com/sfox38/HArvest/releases" target="_blank" rel="noopener noreferrer">GitHub Releases</a>. Inside the zip, find <code>harvest.zip</code> in the <code>wordpress/</code> folder. This is the WordPress plugin.</p>
             </div>
           </li>
           <li class="step">
@@ -121,7 +123,7 @@
         <section>
         <h2 id="plugin-settings">Plugin settings</h2>
 
-        <p>Found at <strong>Settings &gt; HArvest</strong> in your WordPress admin.</p>
+        <p>The settings page is at <strong>Settings &gt; HArvest</strong> in your WordPress admin.</p>
 
         <div class="table-wrap">
           <table>
@@ -129,15 +131,31 @@
             <tbody>
               <tr>
                 <td>Home Assistant URL</td>
-                <td>Your HA external HTTPS URL. e.g. <code>https://myhome.duckdns.org</code>. Used to set the <code>connect-src</code> Content-Security-Policy directive automatically and as the default HA URL for shortcodes.</td>
+                <td>Required. The public widget transport origin reachable by your WordPress visitors, for example <code>https://myhome.duckdns.org</code>. To use HArvest alternate-port transport, enter the alternate origin including its port, for example <code>https://ha.example.com:9050</code>. Public and HTTPS-hosted pages must use an HTTPS origin. The plugin uses this value for shortcode WebSocket connections, HA-served widget assets, preconnect, and Content-Security-Policy directives.</td>
               </tr>
               <tr>
-                <td>Widget source</td>
-                <td>"Bundled" (default) uses the widget JS file included with the plugin. "Custom URL" lets you specify a CDN or self-hosted URL. Use "Bundled" unless you need a specific widget version.</td>
+                <td>Widget JS source</td>
+                <td>Two script-source options, plus alternate-port transport configured through the Home Assistant URL:
+                  <ul>
+                    <li><strong>HA-served (recommended, default)</strong> - the widget JS is fetched from your Home Assistant instance at <code>{your-HA-URL}/harvest_assets/harvest.min.js</code>. Updating HArvest via HACS automatically updates the widget on every WordPress page. Requires the Home Assistant URL field above to be set (the radio is disabled otherwise).</li>
+                    <li><strong>Alternate-port transport</strong> - keep HA-served selected and enter the alternate origin, including its port, in the Home Assistant URL field. The alternate server carries the widget script, WebSocket connection, and runtime assets. It is plain HTTP unless placed behind a TLS proxy or secure tunnel.</li>
+                    <li><strong>Custom URL</strong> - point only the widget script at a trusted self-hosted copy of <code>harvest.min.js</code>. The live WebSocket transport still uses the Home Assistant URL field. Accepts full URLs (<code>https://example.com/harvest.min.js</code>), absolute paths (<code>/harvest.min.js</code>), and relative paths or bare filenames (<code>harvest.min.js</code>). Relative values resolve against the visitor's current WordPress page URL.</li>
+                  </ul>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <h3>Live URL reachability check</h3>
+        <p>As you type or change either URL field, the plugin probes public HTTP and HTTPS URLs from the WordPress server and shows a small status indicator next to the field. For security, the check refuses to request private, loopback, link-local, or other internal network addresses. Every redirect destination is checked under the same rules.</p>
+        <ul>
+          <li><strong>✓ (green)</strong> - the URL responded with HTTP 2xx. Reachable.</li>
+          <li><strong>⚠ (amber)</strong> - the URL did not respond, or returned a 4xx/5xx. Doesn't necessarily mean the widget will fail for visitors: your visitors may be on a different network than your WordPress server (e.g. a LAN-hosted Home Assistant). Save anyway if you know the URL is correct from a visitor's perspective.</li>
+          <li><strong>ⓘ (amber)</strong> - the URL is a relative path or bare filename. Cannot be probed from the server side because it only resolves against the visitor's embed page; you'll need to verify it manually.</li>
+          <li><strong>✗ (red)</strong> - the URL is malformed, uses a disallowed scheme (<code>javascript:</code>, <code>data:</code>, etc.), or resolves to an internal network address. Malformed URLs and disallowed schemes cannot be used. Internal URLs may still be saved, but the reachability check will not request them.</li>
+        </ul>
+        <p>The check is informational only and never blocks save. Verify internal URLs from the network where widget visitors will use them.</p>
         </section>
 
         <section>
@@ -187,7 +205,7 @@
         <p>When using <code>[harvest_group]</code>, child <code>[harvest]</code> shortcodes do not need <code>token</code> - they inherit it from the group.</p>
 
         <h3>Using aliases</h3>
-        <p>For security by obscurity, use the alias format. Aliases are generated in the HArvest panel and stored with the token. The panel's Code section shows both formats.</p>
+        <p>Use the alias format when you do not want real Home Assistant entity IDs visible in page source. Aliases reduce information disclosure but do not change the token's permissions or provide an additional security boundary. The panel's Code section shows both formats.</p>
 
         <pre><code class="language-text">[harvest token="hwt_..." alias="dJ5x3Apd"]</code></pre>
 
@@ -198,19 +216,18 @@
         <section>
         <h2 id="csp">Content Security Policy</h2>
 
-        <p>Browsers require a <code>connect-src</code> Content-Security-Policy directive to allow WebSocket connections from your WordPress page to your HA instance. The plugin injects this header automatically based on the HA URL you entered in the plugin settings.</p>
+        <p>If a page sends a Content Security Policy, its <code>connect-src</code> directive must allow the WebSocket origin and its <code>script-src</code> directive must allow runtime scripts from Home Assistant. The plugin creates or updates these directives based on the HA URL you entered in the plugin settings.</p>
 
         <p>The injected header looks like:</p>
-        <pre><code class="language-text">Content-Security-Policy: connect-src 'self' wss://myhome.duckdns.org</code></pre>
+        <pre><code class="language-text">Content-Security-Policy: connect-src 'self' wss://myhome.duckdns.org; script-src 'self' https://myhome.duckdns.org</code></pre>
 
-        <p>The plugin converts the <code>https://</code> URL from settings to <code>wss://</code> for the directive. You don't need to add this manually.</p>
+        <p>The plugin maps the URL scheme from settings to its WebSocket equivalent: <code>https://</code> becomes <code>wss://</code>, and <code>http://</code> becomes <code>ws://</code>. It also permits the configured HTTP or HTTPS origin in <code>script-src</code> so renderer scripts can load.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Existing CSP headers</span>
-          <p>If your WordPress host or another plugin already sets a <code>Content-Security-Policy</code> header, the HArvest plugin's header may be ignored or conflict. In that case, manually add <code>wss://your-ha-host</code> to your existing <code>connect-src</code> directive.</p>
+          <p>If your WordPress host or another plugin sets CSP through a different mechanism, the HArvest plugin's changes may be ignored or replaced. In that case, add the matching WebSocket URL to <code>connect-src</code> and the Home Assistant HTTP or HTTPS origin to <code>script-src</code> in the policy managed by that system.</p>
         </div>
 
-        <p>The plugin also allows JSON file uploads in the WordPress media library (admin users only) to make it easier to manage and import custom theme files.</p>
         </section>
 
         <section>

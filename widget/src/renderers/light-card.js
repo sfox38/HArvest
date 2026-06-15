@@ -17,6 +17,7 @@
  */
 
 import { BaseCard } from "./base-card.js";
+import { esc as _esc } from "../_utils/esc.js";
 
 // Light-specific CSS
 const LIGHT_CARD_STYLES = /* css */`
@@ -45,7 +46,7 @@ const LIGHT_CARD_STYLES = /* css */`
   [part=toggle-button][data-pressing=true] { opacity: 0.65; filter: brightness(1.15); }
 
   [part=toggle-button][aria-pressed=true] {
-    background: var(--hrv-color-state-on);
+    background: var(--hrv-color-primary);
   }
 
   [part=toggle-button][aria-pressed=false] {
@@ -125,9 +126,11 @@ const LIGHT_CARD_STYLES = /* css */`
   }
 
   :host([data-harvest-state=live]) [part=card-icon][data-on=false] {
-    color: var(--hrv-color-state-off);
+    color: var(--hrv-color-text-secondary);
   }
 `;
+
+const LIGHT_ROW_STYLES = /* css */``;
 
 // ---------------------------------------------------------------------------
 // Colour conversion helpers
@@ -147,6 +150,7 @@ function _rgbToHue(r, g, b) {
 
 export class LightCard extends BaseCard {
   /** @type {HTMLButtonElement|null} */   #toggleBtn         = null;
+  /** @type {HTMLButtonElement|null} */   #rowToggle         = null;
   /** @type {HTMLInputElement|null}  */   #brightnessSlider  = null;
   /** @type {HTMLInputElement|null}  */   #colorTempSlider   = null;
   /** @type {HTMLInputElement|null}  */   #colorSlider       = null;
@@ -176,11 +180,12 @@ export class LightCard extends BaseCard {
     const maxCt         = this.def.feature_config?.max_color_temp_kelvin ?? 6500;
 
     this.root.innerHTML = /* html */`
-      <style>${this.getSharedStyles()}${LIGHT_CARD_STYLES}</style>
+      <style>${LIGHT_CARD_STYLES}${LIGHT_ROW_STYLES}</style>
       <div part="card">
         <div part="card-header">
           <span part="card-icon" aria-hidden="true"></span>
           <span part="card-name">${_esc(this.def.friendly_name)}</span>
+          ${isWritable ? `<span part="row-control"><button part="row-toggle" type="button" aria-label="${_esc(this.def.friendly_name)}"></button></span>` : `<span part="row-control"><span part="row-state"></span></span>`}
         </div>
         <div part="card-body">
           ${isWritable ? /* html */`
@@ -231,6 +236,7 @@ export class LightCard extends BaseCard {
 
     // Cache element references.
     this.#toggleBtn        = this.root.querySelector("[part=toggle-button]");
+    this.#rowToggle        = this.root.querySelector("[part=row-toggle]");
     this.#brightnessSlider = this.root.querySelector("[part=brightness-slider]");
     this.#colorTempSlider  = this.root.querySelector("[part=color-temp-slider]");
     this.#colorSlider      = this.root.querySelector("[part=color-slider]");
@@ -242,14 +248,14 @@ export class LightCard extends BaseCard {
     this.renderIcon(this.resolveIcon(this.def.icon, "mdi:lightbulb"), "card-icon");
 
     // Wire up events.
-    this._attachGestureHandlers(this.#toggleBtn, {
-      onTap: () => {
-        const tap = this.config.gestureConfig?.tap;
-        if (tap) { this._runAction(tap); return; }
-        const isOn = this.#toggleBtn?.getAttribute("aria-pressed") === "true";
-        this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
-      },
-    });
+    const onTap = () => {
+      const tap = this.config.gestureConfig?.tap;
+      if (tap) { this._runAction(tap); return; }
+      const isOn = (this.#toggleBtn ?? this.#rowToggle)?.getAttribute("aria-pressed") === "true";
+      this.config.card?.sendCommand(isOn ? "turn_off" : "turn_on", {});
+    };
+    this._attachGestureHandlers(this.#toggleBtn, { onTap });
+    this._attachGestureHandlers(this.#rowToggle, { onTap });
 
     if (this.#brightnessSlider) {
       this.#brightnessSlider.addEventListener("input", (e) => {
@@ -260,6 +266,7 @@ export class LightCard extends BaseCard {
         }
         this.#brightnessDebounce(val);
       });
+      this.guardSlider(this.#brightnessSlider, this.#brightnessDebounce);
     }
 
     if (this.#colorTempSlider) {
@@ -270,12 +277,14 @@ export class LightCard extends BaseCard {
         }
         this.#colorTempDebounce(val);
       });
+      this.guardSlider(this.#colorTempSlider, this.#colorTempDebounce);
     }
 
     if (this.#colorSlider) {
       this.#colorSlider.addEventListener("input", (e) => {
         this.#colorDebounce(parseInt(e.target.value, 10));
       });
+      this.guardSlider(this.#colorSlider, this.#colorDebounce);
     }
 
     this.renderCompanions();
@@ -287,17 +296,26 @@ export class LightCard extends BaseCard {
     const isUnavailable = state === "unavailable" || state === "unknown";
 
     // Toggle button.
+    const toggleLabel = this.i18n.t(isOn ? "state.on" : "state.off");
     if (this.#toggleBtn) {
-      const label = this.i18n.t(isOn ? "state.on" : "state.off");
-      this.#toggleBtn.textContent = label;
+      this.#toggleBtn.textContent = toggleLabel;
       this.#toggleBtn.setAttribute("aria-pressed", String(isOn));
       this.#toggleBtn.setAttribute(
         "aria-label",
         `${this.def.friendly_name} - ${this.i18n.t("action.toggle")}, ` +
-        `${this.i18n.t("action.currently")} ${label}`,
+        `${this.i18n.t("action.currently")} ${toggleLabel}`,
       );
       this.#toggleBtn.disabled = isUnavailable;
     }
+
+    if (this.#rowToggle) {
+      this.#rowToggle.textContent = toggleLabel;
+      this.#rowToggle.setAttribute("aria-pressed", String(isOn));
+      this.#rowToggle.disabled = isUnavailable;
+    }
+
+    const rowStateEl = this.root.querySelector("[part=row-state]");
+    if (rowStateEl) rowStateEl.textContent = toggleLabel;
 
     // State label (shown for read-only capability).
     if (this.#stateLabel) {
@@ -307,7 +325,7 @@ export class LightCard extends BaseCard {
     }
 
     // Brightness slider.
-    if (this.#brightnessSlider && !this.isFocused(this.#brightnessSlider) && attributes.brightness !== undefined) {
+    if (this.#brightnessSlider && !this.isSliderActive(this.#brightnessSlider) && attributes.brightness !== undefined) {
       this.#brightnessSlider.value = String(attributes.brightness);
       if (this.#brightnessValue) {
         this.#brightnessValue.textContent =
@@ -316,7 +334,7 @@ export class LightCard extends BaseCard {
     }
 
     // Color slider - update hue from hs_color or rgb_color attribute.
-    if (this.#colorSlider && !this.isFocused(this.#colorSlider)) {
+    if (this.#colorSlider && !this.isSliderActive(this.#colorSlider)) {
       let hue = null;
       if (attributes.hs_color) {
         hue = Math.round(attributes.hs_color[0]);
@@ -328,7 +346,7 @@ export class LightCard extends BaseCard {
 
     // Colour temperature slider - use Kelvin (HA 2022.5+).
     // Fall back to converting mireds if kelvin attribute absent.
-    if (this.#colorTempSlider && !this.isFocused(this.#colorTempSlider)) {
+    if (this.#colorTempSlider && !this.isSliderActive(this.#colorTempSlider)) {
       let ctK = null;
       if (attributes.color_temp_kelvin !== undefined) {
         ctK = attributes.color_temp_kelvin;
@@ -402,15 +420,3 @@ export class LightCard extends BaseCard {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Utility: escape HTML special characters for safe insertion in innerHTML.
-// ---------------------------------------------------------------------------
-
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}

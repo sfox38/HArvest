@@ -8,9 +8,24 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from homeassistant.components.climate import ClimateEntityFeature
+from homeassistant.components.cover import CoverEntityFeature
+from homeassistant.components.fan import FanEntityFeature
+from homeassistant.components.light import LightEntityFeature
+from homeassistant.components.media_player import MediaPlayerEntityFeature
+from homeassistant.components.remote import RemoteEntityFeature
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
 
+from .const import (
+    DATA_TIER_BADGE,
+    DATA_TIER_COMPACT,
+    DATA_TIER_COMPANION,
+    DATA_TIER_COMPANION_RW,
+    DATA_TIER_DISPLAY,
+    DATA_TIER_FULL,
+    DISPLAY_TIER_ATTRIBUTES,
+)
 from .entity_compatibility import get_renderer_name, get_support_tier
 
 if TYPE_CHECKING:
@@ -115,21 +130,62 @@ def get_blocked_data_keys(exclude_attributes: list[str]) -> set[str]:
 # Maps (domain, bitmask_bit) -> feature string for translate_supported_features.
 FEATURE_FLAGS: dict[str, dict[int, str]] = {
     "light": {
-        1: "brightness", 2: "color_temp", 4: "effect",
-        16: "flash", 32: "transition", 64: "transition", 128: "rgb_color", 1024: "white_value",
+        int(LightEntityFeature.EFFECT): "effect",
+        int(LightEntityFeature.FLASH): "flash",
+        int(LightEntityFeature.TRANSITION): "transition",
     },
-    "fan": {1: "set_speed", 2: "oscillate", 4: "direction", 8: "preset_mode"},
-    "cover": {4: "set_position", 128: "set_tilt_position", 8: "stop"},
+    "fan": {
+        int(FanEntityFeature.SET_SPEED): "set_speed",
+        int(FanEntityFeature.OSCILLATE): "oscillate",
+        int(FanEntityFeature.DIRECTION): "direction",
+        int(FanEntityFeature.PRESET_MODE): "preset_mode",
+    },
+    "cover": {
+        int(CoverEntityFeature.OPEN): "open",
+        int(CoverEntityFeature.CLOSE): "close",
+        int(CoverEntityFeature.SET_POSITION): "set_position",
+        int(CoverEntityFeature.STOP): "stop",
+        int(CoverEntityFeature.OPEN_TILT): "open_tilt",
+        int(CoverEntityFeature.CLOSE_TILT): "close_tilt",
+        int(CoverEntityFeature.STOP_TILT): "stop_tilt",
+        int(CoverEntityFeature.SET_TILT_POSITION): "set_tilt_position",
+    },
     "climate": {
-        1: "target_temperature", 2: "target_temperature_range",
-        4: "fan_mode", 8: "preset_mode", 16: "swing_mode", 32: "aux_heat",
+        int(ClimateEntityFeature.TARGET_TEMPERATURE): "target_temperature",
+        int(ClimateEntityFeature.TARGET_TEMPERATURE_RANGE): "target_temperature_range",
+        int(ClimateEntityFeature.TARGET_HUMIDITY): "target_humidity",
+        int(ClimateEntityFeature.FAN_MODE): "fan_mode",
+        int(ClimateEntityFeature.PRESET_MODE): "preset_mode",
+        int(ClimateEntityFeature.SWING_MODE): "swing_mode",
     },
     "media_player": {
-        1: "play_pause", 2: "next_track", 4: "previous_track",
-        8: "volume_set", 16: "volume_step", 128: "turn_on", 256: "turn_off",
+        int(MediaPlayerEntityFeature.PAUSE): "play_pause",
+        int(MediaPlayerEntityFeature.PLAY): "play_pause",
+        int(MediaPlayerEntityFeature.VOLUME_SET): "volume_set",
+        int(MediaPlayerEntityFeature.VOLUME_MUTE): "volume_mute",
+        int(MediaPlayerEntityFeature.PREVIOUS_TRACK): "previous_track",
+        int(MediaPlayerEntityFeature.NEXT_TRACK): "next_track",
+        int(MediaPlayerEntityFeature.TURN_ON): "turn_on",
+        int(MediaPlayerEntityFeature.TURN_OFF): "turn_off",
+        int(MediaPlayerEntityFeature.VOLUME_STEP): "volume_step",
+        int(MediaPlayerEntityFeature.SELECT_SOURCE): "select_source",
     },
-    "remote": {1: "learn_command", 2: "delete_command"},
+    "remote": {
+        int(RemoteEntityFeature.LEARN_COMMAND): "learn_command",
+        int(RemoteEntityFeature.DELETE_COMMAND): "delete_command",
+        int(RemoteEntityFeature.ACTIVITY): "activity",
+    },
 }
+
+# These feature flags were added after HArvest's minimum supported HA version.
+# Decode them when present without preventing startup on older HA releases.
+for enum_class, domain, optional_features in (
+    (FanEntityFeature, "fan", (("TURN_ON", "turn_on"), ("TURN_OFF", "turn_off"))),
+    (ClimateEntityFeature, "climate", (("TURN_ON", "turn_on"), ("TURN_OFF", "turn_off"))),
+):
+    for member_name, feature_name in optional_features:
+        if member := getattr(enum_class, member_name, None):
+            FEATURE_FLAGS[domain][int(member)] = feature_name
 
 # Attributes blocked from state_update messages. All other attributes are
 # forwarded to the widget. Individual values exceeding MAX_ATTRIBUTE_VALUE_BYTES
@@ -139,9 +195,12 @@ BLOCKED_ATTRIBUTES: frozenset[str] = frozenset({
     "supported_color_modes",
     "friendly_name",
     "attribution",
-    "assumed_state",
     "editable",
     "id",
+    # "assumed_state" intentionally NOT blocked: renderer overrides (fan, switch,
+    # cover) use it to detect entities whose state is fire-and-forget and
+    # adjust their UX accordingly (e.g. suppress data-active button reflection
+    # when HA cannot confirm the actual device state).
     # "forecast" -- injected by ws_proxy via weather/subscribe_forecast,
     # not a state attribute in HA 2024.4+.
 })
@@ -189,7 +248,13 @@ _DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
     "input_number": {
         "*": "mdi:numeric",
     },
+    "number": {
+        "*": "mdi:numeric",
+    },
     "input_select": {
+        "*": "mdi:format-list-bulleted",
+    },
+    "select": {
         "*": "mdi:format-list-bulleted",
     },
     "sensor": {
@@ -199,9 +264,32 @@ _DOMAIN_ICON_DEFAULTS: dict[str, dict[str, str]] = {
         "on":  "mdi:radiobox-marked",
         "*":   "mdi:radiobox-blank",
     },
-    "harvest_action": {
-        "triggered": "mdi:play-circle",
-        "*":         "mdi:play-circle-outline",
+    "script": {
+        "on": "mdi:script-text",
+        "*":  "mdi:script-text-play",
+    },
+    "automation": {
+        "on": "mdi:robot",
+        "*":  "mdi:robot-off",
+    },
+    "button": {
+        "*": "mdi:gesture-tap-button",
+    },
+    "input_button": {
+        "*": "mdi:gesture-tap-button",
+    },
+    "person": {
+        "home":     "mdi:account",
+        "not_home": "mdi:account-off",
+        "*":        "mdi:account",
+    },
+    "lock": {
+        "locked":   "mdi:lock",
+        "unlocked": "mdi:lock-open",
+        "locking":  "mdi:lock",
+        "unlocking":"mdi:lock-open",
+        "jammed":   "mdi:lock-alert",
+        "*":        "mdi:lock",
     },
     "timer": {
         "active": "mdi:timer",
@@ -238,6 +326,21 @@ _BINARY_SENSOR_DC_ICONS: dict[str, dict[str, str]] = {
     "moisture":     {"on": "mdi:water", "*": "mdi:water-off"},
     "smoke":        {"on": "mdi:smoke-detector-variant-alert", "*": "mdi:smoke-detector-variant"},
     "presence":     {"on": "mdi:home", "*": "mdi:home-outline"},
+    "occupancy":    {"on": "mdi:home", "*": "mdi:home-outline"},
+    "garage_door":  {"on": "mdi:garage-open", "*": "mdi:garage"},
+    "battery":      {"on": "mdi:battery-alert", "*": "mdi:battery"},
+    "problem":      {"on": "mdi:alert-circle", "*": "mdi:alert-circle-outline"},
+    "plug":         {"on": "mdi:power-plug", "*": "mdi:power-plug-off"},
+    "power":        {"on": "mdi:flash", "*": "mdi:flash-off"},
+    "running":      {"on": "mdi:play-circle", "*": "mdi:stop-circle"},
+    "cold":         {"on": "mdi:snowflake", "*": "mdi:snowflake-off"},
+    "heat":         {"on": "mdi:fire", "*": "mdi:fire-off"},
+    "vibration":    {"on": "mdi:vibrate", "*": "mdi:vibrate-off"},
+    "gas":          {"on": "mdi:gas-cylinder", "*": "mdi:gas-cylinder"},
+    "opening":      {"on": "mdi:square-rounded", "*": "mdi:square-rounded-outline"},
+    "safety":       {"on": "mdi:shield-check", "*": "mdi:shield-alert"},
+    "tamper":       {"on": "mdi:shield-alert", "*": "mdi:shield"},
+    "update":       {"on": "mdi:package-up", "*": "mdi:package-variant"},
 }
 
 _SENSOR_DC_ICONS: dict[str, str] = {
@@ -255,19 +358,82 @@ _SENSOR_DC_ICONS: dict[str, str] = {
 }
 
 
+def resolve_data_tier(
+    entities_block: bool, capabilities: str, is_companion: bool = False
+) -> str:
+    """Determine the data tier from token/entity context.
+
+    Returns one of DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_COMPANION,
+    DATA_TIER_COMPANION_RW, DATA_TIER_DISPLAY, or DATA_TIER_FULL. Pure
+    function with no HA dependencies so both ws_proxy and http_views can
+    import it.
+
+    Companions resolve before entities_block: the companion tiers are
+    smaller than compact, so the block flag adds nothing for them.
+    """
+    if capabilities == "badge":
+        return DATA_TIER_BADGE
+    if is_companion:
+        if capabilities == "read-write":
+            return DATA_TIER_COMPANION_RW
+        return DATA_TIER_COMPANION
+    if entities_block:
+        return DATA_TIER_COMPACT
+    if capabilities == "read":
+        return DATA_TIER_DISPLAY
+    return DATA_TIER_FULL
+
+
+def filter_attributes_for_tier(
+    domain: str,
+    attributes: dict,
+    tier: str,
+) -> dict:
+    """Filter entity state attributes based on the data tier.
+
+    badge/compact/companion/companion_rw: unit_of_measurement only.
+    display: unit_of_measurement + domain-specific allowlist.
+    full: delegates to the existing blocklist-based filter_attributes().
+    """
+    if tier in (DATA_TIER_BADGE, DATA_TIER_COMPACT, DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW):
+        result: dict = {}
+        uom = attributes.get("unit_of_measurement")
+        if uom is not None:
+            result["unit_of_measurement"] = uom
+        return result
+
+    if tier == DATA_TIER_DISPLAY:
+        allowed = DISPLAY_TIER_ATTRIBUTES.get(domain, frozenset())
+        result = {}
+        uom = attributes.get("unit_of_measurement")
+        if uom is not None:
+            result["unit_of_measurement"] = uom
+        for key in allowed:
+            if key in attributes:
+                result[key] = attributes[key]
+        return result
+
+    return filter_attributes(attributes)
+
+
 def build_entity_definition(
     hass: HomeAssistant,
     entity_id: str,
     entity_access: "EntityAccess",
     companions: list[str] | None = None,
+    detail_level: str = DATA_TIER_FULL,
 ) -> dict | None:
-    """Build a complete entity_definition message dict for a given entity.
+    """Build an entity_definition message dict at the requested detail level.
 
-    Reads current state and entity registry entry from HA.
-    Translates supported_features bitmask to string list.
-    Builds icon and icon_state_map from entity registry and domain defaults.
-    Builds feature_config with domain-specific range values.
-    Returns None if the entity does not exist in HA's state machine.
+    detail_level controls which fields are included and which expensive
+    computations are skipped:
+      badge     - identity, icon, unit, color_scheme, display_hints
+      companion - identity and icon only (companion pills consume nothing
+                  else; capabilities is injected by the sender). The
+                  companion_rw tier currently emits the same fields.
+      compact   - badge fields plus renderer and support_tier (no companions)
+      display   - compact fields plus unit, display_hints, and companions
+      full      - all fields including features, config, gestures, service_data
     """
     state = hass.states.get(entity_id)
     if state is None:
@@ -276,18 +442,15 @@ def build_entity_definition(
     domain = entity_id.split(".")[0]
     attrs = state.attributes
 
-    # Entity registry - may be None for synthetic/virtual entities.
     registry = er.async_get(hass)
     entry = registry.async_get(entity_id)
 
-    # device_class: prefer registry override, fall back to state attribute.
     device_class: str | None = None
     if entry is not None:
         device_class = entry.device_class or entry.original_device_class
     if device_class is None:
         device_class = attrs.get("device_class")
 
-    # friendly_name: name_override takes priority, then state attribute, then registry.
     if entity_access.name_override:
         friendly_name: str = entity_access.name_override
     else:
@@ -295,14 +458,75 @@ def build_entity_definition(
         if not friendly_name and entry is not None:
             friendly_name = entry.name or entry.original_name or entity_id
 
-    # supported_features bitmask -> string list.
+    if entity_access.icon_override:
+        icon_state_map = {"*": entity_access.icon_override}
+        current_icon = entity_access.icon_override
+    else:
+        icon_state_map = build_icon_state_map(domain, state, entry, device_class)
+        current_icon = icon_state_map.get(state.state) or icon_state_map.get("*", "mdi:help-circle")
+
+    unit_of_measurement: str | None = attrs.get("unit_of_measurement")
+
+    if detail_level == DATA_TIER_BADGE:
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "device_class": device_class,
+            "friendly_name": friendly_name,
+            "icon": current_icon,
+            "icon_state_map": icon_state_map,
+            "unit_of_measurement": unit_of_measurement,
+            "color_scheme": entity_access.color_scheme,
+            "display_hints": entity_access.display_hints or {},
+        }
+
+    if detail_level in (DATA_TIER_COMPANION, DATA_TIER_COMPANION_RW):
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "device_class": device_class,
+            "friendly_name": friendly_name,
+            "icon": current_icon,
+            "icon_state_map": icon_state_map,
+        }
+
+    support_tier = int(get_support_tier(domain))
+    renderer = get_renderer_name(domain, device_class)
+
+    if detail_level == DATA_TIER_COMPACT:
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "device_class": device_class,
+            "friendly_name": friendly_name,
+            "icon": current_icon,
+            "icon_state_map": icon_state_map,
+            "color_scheme": entity_access.color_scheme,
+            "renderer": renderer,
+            "support_tier": support_tier,
+        }
+
+    if detail_level == DATA_TIER_DISPLAY:
+        return {
+            "entity_id": entity_id,
+            "domain": domain,
+            "device_class": device_class,
+            "friendly_name": friendly_name,
+            "icon": current_icon,
+            "icon_state_map": icon_state_map,
+            "unit_of_measurement": unit_of_measurement,
+            "color_scheme": entity_access.color_scheme,
+            "display_hints": entity_access.display_hints or {},
+            "companions": companions or [],
+            "renderer": renderer,
+            "support_tier": support_tier,
+        }
+
+    # Full tier: compute features, config, gestures, service_data.
     supported_features = decode_supported_features(
         domain, attrs.get("supported_features", 0)
     )
 
-    # Modern HA lights report capabilities via supported_color_modes rather than
-    # the supported_features bitmask. Augment the decoded feature list so that
-    # RGBW/color_temp lights get their sliders without needing the old bitmask.
     if domain == "light":
         color_modes = set(attrs.get("supported_color_modes", []))
         dimmable_modes = {"brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"}
@@ -314,7 +538,7 @@ def build_entity_definition(
         if color_modes & color_capable_modes and "rgb_color" not in supported_features:
             supported_features.append("rgb_color")
 
-    if domain == "cover" and "buttons" not in supported_features:
+    if domain == "cover" and {"open", "close"} & set(supported_features):
         supported_features.append("buttons")
 
     if domain == "weather":
@@ -324,22 +548,8 @@ def build_entity_definition(
         if raw_features & 2:
             supported_features.append("forecast_hourly")
 
-    # icon_state_map (includes the icon for the current state as default icon).
-    # icon_override replaces all state-specific icons with a single fixed icon.
-    if entity_access.icon_override:
-        icon_state_map = {"*": entity_access.icon_override}
-        current_icon = entity_access.icon_override
-    else:
-        icon_state_map = build_icon_state_map(domain, state, entry, device_class)
-        current_icon = icon_state_map.get(state.state) or icon_state_map.get("*", "mdi:help-circle")
-
-    # feature_config for domain-specific sliders / range controls.
     feature_config = build_feature_config(domain, state)
 
-    # unit_of_measurement from state attributes.
-    unit_of_measurement: str | None = attrs.get("unit_of_measurement")
-
-    # Apply exclude_attributes: remove suppressed features and config keys.
     if entity_access.exclude_attributes:
         suppressed = _features_to_suppress(entity_access.exclude_attributes)
         supported_features = [f for f in supported_features if f not in suppressed]
@@ -347,9 +557,6 @@ def build_entity_definition(
             k: v for k, v in feature_config.items()
             if not _is_config_key_excluded(k, entity_access.exclude_attributes)
         }
-
-    support_tier = int(get_support_tier(domain))
-    renderer = get_renderer_name(domain, device_class)
 
     return {
         "entity_id": entity_id,
@@ -367,66 +574,7 @@ def build_entity_definition(
         "color_scheme": entity_access.color_scheme,
         "display_hints": entity_access.display_hints or {},
         "companions": companions or [],
-    }
-
-
-def build_badge_definition(
-    hass: HomeAssistant,
-    entity_id: str,
-    entity_access: "EntityAccess",
-) -> dict | None:
-    """Build a minimal entity_definition for badge capability.
-
-    Returns only the fields needed for a compact badge display:
-    identity, icon, name, unit, color_scheme, and display hints.
-    Omits supported_features, feature_config, companions,
-    and gesture_config (badges do not support gestures).
-    """
-    state = hass.states.get(entity_id)
-    if state is None:
-        return None
-
-    domain = entity_id.split(".")[0]
-    attrs = state.attributes
-
-    registry = er.async_get(hass)
-    entry = registry.async_get(entity_id)
-
-    device_class: str | None = None
-    if entry is not None:
-        device_class = entry.device_class or entry.original_device_class
-    if device_class is None:
-        device_class = attrs.get("device_class")
-
-    if entity_access.name_override:
-        friendly_name: str = entity_access.name_override
-    else:
-        friendly_name = attrs.get("friendly_name") or ""
-        if not friendly_name and entry is not None:
-            friendly_name = entry.name or entry.original_name or entity_id
-
-    if entity_access.icon_override:
-        icon_state_map = {"*": entity_access.icon_override}
-        current_icon = entity_access.icon_override
-    else:
-        icon_state_map = build_icon_state_map(domain, state, entry, device_class)
-        current_icon = (
-            icon_state_map.get(state.state)
-            or icon_state_map.get("*", "mdi:help-circle")
-        )
-
-    unit_of_measurement: str | None = attrs.get("unit_of_measurement")
-
-    return {
-        "entity_id": entity_id,
-        "domain": domain,
-        "device_class": device_class,
-        "friendly_name": friendly_name,
-        "icon": current_icon,
-        "icon_state_map": icon_state_map,
-        "unit_of_measurement": unit_of_measurement,
-        "color_scheme": entity_access.color_scheme,
-        "display_hints": entity_access.display_hints or {},
+        "service_data": entity_access.service_data or {},
     }
 
 
@@ -437,7 +585,7 @@ def decode_supported_features(domain: str, bitmask: int) -> list[str]:
     Returns an empty list for unknown domains or zero bitmask.
     """
     flags = FEATURE_FLAGS.get(domain, {})
-    return [name for bit, name in flags.items() if bitmask & bit]
+    return list(dict.fromkeys(name for bit, name in flags.items() if bitmask & bit))
 
 
 def filter_attributes(attributes: dict) -> dict:
@@ -478,7 +626,7 @@ def build_icon_state_map(
     per-state icons.
     """
     # User-customised icon from entity registry overrides everything.
-    user_icon: str | None = entry.icon if entry is not None else None
+    user_icon: str | None = (entry.icon or entry.original_icon) if entry is not None else None
     if user_icon:
         # Apply user icon to all known states for this domain plus a "*" fallback.
         known_states = list(_DOMAIN_ICON_DEFAULTS.get(domain, {}).keys())

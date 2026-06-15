@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HArvest documentation for sharing and controlling Home Assistant entities on HTML and WordPress pages.">
   <title>Theming - HArvest Docs</title>
   <link rel="stylesheet" href="harvest-docs.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
   <script>(function(){var h=location.hash,t;if(h==="#theme-dark")t="dark";else if(h==="#theme-light")t="light";else try{t=localStorage.getItem("hrv-docs-theme")}catch(e){}t=t||"auto";var d=t==="dark"||(t==="auto"&&matchMedia("(prefers-color-scheme:dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"})()</script>
 </head>
 <body>
-  <button class="menu-toggle" id="menuToggle" aria-label="Open menu">&#9776;</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">&#9776;</button>
+  <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
   <div class="layout">
     <nav class="sidebar" id="sidebar">
@@ -17,7 +20,7 @@
         <img src="logo.png" alt="HArvest logo">
         <div>
           <div class="sidebar-logo-text">HArvest</div>
-          <span class="sidebar-logo-version">v0.9.3 documentation</span>
+          <span class="sidebar-logo-version">v1.0 documentation</span>
         </div>
       </div>
       <div class="sidebar-nav">
@@ -47,18 +50,18 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <a href="https://github.com/sfox38/HArvest" target="_blank">GitHub</a>
+        <a href="https://github.com/sfox38/HArvest" target="_blank" rel="noopener noreferrer">GitHub</a>
         <button class="theme-toggle" id="themeToggle">Dark mode</button>
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" id="main">
       <div class="content-inner">
 
         <div class="page-header">
           <div class="page-label">Customization</div>
-          <h1>Theming and renderer packs</h1>
-          <p class="lead">CSS variables, the theme JSON format, custom themes, named parts for surgical CSS overrides, and how to build and distribute renderer packs that replace card layouts entirely.</p>
+          <h1>Theming and custom renderers</h1>
+          <p class="lead">Use this page to change card appearance with theme JSON, CSS variables, fonts, and named parts. For a step-by-step custom renderer tutorial and the full renderer API, use the <a href="custom-cards.html">custom cards guide</a>.</p>
         </div>
 
         <div class="toc">
@@ -71,11 +74,20 @@
             <li><a href="#parts">Named parts (::part() selectors)</a></li>
             <li><a href="#bundled-themes">Bundled themes</a></li>
             <li><a href="#custom-themes">Creating custom themes</a></li>
+            <li><a href="#contributed-themes">User-contributed themes</a></li>
+            <li><a href="#custom-fonts">Custom fonts</a></li>
             <li><a href="#custom-renderers">Custom renderers</a></li>
-            <li><a href="#renderer-packs">Renderer packs</a></li>
-            <li><a href="#pack-wiring">Wiring a pack to a theme</a></li>
-            <li><a href="#pack-distribution">Distributing a pack</a></li>
+            <li><a href="#renderer-overrides">Renderer overrides</a></li>
+            <li><a href="#renderer-wiring">Pairing a renderer with a theme</a></li>
+            <li><a href="#renderer-distribution">Distributing a theme with a renderer</a></li>
           </ol>
+        </div>
+
+        <div class="nav-cards">
+          <a class="nav-card" href="#custom-themes"><strong>Create a theme</strong><span>Build and import a theme using supported CSS variables.</span></a>
+          <a class="nav-card" href="#css-variables"><strong>Look up variables</strong><span>Find the supported colors, typography, spacing, and card tokens.</span></a>
+          <a class="nav-card" href="#custom-fonts"><strong>Add a font</strong><span>Bundle a font file or load a web font from the host page.</span></a>
+          <a class="nav-card" href="custom-cards.html"><strong>Build a custom card</strong><span>Follow the renderer tutorial and use the complete renderer API.</span></a>
         </div>
 
         <h2 id="styling-tiers">Three styling tiers</h2>
@@ -101,7 +113,7 @@ hrv-card::part(brightness-slider) {
 }</code></pre>
 
         <h3>Tier 3 - Custom renderers</h3>
-        <p>Replace the entire card UI for any entity domain with your own class. Full control over HTML structure, CSS, and behavior. Custom renderers are registered via <code>HArvest.registerRenderer()</code> or packaged into a renderer pack. See <a href="#custom-renderers">Custom renderers</a> below.</p>
+        <p>Replace the entire card UI for any entity domain with your own class. Full control over HTML structure, CSS, and behavior. Custom renderers are registered via <code>HArvest.registerRenderer()</code> or bundled as a <code>renderer.js</code> file inside a theme zip. See <a href="#custom-renderers">Custom renderers</a> below.</p>
 
         <h2 id="theme-json">Theme JSON format</h2>
 
@@ -122,8 +134,7 @@ hrv-card::part(brightness-slider) {
     "--hrv-color-surface": "#1a1a2e",
     "--hrv-color-text": "#e0e0ff",
     "--hrv-color-border": "#2a2a4e"
-  },
-  "renderer_pack": "my-pack-id"
+  }
 }</code></pre>
 
         <div class="table-wrap">
@@ -131,19 +142,117 @@ hrv-card::part(brightness-slider) {
             <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
               <tr><td><code>name</code></td><td>string</td><td>Yes</td><td>Display name in the panel theme picker</td></tr>
-              <tr><td><code>harvest_version</code></td><td>integer</td><td>Yes</td><td>Must be <code>1</code></td></tr>
+              <tr><td><code>harvest_version</code></td><td>integer</td><td>No</td><td>Theme format version. Defaults to <code>1</code> when omitted.</td></tr>
               <tr><td><code>variables</code></td><td>object</td><td>Yes</td><td>CSS custom property key-value pairs for light mode</td></tr>
               <tr><td><code>author</code></td><td>string</td><td>No</td><td>Theme author name</td></tr>
               <tr><td><code>version</code></td><td>string</td><td>No</td><td>Theme version string</td></tr>
+              <tr><td><code>description</code></td><td>string</td><td>No</td><td>Short description shown in the panel theme list.</td></tr>
               <tr><td><code>dark_variables</code></td><td>object</td><td>No</td><td>Variable overrides for dark mode. Only changed keys needed.</td></tr>
-              <tr><td><code>renderer_pack</code></td><td>string | boolean</td><td>No</td><td>Pack ID to couple with this theme, or <code>true</code> for bundled packs where the pack script is included alongside the theme. See <a href="#pack-wiring">Wiring a pack to a theme</a>.</td></tr>
-              <tr><td><code>pack_settings</code></td><td>string[]</td><td>No</td><td>Pack-level card settings this theme supports. The panel uses this list to show or hide controls in Entity Settings. Supported values: <code>"layout"</code> (shows the Layout toggle). Only relevant when <code>renderer_pack</code> is set.</td></tr>
-              <tr><td><code>capabilities</code></td><td>object</td><td>No</td><td>Domain-specific feature declarations. Controls which per-domain options appear in Entity Settings. See <a href="#pack-wiring">renderer pack documentation</a>.</td></tr>
+              <tr><td><code>has_renderer</code></td><td>boolean</td><td>No</td><td>Indicates that the theme expects a renderer override. A <code>renderer.js</code> file in an imported zip also sets this automatically. A theme marked this way without a matching renderer file shows a warning.</td></tr>
+              <tr><td><code>capabilities</code></td><td>object</td><td>No</td><td>Domain-specific feature declarations. Controls which per-domain options appear in Entity Settings.</td></tr>
+              <tr><td><code>renderer_settings</code></td><td>string[]</td><td>No</td><td>Universal or domain-specific settings supported by the renderer override.</td></tr>
+              <tr><td><code>custom_fonts</code></td><td>object[]</td><td>No</td><td>Bundled font-face definitions that reference font files in the theme zip.</td></tr>
+              <tr><td><code>icon_set</code></td><td>string</td><td>No</td><td>Icon set the theme renders entity icons in: <code>fa</code>, <code>tabler</code>, <code>ph</code>, or a Phosphor weight (<code>ph-thin</code>, <code>ph-light</code>, <code>ph-bold</code>, <code>ph-fill</code>, <code>ph-duotone</code>). Empty or absent means Material Design. Icons without an equivalent stay Material Design; per-entity icon picks and the widget's own Icon set preference override the theme. Editable in the panel theme info for user themes.</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>Unknown fields and unknown variable names are silently ignored, which makes themes forward-compatible. Only use variable names from the published list below.</p>
+        <h3>Theme zip format</h3>
+        <p>Import and export use a <code>.zip</code> file. The zip can contain:</p>
+        <ul>
+          <li><code>theme.json</code> (required) - the theme definition.</li>
+          <li><code>renderer.js</code> (optional) - a custom renderer override. Replaces built-in card renderers when this theme is active.</li>
+          <li><code>*.woff</code> or <code>*.woff2</code> (optional) - custom font files. Up to 8 files. See <a href="#text-fonts">Custom fonts</a> below.</li>
+          <li><code>thumbnail.png</code> or <code>thumbnail.jpg</code> (optional) - a preview image shown in the theme picker.</li>
+        </ul>
+        <p>The zip file itself can be named anything (e.g. <code>my-cool-theme.zip</code>). Maximum upload size is 10 MB. When <code>renderer.js</code> is present, the panel shows a renderer consent dialog before completing every import, including overwrites. Exporting a theme produces a zip in the same format, including any thumbnail, fonts, and renderer associated with it.</p>
+
+        <p>HArvest validates the archive's runtime asset files before installing or overwriting the theme. Font files must use a basename ending in <code>.woff</code> or <code>.woff2</code>, and their contents must match that format. Renderer files must contain valid UTF-8 JavaScript. Invalid runtime assets are rejected without changing the installed theme.</p>
+
+        <p>Advanced users may copy matching files directly into <code>custom_components/harvest/themes/user/</code> and <code>custom_components/harvest/renderers/user/</code>. The theme and renderer filenames must use the same theme ID. Direct filesystem copies do not pass through the import dialog and may be overwritten by an integration update. Renderers remain disabled until the integration-wide renderer consent gate has been accepted, and theme reloads do not bypass that gate.</p>
+
+        <p>Unknown top-level fields are preserved or ignored depending on the operation. Theme variables are applied when their names are valid CSS custom properties beginning with <code>--</code>; unsafe values containing <code>url()</code>, <code>expression()</code>, or <code>@import</code> are ignored by the widget. Use the published <code>--hrv-</code> variables below for stable, supported styling.</p>
+
+        <h3 id="custom-fonts">Custom fonts</h3>
+        <p>Themes can bundle custom fonts to give cards a distinctive typeface. This is useful when your theme's visual identity depends on a specific font that users won't have installed locally.</p>
+
+        <h4 id="text-fonts">Bundled fonts</h4>
+        <p>Bundle a WOFF2 font file inside the theme zip. The widget injects <code>@font-face</code> rules into the page so the font is available inside card shadow DOMs.</p>
+
+        <p><strong>Step 1:</strong> Place your <code>.woff2</code> file alongside <code>theme.json</code> in the zip:</p>
+<pre><code>theme.json
+nunito.woff2</code></pre>
+
+        <p>Variable fonts (a single file covering multiple weights) are recommended. They keep the zip small and require only one <code>custom_fonts</code> entry.</p>
+
+        <p><strong>Step 2:</strong> Add a <code>custom_fonts</code> array to your <code>theme.json</code>:</p>
+<pre><code class="language-json">{
+  "name": "My Theme",
+  "harvest_version": 1,
+  "custom_fonts": [
+    {
+      "family": "Nunito",
+      "url": "nunito.woff2",
+      "weight": "200 1000",
+      "style": "normal"
+    }
+  ],
+  "variables": {
+    "--hrv-font-family": "'Nunito', system-ui, sans-serif"
+  }
+}</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>family</code></td><td>Yes</td><td>The printable CSS font-family name to register, up to 100 characters</td></tr>
+              <tr><td><code>url</code></td><td>Yes</td><td>Basename of the <code>.woff</code> or <code>.woff2</code> file in the zip</td></tr>
+              <tr><td><code>weight</code></td><td>No</td><td><code>normal</code>, <code>bold</code>, a numeric weight from 1 to 1000, or a numeric range such as <code>"200 800"</code>. Defaults to <code>"normal"</code>.</td></tr>
+              <tr><td><code>style</code></td><td>No</td><td><code>normal</code>, <code>italic</code>, or <code>oblique</code>. Defaults to <code>"normal"</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>Step 3:</strong> Reference the font in <code>--hrv-font-family</code>, quoted, with fallbacks:</p>
+<pre><code class="language-json">"--hrv-font-family": "'Nunito', system-ui, sans-serif"</code></pre>
+        <p>Always include fallback fonts. Custom fonts load asynchronously with <code>font-display: swap</code> - text renders immediately in the fallback and swaps once the font is ready.</p>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Finding free fonts</span>
+          <p><a href="https://fonts.google.com" target="_blank" rel="noopener noreferrer">Google Fonts</a> has thousands of freely licensed fonts. To get the WOFF2 URL, request the CSS, as in this example:</p>
+
+            <p><code>curl -H "User-Agent: Mozilla/5.0" "https://fonts.googleapis.com/css2?family=Font-name:wght@400;700&amp;display=swap"</code></p>
+
+            <p>The response will contain the direct download URLs for your font.</p>
+        </div>
+
+        <p>If your theme needs separate files for different styles (e.g. regular and italic), add multiple entries to the array. Each gets its own <code>@font-face</code> rule.</p>
+
+        <p><strong>Updating fonts:</strong> There is no separate font upload UI. To change fonts on an installed theme, export the zip, replace or add font files, update <code>custom_fonts</code> in <code>theme.json</code>, and re-import with overwrite enabled.</p>
+
+        <h4 id="google-fonts">Alternative: Google Fonts CSS</h4>
+        <p>Instead of bundling a font file, you can load fonts from Google Fonts by adding a <code>&lt;link&gt;</code> tag to your page. The <code>@font-face</code> rules from Google's stylesheet are global and apply inside shadow DOMs via <code>font-family</code> inheritance, so no <code>custom_fonts</code> array is needed.</p>
+
+        <p><strong>Step 1:</strong> Add the Google Fonts stylesheet to your page's <code>&lt;head&gt;</code>:</p>
+<pre><code class="language-html">&lt;link rel="preconnect" href="https://fonts.googleapis.com"&gt;
+&lt;link rel="preconnect" href="https://fonts.gstatic.com" crossorigin&gt;
+&lt;link href="https://fonts.googleapis.com/css2?family=Nunito:wght@200..1000&amp;display=swap" rel="stylesheet"&gt;</code></pre>
+        <p>In WordPress, add these through a child theme or a trusted header-injection plugin. Editing a parent theme's <code>header.php</code> directly can be overwritten by theme updates. If your site uses Content Security Policy, allow the Google Fonts stylesheet and font origins as well.</p>
+
+        <p><strong>Step 2:</strong> Reference the font in your theme's <code>--hrv-font-family</code> variable:</p>
+<pre><code class="language-json">{
+  "name": "My Theme",
+  "harvest_version": 1,
+  "variables": {
+    "--hrv-font-family": "'Nunito', system-ui, sans-serif"
+  }
+}</code></pre>
+
+        <div class="callout callout-info">
+          <span class="callout-label">Bundled vs. Google Fonts</span>
+          <p><strong>Bundled fonts</strong> are self-contained - these themes will work offline and on any site without extra setup. <strong>Google Fonts</strong> are lighter to distribute (no woff2 in the zip) but require an internet connection and a page-level <code>&lt;link&gt;</code> tag on every site that uses the theme. Bundled fonts are recommended for shared themes; Google Fonts work well for personal use on sites you control.</p>
+        </div>
 
         <h2 id="css-variables">CSS variable reference</h2>
 
@@ -244,122 +353,123 @@ hrv-card::part(brightness-slider) {
   }
 }</code></pre>
 
-        <p>If <code>dark_variables</code> is omitted entirely, the same values are used in both modes. A theme that only specifies light-mode colors will look identical in dark mode.</p>
+        <p>If <code>dark_variables</code> is omitted entirely, the same values are used in both modes.</p>
 
         <h2 id="parts">Named parts (::part() selectors)</h2>
 
-        <p>Use <code>hrv-card::part(name)</code> in your host page CSS to target elements inside the Shadow DOM. Parts that aren't listed below are implementation details and may change between versions.</p>
+        <p>Use <code>hrv-card::part(name)</code> in your host page CSS to target elements inside the Shadow DOM. This inventory is derived directly from the built-in renderer source. A part is present only when the active renderer, capability, feature set, display mode, or card configuration emits its element.</p>
 
-        <h3>Universal parts - all renderers</h3>
+        <h3>Shared regular-card parts</h3>
+        <p>These shell and helper parts are used across regular card renderers. Badge cards use their own shell.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Part name</th><th>Element</th></tr></thead>
             <tbody>
               <tr><td><code>card</code></td><td>Outer card container</td></tr>
               <tr><td><code>card-header</code></td><td>Name and icon row</td></tr>
-              <tr><td><code>card-name</code></td><td>Entity friendly name text</td></tr>
-              <tr><td><code>card-icon</code></td><td>Primary entity icon (SVG)</td></tr>
-              <tr><td><code>card-body</code></td><td>Controls area below the header</td></tr>
-              <tr><td><code>state-label</code></td><td>Current state text</td></tr>
-              <tr><td><code>stale-indicator</code></td><td>Offline/stale full-card overlay</td></tr>
-              <tr><td><code>error-message</code></td><td>Error text container</td></tr>
-              <tr><td><code>companion-zone</code></td><td>Container for companion entity pills</td></tr>
-              <tr><td><code>companion-icon</code></td><td>Individual companion entity icon</td></tr>
-              <tr><td><code>history-graph</code></td><td>SVG graph container (sensor entities)</td></tr>
+              <tr><td><code>card-name</code></td><td>Entity friendly name</td></tr>
+              <tr><td><code>card-icon</code></td><td>Primary entity icon</td></tr>
+              <tr><td><code>card-body</code></td><td>Main controls or state area</td></tr>
+              <tr><td><code>state-label</code></td><td>Current state text, when the renderer displays one</td></tr>
+              <tr><td><code>stale-indicator</code></td><td>Stale or offline overlay</td></tr>
+              <tr><td><code>a11y-announce</code></td><td>Visually hidden live region for screen-reader updates</td></tr>
+              <tr><td><code>control</code></td><td>Fallback part assigned to a gesture target that has no explicit part</td></tr>
+              <tr><td><code>companion-zone</code></td><td>Companion container, when companions are configured</td></tr>
+              <tr><td><code>companion</code></td><td>Individual companion pill</td></tr>
+              <tr><td><code>companion-icon</code></td><td>Companion icon</td></tr>
+              <tr><td><code>companion-state</code></td><td>Companion state text</td></tr>
+              <tr><td><code>history-graph</code></td><td>History graph container, when graph display is enabled</td></tr>
+              <tr><td><code>history-svg</code></td><td>SVG element inside the history graph</td></tr>
             </tbody>
           </table>
         </div>
 
-        <h3>Light and switch renderer</h3>
+        <h3>Row-layout parts</h3>
+        <p>These parts appear only in renderers that provide a compact row representation for <code>&lt;hrv-entities-block&gt;</code>.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Part name</th><th>Element</th></tr></thead>
             <tbody>
-              <tr><td><code>toggle-button</code></td><td>On/off toggle</td></tr>
-              <tr><td><code>brightness-slider</code></td><td>Brightness range input (0-255)</td></tr>
-              <tr><td><code>color-temp-slider</code></td><td>Color temperature range input</td></tr>
+              <tr><td><code>row-control</code></td><td>Row-mode control or value container</td></tr>
+              <tr><td><code>row-toggle</code></td><td>Row-mode toggle used by light, switch, input boolean, fan, and lock cards</td></tr>
+              <tr><td><code>row-state</code></td><td>Row-mode read-only state used by light, switch, input boolean, fan, cover, and lock cards</td></tr>
+              <tr><td><code>row-value</code></td><td>Row-mode value used by sensors, binary sensors, person, and generic cards</td></tr>
+              <tr><td><code>row-press-btn</code></td><td>Row-mode Press button used by button and input button cards</td></tr>
+              <tr><td><code>row-run-btn</code></td><td>Row-mode Run button used by script cards</td></tr>
+              <tr><td><code>row-trigger-btn</code></td><td>Row-mode Trigger button used by automation cards</td></tr>
+              <tr><td><code>row-enable-btn</code></td><td>Row-mode enable toggle used by automation cards</td></tr>
             </tbody>
           </table>
         </div>
 
-        <h3>Fan renderer</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
-            <tbody>
-              <tr><td><code>fan-icon</code></td><td>Fan SVG icon (spins when the Animate display setting is enabled and entity is on)</td></tr>
-              <tr><td><code>speed-slider</code></td><td>Speed percentage range input</td></tr>
-              <tr><td><code>oscillate-button</code></td><td>Oscillate on/off button</td></tr>
-              <tr><td><code>direction-buttons</code></td><td>Container for forward/reverse buttons</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Climate renderer</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
-            <tbody>
-              <tr><td><code>mode-buttons</code></td><td>Container for HVAC mode button row</td></tr>
-              <tr><td><code>mode-button</code></td><td>Individual HVAC mode button</td></tr>
-              <tr><td><code>current-temp</code></td><td>Current temperature read-only display</td></tr>
-              <tr><td><code>target-temp</code></td><td>Target temperature numeric display</td></tr>
-              <tr><td><code>temp-up-button</code></td><td>Increase target temperature</td></tr>
-              <tr><td><code>temp-down-button</code></td><td>Decrease target temperature</td></tr>
-              <tr><td><code>fan-mode-select</code></td><td>Fan mode dropdown</td></tr>
-              <tr><td><code>preset-select</code></td><td>Preset mode dropdown</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Cover renderer</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
-            <tbody>
-              <tr><td><code>open-button</code></td><td>Open action button</td></tr>
-              <tr><td><code>close-button</code></td><td>Close action button</td></tr>
-              <tr><td><code>stop-button</code></td><td>Stop action button</td></tr>
-              <tr><td><code>position-slider</code></td><td>Position range input (0-100)</td></tr>
-              <tr><td><code>cover-controls</code></td><td>Row container for the three action buttons</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Media player renderer</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
-            <tbody>
-              <tr><td><code>track-title</code></td><td>Current track title</td></tr>
-              <tr><td><code>track-artist</code></td><td>Current track artist</td></tr>
-              <tr><td><code>track-source</code></td><td>Current source/input</td></tr>
-              <tr><td><code>play-button</code></td><td>Play/pause toggle</td></tr>
-              <tr><td><code>next-button</code></td><td>Next track</td></tr>
-              <tr><td><code>previous-button</code></td><td>Previous track</td></tr>
-              <tr><td><code>volume-slider</code></td><td>Volume range input</td></tr>
-              <tr><td><code>mute-button</code></td><td>Mute toggle</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>Other renderers</h3>
+        <h3>Renderer-specific parts</h3>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Renderer</th><th>Part names</th></tr></thead>
             <tbody>
-              <tr><td>Input number</td><td><code>value-display</code>, <code>number-slider</code></td></tr>
-              <tr><td>Input select</td><td><code>option-select</code></td></tr>
-              <tr><td>Remote</td><td><code>activity-buttons</code>, <code>activity-button</code>, <code>command-input</code>, <code>send-button</code></td></tr>
-              <tr><td>Timer</td><td><code>timer-display</code>, <code>state-label</code>, <code>start-button</code>, <code>pause-button</code>, <code>cancel-button</code>, <code>finish-button</code></td></tr>
-              <tr><td>harvest_action</td><td><code>action-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> Light</td><td><code>toggle-button</code>, <code>brightness-slider</code>, <code>brightness-value</code>, <code>color-slider</code>, <code>color-temp-slider</code>, <code>color-temp-value</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-toggle-switch"></span> Switch and input boolean</td><td><code>toggle-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-fan"></span> Fan</td><td><code>toggle-button</code>, <code>speed-slider</code>, <code>speed-value</code>, <code>cycle-button</code>, <code>preset-button</code>, <code>oscillate-button</code>, <code>direction-select</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-window-shutter"></span> Cover</td><td><code>cover-controls</code>, <code>open-button</code>, <code>close-button</code>, <code>stop-button</code>, <code>position-slider</code>, <code>position-value</code>, <code>tilt-slider</code>, <code>tilt-value</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-thermostat"></span> Climate</td><td><code>current-temp</code>, <code>mode-select</code>, <code>target-temp-input</code>, <code>target-temp-low-input</code>, <code>target-temp-high-input</code>, <code>fan-mode-label</code>, <code>fan-mode-select</code>, <code>preset-label</code>, <code>preset-select</code>, <code>swing-label</code>, <code>swing-select</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> Media player</td><td><code>media-title</code>, <code>media-artist</code>, <code>power-button</code>, <code>prev-button</code>, <code>play-button</code>, <code>next-button</code>, <code>mute-button</code>, <code>volume-down-button</code>, <code>volume-slider</code>, <code>volume-up-button</code>, <code>source-select</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-ray-vertex"></span> Input number</td><td><code>value-slider</code>, <code>value-input</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-form-select"></span> Input select and select</td><td><code>option-grid</code>, <code>option-pill</code>, <code>option-trigger</code>, <code>option-trigger-label</code>, <code>option-trigger-arrow</code>, <code>option-menu</code>, <code>option-menu-item</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> Remote</td><td><code>power-toggle</code>, <code>activity-select</code>, <code>current-activity</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-timer-outline"></span> Timer</td><td><code>timer-display</code>, <code>playpause-button</code>, <code>cancel-button</code>, <code>finish-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-eye"></span> Sensor</td><td><code>sensor-value</code>, <code>sensor-unit</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-battery"></span> Battery sensor</td><td><code>battery-icon-wrap</code>, <code>sensor-value</code>, <code>sensor-unit</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> Lock</td><td><code>lock-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-gesture-tap-button"></span> Button and input button</td><td><code>press-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-script-text"></span> Script</td><td><code>run-button</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-robot"></span> Automation</td><td><code>trigger-button</code>, <code>enable-toggle</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Binary sensor, person, and generic display-only cards add no renderer-specific parts beyond the shared and applicable row-layout parts.</p>
+
+        <h3>Weather renderer parts</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
+            <tbody>
+              <tr><td><code>weather-main</code></td><td>Current-condition layout container</td></tr>
+              <tr><td><code>weather-icon</code></td><td>Current-condition icon</td></tr>
+              <tr><td><code>weather-temp</code></td><td>Current temperature value and unit container</td></tr>
+              <tr><td><code>weather-temp-unit</code></td><td>Temperature unit suffix</td></tr>
+              <tr><td><code>weather-condition</code></td><td>Translated condition text</td></tr>
+              <tr><td><code>weather-details</code></td><td>Current-condition statistics container</td></tr>
+              <tr><td><code>weather-stat</code></td><td>Individual humidity, wind, or pressure statistic</td></tr>
+              <tr><td><code>forecast-toggle</code></td><td>Daily and hourly forecast mode toggle, when both modes are available</td></tr>
+              <tr><td><code>forecast-strip</code></td><td>Daily or hourly forecast container</td></tr>
+              <tr><td><code>forecast-day</code></td><td>Individual forecast item</td></tr>
+              <tr><td><code>forecast-day-name</code></td><td>Day or hour label</td></tr>
+              <tr><td><code>forecast-temps</code></td><td>Forecast temperature values</td></tr>
+              <tr><td><code>forecast-temp-low</code></td><td>Daily low-temperature value</td></tr>
+              <tr><td><code>forecast-scroll-track</code></td><td>Custom scrollbar track for hourly forecasts</td></tr>
+              <tr><td><code>forecast-scroll-thumb</code></td><td>Custom scrollbar thumb for hourly forecasts</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Badge renderer parts</h3>
+        <p>Badge cards use a different shell from regular cards.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Part name</th><th>Element</th></tr></thead>
+            <tbody>
+              <tr><td><code>badge</code></td><td>Outer badge pill</td></tr>
+              <tr><td><code>badge-icon</code></td><td>Badge icon</td></tr>
+              <tr><td><code>badge-text</code></td><td>Badge text container</td></tr>
+              <tr><td><code>badge-name</code></td><td>Friendly name</td></tr>
+              <tr><td><code>badge-state</code></td><td>State text</td></tr>
             </tbody>
           </table>
         </div>
 
         <h2 id="bundled-themes">Bundled themes</h2>
 
-        <p>HArvest ships four themes. They're available in the panel theme picker without any import needed.</p>
+        <p>HArvest ships five themes. They're available in the panel theme picker without any import needed.</p>
 
         <div class="table-wrap">
           <table>
@@ -379,11 +489,11 @@ hrv-card::part(brightness-slider) {
               </tr>
               <tr>
                 <td><strong>Minimus</strong></td>
-                <td>Reference implementation of theme-pack coupling. Includes <code>"renderer_pack": "minimus"</code> which activates alternative card layouts for supported entity types. The pack's custom CSS variables (<code>--hrv-ex-*</code>) are only defined in this theme, so the pack and theme are always used together.</td>
+                <td>Reference implementation of theme-renderer coupling. Includes a bundled <code>renderer.js</code> that activates alternative card layouts for supported entity types. The renderer's custom CSS variables (<code>--hrv-ex-*</code>) are only defined in this theme, so the renderer and theme are always used together.</td>
               </tr>
               <tr>
                 <td><strong>Shrooms</strong></td>
-                <td>Mushroom-inspired renderer pack theme. Clean horizontal layout with circular colored icon shapes, pill-shaped sliders, and collapsible controls. Covers all 15 card domains. Per-domain accent colors, full dark mode support. Includes <code>"renderer_pack": "shrooms"</code>. Inspired by the Mushroom Cards Lovelace card set by Paul Bottein.</td>
+                <td>Mushroom-inspired renderer theme. Clean horizontal layout with circular colored icon shapes, pill-shaped sliders, and collapsible controls. Covers all 15 card domains. Per-domain accent colors, full dark mode support. Includes a bundled <code>renderer.js</code>. Inspired by the Mushroom Cards Lovelace card set by Paul Bottein.</td>
               </tr>
             </tbody>
           </table>
@@ -406,7 +516,41 @@ hrv-card::part(brightness-slider) {
         </ul>
 
         <h3>Sharing themes</h3>
-        <p>Click <strong>Export JSON</strong> on any theme to download it as a <code>.json</code> file. Anyone can import it on their own HArvest instance via the Themes tab <strong>Import</strong> button. This is how third-party themes are distributed.</p>
+        <p>Click <strong>Export .zip</strong> on any theme to download it as a <code>.zip</code> file containing <code>theme.json</code> and, if applicable, <code>renderer.js</code>. Anyone can import it on their own HArvest instance via the Themes tab <strong>Import .zip</strong> button. This is how third-party themes are distributed.</p>
+
+        <h2 id="contributed-themes">User-contributed themes</h2>
+
+        <p>Beyond the five bundled themes, HArvest ships a growing collection of extra community themes in a <strong>User Contributed Themes</strong> directory. These are not installed automatically - you import the ones you want through the panel.</p>
+
+        <p>Where to find the directory:</p>
+        <ul>
+          <li>Inside the <code>release.zip</code> attached to each <a href="https://github.com/sfox38/HArvest/releases" target="_blank" rel="noopener noreferrer">GitHub release</a>, in the <code>User Contributed Themes/</code> folder.</li>
+          <li>Or browse and download it directly from the <a href="https://github.com/sfox38/HArvest/tree/main/User%20Contributed%20Themes" target="_blank" rel="noopener noreferrer">repository on GitHub</a>.</li>
+        </ul>
+
+        <p>Each theme is provided as a ready-to-import <code>.zip</code> (for example <code>neu.zip</code> or <code>material-eww.zip</code>) alongside an unpacked folder of the same name. To install one, open the panel's <strong>Themes</strong> tab, click <strong>Import .zip</strong>, and choose the theme's <code>.zip</code> file. It then appears in the theme picker like any other theme and can be assigned to tokens. Themes that include a <code>renderer.js</code> also bring their own card layouts (see <a href="#renderer-distribution">distributing a theme with a renderer</a>).</p>
+
+        <p>Themes currently included: (more themes to be added regularly)</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Theme</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Material Eww</strong></td>
+                <td>Material Design 3 inspired palette with rounded surfaces and a custom bundled font.</td>
+              </tr>
+              <tr>
+                <td><strong>Neu</strong></td>
+                <td>Neumorphism-inspired theme with physical-feeling controls. Dual box shadows create extruded and inset surfaces, with a gray-only palette. Includes a renderer.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Keeping a contributed theme up to date</span>
+          <p>These themes live in the repository rather than being delivered through HACS, so they do not auto-update with the integration. To pick up a newer version, download the latest <code>.zip</code> and import it again - the panel will offer to replace your existing copy.</p>
+        </div>
 
         <h2 id="custom-renderers">Custom renderers</h2>
 
@@ -419,14 +563,14 @@ hrv-card::part(brightness-slider) {
           <table>
             <thead><tr><th>Method</th><th>When called</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>render(definition, shadowRoot)</code></td><td>Once, on card creation</td><td>Build the shadow DOM. Set up event listeners. Called when the entity definition arrives.</td></tr>
+              <tr><td><code>render()</code></td><td>Once, on card creation</td><td>Build the shadow DOM using <code>this.root</code> and <code>this.def</code>. Set up event listeners. Called when the entity definition arrives.</td></tr>
               <tr><td><code>applyState(state, attributes)</code></td><td>Every state change</td><td>Update the UI to reflect the new entity state. Should be fast - avoid full re-renders.</td></tr>
               <tr><td><code>predictState(action, data)</code></td><td>When user triggers an action</td><td>Optional. Return an optimistic state object for instant UI feedback before the server confirms the action. Return <code>null</code> to skip.</td></tr>
             </tbody>
           </table>
         </div>
 
-        <p>The <code>definition</code> object passed to <code>render()</code>:</p>
+        <p>The entity definition is available as <code>this.def</code> inside <code>render()</code>:</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
@@ -440,7 +584,7 @@ hrv-card::part(brightness-slider) {
               <tr><td><code>feature_config</code></td><td>object</td><td>Feature-specific config (e.g. min/max color temp)</td></tr>
               <tr><td><code>gesture_config</code></td><td>object</td><td>Tap/hold/double-tap action config</td></tr>
               <tr><td><code>companions</code></td><td>string[]</td><td>List of companion entity refs</td></tr>
-              <tr><td><code>graph</code></td><td>"line" | "bar" | null</td><td>History graph type</td></tr>
+              <tr><td><code>graph</code></td><td>"line" | "bar" | "step" | null</td><td>History graph type. Step is available for binary sensors.</td></tr>
               <tr><td><code>hours</code></td><td>number</td><td>History graph time window</td></tr>
               <tr><td><code>animate</code></td><td>boolean</td><td>Animate fan icon</td></tr>
             </tbody>
@@ -449,13 +593,12 @@ hrv-card::part(brightness-slider) {
 
         <h3>Extending a built-in renderer</h3>
         <pre><code class="language-javascript">class MyLightCard extends HArvest.renderers.LightCard {
-  render(definition, shadowRoot) {
-    super.render(definition, shadowRoot);
-    // Add something after the standard controls
+  render() {
+    super.render();
     const note = document.createElement("p");
     note.textContent = "Custom footer text";
     note.style.cssText = "font-size: 11px; opacity: 0.6; margin-top: 8px;";
-    shadowRoot.querySelector("[part=card-body]").appendChild(note);
+    this.root.querySelector("[part=card-body]").appendChild(note);
   }
 }
 
@@ -465,8 +608,8 @@ HArvest.registerRenderer("light", MyLightCard);</code></pre>
         <pre><code class="language-javascript">class MinimalLightCard extends HArvest.renderers.BaseCard {
   #toggleBtn = null;
 
-  render(definition, shadowRoot) {
-    shadowRoot.innerHTML = `
+  render() {
+    this.root.innerHTML = `
       &lt;style&gt;
         :host {
           display: block;
@@ -492,14 +635,14 @@ HArvest.registerRenderer("light", MyLightCard);</code></pre>
         }
       &lt;/style&gt;
       &lt;div part="card"&gt;
-        &lt;div part="card-name" class="name"&gt;${definition.friendly_name}&lt;/div&gt;
+        &lt;div part="card-name" class="name"&gt;${HArvest.esc(this.def.friendly_name)}&lt;/div&gt;
         &lt;button part="toggle-button" type="button"&gt;Toggle&lt;/button&gt;
       &lt;/div&gt;
     `;
 
-    this.#toggleBtn = shadowRoot.querySelector("[part=toggle-button]");
+    this.#toggleBtn = this.root.querySelector("[part=toggle-button]");
     this.#toggleBtn.addEventListener("click", () =&gt; {
-      this.sendCommand("toggle");
+      this.config.card?.sendCommand("toggle");
     });
   }
 
@@ -526,13 +669,15 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
           <table>
             <thead><tr><th>Method / Property</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>this.sendCommand(action, data)</code></td><td>Send a service call to HA via the WebSocket. Data is merged with entity_id automatically.</td></tr>
+              <tr><td><code>this.config.card?.sendCommand(action, data)</code></td><td>Send a service call to HA via the WebSocket. Data is merged with entity_id automatically.</td></tr>
+              <tr><td><code>HArvest.esc(value)</code></td><td>Escape user-provided text before inserting it into an HTML template. It is not needed when assigning through <code>textContent</code>.</td></tr>
               <tr><td><code>this.renderIcon(mdiIconPath, partName)</code></td><td>Render an MDI SVG icon path into a <code>[part=partName]</code> element.</td></tr>
               <tr><td><code>this.renderCompanionZoneHTML()</code></td><td>Returns HTML string for the companion entity zone container.</td></tr>
               <tr><td><code>this.renderCompanions()</code></td><td>Populates the companion zone after <code>render()</code> has run.</td></tr>
-              <tr><td><code>this.getSharedStyles()</code></td><td>Returns the shared base CSS string (resets, variable declarations, stale overlay).</td></tr>
+              <tr><td><em>(no helper)</em></td><td>Shared base CSS (resets, variable declarations, companion zone, stale overlay) is adopted into every renderer's shadow root automatically by <code>BaseCard</code> via <code>adoptedStyleSheets</code>.</td></tr>
               <tr><td><code>this.debounce(fn, ms)</code></td><td>Returns a debounced version of <code>fn</code>. Use for slider inputs.</td></tr>
-              <tr><td><code>this.def</code></td><td>The entity definition object (same as the <code>definition</code> param to <code>render()</code>).</td></tr>
+              <tr><td><code>this.root</code></td><td>The card's shadow root. Use to build and query the shadow DOM in <code>render()</code>.</td></tr>
+              <tr><td><code>this.def</code></td><td>The entity definition object, available once <code>render()</code> is called.</td></tr>
               <tr><td><code>this.lastState</code></td><td>Last known entity state string.</td></tr>
               <tr><td><code>this.lastAttributes</code></td><td>Last known entity attributes object.</td></tr>
               <tr><td><code>this.i18n.t(key)</code></td><td>Translate a string key to the current language.</td></tr>
@@ -545,27 +690,26 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
           <p>Custom renderers are display-only. They cannot bypass server-side entity permission enforcement. A custom renderer for <code>alarm_control_panel</code> won't receive data for that entity - the integration blocks Tier 3 domains at the protocol level regardless of what the renderer requests.</p>
         </div>
 
-        <h2 id="renderer-packs">Renderer packs</h2>
+        <h2 id="renderer-overrides">Renderer overrides</h2>
 
-        <p>A renderer pack is a JavaScript file that registers multiple custom renderers at once. Packs are designed to be distributed independently of the widget library and loaded on demand by the server.</p>
+        <p>A renderer override is a <code>renderer.js</code> file bundled inside a theme zip. It registers multiple custom renderers at once. Renderer overrides apply only to the theme they ship with - activating a different theme deactivates the override.</p>
 
         <p>The key difference from calling <code>HArvest.registerRenderer()</code> directly in a page:</p>
         <ul>
-          <li>Pack renderers apply only to tokens that have the pack enabled, not to all cards on the page.</li>
-          <li>Packs are enabled server-side by associating them with a theme - no page-level HTML change needed.</li>
-          <li>The server tells the widget which pack to load during authentication. The widget fetches and executes the pack script automatically.</li>
+          <li>Renderer overrides apply only to tokens assigned the theme that includes the override, not to all cards on the page.</li>
+          <li>The server activates the override automatically when the widget authenticates with a token using that theme.</li>
+          <li>No page-level HTML change is needed by the site owner.</li>
         </ul>
 
-        <h3>Pack registry namespace</h3>
-        <p>Pack renderers are registered into <code>window.HArvest._packs[packId]</code> - a separate namespace from the global renderer registry. This keeps pack renderers scoped to the tokens using that pack:</p>
+        <h3>Renderer registration in renderer.js</h3>
+        <p>Renderers are registered into <code>window.HArvest._renderers[rendererKey]</code> - a separate namespace from the global renderer registry. This keeps renderer overrides scoped to tokens using that theme:</p>
 
-        <pre><code class="language-javascript">// The IIFE pattern is recommended to avoid polluting the global scope
+        <pre><code class="language-javascript">// The IIFE pattern avoids polluting the global scope
 (function () {
   "use strict";
 
-  // Define your renderer classes
   class DialLightCard extends HArvest.renderers.BaseCard {
-    render(definition, shadowRoot) {
+    render() {
       // ... custom dial-based light UI
     }
     applyState(state, attributes) {
@@ -574,7 +718,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
   }
 
   class MinimalFanCard extends HArvest.renderers.BaseCard {
-    render(definition, shadowRoot) {
+    render() {
       // ... compact fan card
     }
     applyState(state, attributes) {
@@ -582,93 +726,58 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
     }
   }
 
-  // Register all renderers under your pack ID
+  // Register using your theme's ID as the renderer key
   window.HArvest = window.HArvest || {};
-  window.HArvest._packs = window.HArvest._packs || {};
-  window.HArvest._packs["my-pack"] = {
+  window.HArvest._renderers = window.HArvest._renderers || {};
+  window.HArvest._renderers["my-theme-id"] = {
     "light": DialLightCard,
     "fan":   MinimalFanCard,
-    // Add more domain keys as needed
-    "sensor.temperature": MyTempCard,  // device-class specific key
+    "sensor.temperature": MyTempCard,
   };
 })();</code></pre>
 
         <h3>Renderer lookup order</h3>
         <p>When a card needs to render, it checks in this order:</p>
         <ol>
-          <li>The active pack's renderer for this domain + device class (e.g. <code>"sensor.temperature"</code>)</li>
-          <li>The active pack's renderer for this domain only (e.g. <code>"sensor"</code>)</li>
+          <li>The active theme's renderer for this domain + device class (e.g. <code>"sensor.temperature"</code>)</li>
+          <li>The active theme's renderer for this domain only (e.g. <code>"sensor"</code>)</li>
           <li>The global registry (renderers registered via <code>HArvest.registerRenderer()</code>)</li>
           <li>Built-in renderer for the domain</li>
           <li>Generic Tier 2 fallback</li>
         </ol>
 
-        <h3>Pack keys</h3>
-        <p>Keys in the pack object are domain strings or domain.device_class strings:</p>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Key format</th><th>Example</th><th>Matches</th></tr></thead>
-            <tbody>
-              <tr><td><code>"domain"</code></td><td><code>"light"</code></td><td>All entities in that domain</td></tr>
-              <tr><td><code>"domain.device_class"</code></td><td><code>"sensor.temperature"</code></td><td>Only entities with that exact domain and device class</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <h3>Re-render on activation</h3>
+        <p>When a renderer override is activated, the widget automatically re-renders all active cards. Cached state and history data are replayed so cards populate immediately without waiting for the next state update.</p>
 
-        <p>Device-class-specific keys take priority over plain domain keys within a pack.</p>
+        <h2 id="renderer-wiring">Pairing a renderer with a theme</h2>
 
-        <h3>Re-render on pack load</h3>
-        <p>When a pack is loaded, the widget automatically re-renders all active cards using the new renderers. Cached state and history data are replayed so cards populate immediately without waiting for the next state update.</p>
-
-        <h2 id="pack-wiring">Wiring a pack to a theme</h2>
-
-        <p>Themes and packs are coupled via the <code>renderer_pack</code> field in the theme JSON. When a widget connects and the server sends the theme, it also sends the associated pack URL. When the theme changes, the pack changes with it.</p>
+        <p>Bundle your theme definition and renderer into a <code>.zip</code> file and import it via the Themes tab. The files inside the zip must be named exactly <code>theme.json</code> and <code>renderer.js</code> - these are fixed filenames, not placeholders. The zip file itself can be named anything (e.g. <code>dial-theme.zip</code>).</p>
 
         <pre><code class="language-json">{
   "name": "Dial Theme",
   "harvest_version": 1,
+  "description": "Dial-based light cards and compact fan controls",
   "variables": {
     "--hrv-color-primary": "#00bcd4",
     "--hrv-color-surface": "#1a1a2e",
     "--hrv-color-text": "#e0e0ff"
-  },
-  "renderer_pack": "my-pack"
+  }
 }</code></pre>
 
-        <p>The value of <code>renderer_pack</code> is a pack ID - a short string you define. The pack ID maps to the URL where the pack script is hosted. This mapping is stored in the HArvest integration's pack registry (configured in the panel Settings).</p>
+        <p>The <code>has_renderer</code> flag is set automatically on import when <code>renderer.js</code> is present in the zip. You do not need to set it manually.</p>
 
-        <p>The flow when a widget connects to a token with a pack-coupled theme:</p>
-        <ol>
-          <li>Server sends the theme's CSS variables to the widget</li>
-          <li>Server sends a <code>renderer_pack</code> message with the pack URL</li>
-          <li>Widget fetches and executes the pack script via dynamic <code>&lt;script&gt;</code> tag injection</li>
-          <li>Pack script registers its renderers under <code>HArvest._packs["my-pack"]</code></li>
-          <li>Widget re-renders all active cards using the pack renderers</li>
-        </ol>
+        <h2 id="renderer-distribution">Distributing a theme with a renderer</h2>
 
-        <p>When the admin changes the token's theme to one without a pack, the pack is deactivated and cards re-render with the default renderers.</p>
-
-        <h2 id="pack-distribution">Distributing a pack</h2>
-
-        <p>A renderer pack is just a JavaScript file. Host it anywhere accessible over HTTPS:</p>
+        <p>A theme with a renderer override is distributed as a single <code>.zip</code> file. The zip always contains <code>theme.json</code> (required) and <code>renderer.js</code> (the custom renderer). It may also include <code>.woff2</code> font files and a <code>thumbnail.png</code> or <code>thumbnail.jpg</code> (preview image). Name the zip file itself after your theme (e.g. <code>dial-theme.zip</code>).</p>
         <ul>
-          <li><strong>GitHub + jsDelivr</strong> - put the file in your repo and use a jsDelivr URL like <code>https://cdn.jsdelivr.net/gh/username/repo@version/my-pack.js</code></li>
-          <li><strong>GitHub Pages</strong> - serve it from your own GitHub Pages site</li>
-          <li><strong>Any CDN or web host</strong> - S3, Netlify, Cloudflare Pages, etc.</li>
+          <li>Share the <code>.zip</code> directly (GitHub release, repo attachment, etc.)</li>
+          <li>Users import it via the HArvest panel Themes tab - Import .zip</li>
+          <li>The panel shows a renderer consent dialog before completing every import or overwrite</li>
         </ul>
 
-        <p>To register your pack in a HArvest instance:</p>
-        <ol>
-          <li>Go to <strong>Settings &gt; Themes</strong> in the HArvest panel</li>
-          <li>Open the <strong>Pack Registry</strong> section</li>
-          <li>Add your pack ID and URL</li>
-        </ol>
-
-        <p>To pair the pack with a theme, add <code>"renderer_pack": "your-pack-id"</code> to the theme JSON. Any token assigned that theme will load your pack automatically.</p>
-
         <div class="callout callout-tip">
-          <span class="callout-label">Distributing a theme + pack together</span>
-          <p>Package both the theme JSON and the pack JS file in a GitHub repo. Users import the theme JSON via the Themes tab, register the pack URL in the Pack Registry with the pack ID referenced in the theme's <code>renderer_pack</code> field, and they're done. The theme and pack link up automatically because they share the same pack ID.</p>
+          <span class="callout-label">Distributing theme + renderer together</span>
+          <p>Put both files in a GitHub repo, provide a download link to the zip, and document what the renderer changes. Users import the zip in one step. No separate renderer registry or URL registration needed.</p>
         </div>
 
       </div>

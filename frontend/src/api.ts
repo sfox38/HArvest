@@ -14,25 +14,47 @@ import type {
   TokenUpdateResponse,
   Session,
   ActivityPage,
-  HarvestAction,
-  ServiceCallDef,
   IntegrationConfig,
   PanelStats,
   HourlyBucket,
   HAEntity,
   HAEntityDetail,
   ThemeDefinition,
-  PacksResponse,
+  RenderersResponse,
+  WarningsState,
+  UrlCheckResult,
+  ServiceFieldSchema,
+  HARegistries,
 } from "./types";
 
 const BASE = "/api/harvest";
+
+interface HassAuth {
+  data?: { access_token?: string; expires?: number };
+  refreshAccessToken: () => Promise<void>;
+}
+
+interface HassLike {
+  auth?: HassAuth;
+  themes?: { darkMode?: boolean };
+}
+
+export type ThemeImportResult =
+  | ThemeDefinition
+  | { error: "renderer_consent_required" }
+  | { error: "theme_already_exists"; theme_id: string; name: string };
 
 // ---------------------------------------------------------------------------
 // Hass instance - set by main.tsx, used for auth token + refresh
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _hass: any = null;
+let _hass: HassLike | null = null;
+
+// Readiness gate: _doReq awaits this Promise before any request runs, so any
+// caller firing before HA's first hass push (now or in some future code path)
+// queues until setHass() lands instead of crashing on `_hass.auth` being null.
+let _hassReadyResolve: () => void = () => {};
+const _hassReady: Promise<void> = new Promise(r => { _hassReadyResolve = r; });
 
 let _haDarkMode = false;
 const _darkModeListeners: Array<(dark: boolean) => void> = [];
@@ -47,14 +69,109 @@ export function onHaDarkModeChange(cb: (dark: boolean) => void): () => void {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function setHass(hass: any): void {
+export function setHass(hass: HassLike): void {
   _hass = hass;
+  // Idempotent: subsequent resolve() calls are no-ops on a resolved Promise.
+  _hassReadyResolve();
   const dark = hass?.themes?.darkMode ?? false;
   if (dark !== _haDarkMode) {
     _haDarkMode = dark;
     _darkModeListeners.forEach(cb => cb(dark));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Connectivity state - tracks network reachability of HA
+//
+// Design note: _recoveryTimer is module-scoped and intentionally outlives
+// the panel custom element's mount/unmount cycles. It runs as a single
+// self-chaining timeout (bounded backoff capped at 15s, one tiny /stats
+// fetch per iteration) and self-terminates the moment HA responds OK.
+// If the user navigates away from the panel while HA is offline, the
+// background poll continues until HA recovers - this is a deliberate
+// trade-off: when the user returns to the panel, connectivity state is
+// already accurate. The cost is at most one ~1 KB request every 15s
+// during the (uncommon) "offline at navigate-away" window.
+// ---------------------------------------------------------------------------
+
+let _offline = false;
+let _recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+const _connectivityListeners: Array<(offline: boolean) => void> = [];
+
+export function isOffline(): boolean { return _offline; }
+
+export function onConnectivityChange(cb: (offline: boolean) => void): () => void {
+  _connectivityListeners.push(cb);
+  return () => {
+    const i = _connectivityListeners.indexOf(cb);
+    if (i >= 0) _connectivityListeners.splice(i, 1);
+  };
+}
+
+function _setOffline(v: boolean): void {
+  if (v === _offline) return;
+  _offline = v;
+  _connectivityListeners.forEach(cb => cb(v));
+  if (v && !_recoveryTimer) _startRecoveryPoll();
+  if (!v && _recoveryTimer) { clearTimeout(_recoveryTimer); _recoveryTimer = null; }
+}
+
+function _startRecoveryPoll(): void {
+  let delay = 3000;
+  const poll = () => {
+    fetch(`${BASE}/stats`, {
+      headers: _hass?.auth?.data?.access_token
+        ? { Authorization: `Bearer ${_hass.auth.data.access_token}` }
+        : {},
+    })
+      .then(r => { if (r.ok) _setOffline(false); else throw new Error(); })
+      .catch(() => {
+        delay = Math.min(delay * 1.5, 15000);
+        _recoveryTimer = setTimeout(poll, delay);
+      });
+  };
+  _recoveryTimer = setTimeout(poll, delay);
+}
+
+// ---------------------------------------------------------------------------
+// Coordinated auth-token refresh
+//
+// Multiple panel API calls can fire concurrently (Dashboard's allSettled,
+// rapid clicks, etc.). Without coordination, each one independently calls
+// _hass.auth.refreshAccessToken() when it sees expires-soon or hits 401,
+// producing a refresh storm of redundant network round-trips.
+//
+// _coordinatedRefresh() funnels concurrent callers through a single in-flight
+// refresh. Failures set a 5-second cool-down so a persistently-broken refresh
+// (real session expiry, network down) does not produce 60s worth of repeated
+// attempts on every Dashboard auto-reload tick.
+// ---------------------------------------------------------------------------
+
+let _refreshInflight: Promise<void> | null = null;
+let _refreshFailedUntil = 0;
+const _REFRESH_COOLDOWN_MS = 5_000;
+
+function _coordinatedRefresh(): Promise<void> {
+  if (_refreshInflight) return _refreshInflight;
+  if (Date.now() < _refreshFailedUntil) {
+    return Promise.reject(new Error("auth refresh in cool-down after recent failure"));
+  }
+  if (!_hass?.auth) {
+    return Promise.reject(new Error("hass.auth not available"));
+  }
+  const auth = _hass.auth;
+  _refreshInflight = (async () => {
+    try {
+      await auth.refreshAccessToken();
+      _refreshFailedUntil = 0;
+    } catch (err) {
+      _refreshFailedUntil = Date.now() + _REFRESH_COOLDOWN_MS;
+      throw err;
+    } finally {
+      _refreshInflight = null;
+    }
+  })();
+  return _refreshInflight;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,10 +185,25 @@ async function _doReq<T>(
   retried = false,
   responseType: "json" | "text" = "json",
 ): Promise<T> {
+  // Wait for the first hass push before issuing any request. Today main.tsx
+  // already gates _root.render() on the first setHass() call, so this awaits
+  // an already-resolved Promise on every normal path. The gate exists to
+  // protect future callers (top-level effects, module-init imports, etc.)
+  // from racing the panel's bootstrap.
+  await _hassReady;
+
   if (!retried && _hass?.auth) {
     const expires: number | undefined = _hass.auth.data?.expires;
     if (expires !== undefined && Date.now() > expires - 60_000) {
-      await _hass.auth.refreshAccessToken();
+      // Coordinated: concurrent callers all await the same in-flight refresh.
+      // Failures throw and propagate to the caller as a fetch error.
+      try {
+        await _coordinatedRefresh();
+      } catch {
+        // Fall through; the unrefreshed token may still be valid for one
+        // more request, and the 401-retry path below handles the failure
+        // case with the friendly "session expired" message.
+      }
     }
   }
 
@@ -84,16 +216,38 @@ async function _doReq<T>(
   if (body !== undefined) opts.body = JSON.stringify(body);
 
   const url = path.startsWith("/api/") ? path : `${BASE}${path}`;
-  const res = await fetch(url, opts);
 
-  if (res.status === 401 && !retried && _hass?.auth) {
-    await _hass.auth.refreshAccessToken();
+  let res: Response;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    _setOffline(true);
+    throw err;
+  }
+
+  _setOffline(false);
+
+  // 401 handling: try one refresh, then surface a friendly error rather than
+  // the raw 401 body or an internal "Cannot read properties of null" if the
+  // refresh path itself throws.
+  if (res.status === 401) {
+    if (retried || !_hass?.auth) {
+      throw new Error("Your session has expired. Reload the page to log in again.");
+    }
+    try {
+      await _coordinatedRefresh();
+    } catch {
+      throw new Error("Your session has expired. Reload the page to log in again.");
+    }
     return _doReq<T>(method, path, body, true, responseType);
   }
 
   if (!res.ok) {
-    const reason = await res.text().catch(() => "");
-    throw new Error(`${method} ${path} failed: ${res.status}${reason ? ` - ${reason}` : ""}`);
+    const raw = await res.text().catch(() => "");
+    // Strip the leading HTTP status code the backend sometimes prepends
+    // (e.g. "400: Port must be ...") so the user sees just the message.
+    const reason = raw.replace(/^\d{3}:\s*/, "");
+    throw new Error(reason || `Request failed (HTTP ${res.status}).`);
   }
 
   if (res.status === 204) return undefined as T;
@@ -157,6 +311,9 @@ export const api = {
 
     generateAlias: (entityId: string): Promise<{ entity_id: string; alias: string }> =>
       _post("/alias", { entity_id: entityId }),
+
+    duplicate: (tokenId: string): Promise<Token> =>
+      _post<Token>(`/tokens/${tokenId}/duplicate`, {}),
   },
 
   // ---------------------------------------------------------------------------
@@ -170,8 +327,11 @@ export const api = {
     terminate: (sessionId: string): Promise<void> =>
       _delete(`/sessions/${sessionId}`),
 
-    terminateAll: (tokenId: string): Promise<void> =>
-      _delete(`/sessions`, { token_id: tokenId }),
+    // Pass tokenId to terminate that token's sessions only; pass nothing to
+     // terminate every active session globally (one server-side bulk op,
+     // avoiding N parallel DELETEs from the client).
+    terminateAll: (tokenId?: string): Promise<void> =>
+      _delete(`/sessions`, tokenId ? { token_id: tokenId } : undefined),
   },
 
   // ---------------------------------------------------------------------------
@@ -215,24 +375,6 @@ export const api = {
   },
 
   // ---------------------------------------------------------------------------
-  // Harvest actions
-  // ---------------------------------------------------------------------------
-
-  actions: {
-    list: (): Promise<HarvestAction[]> =>
-      _get<HarvestAction[]>("/actions"),
-
-    create: (data: { label: string; icon: string; service_calls: ServiceCallDef[] }): Promise<HarvestAction> =>
-      _post<HarvestAction>("/actions", data),
-
-    update: (actionId: string, data: Partial<{ label: string; icon: string; service_calls: ServiceCallDef[] }>): Promise<HarvestAction> =>
-      _patch<HarvestAction>(`/actions/${actionId}`, data),
-
-    delete: (actionId: string): Promise<void> =>
-      _delete(`/actions/${actionId}`),
-  },
-
-  // ---------------------------------------------------------------------------
   // Themes
   // ---------------------------------------------------------------------------
 
@@ -243,10 +385,10 @@ export const api = {
     get: (themeId: string): Promise<ThemeDefinition> =>
       _get<ThemeDefinition>(`/themes/${themeId}`),
 
-    create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; renderer_pack?: boolean; capabilities?: unknown; pack_settings?: string[] }): Promise<ThemeDefinition> =>
+    create: (data: { name: string; variables: Record<string, string>; dark_variables?: Record<string, string>; author?: string; version?: string; description?: string; has_renderer?: boolean; capabilities?: unknown; renderer_settings?: string[] }): Promise<ThemeDefinition> =>
       _post<ThemeDefinition>("/themes", data),
 
-    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; variables: Record<string, string>; dark_variables: Record<string, string>; renderer_pack: boolean; capabilities: unknown; pack_settings: string[] }>): Promise<ThemeDefinition> =>
+    update: (themeId: string, data: Partial<{ name: string; author: string; version: string; description: string; variables: Record<string, string>; dark_variables: Record<string, string>; has_renderer: boolean; capabilities: unknown; renderer_settings: string[]; icon_set: string | null }>): Promise<ThemeDefinition> =>
       _patch<ThemeDefinition>(`/themes/${themeId}`, data),
 
     delete: (themeId: string): Promise<void> =>
@@ -255,11 +397,56 @@ export const api = {
     reload: (): Promise<{ status: string; errors?: Record<string, string> }> =>
       _post<{ status: string; errors?: Record<string, string> }>("/themes/reload", {}),
 
+    reloadById: (themeId: string): Promise<{ status: string; theme: ThemeDefinition }> =>
+      _post<{ status: string; theme: ThemeDefinition }>(`/themes/${themeId}/reload`, {}),
+
+    importZip: async (file: File, overwrite = false, rendererConfirmed = false): Promise<ThemeImportResult> => {
+      const token = _hass?.auth?.data?.access_token;
+      const form = new FormData();
+      form.append("file", file);
+      const params = new URLSearchParams();
+      if (overwrite) params.set("overwrite", "true");
+      if (rendererConfirmed) params.set("renderer_confirmed", "true");
+      const query = params.toString();
+      const url = `${BASE}/themes/import${query ? `?${query}` : ""}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 409 && (json.error === "renderer_consent_required" || json.error === "theme_already_exists")) {
+          return json as ThemeImportResult;
+        }
+        throw new Error(`Import failed: ${res.status}${json.message ? ` - ${json.message}` : ""}`);
+      }
+      return json as ThemeDefinition;
+    },
+
+    exportZip: async (themeId: string): Promise<void> => {
+      const token = _hass?.auth?.data?.access_token;
+      const res = await fetch(`${BASE}/themes/${encodeURIComponent(themeId)}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = /filename="([^"]+)"/.exec(disposition);
+      const filename = match?.[1] ?? "theme.zip";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
     thumbnailUrl: (themeId: string): string =>
       `${BASE}/themes/${encodeURIComponent(themeId)}/thumbnail`,
 
     fetchThumbnail: async (themeId: string): Promise<Blob> => {
-      const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
+      const token = _hass?.auth?.data?.access_token;
       const res = await fetch(`${BASE}/themes/${encodeURIComponent(themeId)}/thumbnail`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -268,7 +455,7 @@ export const api = {
     },
 
     uploadThumbnail: async (themeId: string, file: File): Promise<void> => {
-      const token: string | undefined = (_hass as any)?.auth?.data?.access_token;
+      const token = _hass?.auth?.data?.access_token;
       const form = new FormData();
       form.append("file", file);
       const res = await fetch(`${BASE}/themes/${encodeURIComponent(themeId)}/thumbnail`, {
@@ -287,21 +474,21 @@ export const api = {
   },
 
   // ---------------------------------------------------------------------------
-  // Renderer packs
+  // Renderers
   // ---------------------------------------------------------------------------
 
-  packs: {
-    list: (): Promise<PacksResponse> =>
-      _get<PacksResponse>("/packs"),
+  renderers: {
+    list: (): Promise<RenderersResponse> =>
+      _get<RenderersResponse>("/renderers"),
 
     agree: (agreed: boolean): Promise<{ agreed: boolean }> =>
-      _post<{ agreed: boolean }>("/packs/agree", { agreed }),
+      _post<{ agreed: boolean }>("/renderers/agree", { agreed }),
 
-    getCode: (packId: string): Promise<{ pack_id: string; code: string }> =>
-      _get<{ pack_id: string; code: string }>(`/packs/${packId}/code`),
+    getCode: (rendererId: string): Promise<{ renderer_id: string; code: string }> =>
+      _get<{ renderer_id: string; code: string }>(`/renderers/${rendererId}/code`),
 
-    updateCode: (packId: string, code: string): Promise<{ pack_id: string; status: string }> =>
-      _post<{ pack_id: string; status: string }>(`/packs/${packId}/code`, { code }),
+    updateCode: (rendererId: string, code: string): Promise<{ renderer_id: string; status: string }> =>
+      _post<{ renderer_id: string; status: string }>(`/renderers/${rendererId}/code`, { code }),
   },
 
   // ---------------------------------------------------------------------------
@@ -326,6 +513,27 @@ export const api = {
   },
 
   // ---------------------------------------------------------------------------
+  // Warnings (drift-banner dismissal) - SPEC.md Section 12
+  // ---------------------------------------------------------------------------
+
+  warnings: {
+    get: (): Promise<WarningsState> =>
+      _get<WarningsState>("/warnings"),
+
+    dismiss: (): Promise<WarningsState> =>
+      _post<WarningsState>("/warnings/dismiss"),
+  },
+
+  // ---------------------------------------------------------------------------
+  // URL reachability probe - powers the live indicators in Settings
+  // ---------------------------------------------------------------------------
+
+  urlCheck: {
+    check: (url: string): Promise<UrlCheckResult> =>
+      _get<UrlCheckResult>("/check_url", { url }),
+  },
+
+  // ---------------------------------------------------------------------------
   // Entities (entity picker cache)
   // ---------------------------------------------------------------------------
 
@@ -334,7 +542,7 @@ export const api = {
       _get<HAEntity[]>("/entities"),
 
     get: (entityId: string): Promise<HAEntityDetail> =>
-      _doReq<HAEntityDetail>("GET", `/api/states/${entityId}`),
+      _doReq<HAEntityDetail>("GET", `/api/states/${encodeURIComponent(entityId)}`),
 
     getDefinition: (entityId: string, params?: {
       capabilities?: string;
@@ -357,6 +565,35 @@ export const api = {
       if (params?.companion_ids?.length) p.companion_ids = params.companion_ids.join(",");
       return _get(`/preview/definition/${encodeURIComponent(entityId)}`, Object.keys(p).length ? p : undefined);
     },
+
+    getHistory: (entityId: string, params?: { hours?: number; period?: number }): Promise<{
+      entity_id: string; hours: number; period: number; points: Array<{ t: string; s: string }>;
+    }> => {
+      const p: Record<string, string> = {};
+      if (params?.hours != null) p.hours = String(params.hours);
+      if (params?.period != null) p.period = String(params.period);
+      return _get(`/preview/history/${encodeURIComponent(entityId)}`, Object.keys(p).length ? p : undefined);
+    },
+
+    getScriptFields: (entityId: string): Promise<{ entity_id: string; fields: Record<string, ServiceFieldSchema> }> =>
+      _get(`/entities/${encodeURIComponent(entityId)}/script_fields`),
+  },
+
+  // ---------------------------------------------------------------------------
+  // Service field schemas (for gesture "Perform action" UI)
+  // ---------------------------------------------------------------------------
+
+  services: {
+    getFields: (domain: string, service: string): Promise<import("./types").ServiceDescription> =>
+      _get(`/services/${encodeURIComponent(domain)}/${encodeURIComponent(service)}`),
+  },
+
+  // ---------------------------------------------------------------------------
+  // HA registries (areas, floors, devices, labels)
+  // ---------------------------------------------------------------------------
+
+  registries: {
+    getAll: (): Promise<HARegistries> => _get("/registries"),
   },
 
   // ---------------------------------------------------------------------------
@@ -387,5 +624,15 @@ export const api = {
 
     availableDomains: (): Promise<import("./types").AvailableDomain[]> =>
       api.config.get().then(c => c.available_domains ?? []),
+  },
+
+  lovelace: {
+    dashboards: (): Promise<{ url_path: string | null; title: string; mode: string }[]> =>
+      _get("/lovelace/dashboards"),
+    config: (urlPath?: string | null): Promise<Record<string, unknown>> => {
+      const params: Record<string, string> = {};
+      if (urlPath != null) params.url_path = urlPath;
+      return _get("/lovelace/config", params);
+    },
   },
 };

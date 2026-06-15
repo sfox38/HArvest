@@ -25,7 +25,7 @@ const FEATURE_FLAGS = {
     1: "play_pause", 2: "next_track", 4: "previous_track",
     8: "volume_set", 16: "volume_step", 128: "turn_on", 256: "turn_off",
   },
-  remote: { 1: "learn_command", 2: "delete_command" },
+  remote: { 1: "learn_command", 2: "delete_command", 4: "activity" },
 };
 
 // ---------------------------------------------------------------------------
@@ -59,11 +59,22 @@ const DOMAIN_ICON_DEFAULTS = {
   remote:         { on: "mdi:remote",               "*": "mdi:remote" },
   input_boolean:  { on: "mdi:toggle-switch",         "*": "mdi:toggle-switch-off-outline" },
   input_number:   { "*": "mdi:numeric" },
+  number:         { "*": "mdi:numeric" },
   input_select:   { "*": "mdi:format-list-bulleted" },
+  select:         { "*": "mdi:format-list-bulleted" },
   sensor:         { "*": "mdi:gauge" },
   binary_sensor:  { on: "mdi:radiobox-marked",       "*": "mdi:radiobox-blank" },
-  harvest_action: { triggered: "mdi:play-circle",    "*": "mdi:play-circle-outline" },
   timer:          { active: "mdi:timer", paused: "mdi:timer-pause", "*": "mdi:timer-outline" },
+  lock: {
+    locked: "mdi:lock", unlocked: "mdi:lock-open",
+    locking: "mdi:lock", unlocking: "mdi:lock-open",
+    jammed: "mdi:lock-alert", "*": "mdi:lock",
+  },
+  person:         { home: "mdi:account", not_home: "mdi:account-off", "*": "mdi:account" },
+  script:         { on: "mdi:script-text",               "*": "mdi:script-text-play" },
+  automation:     { on: "mdi:robot",                     "*": "mdi:robot-off" },
+  button:         { "*": "mdi:gesture-tap-button" },
+  input_button:   { "*": "mdi:gesture-tap-button" },
   weather: {
     sunny:           "mdi:weather-sunny",
     "clear-night":   "mdi:weather-night",
@@ -93,6 +104,21 @@ const BINARY_SENSOR_DC_ICONS = {
   moisture:     { on: "mdi:water",                            "*": "mdi:water-off" },
   smoke:        { on: "mdi:smoke-detector-variant-alert",     "*": "mdi:smoke-detector-variant" },
   presence:     { on: "mdi:home",                             "*": "mdi:home-outline" },
+  occupancy:    { on: "mdi:home",                             "*": "mdi:home-outline" },
+  garage_door:  { on: "mdi:garage-open",                      "*": "mdi:garage" },
+  battery:      { on: "mdi:battery-alert",                    "*": "mdi:battery" },
+  problem:      { on: "mdi:alert-circle",                     "*": "mdi:alert-circle-outline" },
+  plug:         { on: "mdi:power-plug",                       "*": "mdi:power-plug-off" },
+  power:        { on: "mdi:flash",                            "*": "mdi:flash-off" },
+  running:      { on: "mdi:play-circle",                      "*": "mdi:stop-circle" },
+  cold:         { on: "mdi:snowflake",                        "*": "mdi:snowflake-off" },
+  heat:         { on: "mdi:fire",                             "*": "mdi:fire-off" },
+  vibration:    { on: "mdi:vibrate",                          "*": "mdi:vibrate-off" },
+  gas:          { on: "mdi:gas-cylinder",                     "*": "mdi:gas-cylinder" },
+  opening:      { on: "mdi:square-rounded",                   "*": "mdi:square-rounded-outline" },
+  safety:       { on: "mdi:shield-check",                     "*": "mdi:shield-alert" },
+  tamper:       { on: "mdi:shield-alert",                     "*": "mdi:shield" },
+  update:       { on: "mdi:package-up",                       "*": "mdi:package-variant" },
 };
 
 const SENSOR_DC_ICONS = {
@@ -126,9 +152,16 @@ const TIER1_DOMAINS = {
   input_boolean:  "InputBooleanCard",
   input_number:   "InputNumberCard",
   input_select:   "InputSelectCard",
-  harvest_action: "HarvestActionCard",
+  select:         "InputSelectCard",
   timer:          "TimerCard",
   weather:        "WeatherCard",
+  lock:           "LockCard",
+  person:         "PersonCard",
+  button:         "ButtonCard",
+  input_button:   "ButtonCard",
+  number:         "InputNumberCard",
+  script:         "ScriptCard",
+  automation:     "AutomationCard",
 };
 
 const SENSOR_DEVICE_CLASS_RENDERERS = {
@@ -386,6 +419,7 @@ const TOGGLE_TO_FEATURE = {
   },
   cover: {
     current_position: ["set_position"],
+    current_tilt_position: ["set_tilt_position"],
     buttons:          ["buttons"],
   },
   climate: {

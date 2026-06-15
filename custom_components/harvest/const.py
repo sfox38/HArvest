@@ -5,7 +5,21 @@ All other modules import from here. No classes, no functions.
 from __future__ import annotations
 
 DOMAIN = "harvest"
-PLATFORM_VERSION = "0.9.3"              # must match SPEC.md version header
+PLATFORM_VERSION = "1.0.0"              # must match manifest.json application version
+
+# WebSocket protocol versioning. See SPEC.md Section 12 (Client/Server
+# Compatibility). PROTOCOL_VERSION bumps only on breaking message-format
+# changes. MIN_CLIENT_PROTOCOL bumps only when the server stops accepting
+# an older protocol. The server accepts any client whose `protocol` falls
+# in [MIN_CLIENT_PROTOCOL, PROTOCOL_VERSION].
+PROTOCOL_VERSION = 1
+MIN_CLIENT_PROTOCOL = 1
+
+# WordPress plugin version that ships in the same release as this
+# integration. Compared against client.source_version when the widget
+# reports source="wp" so the panel can warn admins about an outdated
+# plugin install. Bumped together with PLATFORM_VERSION at release.
+BUNDLED_WP_PLUGIN_VERSION = "1.0.0"
 
 # Token and session ID format
 TOKEN_PREFIX = "hwt_"
@@ -18,6 +32,12 @@ THEME_ID_LENGTH = 12        # base62 characters after prefix
 PACK_PREFIX = "hpk_"
 PACK_ID_LENGTH = 12         # base62 characters after prefix
 BASE62_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+# Icon-name prefixes accepted in icon_override. mdi: is bundled in the
+# widget; the others are lazy-loaded subset assets built into
+# panel/icon-sets/<prefix>.js by the widget build. Adding a set later means
+# extending this tuple plus an ICON_SET_BUILDS entry in widget/build.js.
+ICON_NAME_PREFIXES: tuple[str, ...] = ("mdi:", "fa:", "ph:", "tabler:")
 
 # WebSocket endpoint path registered with HA's HTTP server
 WS_PATH = "/api/harvest/ws"
@@ -34,8 +54,6 @@ ACTIVITY_DB_FILENAME = "harvest_activity.db"
 
 # Global config option keys (stored in HA's config entry data)
 CONF_AUTH_TIMEOUT = "auth_timeout_seconds"
-CONF_MAX_ENTITIES_PER_TOKEN = "max_entities_per_token"
-CONF_MAX_ENTITIES_HARD_CAP = "max_entities_hard_cap"
 CONF_MAX_INBOUND_BYTES = "max_inbound_message_bytes"
 CONF_KEEPALIVE_INTERVAL = "keepalive_interval_seconds"
 CONF_KEEPALIVE_TIMEOUT = "keepalive_timeout_seconds"
@@ -53,12 +71,14 @@ CONF_OVERRIDE_HOST = "override_host"
 CONF_WIDGET_SCRIPT_URL = "widget_script_url"
 CONF_KILL_SWITCH = "kill_switch"
 CONF_CUSTOM_DOMAINS = "custom_domains"
+CONF_EXTERNAL_PORT = "external_port"
+CONF_SENSITIVE_DOMAINS = "sensitive_domains"
+
+MAX_ENTITIES_HARD_CAP = 250
 
 # Default values matching SPEC.md Section 19
 DEFAULTS: dict[str, object] = {
     CONF_AUTH_TIMEOUT: 10,
-    CONF_MAX_ENTITIES_PER_TOKEN: 50,
-    CONF_MAX_ENTITIES_HARD_CAP: 250,
     CONF_MAX_INBOUND_BYTES: 4096,
     CONF_KEEPALIVE_INTERVAL: 30,
     CONF_KEEPALIVE_TIMEOUT: 10,
@@ -104,6 +124,17 @@ DEFAULTS: dict[str, object] = {
     "default_offline_text": "",
     "default_error_text": "",
     CONF_CUSTOM_DOMAINS: [],
+    # Alternate port server - 0 means disabled.
+    CONF_EXTERNAL_PORT: 0,
+    # Per-domain gates for sensitive Tier 1 domains. False = blocked (default).
+    # Admins must explicitly enable each domain in Settings to allow it in tokens.
+    CONF_SENSITIVE_DOMAINS: {
+        "lock": False,
+        "script": False,
+        "automation": False,
+        "button": False,
+        "cover": False,
+    },
 }
 
 # Attribute denylist - keys containing these strings are stripped from state_updates.
@@ -118,6 +149,45 @@ ATTRIBUTE_DENYLIST_SUBSTRINGS: tuple[str, ...] = (
     "secret", "credentials", "private_key",
 )
 
+# Data tiers control payload granularity for entity_definition and state_update
+# messages. The tier is resolved from token.entities_block, ea.capabilities,
+# and whether the entity is a companion (ea.companion_of is set).
+DATA_TIER_BADGE = "badge"
+DATA_TIER_COMPACT = "compact"
+DATA_TIER_DISPLAY = "display"
+DATA_TIER_FULL = "full"
+# Companion tiers: companion pills only consume identity fields (domain,
+# device_class, friendly_name, icon, icon_state_map) plus the state string,
+# so companions get a badge-sized payload. Unlike badge, companion
+# state_update messages keep last_updated (the client's out-of-order
+# discard key). Two constants so the read-write payload can diverge from
+# read-only later; they are currently identical.
+DATA_TIER_COMPANION = "companion"
+DATA_TIER_COMPANION_RW = "companion_rw"
+
+# Per-domain attribute allowlists for DATA_TIER_DISPLAY (read-only cards).
+# Only these attributes (plus state and unit_of_measurement) are sent in
+# state_update messages. Domains not listed receive state + uom only.
+DISPLAY_TIER_ATTRIBUTES: dict[str, frozenset[str]] = {
+    "media_player": frozenset({
+        "media_artist", "media_title", "media_album_name",
+    }),
+    "climate": frozenset({
+        "current_temperature", "hvac_action",
+    }),
+    "weather": frozenset({
+        "temperature", "native_temperature", "temperature_unit",
+        "native_temperature_unit", "humidity", "wind_speed",
+        "wind_speed_unit", "pressure", "pressure_unit",
+    }),
+    "sensor": frozenset({
+        "unit_of_measurement",
+    }),
+    "timer": frozenset({
+        "remaining", "duration", "finishes_at",
+    }),
+}
+
 # Error codes (subset used server-side; full list in SPEC.md Section 6)
 ERR_TOKEN_INVALID = "HRV_TOKEN_INVALID"
 ERR_TOKEN_EXPIRED = "HRV_TOKEN_EXPIRED"
@@ -129,6 +199,7 @@ ERR_ENTITY_NOT_IN_TOKEN = "HRV_ENTITY_NOT_IN_TOKEN"
 ERR_ENTITY_INCOMPATIBLE = "HRV_ENTITY_INCOMPATIBLE"
 ERR_SESSION_LIMIT_REACHED = "HRV_SESSION_LIMIT_REACHED"
 ERR_SIGNATURE_INVALID = "HRV_SIGNATURE_INVALID"
+ERR_PROTOCOL_INCOMPATIBLE = "HRV_PROTOCOL_INCOMPATIBLE"
 ERR_AUTH_FAILED = "HRV_AUTH_FAILED"
 ERR_ENTITY_MISSING = "HRV_ENTITY_MISSING"
 ERR_ENTITY_REMOVED = "HRV_ENTITY_REMOVED"
