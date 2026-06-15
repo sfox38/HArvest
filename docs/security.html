@@ -167,18 +167,22 @@
 203.0.113.0/24      # office network
 198.51.100.42/32    # single IP</code></pre>
 
-        <p>IP restriction requires that your reverse proxy forwards the real client IP. Configure <code>trusted_proxies</code> in <strong>HArvest's integration settings</strong> (Settings &gt; HArvest &gt; Trusted proxies). HArvest reads its own list, not the one in HA core's <code>configuration.yaml</code>:</p>
+        <p>If visitors connect through a reverse proxy or secure tunnel, IP restriction requires that every intermediary forwards the real client IP through <code>X-Forwarded-For</code>. Configure <code>trusted_proxies</code> in <strong>HArvest's integration settings</strong> (Settings &gt; HArvest &gt; Trusted proxies). HArvest reads its own list, not the one in HA core's <code>configuration.yaml</code>. Trust only known intermediaries in the forwarding chain, using the narrowest practical IP or CIDR:</p>
 
         <pre><code class="language-text">trusted_proxies:
-  - 127.0.0.1        # localhost (nginx/Caddy running on same host)
-  - 172.16.0.0/12    # Docker network
-  - 104.16.0.0/12    # Cloudflare edge (if Cloudflare is in front)</code></pre>
+  - 127.0.0.1/32       # nginx, Caddy, or cloudflared on the same host
+  - 172.20.0.5/32      # one known proxy container
+  - 172.20.0.0/24      # narrowly scoped proxy container subnet, if its IP changes</code></pre>
 
         <p>For multi-hop deployments (e.g. Cloudflare to nginx to HA), list <strong>every</strong> intermediate proxy. HArvest walks <code>X-Forwarded-For</code> from right to left, skipping trusted hops, and uses the first untrusted entry as the real client IP. If any intermediate hop is missing from the trusted list, HArvest stops at that hop and treats it as the client.</p>
 
+        <p>For Cloudflare Tunnel, HArvest normally sees the local <code>cloudflared</code> process or container as its direct peer. Trust that local peer, not Cloudflare's entire public edge network. For a conventional Cloudflare proxy in the forwarding chain, use <a href="https://www.cloudflare.com/ips/" target="_blank">Cloudflare's maintained IPv4 and IPv6 range list</a> rather than copying a single example range, and keep it updated when Cloudflare changes the list.</p>
+
+        <p>HArvest validates and canonicalizes every trusted proxy IP or CIDR before saving it. If a trusted proxy sends a malformed forwarded IP chain, HArvest ignores the chain and falls back to the direct TCP peer.</p>
+
         <div class="callout callout-warn">
           <span class="callout-label">Without trusted_proxies configured</span>
-          <p>If <code>trusted_proxies</code> is not configured, HArvest treats the direct TCP peer as the client and ignores <code>X-Forwarded-For</code>. Behind a reverse proxy this means HArvest sees the proxy's IP for all requests, so IP restrictions will either block all traffic (if the proxy IP isn't in the allowlist) or allow all traffic from anywhere (if it is). Configure <code>trusted_proxies</code> before relying on IP restrictions.</p>
+          <p>If <code>trusted_proxies</code> is not configured, HArvest treats the direct TCP peer as the client and ignores <code>X-Forwarded-For</code>. Behind a proxy or tunnel this means HArvest sees the intermediary's IP for all requests, so IP restrictions will either block all traffic (if that IP isn't in the allowlist) or allow all traffic from anywhere (if it is). Configure <code>trusted_proxies</code> before relying on IP restrictions.</p>
         </div>
         </section>
 

@@ -195,7 +195,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
     setRendererCodeDirty(false);
   }, [rendererId]);
 
-  const requireConsent = (action: () => Promise<void>) => {
+  const requireConsent = (action: () => Promise<void>, forceDialog = false) => {
     // The AGREE dialog (rendered later in this file as role="dialog"
     // aria-modal="true" with a backdrop) blocks UI interaction while shown,
     // so the captured `action` closure cannot race against changes to
@@ -203,15 +203,17 @@ export function Themes({ onSelectToken }: ThemesProps) {
     // change adds a periodic refresh or other background mutation of the
     // Themes screen, this assumption breaks and `action` should be replaced
     // with an intent (themeId + action type) re-resolved inside confirmAgree.
-    if (renderersData?.agreed) { action(); return; }
+    if (renderersData?.agreed && !forceDialog) { action(); return; }
     setPendingAction(() => action);
     setShowAgree(true);
   };
 
   const confirmAgree = async () => {
     try {
-      await api.renderers.agree(true);
-      setRenderersData(prev => prev ? { ...prev, agreed: true } : prev);
+      if (!renderersData?.agreed) {
+        await api.renderers.agree(true);
+        setRenderersData(prev => prev ? { ...prev, agreed: true } : prev);
+      }
       setShowAgree(false);
       setAgreeText("");
       if (pendingAction) { await pendingAction(); setPendingAction(null); }
@@ -410,11 +412,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const doImport = async () => {
+    const doImport = async (rendererConfirmed = false) => {
       try {
-        const result = await api.themes.importZip(file);
+        const result = await api.themes.importZip(file, false, rendererConfirmed);
         if ("error" in result && result.error === "renderer_consent_required") {
-          requireConsent(doImport);
+          requireConsent(() => doImport(true), true);
           return;
         }
         if ("error" in result && result.error === "theme_already_exists") {
@@ -438,11 +440,11 @@ export function Themes({ onSelectToken }: ThemesProps) {
     if (!file || !conflict) return;
     setOverwriteConflict(null);
     setPendingOverwriteFile(null);
-    const doOverwrite = async () => {
+    const doOverwrite = async (rendererConfirmed = false) => {
       try {
-        const result = await api.themes.importZip(file, true);
+        const result = await api.themes.importZip(file, true, rendererConfirmed);
         if ("error" in result && result.error === "renderer_consent_required") {
-          requireConsent(doOverwrite);
+          requireConsent(() => doOverwrite(true), true);
           return;
         }
         if ("error" in result) return;

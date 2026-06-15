@@ -153,10 +153,14 @@ hrv-card::part(brightness-slider) {
         <ul>
           <li><code>theme.json</code> (required) - the theme definition.</li>
           <li><code>renderer.js</code> (optional) - a custom renderer override. Replaces built-in card renderers when this theme is active.</li>
-          <li><code>*.woff2</code> (optional) - custom font files. Up to 8 files. See <a href="#text-fonts">Custom fonts</a> below.</li>
+          <li><code>*.woff</code> or <code>*.woff2</code> (optional) - custom font files. Up to 8 files. See <a href="#text-fonts">Custom fonts</a> below.</li>
           <li><code>thumbnail.png</code> or <code>thumbnail.jpg</code> (optional) - a preview image shown in the theme picker.</li>
         </ul>
-        <p>The zip file itself can be named anything (e.g. <code>my-cool-theme.zip</code>). Maximum upload size is 10 MB. When <code>renderer.js</code> is present, the panel shows a renderer consent dialog before completing the import. Exporting a theme produces a zip in the same format, including any thumbnail, fonts, and renderer associated with it.</p>
+        <p>The zip file itself can be named anything (e.g. <code>my-cool-theme.zip</code>). Maximum upload size is 10 MB. When <code>renderer.js</code> is present, the panel shows a renderer consent dialog before completing every import, including overwrites. Exporting a theme produces a zip in the same format, including any thumbnail, fonts, and renderer associated with it.</p>
+
+        <p>HArvest validates the archive's runtime asset files before installing or overwriting the theme. Font files must use a basename ending in <code>.woff</code> or <code>.woff2</code>, and their contents must match that format. Renderer files must contain valid UTF-8 JavaScript. Invalid runtime assets are rejected without changing the installed theme.</p>
+
+        <p>Advanced users may copy matching theme JSON and renderer JavaScript files directly into HArvest's user theme and renderer directories. Direct filesystem copies do not pass through the import dialog. They remain disabled until the integration-wide renderer consent gate has been accepted, and theme reloads do not bypass that gate.</p>
 
         <p>Unknown fields and unknown variable names are silently ignored, which makes themes forward-compatible. Only use variable names from the published list below.</p>
 
@@ -193,10 +197,10 @@ nunito.woff2</code></pre>
           <table>
             <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>family</code></td><td>Yes</td><td>The CSS font-family name to register</td></tr>
-              <tr><td><code>url</code></td><td>Yes</td><td>Filename of the woff2 file in the zip</td></tr>
-              <tr><td><code>weight</code></td><td>No</td><td>CSS font-weight. Use a range for variable fonts, e.g. <code>"200 800"</code>. Defaults to <code>"normal"</code>.</td></tr>
-              <tr><td><code>style</code></td><td>No</td><td>CSS font-style, e.g. <code>"normal"</code> or <code>"italic"</code>. Defaults to <code>"normal"</code>.</td></tr>
+              <tr><td><code>family</code></td><td>Yes</td><td>The printable CSS font-family name to register, up to 100 characters</td></tr>
+              <tr><td><code>url</code></td><td>Yes</td><td>Basename of the <code>.woff</code> or <code>.woff2</code> file in the zip</td></tr>
+              <tr><td><code>weight</code></td><td>No</td><td><code>normal</code>, <code>bold</code>, a numeric weight from 1 to 1000, or a numeric range such as <code>"200 800"</code>. Defaults to <code>"normal"</code>.</td></tr>
+              <tr><td><code>style</code></td><td>No</td><td><code>normal</code>, <code>italic</code>, or <code>oblique</code>. Defaults to <code>"normal"</code>.</td></tr>
             </tbody>
           </table>
         </div>
@@ -759,7 +763,7 @@ HArvest.registerRenderer("light", MinimalLightCard);</code></pre>
         <ul>
           <li>Share the <code>.zip</code> directly (GitHub release, repo attachment, etc.)</li>
           <li>Users import it via the HArvest panel Themes tab - Import .zip</li>
-          <li>The panel shows a renderer consent dialog before completing the import</li>
+          <li>The panel shows a renderer consent dialog before completing every import or overwrite</li>
         </ul>
 
         <div class="callout callout-tip">

@@ -100,6 +100,7 @@ export class HarvestClient {
   /** @type {WebSocket|null} */ #ws = null;
   /** @type {string|null} */ #sessionId = null;
   /** @type {number} */ #msgIdCounter = 0;
+  /** @type {boolean} */ #authPending = false;
 
   // entityId -> HrvCard (last-write-wins)
   /** @type {Map<string, object>} */ #cards = new Map();
@@ -119,6 +120,8 @@ export class HarvestClient {
   /** @type {number} */ #renewalCount = 0;
   // max renewals from the last auth_ok (null = unlimited)
   /** @type {number|null} */ #maxRenewals = null;
+  /** @type {boolean} */ #renewalPending = false;
+  /** @type {object[]} */ #queuedSessionMessages = [];
 
   // last_updated timestamps per entity for out-of-order discard
   /** @type {Map<string, {state: string, attributes: object, lastUpdated: Date, lastUpdatedRaw: string}>} */ #entityStates = new Map();
@@ -179,7 +182,7 @@ export class HarvestClient {
 
     if (this.#ws !== null && this.#ws.readyState === WebSocket.OPEN && this.#sessionId) {
       // Connection already open and authed: subscribe the new entity immediately.
-      this.#sendJson({
+      this.#sendSessionJson({
         type: "subscribe",
         session_id: this.#sessionId,
         entity_ids: [entityId],
@@ -239,7 +242,7 @@ export class HarvestClient {
       this.#openConnection();
       return;
     }
-    if (this.#ws.readyState === WebSocket.OPEN && !this.#sessionId) {
+    if (this.#ws.readyState === WebSocket.OPEN && !this.#sessionId && !this.#authPending) {
       this.#sendAuth().catch((err) => {
         console.error("[HArvest] HMAC signing failed - entering permanent failure:", err);
         this.#permanentFailure = true;
@@ -299,7 +302,7 @@ export class HarvestClient {
     this.#entityStates.delete(entityId);
 
     if (this.#ws !== null && this.#ws.readyState === WebSocket.OPEN && this.#sessionId) {
-      this.#sendJson({
+      this.#sendSessionJson({
         type: "unsubscribe",
         session_id: this.#sessionId,
         entity_ids: [entityId],
@@ -328,7 +331,7 @@ export class HarvestClient {
       );
       return;
     }
-    this.#sendJson({
+    this.#sendSessionJson({
       type: "command",
       session_id: this.#sessionId,
       entity_id: entityId,
@@ -354,7 +357,7 @@ export class HarvestClient {
     };
     if (hours != null) msg.hours = hours;
     if (period != null) msg.period = period;
-    this.#sendJson(msg);
+    this.#sendSessionJson(msg);
   }
 
   /**
@@ -505,6 +508,9 @@ export class HarvestClient {
     this.#heartbeatTimer = null;
     this.#ws = null;
     this.#sessionId = null;
+    this.#authPending = false;
+    this.#renewalPending = false;
+    this.#queuedSessionMessages = [];
 
     if (this.#permanentFailure) return;
     if (_pageUnloading) return;
@@ -526,6 +532,9 @@ export class HarvestClient {
    * (pending set plus already-registered cards that are not yet subscribed).
    */
   async #sendAuth() {
+    if (this.#authPending) return;
+    this.#authPending = true;
+
     // Collect all entity refs currently known to this client. Each entry may
     // be a real entity ID (from a card with `entity=`) or an alias (from a
     // card with `alias=`); SPEC.md Section 5.1 explicitly accepts mixed
@@ -555,13 +564,18 @@ export class HarvestClient {
       client: getClientInfo(),
     };
 
-    if (this.#tokenSecret) {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const nonce = this.#generateNonce();
-      const signature = await this.#buildHmacSignature(timestamp, nonce);
-      msg.timestamp = timestamp;
-      msg.nonce = nonce;
-      msg.signature = signature;
+    try {
+      if (this.#tokenSecret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = this.#generateNonce();
+        const signature = await this.#buildHmacSignature(timestamp, nonce);
+        msg.timestamp = timestamp;
+        msg.nonce = nonce;
+        msg.signature = signature;
+      }
+    } catch (err) {
+      this.#authPending = false;
+      throw err;
     }
 
     // Re-auth after session expiry: include session_id if we have one.
@@ -670,21 +684,40 @@ export class HarvestClient {
   // -------------------------------------------------------------------------
 
   #handleAuthOk(msg) {
+    const wasRenewal = this.#renewalPending;
+    this.#authPending = false;
+    this.#renewalPending = false;
     this.#sessionId = msg.session_id;
     this.#reconnectAttempt = 0;
     this.#reauthAttempts = 0;
     this.#malformedTimestamps = [];
     this.#absoluteExpiresAt = msg.absolute_expires_at ? new Date(msg.absolute_expires_at) : null;
-    this.#renewalCount = 0;
+    if (!wasRenewal) this.#renewalCount = 0;
     this.#maxRenewals = msg.max_renewals ?? null;
 
     clearTimeout(this.#staleGraceTimer);
     this.#staleGraceTimer = null;
 
+    if (wasRenewal) {
+      this.#flushQueuedSessionMessages();
+    } else if (this.#pendingEntityIds.size > 0) {
+      const entityIds = [...this.#pendingEntityIds];
+      this.#pendingEntityIds.clear();
+      this.#sendSessionJson({
+        type: "subscribe",
+        session_id: this.#sessionId,
+        entity_ids: entityIds,
+        msg_id: this.#nextMsgId(),
+      });
+    }
+
     console.debug("[HArvest] auth_ok: session=" + msg.session_id);
   }
 
   #handleAuthFailed(msg) {
+    this.#authPending = false;
+    this.#renewalPending = false;
+    this.#queuedSessionMessages = [];
     const code = msg.code ?? "HRV_AUTH_FAILED";
     console.warn("[HArvest] Auth failed:", code);
 
@@ -840,7 +873,11 @@ export class HarvestClient {
     //   - Parsed Date strictly older -> out-of-order delivery; drop.
     //   - Same parsed Date, different raw string -> distinct sub-millisecond
     //     update; let it through, applied in arrival order.
-    if (existing && !msg.initial) {
+    if (
+      existing
+      && msg.last_updated != null
+      && existing.lastUpdatedRaw != null
+    ) {
       if (msg.last_updated === existing.lastUpdatedRaw) {
         return;
       }
@@ -923,8 +960,10 @@ export class HarvestClient {
     console.debug("[HArvest] subscribe_ok received");
   }
 
-  #handleSessionExpiring(_msg) {
+  async #handleSessionExpiring(_msg) {
     // The session is about to expire. Attempt renewal unless limits are reached.
+    if (this.#renewalPending) return;
+
     const now = new Date();
 
     const absoluteExpired = this.#absoluteExpiresAt && now >= this.#absoluteExpiresAt;
@@ -938,13 +977,46 @@ export class HarvestClient {
       return;
     }
 
-    // Send renew.
-    this.#sendJson({
+    const sessionId = this.#sessionId;
+    if (!sessionId) return;
+
+    this.#renewalPending = true;
+    const msg = {
       type: "renew",
-      session_id: this.#sessionId,
+      session_id: sessionId,
       token_id: this.#tokenId,
       msg_id: this.#nextMsgId(),
-    });
+    };
+
+    try {
+      if (this.#tokenSecret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = this.#generateNonce();
+        const signature = await this.#buildHmacSignature(timestamp, nonce);
+        msg.timestamp = timestamp;
+        msg.nonce = nonce;
+        msg.signature = signature;
+      }
+    } catch (err) {
+      console.error("[HArvest] HMAC renewal signing failed - entering permanent failure:", err);
+      this.#permanentFailure = true;
+      for (const card of this.#cards.values()) {
+        card.setErrorState?.("HRV_AUTH_FAILED");
+      }
+      this.#ws?.close();
+      return;
+    }
+
+    if (
+      this.#sessionId !== sessionId
+      || !this.#ws
+      || this.#ws.readyState !== WebSocket.OPEN
+    ) {
+      this.#renewalPending = false;
+      return;
+    }
+
+    this.#sendJson(msg);
     this.#renewalCount++;
     // Server responds with auth_ok + entity_definition + state_update for all entities.
   }
@@ -1155,6 +1227,27 @@ export class HarvestClient {
       } catch (err) {
         console.warn("[HArvest] Failed to send message:", err);
       }
+    }
+  }
+
+  /**
+   * Send a session-bound message, or hold it until renewal installs the new
+   * session ID.
+   * @param {object} payload
+   */
+  #sendSessionJson(payload) {
+    if (this.#renewalPending) {
+      this.#queuedSessionMessages.push(payload);
+      return;
+    }
+    this.#sendJson(payload);
+  }
+
+  #flushQueuedSessionMessages() {
+    const queued = this.#queuedSessionMessages;
+    this.#queuedSessionMessages = [];
+    for (const payload of queued) {
+      this.#sendJson({ ...payload, session_id: this.#sessionId });
     }
   }
 }

@@ -450,7 +450,7 @@ export function SecurityEditor({ token, readonly, saving, setSaving, setToken, s
               <div className="badge badge-warn" style={{ fontSize: 12, marginBottom: 6 }}>
                 Copy this secret now. It cannot be retrieved through the panel again. Do not share your screen while this is visible.
               </div>
-              <pre className="code code-full code-copyable" onClick={secretCopy.copy} title="Click to copy">{generatedSecret}</pre>
+              <pre className="code code-full">{generatedSecret}</pre>
               <label
                 className="row"
                 style={{

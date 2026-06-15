@@ -1,24 +1,30 @@
 """HTTP API views for the HArvest panel.
 
-This is an internal API between the bundled panel JS and the integration.
-It is not a public protocol. All endpoints require HA authentication.
+This is primarily an internal API between the bundled panel JS and the
+integration. Management endpoints require HA authentication. A small set of
+runtime asset endpoints is public so external widgets can load their files.
 All endpoints are prefixed with /api/harvest/.
 """
 from __future__ import annotations
 
 import asyncio
 import dataclasses
+import ipaddress
 import logging
 import re
+import socket
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
+import aiohttp
 from aiohttp import web
+from aiohttp.abc import AbstractResolver, ResolveResult
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
+from yarl import URL
 
 from ._utils import close_ws_with_auth_failed as _close_ws_with_auth_failed, get_entry_data
 from .activity_store import ActivityStore, TokenLifecycleEvent
@@ -34,7 +40,12 @@ from .entity_definition import (
 from .event_bus import EventBus
 from .session_manager import SessionManager
 from .renderer_manager import RendererManager, renderer_to_api_dict
-from .theme_manager import ThemeManager, theme_to_api_dict, theme_url_to_id
+from .theme_manager import (
+    ThemeManager,
+    theme_to_api_dict,
+    theme_url_to_id,
+    validate_custom_font,
+)
 from .token_manager import (
     ActiveSchedule,
     ActiveScheduleWindow,
@@ -52,7 +63,7 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
 
     All views are prefixed with /api/harvest/. All views require HA
     authentication (panel runs in authenticated context) except the public
-    renderer-file and panel.js endpoints.
+    renderer-file, custom-font, and panel.js endpoints.
 
     Each view holds only ``(hass, entry_id)`` and resolves managers per-request
     via ``_HarvestView``'s @property accessors. This avoids stale-manager refs
@@ -148,27 +159,6 @@ def _session_to_dict(session) -> dict:
         },
         "compatibility": session.compatibility,
     }
-
-
-def _build_custom_font_urls(theme_id: str, theme) -> list[dict]:
-    """Build the custom_fonts list with resolved API URLs for a theme."""
-    if not theme.custom_fonts:
-        return []
-    result = []
-    for face in theme.custom_fonts:
-        filename = face.get("file", "")
-        if not filename:
-            continue
-        entry = {
-            "family": face.get("family", ""),
-            "url": f"/api/harvest/themes/{theme_id}/fonts/{filename}",
-        }
-        if face.get("weight"):
-            entry["weight"] = face["weight"]
-        if face.get("style"):
-            entry["style"] = face["style"]
-        result.append(entry)
-    return result
 
 
 def _parse_dt(value: Any) -> datetime | None:
@@ -836,11 +826,7 @@ class HarvestTokenDetailView(_HarvestView):
             return
         theme_id = theme_url_to_id(token.theme_url)
         theme_def = self._theme_manager.get(theme_id)
-        msg = {
-            "type": "theme",
-            "variables": theme_def.variables if theme_def else {},
-            "dark_variables": theme_def.dark_variables if theme_def else {},
-        }
+        msg = self._theme_manager.build_runtime_message(theme_id, theme_def)
         for session in self._session_manager.get_all_for_token(token_id):
             if not session.ws.closed:
                 try:
@@ -854,7 +840,7 @@ class HarvestTokenDetailView(_HarvestView):
         if not token:
             return
         msg: dict[str, Any] = {"type": "renderer", "url": ""}
-        if token.renderer_pack and self._renderer_manager:
+        if token.renderer_pack and self._renderer_manager and self._renderer_manager.agreed:
             path = self._renderer_manager.get_renderer_path(token.renderer_pack)
             if path:
                 try:
@@ -1081,12 +1067,13 @@ class HarvestTokenDetailView(_HarvestView):
 
     def _resolve_token_display(self, token: "Token") -> dict:
         """Resolve effective display values for a token, falling back to global defaults."""
-        from .const import DOMAIN, DEFAULTS
+        from .config_validation import normalize_global_config
+        from .const import DOMAIN
         entries = self._hass.config_entries.async_entries(DOMAIN)
-        gcfg: dict = dict(DEFAULTS)
-        if entries:
-            gcfg.update(entries[0].data)
-            gcfg.update(entries[0].options)
+        gcfg = normalize_global_config(
+            entries[0].data if entries else {},
+            entries[0].options if entries else {},
+        )
         use_custom = token.custom_messages
         return {
             "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
@@ -1712,7 +1699,7 @@ class HarvestThemesView(_HarvestView):
         counts = self._usage_counts()
         result = []
         for theme in self._theme_manager.get_all():
-            _cf_urls = _build_custom_font_urls(theme.theme_id, theme)
+            _cf_urls = self._theme_manager.build_custom_font_urls(theme.theme_id, theme)
             d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme.theme_id), custom_font_urls=_cf_urls)
             d["usage_count"] = counts.get(theme.theme_id, 0)
             if theme.has_renderer and self._renderer_manager is not None:
@@ -1778,8 +1765,9 @@ class HarvestThemeImportView(_HarvestView):
         renderer.js  (optional) - custom renderer JS
 
     Returns the created ThemeDefinition.
-    If the zip includes renderer.js and the admin has not yet agreed to
-    run renderer JS, returns 409 with {"error": "renderer_consent_required"}.
+    If the zip includes renderer.js and the admin has not confirmed this
+    import or has not agreed to run renderer JS, returns 409 with
+    {"error": "renderer_consent_required"}.
     """
 
     url = "/api/harvest/themes/import"
@@ -1846,12 +1834,22 @@ class HarvestThemeImportView(_HarvestView):
         _MAX_FONT_FILES = 8
         if len(members) > self._MAX_MEMBERS + _MAX_FONT_FILES:
             raise web.HTTPBadRequest(reason="Zip archive contains too many files.")
+        member_names = [info.filename for info in members]
+        if len(member_names) != len(set(member_names)):
+            raise web.HTTPBadRequest(reason="Zip archive contains duplicate filenames.")
         for info in members:
             if info.filename in allowed_top:
                 continue
-            if info.filename.endswith(".woff2") or info.filename.endswith(".woff"):
+            font_name = info.filename.removeprefix("fonts/")
+            if (
+                info.filename in (font_name, f"fonts/{font_name}")
+                and "/" not in font_name
+                and "\\" not in font_name
+                and ".." not in font_name
+                and font_name.lower().endswith((".woff2", ".woff"))
+            ):
                 continue
-            if info.filename.startswith("fonts/") and info.filename.endswith("/"):
+            if info.filename == "fonts/":
                 continue
             raise web.HTTPBadRequest(reason=f"Zip archive contains an unsupported file: {info.filename}")
         if any(info.file_size > self._MAX_MEMBER_BYTES for info in members):
@@ -1872,6 +1870,8 @@ class HarvestThemeImportView(_HarvestView):
             raw = _json.loads(zf.read("theme.json").decode("utf-8"))
         except Exception:
             raise web.HTTPBadRequest(reason="theme.json is not valid JSON.")
+        if not isinstance(raw, dict):
+            raise web.HTTPBadRequest(reason="theme.json must contain a JSON object.")
 
         overwrite = request.query.get("overwrite") == "true"
 
@@ -1898,8 +1898,13 @@ class HarvestThemeImportView(_HarvestView):
 
         has_renderer_js = "renderer.js" in zf.namelist()
         has_renderer_flag = bool(raw.get("has_renderer", raw.get("renderer_pack", False)))
+        renderer_confirmed = request.query.get("renderer_confirmed") == "true"
 
-        if has_renderer_js and self._renderer_manager is not None and not self._renderer_manager.agreed:
+        if has_renderer_js and (
+            self._renderer_manager is None
+            or not self._renderer_manager.agreed
+            or not renderer_confirmed
+        ):
             return self.json({"error": "renderer_consent_required"}, status_code=409)
 
         raw_cap = raw.get("capabilities")
@@ -1909,24 +1914,42 @@ class HarvestThemeImportView(_HarvestView):
 
         raw_custom_fonts = raw.get("custom_fonts") or []
         custom_fonts: list[dict] = []
+        font_data: dict[str, bytes] = {}
         zip_names = set(zf.namelist())
-        if isinstance(raw_custom_fonts, list):
-            for face in raw_custom_fonts:
-                if not isinstance(face, dict):
-                    continue
-                url = str(face.get("url", ""))
-                if not url:
-                    continue
-                filename = url.removeprefix("fonts/")
-                zip_path = filename if filename in zip_names else f"fonts/{filename}"
-                if zip_path not in zip_names:
-                    continue
-                entry: dict = {"family": str(face.get("family", "")), "file": filename}
-                if face.get("weight"):
-                    entry["weight"] = str(face["weight"])
-                if face.get("style"):
-                    entry["style"] = str(face["style"])
-                custom_fonts.append(entry)
+        if not isinstance(raw_custom_fonts, list):
+            raise web.HTTPBadRequest(reason="custom_fonts must be an array.")
+        if len(raw_custom_fonts) > _MAX_FONT_FILES:
+            raise web.HTTPBadRequest(reason=f"custom_fonts may contain at most {_MAX_FONT_FILES} entries.")
+        for face in raw_custom_fonts:
+            if not isinstance(face, dict):
+                raise web.HTTPBadRequest(reason="Each custom_fonts entry must be an object.")
+            url = str(face.get("url", ""))
+            filename = url.removeprefix("fonts/")
+            zip_path = filename if filename in zip_names else f"fonts/{filename}"
+            if not url or zip_path not in zip_names:
+                raise web.HTTPBadRequest(reason=f"Custom font file not found in archive: {url or '(empty)'}")
+            data = zf.read(zip_path)
+            try:
+                entry = validate_custom_font(
+                    filename,
+                    data,
+                    family=str(face.get("family", "")),
+                    weight=str(face.get("weight") or "normal"),
+                    style=str(face.get("style") or "normal"),
+                )
+            except ValueError as exc:
+                raise web.HTTPBadRequest(reason=str(exc))
+            if filename in font_data:
+                raise web.HTTPBadRequest(reason=f"Custom font is referenced more than once: {filename}")
+            custom_fonts.append(entry)
+            font_data[filename] = data
+
+        renderer_code: str | None = None
+        if has_renderer_js:
+            try:
+                renderer_code = zf.read("renderer.js").decode("utf-8")
+            except UnicodeDecodeError:
+                raise web.HTTPBadRequest(reason="renderer.js must contain valid UTF-8 JavaScript.")
 
         try:
             imported_icon_set = _validate_icon_set(raw.get("icon_set"))
@@ -1964,19 +1987,18 @@ class HarvestThemeImportView(_HarvestView):
             )
             status_code = 201
 
-        if has_renderer_js and self._renderer_manager is not None:
-            js_code = zf.read("renderer.js").decode("utf-8")
-            await self._renderer_manager.update_code(theme.theme_id, js_code)
+        if renderer_code is not None and self._renderer_manager is not None:
+            await self._renderer_manager.update_code(theme.theme_id, renderer_code)
 
         if custom_fonts:
             self._theme_manager.delete_custom_fonts(theme.theme_id)
             for face in custom_fonts:
-                zip_path = face["file"] if face["file"] in zip_names else f"fonts/{face['file']}"
-                if zip_path in zip_names:
-                    data = zf.read(zip_path)
-                    await self._hass.async_add_executor_job(
-                        self._theme_manager.save_custom_font, theme.theme_id, face["file"], data
-                    )
+                await self._hass.async_add_executor_job(
+                    self._theme_manager.save_custom_font,
+                    theme.theme_id,
+                    face["file"],
+                    font_data[face["file"]],
+                )
 
         thumb_file = next(
             (n for n in zip_names if n in ("thumbnail.png", "thumbnail.jpg", "thumbnail.jpeg")),
@@ -1990,7 +2012,7 @@ class HarvestThemeImportView(_HarvestView):
             )
 
         has_thumb = self._theme_manager.has_thumbnail(theme.theme_id)
-        _cf_urls = _build_custom_font_urls(theme.theme_id, theme)
+        _cf_urls = self._theme_manager.build_custom_font_urls(theme.theme_id, theme)
         d = theme_to_api_dict(theme, has_thumbnail=has_thumb, custom_font_urls=_cf_urls)
         d["has_renderer"] = has_renderer_js and self._renderer_manager is not None
         return self.json(d, status_code=status_code)
@@ -2106,13 +2128,9 @@ class HarvestThemeReloadView(_HarvestView):
             theme_def = self._theme_manager.get(theme_id)
             if not theme_def or not theme_def.is_bundled:
                 continue
-            theme_msg = {
-                "type": "theme",
-                "variables": theme_def.variables,
-                "dark_variables": theme_def.dark_variables,
-            }
+            theme_msg = self._theme_manager.build_runtime_message(theme_id, theme_def)
             renderer_msg: dict[str, Any] = {"type": "renderer", "url": ""}
-            if token.renderer_pack and self._renderer_manager:
+            if token.renderer_pack and self._renderer_manager and self._renderer_manager.agreed:
                 if self._renderer_manager.get_renderer_path(token.renderer_pack):
                     renderer_msg["url"] = f"/api/harvest/renderers/{token.renderer_pack}.js?v={ts}"
             for session in self._session_manager.get_all_for_token(token.token_id):
@@ -2139,23 +2157,7 @@ class HarvestThemeDetailView(_HarvestView):
 
     async def _push_theme_to_tokens(self, theme_id: str, theme: object) -> None:
         """Push updated theme variables to all active sessions using this theme."""
-        msg: dict = {
-            "type": "theme",
-            "variables": theme.variables,
-            "dark_variables": theme.dark_variables,
-            "icon_set": theme.icon_set,
-        }
-        if theme.custom_fonts:
-            msg["custom_fonts"] = [
-                {
-                    "family": f.get("family", ""),
-                    "url": f"/api/harvest/themes/{theme_id}/fonts/{f['file']}",
-                    **({"weight": f["weight"]} if f.get("weight") else {}),
-                    **({"style": f["style"]} if f.get("style") else {}),
-                }
-                for f in theme.custom_fonts
-                if f.get("file")
-            ]
+        msg = self._theme_manager.build_runtime_message(theme_id, theme)
         for token in self._token_manager.get_all():
             if theme_url_to_id(token.theme_url) != theme_id:
                 continue
@@ -2173,7 +2175,7 @@ class HarvestThemeDetailView(_HarvestView):
         theme = self._theme_manager.get(theme_id)
         if theme is None:
             raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
-        _cf_urls = _build_custom_font_urls(theme_id, theme)
+        _cf_urls = self._theme_manager.build_custom_font_urls(theme_id, theme)
         d = theme_to_api_dict(theme, has_thumbnail=self._theme_manager.has_thumbnail(theme_id), custom_font_urls=_cf_urls)
         count = sum(
             1 for t in self._token_manager.get_all()
@@ -2243,7 +2245,7 @@ class HarvestThemeDetailView(_HarvestView):
         if "variables" in updates or "dark_variables" in updates or "icon_set" in updates:
             await self._push_theme_to_tokens(theme_id, theme)
 
-        _cf_urls = _build_custom_font_urls(theme_id, theme)
+        _cf_urls = self._theme_manager.build_custom_font_urls(theme_id, theme)
         d = theme_to_api_dict(theme, custom_font_urls=_cf_urls)
         if theme.has_renderer and self._renderer_manager is not None:
             d["has_renderer_file"] = self._renderer_manager.get_renderer_path(theme_id) is not None
@@ -2275,7 +2277,9 @@ class HarvestThemeDetailView(_HarvestView):
             for session in self._session_manager.get_all_for_token(tid):
                 if not session.ws.closed:
                     try:
-                        await session.ws.send_json({"type": "theme", "variables": {}})
+                        await session.ws.send_json(
+                            self._theme_manager.build_runtime_message(theme_id, None)
+                        )
                         await session.ws.send_json({"type": "renderer"})
                     except Exception:
                         pass
@@ -2360,13 +2364,15 @@ class HarvestThemeCustomFontView(_HarvestView):
 
     url = "/api/harvest/themes/{theme_id}/fonts/{filename}"
     name = "api:harvest:theme_custom_font"
+    requires_auth = False
+    cors_allowed = True
 
     async def get(self, request: web.Request, theme_id: str, filename: str) -> web.Response:
         path = self._theme_manager.get_custom_font_path(theme_id, filename)
         if path is None:
             raise web.HTTPNotFound()
         data = await self._hass.async_add_executor_job(path.read_bytes)
-        ct = "font/woff2" if filename.endswith(".woff2") else "font/woff"
+        ct = "font/woff2" if filename.lower().endswith(".woff2") else "font/woff"
         return web.Response(
             body=data,
             content_type=ct,
@@ -2402,27 +2408,12 @@ class HarvestThemeReloadByIdView(_HarvestView):
             theme = self._theme_manager.get(theme_id)
 
         ts = int(datetime.now(timezone.utc).timestamp())
-        theme_msg: dict = {
-            "type": "theme",
-            "variables": theme.variables,
-            "dark_variables": theme.dark_variables,
-        }
-        if theme.custom_fonts:
-            theme_msg["custom_fonts"] = [
-                {
-                    "family": f.get("family", ""),
-                    "url": f"/api/harvest/themes/{theme_id}/fonts/{f['file']}",
-                    **({"weight": f["weight"]} if f.get("weight") else {}),
-                    **({"style": f["style"]} if f.get("style") else {}),
-                }
-                for f in theme.custom_fonts
-                if f.get("file")
-            ]
+        theme_msg = self._theme_manager.build_runtime_message(theme_id, theme)
         for token in self._token_manager.get_all():
             if theme_url_to_id(token.theme_url) != theme_id:
                 continue
             renderer_url = ""
-            if token.renderer_pack and self._renderer_manager:
+            if token.renderer_pack and self._renderer_manager and self._renderer_manager.agreed:
                 if self._renderer_manager.get_renderer_path(token.renderer_pack):
                     renderer_url = f"/api/harvest/renderers/{token.renderer_pack}.js?v={ts}"
             for session in self._session_manager.get_all_for_token(token.token_id):
@@ -2434,7 +2425,7 @@ class HarvestThemeReloadByIdView(_HarvestView):
                     except Exception:
                         pass
 
-        _cf_urls = _build_custom_font_urls(theme_id, theme)
+        _cf_urls = self._theme_manager.build_custom_font_urls(theme_id, theme)
         d = theme_to_api_dict(theme, custom_font_urls=_cf_urls)
         if theme.has_renderer and self._renderer_manager is not None:
             d["has_renderer"] = self._renderer_manager.get_renderer_path(theme_id) is not None
@@ -2581,14 +2572,13 @@ class HarvestConfigView(_HarvestView):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
-        from .const import DOMAIN, DEFAULTS, MAX_ENTITIES_HARD_CAP, PLATFORM_VERSION
+        from .const import DOMAIN, MAX_ENTITIES_HARD_CAP, PLATFORM_VERSION
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
             return self.json({})
         entry = entries[0]
-        # Deep-merge stored values over defaults so nested objects like
-        # default_session are always fully populated even after partial saves.
-        merged = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
+        from .config_validation import normalize_global_config
+        merged = normalize_global_config(entry.data, entry.options)
         merged.pop("max_entities_per_token", None)
         merged.pop("max_entities_hard_cap", None)
         merged["platform_version"] = PLATFORM_VERSION
@@ -2618,7 +2608,7 @@ class HarvestConfigView(_HarvestView):
         user = request.get("hass_user")
         if user is None or not user.is_admin:
             raise web.HTTPForbidden()
-        from .const import DOMAIN, DEFAULTS
+        from .const import DOMAIN
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
             raise web.HTTPNotFound(reason="HArvest integration not loaded.")
@@ -2629,105 +2619,14 @@ class HarvestConfigView(_HarvestView):
             raise web.HTTPBadRequest(reason="Invalid JSON body.")
 
         entry = entries[0]
-        # Strip unknown top-level keys so callers cannot inject arbitrary options.
-        allowed_keys = set(DEFAULTS.keys())
-        filtered = {k: v for k, v in body.items() if k in allowed_keys}
+        from .config_validation import normalize_global_config, validate_global_config_patch
+        try:
+            filtered = validate_global_config_patch(body)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(reason=str(exc))
         if not filtered:
-            raise web.HTTPBadRequest(reason="No valid config keys in body.")
-        # Validate override_host when present: must be empty or a bare http(s) origin.
-        if "override_host" in filtered:
-            val = str(filtered.get("override_host", "") or "")
-            if val:
-                from urllib.parse import urlparse
-                try:
-                    parsed = urlparse(val)
-                except Exception:
-                    raise web.HTTPBadRequest(reason="override_host: invalid URL.")
-                if parsed.scheme not in ("http", "https"):
-                    raise web.HTTPBadRequest(reason="override_host: must use http or https scheme.")
-                if not parsed.netloc:
-                    raise web.HTTPBadRequest(reason="override_host: must include a host.")
-                if parsed.path not in ("", "/"):
-                    raise web.HTTPBadRequest(reason="override_host: must be a bare origin with no path.")
-                if parsed.query or parsed.fragment:
-                    raise web.HTTPBadRequest(reason="override_host: must be a bare origin with no query or fragment.")
-                filtered["override_host"] = f"{parsed.scheme}://{parsed.netloc}"
-        # Validate widget_script_url: empty, a relative path, an absolute
-        # path, or a full http(s) URL. Relative paths (harvest.min.js,
-        # ./harvest.min.js) are valid <script src> values for pages served
-        # alongside the JS file.
-        if "widget_script_url" in filtered:
-            val = str(filtered.get("widget_script_url", "") or "")
-            if val:
-                lowered = val.lower()
-                if lowered.startswith(("javascript:", "data:", "vbscript:")):
-                    raise web.HTTPBadRequest(reason="widget_script_url: unsafe scheme.")
-                scheme_match = re.match(r"^([a-zA-Z][a-zA-Z0-9+.\-]*):", val)
-                if scheme_match:
-                    if scheme_match.group(1).lower() not in ("http", "https"):
-                        raise web.HTTPBadRequest(reason="widget_script_url: must use http:// or https://.")
-                    from urllib.parse import urlparse as _urlparse2
-                    try:
-                        p2 = _urlparse2(val)
-                        if not p2.netloc:
-                            raise web.HTTPBadRequest(reason="widget_script_url: invalid URL.")
-                    except web.HTTPBadRequest:
-                        raise
-                    except Exception:
-                        raise web.HTTPBadRequest(reason="widget_script_url: invalid value.")
-        # Validate global display defaults when present.
-        if "default_lang" in filtered:
-            lang_val = str(filtered["default_lang"] or "auto").strip().lower()
-            if len(lang_val) > 20 or not re.fullmatch(r"auto|[a-z]{2,3}(-[a-zA-Z0-9]{1,8})*", lang_val):
-                raise web.HTTPBadRequest(reason="default_lang must be 'auto' or a BCP 47 tag.")
-            filtered["default_lang"] = lang_val
-        if "default_a11y" in filtered:
-            if str(filtered["default_a11y"]) not in ("standard", "enhanced"):
-                raise web.HTTPBadRequest(reason="default_a11y must be standard or enhanced.")
-        if "default_on_offline" in filtered:
-            if str(filtered["default_on_offline"]) not in {"dim", "hide", "message", "last-state"}:
-                raise web.HTTPBadRequest(reason="default_on_offline must be dim, hide, message, or last-state.")
-        if "default_on_error" in filtered:
-            if str(filtered["default_on_error"]) not in {"dim", "hide", "message"}:
-                raise web.HTTPBadRequest(reason="default_on_error must be dim, hide, or message.")
-        if "default_offline_text" in filtered:
-            filtered["default_offline_text"] = _validate_display_text(
-                filtered["default_offline_text"], "default_offline_text",
-            )
-        if "default_error_text" in filtered:
-            filtered["default_error_text"] = _validate_display_text(
-                filtered["default_error_text"], "default_error_text",
-            )
-        if "custom_domains" in filtered:
-            from .entity_compatibility import TIER1_DOMAINS, TIER3_DOMAINS
-            raw_cd = filtered["custom_domains"]
-            if not isinstance(raw_cd, list):
-                raise web.HTTPBadRequest(reason="custom_domains must be a list.")
-            validated: list[dict] = []
-            seen: set[str] = set()
-            for cd_entry in raw_cd:
-                if not isinstance(cd_entry, dict) or "domain" not in cd_entry:
-                    raise web.HTTPBadRequest(reason="Each custom domain entry must have a 'domain' key.")
-                cd_domain = str(cd_entry["domain"]).strip().lower()
-                if not re.fullmatch(r"[a-z][a-z0-9_]*", cd_domain):
-                    raise web.HTTPBadRequest(reason=f"Invalid domain name: {cd_domain}")
-                if cd_domain in TIER1_DOMAINS:
-                    raise web.HTTPBadRequest(reason=f"Domain '{cd_domain}' is already a built-in domain.")
-                if cd_domain in TIER3_DOMAINS:
-                    raise web.HTTPBadRequest(reason=f"Domain '{cd_domain}' is blocked and cannot be added.")
-                if cd_domain in seen:
-                    raise web.HTTPBadRequest(reason=f"Duplicate domain: {cd_domain}")
-                seen.add(cd_domain)
-                raw_services = cd_entry.get("allowed_services", [])
-                if not isinstance(raw_services, list):
-                    raise web.HTTPBadRequest(reason=f"allowed_services for {cd_domain} must be a list.")
-                services = [str(s).strip().lower() for s in raw_services if str(s).strip()]
-                if not services:
-                    raise web.HTTPBadRequest(
-                        reason=f"Domain '{cd_domain}' must specify at least one allowed service."
-                    )
-                validated.append({"domain": cd_domain, "allowed_services": services})
-            filtered["custom_domains"] = validated
+            raise web.HTTPBadRequest(reason="No config keys in body.")
+        secondary_server = get_entry_data(self._hass, self._entry_id).get("secondary_server")
 
         # Validate external_port when present.
         if "external_port" in filtered:
@@ -2737,7 +2636,7 @@ class HarvestConfigView(_HarvestView):
             except (TypeError, ValueError):
                 raise web.HTTPBadRequest(reason="Port must be a number.")
 
-            if ext_port:
+            if ext_port and (secondary_server is None or ext_port != secondary_server.port):
                 from .secondary_server import validate_external_port
                 ha_http_port = self._hass.config.api.port if self._hass.config.api else 8123
                 err = validate_external_port(ext_port, ha_http_port)
@@ -2746,22 +2645,36 @@ class HarvestConfigView(_HarvestView):
             filtered["external_port"] = ext_port
 
         # Deep-merge the incoming partial update over the current full config.
-        current = _deep_merge(dict(DEFAULTS), _deep_merge(dict(entry.data), dict(entry.options)))
+        current = normalize_global_config(entry.data, entry.options)
         current.pop("max_entities_per_token", None)
         current.pop("max_entities_hard_cap", None)
         updated = _deep_merge(current, filtered)
-        self._hass.config_entries.async_update_entry(entry, options=updated)
-
-        # Apply alternate-port server changes immediately if port changed.
+        try:
+            updated = validate_global_config_patch(updated)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(reason=str(exc))
+        # Apply alternate-port server changes before persisting the config.
+        # A failed bind restores the previous server and leaves config unchanged.
         if "external_port" in filtered:
             from .const import CONF_EXTERNAL_PORT
-            data = get_entry_data(self._hass, self._entry_id)
-            if secondary_server := data.get("secondary_server"):
+            if secondary_server:
                 new_port = int(updated.get(CONF_EXTERNAL_PORT, 0) or 0)
-                if new_port:
-                    self._hass.async_create_task(secondary_server.reconfigure(new_port))
-                else:
-                    self._hass.async_create_task(secondary_server.stop())
+                try:
+                    if new_port:
+                        await secondary_server.reconfigure(new_port)
+                    else:
+                        await secondary_server.stop()
+                except Exception:
+                    _LOGGER.exception(
+                        "Unable to apply alternate-port server setting %s.",
+                        new_port,
+                    )
+                    action = "start" if new_port else "stop"
+                    raise web.HTTPBadRequest(
+                        reason=f"Unable to {action} alternate-port server."
+                    )
+
+        self._hass.config_entries.async_update_entry(entry, options=updated)
 
         if filtered.get("kill_switch") or "sensitive_domains" in filtered:
             for session in self._session_manager.get_all():
@@ -2877,6 +2790,166 @@ class HarvestWarningsDismissView(_HarvestView):
 # URL reachability probe (panel-side mirror of the WP plugin's AJAX handler)
 # ---------------------------------------------------------------------------
 
+_PROBE_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+_PROBE_MAX_REDIRECTS = 3
+
+
+class _ProbeUrlRejected(ValueError):
+    """Raised when a reachability probe destination is not safe to request."""
+
+
+class _PinnedResolver(AbstractResolver):
+    """Resolve one hostname only to addresses validated before connection."""
+
+    def __init__(self, hostname: str, addresses: list[ResolveResult]) -> None:
+        self._hostname = hostname.rstrip(".").lower()
+        self._addresses = addresses
+
+    async def resolve(
+        self,
+        host: str,
+        port: int = 0,
+        family: socket.AddressFamily = socket.AF_INET,
+    ) -> list[ResolveResult]:
+        """Return validated addresses without another DNS lookup."""
+        if host.rstrip(".").lower() != self._hostname:
+            raise OSError("Unexpected hostname requested by pinned resolver.")
+        return [
+            ResolveResult(
+                hostname=host,
+                host=address["host"],
+                port=port,
+                family=address["family"],
+                proto=address["proto"],
+                flags=address["flags"],
+            )
+            for address in self._addresses
+            if family in (socket.AF_UNSPEC, address["family"])
+        ]
+
+    async def close(self) -> None:
+        """Release resolver resources."""
+
+
+def _is_public_probe_address(address: str) -> bool:
+    """Return whether an IP address is safe for the reachability probe."""
+    ip = ipaddress.ip_address(address)
+    return ip.is_global and not ip.is_multicast
+
+
+async def _resolve_public_probe_addresses(url: URL) -> list[ResolveResult]:
+    """Resolve and validate every destination address before connecting."""
+    if url.scheme not in ("http", "https") or not url.host:
+        raise _ProbeUrlRejected("Only full HTTP or HTTPS URLs can be checked.")
+    if url.user is not None or url.password is not None:
+        raise _ProbeUrlRejected("URLs containing credentials cannot be checked.")
+
+    try:
+        port = url.port
+    except ValueError as exc:
+        raise _ProbeUrlRejected("URL contains an invalid port.") from exc
+
+    host = url.raw_host or url.host
+    try:
+        literal_ip = ipaddress.ip_address(host)
+    except ValueError:
+        literal_ip = None
+
+    if literal_ip is not None:
+        if not _is_public_probe_address(str(literal_ip)):
+            raise _ProbeUrlRejected(
+                "Private or internal network URLs cannot be checked."
+            )
+        family = socket.AF_INET6 if literal_ip.version == 6 else socket.AF_INET
+        return [
+            ResolveResult(
+                hostname=host,
+                host=str(literal_ip),
+                port=port,
+                family=family,
+                proto=socket.IPPROTO_TCP,
+                flags=socket.AI_NUMERICHOST | socket.AI_NUMERICSERV,
+            )
+        ]
+
+    infos = await asyncio.get_running_loop().getaddrinfo(
+        host,
+        port,
+        family=socket.AF_UNSPEC,
+        type=socket.SOCK_STREAM,
+    )
+    addresses: list[ResolveResult] = []
+    seen: set[tuple[int, str]] = set()
+    for family, _socktype, proto, _canonname, sockaddr in infos:
+        if family not in (socket.AF_INET, socket.AF_INET6):
+            continue
+        address = sockaddr[0]
+        if not _is_public_probe_address(address):
+            raise _ProbeUrlRejected(
+                "Private or internal network URLs cannot be checked."
+            )
+        key = (family, address)
+        if key in seen:
+            continue
+        seen.add(key)
+        addresses.append(
+            ResolveResult(
+                hostname=host,
+                host=address,
+                port=port,
+                family=family,
+                proto=proto,
+                flags=socket.AI_NUMERICHOST | socket.AI_NUMERICSERV,
+            )
+        )
+
+    if not addresses:
+        raise OSError("DNS lookup returned no usable addresses.")
+    return addresses
+
+
+async def _probe_public_url(raw: str) -> int:
+    """Probe a public URL while validating and pinning every redirect target."""
+    current = URL(raw)
+    timeout = aiohttp.ClientTimeout(total=4)
+    from .const import PLATFORM_VERSION
+
+    for redirect_count in range(_PROBE_MAX_REDIRECTS + 1):
+        addresses = await _resolve_public_probe_addresses(current)
+        connector = aiohttp.TCPConnector(
+            resolver=_PinnedResolver(current.raw_host or current.host, addresses),
+            use_dns_cache=False,
+            force_close=True,
+        )
+        async with aiohttp.ClientSession(
+            timeout=timeout,
+            connector=connector,
+            trust_env=False,
+        ) as session:
+            async with session.head(
+                current,
+                allow_redirects=False,
+                headers={
+                    "User-Agent": (
+                        f"HArvest/{PLATFORM_VERSION} (URL reachability probe)"
+                    )
+                },
+            ) as response:
+                status = response.status
+                location = response.headers.get("Location")
+
+        if status not in _PROBE_REDIRECT_STATUSES or not location:
+            return status
+        if redirect_count >= _PROBE_MAX_REDIRECTS:
+            raise aiohttp.TooManyRedirects(request_info=None, history=())
+        try:
+            current = current.join(URL(location)).with_fragment(None)
+        except ValueError as exc:
+            raise _ProbeUrlRejected("Redirect target is not a valid URL.") from exc
+
+    raise aiohttp.TooManyRedirects(request_info=None, history=())
+
+
 class HarvestCheckUrlView(_HarvestView):
     """GET /api/harvest/check_url?url=... - probe a URL from the HA server side.
 
@@ -2956,21 +3029,15 @@ class HarvestCheckUrlView(_HarvestView):
                 ),
             })
 
-        # Probe with HEAD. Short timeout so a hung remote does not lock
-        # up the panel. Allow a small number of redirects (CDNs that 301
-        # to a canonical URL).
-        import asyncio
-        import aiohttp as _aiohttp
-        from .const import PLATFORM_VERSION
         try:
-            timeout = _aiohttp.ClientTimeout(total=4)
-            async with _aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.head(
-                    raw,
-                    allow_redirects=True,
-                    headers={"User-Agent": f"HArvest/{PLATFORM_VERSION} (URL reachability probe)"},
-                ) as response:
-                    status = response.status
+            status = await _probe_public_url(raw)
+        except _ProbeUrlRejected as exc:
+            return self.json({
+                "ok": False,
+                "status": 0,
+                "reason": "invalid",
+                "message": str(exc),
+            })
         except asyncio.TimeoutError:
             return self.json({
                 "ok": False,
@@ -2982,7 +3049,7 @@ class HarvestCheckUrlView(_HarvestView):
                     "anyway if you know the URL is correct."
                 ),
             })
-        except _aiohttp.ClientError:
+        except (aiohttp.ClientError, OSError, ValueError):
             return self.json({
                 "ok": False,
                 "status": 0,
@@ -3291,7 +3358,7 @@ class HarvestServiceFieldsView(_HarvestView):
 
         raw_fields = svc_desc.get("fields", {})
 
-        from .ws_proxy import _ALLOWED_DATA_KEYS
+        from .ws_proxy import _ALLOWED_DATA_KEYS, _TARGET_SELECTOR_KEYS
         allowed_keys = _ALLOWED_DATA_KEYS.get(domain)
 
         def _filter_fields(fields: dict) -> dict:
@@ -3303,12 +3370,14 @@ class HarvestServiceFieldsView(_HarvestView):
                     if filtered:
                         out[key] = {**schema, "fields": filtered}
                     continue
+                if key in _TARGET_SELECTOR_KEYS:
+                    continue
                 if allowed_keys is not None and key not in allowed_keys:
                     continue
                 out[key] = schema
             return out
 
-        filtered = _filter_fields(raw_fields) if allowed_keys is not None else raw_fields
+        filtered = _filter_fields(raw_fields)
 
         return self.json({
             "domain": domain,

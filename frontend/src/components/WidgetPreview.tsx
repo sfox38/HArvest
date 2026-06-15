@@ -236,25 +236,31 @@ export function isRendererLoaded(rendererId: string): boolean {
   return _loadedRenderers.has(rendererId);
 }
 
-export function loadRendererScript(rendererId: string): Promise<void> {
+export async function loadRendererScript(rendererId: string): Promise<void> {
   if (_loadedRenderers.has(rendererId)) return Promise.resolve();
   const existing = _loadingRenderers.get(rendererId);
   if (existing) return existing;
   const bust = _rendererCacheBust.get(rendererId) || String(buildVersion.build);
-  const p = new Promise<void>((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `/api/harvest/renderers/${encodeURIComponent(rendererId)}.js?v=${bust}`;
-    script.dataset.rendererId = rendererId;
-    script.onload = () => {
-      _loadedRenderers.add(rendererId);
-      _loadingRenderers.delete(rendererId);
-      resolve();
-    };
-    script.onerror = () => {
-      _loadingRenderers.delete(rendererId);
-      reject(new Error(`Failed to load renderer ${rendererId}`));
-    };
-    document.head.appendChild(script);
+  const p = (async () => {
+    const renderers = await api.renderers.list();
+    if (!renderers.agreed) {
+      throw new Error("Renderer consent is required before loading custom renderer JavaScript.");
+    }
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = `/api/harvest/renderers/${encodeURIComponent(rendererId)}.js?v=${bust}`;
+      script.dataset.rendererId = rendererId;
+      script.onload = () => {
+        _loadedRenderers.add(rendererId);
+        resolve();
+      };
+      script.onerror = () => {
+        reject(new Error(`Failed to load renderer ${rendererId}`));
+      };
+      document.head.appendChild(script);
+    });
+  })().finally(() => {
+    _loadingRenderers.delete(rendererId);
   });
   _loadingRenderers.set(rendererId, p);
   return p;

@@ -176,7 +176,7 @@
               <tr><td>A11y</td><td>"standard" | "enhanced"</td><td>"standard"</td><td>Accessibility mode.</td></tr>
               <tr><td>Active schedule</td><td>object | null</td><td>null</td><td>Day/hour restriction with IANA timezone.</td></tr>
               <tr><td>Allow any origin</td><td>boolean</td><td>false</td><td>Skip origin checking entirely.</td></tr>
-              <tr><td>Allowed IPs</td><td>CIDR list</td><td>-</td><td>IP allowlist. Requires trusted_proxies in HA config.</td></tr>
+              <tr><td>Allowed IPs</td><td>CIDR list</td><td>-</td><td>IP allowlist. Behind a proxy or tunnel, configure trusted proxies in HArvest integration settings.</td></tr>
               <tr><td>Allowed origins</td><td>list</td><td>-</td><td>Websites allowed to connect. Empty = any (if allow_any is set) or rejection.</td></tr>
               <tr><td>Entities</td><td>list</td><td>-</td><td>List of entity IDs with per-entity capability and settings.</td></tr>
               <tr><td>Error text</td><td>string</td><td>""</td><td>Custom message shown on connection error.</td></tr>
@@ -246,7 +246,7 @@
               <tr><td>Kill switch</td><td>Off</td><td>Drops all sessions globally and blocks new connections.</td></tr>
               <tr><td>Max session lifetime</td><td>1440 min</td><td>Maximum total duration via renewals.</td></tr>
               <tr><td>Override host</td><td>(empty)</td><td>The public URL the panel uses when generating snippets and computing the HA-served widget script URL. Empty means use the URL of whatever HA host the admin is currently visiting. Set this to your external HA URL when admins access HA via a different domain than visitors will use.</td></tr>
-              <tr><td>Widget script source</td><td>HA-served</td><td>Three options: HA-served (default, snippet uses <code>{HA_URL}/harvest_assets/harvest.min.js</code>; always matches the running integration), Alternate port (lightweight server on a separate port with its own CORS headers, for installs where the main HA port is not reachable from the embed site), or Custom URL (admin-supplied). HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration.</td></tr>
+              <tr><td>Widget script source</td><td>HA-served</td><td>Three options: HA-served (default, snippet uses <code>{HA_URL}/harvest_assets/harvest.min.js</code>; always matches the running integration), Alternate port (lightweight server for the widget script, WebSocket connection, and runtime assets, for installs where the main HA port is not reachable from the embed site), or Custom URL (admin-supplied). The alternate server is plain HTTP unless placed behind a TLS proxy or secure tunnel. HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration.</td></tr>
             </tbody>
           </table>
         </div>
@@ -270,7 +270,7 @@
           </table>
         </div>
 
-        <p>The allowlist is read for every command, so additions and removals take effect immediately for active sessions. Registration alone never permits a command. The target entity must also belong to the token with <code>read-write</code> capability, the command must pass rate limits, and the service data is filtered against HA's registered service schema. Unknown service data keys are silently removed.</p>
+        <p>The allowlist is read for every command, so additions and removals take effect immediately for active sessions. Registration alone never permits a command. The target entity must also belong to the token with <code>read-write</code> capability, the command must pass rate limits, and the service data is filtered against HA's registered service schema. Unknown service data keys are silently removed. HA target selectors such as <code>entity_id</code>, <code>device_id</code>, <code>area_id</code>, <code>floor_id</code>, and <code>label_id</code> are always removed so the call remains scoped to the token-authorized entity.</p>
 
         <h2 id="css-vars">CSS variables (summary)</h2>
 

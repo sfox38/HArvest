@@ -50,6 +50,7 @@ from .const import (
     ERR_SERVER_ERROR,
     ERR_SESSION_EXPIRED,
     ERR_SESSION_LIMIT_REACHED,
+    ERR_SIGNATURE_INVALID,
     ERR_TOKEN_INACTIVE,
     ERR_TOKEN_EXPIRED,
     ERR_TOKEN_REVOKED,
@@ -178,6 +179,13 @@ _ALLOWED_DATA_KEYS: dict[str, set[str]] = {
     "remote": {"command", "device", "num_repeats", "delay_secs", "hold_secs", "activity"},
 }
 
+# HA entity-service schemas accept these selectors alongside service-specific
+# data. HArvest always supplies the one authorized entity as the target, so
+# client-provided selectors must never be forwarded.
+_TARGET_SELECTOR_KEYS: frozenset[str] = frozenset({
+    "entity_id", "device_id", "area_id", "floor_id", "label_id",
+})
+
 
 class HarvestWsView(HomeAssistantView):
     """WebSocket endpoint for public widget connections.
@@ -253,15 +261,12 @@ class HarvestWsView(HomeAssistantView):
 
     def _get_global_config(self) -> dict:
         """Return the merged global integration config."""
-        from .const import DEFAULTS
+        from .config_validation import normalize_global_config
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
-            return dict(DEFAULTS)
+            return normalize_global_config()
         entry = entries[0]
-        merged: dict = dict(DEFAULTS)
-        merged.update(entry.data)
-        merged.update(entry.options)
-        return merged
+        return normalize_global_config(entry.data, entry.options)
 
     async def get(self, request: Request) -> WebSocketResponse:
         """Handle incoming WebSocket upgrade.
@@ -647,24 +652,7 @@ class HarvestWsView(HomeAssistantView):
             theme_id = theme_url_to_id(token.theme_url)
             theme_def = theme_mgr.get(theme_id)
             if theme_def:
-                theme_msg: dict = {
-                    "type": "theme",
-                    "variables": theme_def.variables,
-                    "dark_variables": theme_def.dark_variables,
-                    "icon_set": theme_def.icon_set,
-                }
-                if theme_def.custom_fonts:
-                    theme_msg["custom_fonts"] = [
-                        {
-                            "family": f.get("family", ""),
-                            "url": f"/api/harvest/themes/{theme_id}/fonts/{f['file']}",
-                            **({"weight": f["weight"]} if f.get("weight") else {}),
-                            **({"style": f["style"]} if f.get("style") else {}),
-                        }
-                        for f in theme_def.custom_fonts
-                        if f.get("file")
-                    ]
-                await ws.send_json(theme_msg)
+                await ws.send_json(theme_mgr.build_runtime_message(theme_id, theme_def))
 
         # --- Step 4a.2: Send renderer URL if token has one ---
         if token.renderer_pack:
@@ -684,8 +672,8 @@ class HarvestWsView(HomeAssistantView):
         # _send_initial_state and _register_listeners are inside the try block so
         # that a dropped connection during initial state push still triggers cleanup.
         try:
-            await self._send_initial_state(ws, session, real_entity_ids, token, outgoing_ids, forecast_cache)
             self._register_listeners(ws, session, token, outgoing_ids, listener_unsubs, real_entity_ids, forecast_cache, forecast_unsubs)
+            await self._send_initial_state(ws, session, real_entity_ids, token, outgoing_ids, forecast_cache)
             await self._message_loop(ws, session, token, outgoing_ids, listener_unsubs, expiry_warning_holder, forecast_cache, forecast_unsubs)
         finally:
             # --- Step 7: Cleanup ---
@@ -696,6 +684,7 @@ class HarvestWsView(HomeAssistantView):
             for unsub_list in forecast_unsubs.values():
                 for unsub in unsub_list:
                     unsub()
+            self._cancel_deferred_state_pushes(session)
             self._session_manager.terminate(session.session_id)
             self._rate_limiter.cleanup_session(session.session_id)
             self._activity_store.record_session(SessionEvent(
@@ -854,9 +843,10 @@ class HarvestWsView(HomeAssistantView):
                 msg_type = msg.get("type")
 
                 client_sid = msg.get("session_id")
-                if client_sid is not None and client_sid != session.session_id:
+                if client_sid != session.session_id:
                     _LOGGER.warning(
-                        "HArvest: session_id mismatch from session %s (got %s). Dropping message.",
+                        "HArvest: missing or mismatched session_id from session %s (got %s). "
+                        "Dropping message.",
                         session.session_id, client_sid,
                     )
                     continue
@@ -970,13 +960,18 @@ class HarvestWsView(HomeAssistantView):
             svc_schema = domain_map.get(action)
             if svc_schema and hasattr(svc_schema, "schema") and svc_schema.schema:
                 try:
-                    allowed_keys = {str(k) for k in svc_schema.schema.schema.keys()} - {"entity_id"}
+                    allowed_keys = {
+                        str(k) for k in svc_schema.schema.schema.keys()
+                    } - _TARGET_SELECTOR_KEYS
                 except Exception:
                     allowed_keys = set()
             else:
                 allowed_keys = set()
         blocked_keys = get_blocked_data_keys(ea.exclude_attributes) if ea.exclude_attributes else set()
-        clean_data = {k: v for k, v in data.items() if k in allowed_keys and k not in blocked_keys}
+        clean_data = {
+            k: v for k, v in data.items()
+            if k in allowed_keys and k not in blocked_keys and k not in _TARGET_SELECTOR_KEYS
+        }
 
         # Execute.
         success = True
@@ -1075,11 +1070,11 @@ class HarvestWsView(HomeAssistantView):
 
         await ws.send_json({"type": "subscribe_ok", "entity_ids": accepted_refs, "msg_id": msg_id})
 
-        # Send interleaved entity_definition + state_update for each new entity.
-        await self._send_initial_state(ws, session, new_real_ids, token, outgoing_ids, forecast_cache)
-
         # Register new listeners.
         self._register_listeners(ws, session, token, outgoing_ids, listener_unsubs, new_real_ids, forecast_cache, forecast_unsubs)
+
+        # Send interleaved entity_definition + state_update for each new entity.
+        await self._send_initial_state(ws, session, new_real_ids, token, outgoing_ids, forecast_cache)
 
     async def _handle_unsubscribe(
         self,
@@ -1127,6 +1122,7 @@ class HarvestWsView(HomeAssistantView):
                     real_ids.append(comp_id)
 
         self._session_manager.remove_subscription(session.session_id, real_ids)
+        self._cancel_deferred_state_pushes(session, real_ids)
 
         for real_id in real_ids:
             unsub = listener_unsubs.pop(real_id, None)
@@ -1169,6 +1165,33 @@ class HarvestWsView(HomeAssistantView):
             await ws.close()
             return
         token = live_token
+
+        if token.token_secret is not None:
+            timestamp = msg.get("timestamp")
+            nonce = msg.get("nonce")
+            signature = msg.get("signature")
+            valid_signature = (
+                msg.get("token_id") == session.token_id
+                and isinstance(timestamp, int)
+                and not isinstance(timestamp, bool)
+                and isinstance(nonce, str)
+                and isinstance(signature, str)
+                and self._token_manager.verify_hmac(
+                    token.token_secret,
+                    session.token_id,
+                    timestamp,
+                    nonce,
+                    signature,
+                )
+            )
+            if not valid_signature:
+                await ws.send_json({
+                    "type": "auth_failed",
+                    "code": ERR_SIGNATURE_INVALID,
+                    "msg_id": msg_id,
+                })
+                await ws.close()
+                return
 
         # Check max_renewals before calling renew() (session_manager doesn't have token context).
         if (
@@ -1384,6 +1407,7 @@ class HarvestWsView(HomeAssistantView):
 
         # Entity was removed from HA entirely (new_state is None).
         if new_state is None:
+            self._cancel_deferred_state_pushes(session, [entity_id])
             outgoing_id = outgoing_ids.get(entity_id, entity_id)
             _fire(ws.send_json({"type": "entity_removed", "entity_id": outgoing_id, "msg_id": None}))
             return
@@ -1391,12 +1415,22 @@ class HarvestWsView(HomeAssistantView):
         # Push rate limit per (session, entity).
         push_rate = token.rate_limits.max_push_per_second
         if not self._rate_limiter.check_push(session.session_id, entity_id, push_rate):
-            outgoing_id = outgoing_ids.get(entity_id, entity_id)
-            self._hass.async_create_task(
-                self._deferred_state_push(ws, entity_id, outgoing_id, token, session, forecast_cache)
-            )
+            pending = session.deferred_state_tasks.get(entity_id)
+            if pending is None or pending.done():
+                outgoing_id = outgoing_ids.get(entity_id, entity_id)
+                session.deferred_state_tasks[entity_id] = self._hass.async_create_task(
+                    self._deferred_state_push(
+                        ws,
+                        entity_id,
+                        outgoing_id,
+                        token,
+                        session,
+                        forecast_cache,
+                    )
+                )
             return
 
+        self._cancel_deferred_state_pushes(session, [entity_id])
         outgoing_id = outgoing_ids.get(entity_id, entity_id)
         update = self._build_state_update_message(
             real_id=entity_id,
@@ -1423,27 +1457,43 @@ class HarvestWsView(HomeAssistantView):
         Called when a state update was rate-limited. Ensures the widget
         converges to the final state even when intermediate updates are dropped.
         """
-        await asyncio.sleep(1.0)
-        if ws.closed:
-            return
-        if entity_id not in session.subscribed_entity_ids:
-            return
-        state = self._hass.states.get(entity_id)
-        if state is None:
-            return
-        update = self._build_state_update_message(
-            real_id=entity_id,
-            outgoing_id=outgoing_id,
-            state=state,
-            token=token,
-            is_initial=False,
-            session=session,
-            forecast_cache=forecast_cache,
-        )
         try:
-            await ws.send_json(update)
-        except Exception:
-            pass
+            await asyncio.sleep(1.0)
+            if ws.closed:
+                return
+            if entity_id not in session.subscribed_entity_ids:
+                return
+            state = self._hass.states.get(entity_id)
+            if state is None:
+                return
+            update = self._build_state_update_message(
+                real_id=entity_id,
+                outgoing_id=outgoing_id,
+                state=state,
+                token=token,
+                is_initial=False,
+                session=session,
+                forecast_cache=forecast_cache,
+            )
+            try:
+                await ws.send_json(update)
+            except Exception:
+                pass
+        finally:
+            if session.deferred_state_tasks.get(entity_id) is asyncio.current_task():
+                session.deferred_state_tasks.pop(entity_id, None)
+
+    @staticmethod
+    def _cancel_deferred_state_pushes(
+        session: Session,
+        entity_ids: list[str] | None = None,
+    ) -> None:
+        """Cancel pending coalesced state pushes for a session."""
+        ids = list(session.deferred_state_tasks) if entity_ids is None else entity_ids
+        for entity_id in ids:
+            task = session.deferred_state_tasks.pop(entity_id, None)
+            if task is not None:
+                task.cancel()
 
     # ------------------------------------------------------------------
     # Message builders
@@ -1827,8 +1877,8 @@ class HarvestWsView(HomeAssistantView):
         if not entries:
             return False
         entry = entries[0]
-        merged = {**entry.data, **entry.options}
-        return bool(merged.get(CONF_KILL_SWITCH, False))
+        from .config_validation import normalize_global_config
+        return normalize_global_config(entry.data, entry.options)[CONF_KILL_SWITCH]
 
     def _get_source_ip(self, request: Request) -> str:
         """Extract the real client IP using rightmost-trusted X-Forwarded-For.
@@ -1861,7 +1911,7 @@ class HarvestWsView(HomeAssistantView):
         peer = request.transport.get_extra_info("peername")
         peer_ip = peer[0] if peer else ""
 
-        if not trusted_proxies or not peer_ip:
+        if not isinstance(trusted_proxies, list) or not trusted_proxies or not peer_ip:
             return peer_ip
         if not _ip_in_trusted(peer_ip, trusted_proxies):
             return peer_ip
@@ -1872,6 +1922,10 @@ class HarvestWsView(HomeAssistantView):
 
         chain = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
         for ip in reversed(chain):
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                return peer_ip
             if not _ip_in_trusted(ip, trusted_proxies):
                 return ip
 
@@ -1893,6 +1947,8 @@ def _ip_in_trusted(peer_ip: str, trusted: list[str]) -> bool:
     except ValueError:
         return False
     for entry in trusted:
+        if not isinstance(entry, str):
+            continue
         try:
             if "/" in entry:
                 if addr in ipaddress.ip_network(entry, strict=False):

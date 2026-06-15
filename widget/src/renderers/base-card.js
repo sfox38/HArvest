@@ -889,7 +889,8 @@ export class BaseCard {
       state, pill.dataset.domain || null, pill.dataset.deviceClass || null,
     );
     const unit = attributes?.unit_of_measurement;
-    if (unit) label = `${label} ${unit}`;
+    const isNumeric = state != null && state !== "" && !Number.isNaN(Number(state));
+    if (unit && isNumeric) label = `${label} ${unit}`;
     const stateEl = pill.querySelector("[part=companion-state]");
     if (stateEl) stateEl.textContent = label;
     const name = pill.getAttribute("aria-label")?.replace(/ - .*$/, "") ?? entityId;

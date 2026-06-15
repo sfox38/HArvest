@@ -14,7 +14,8 @@ from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.event import async_track_time_interval
 
 from .activity_store import ActivityStore
-from .const import DEFAULTS, DOMAIN, CONF_EXTERNAL_PORT
+from .const import DOMAIN, CONF_EXTERNAL_PORT
+from .config_validation import normalize_global_config
 from .control_entities import ControlEntities
 from .diagnostic_sensors import DiagnosticSensors
 from .event_bus import EventBus
@@ -53,7 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.config_entries.async_update_entry(entry, data=data, options=options)
 
     # Build effective config: defaults < entry.data < entry.options.
-    config: dict = {**DEFAULTS, **data, **options}
+    config = normalize_global_config(data, options)
 
     # --- Instantiate in dependency order ---
     activity_store = ActivityStore(hass, config)
@@ -145,8 +146,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # --- Start optional secondary server ---
     from pathlib import Path
     widget_dir = Path(hass.config.path("custom_components", DOMAIN, "panel"))
-    themes_dir = Path(hass.config.path("custom_components", DOMAIN, "themes"))
-    secondary_server = SecondaryServer(widget_dir, themes_dir, ws_view, activity_store)
+    secondary_server = SecondaryServer(
+        widget_dir,
+        ws_view,
+        activity_store,
+        theme_manager,
+        renderer_manager,
+    )
     ext_port = int(config.get(CONF_EXTERNAL_PORT, 0) or 0)
     if ext_port:
         try:

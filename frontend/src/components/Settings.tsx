@@ -16,6 +16,7 @@ import { Toggle } from "./Toggle";
 import { UrlReachabilityIndicator } from "./UrlReachabilityIndicator";
 import buildVersion from "../buildVersion.json";
 import { refreshEntityCache } from "../entityCache";
+import { resolveWidgetConnectionUrls } from "../connectionUrls";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -260,14 +261,9 @@ function WidgetScriptSourceField({ value, overrideHost, externalPort, onScriptUr
   useEffect(() => { setUiMode(derivedMode); }, [derivedMode]);
   useEffect(() => { setLocalPort(String(externalPort || "")); }, [externalPort]);
 
-  const altPortUrl = (port: number) => {
-    if (!port) return "";
-    try {
-      const u = new URL(haBase);
-      return `${u.protocol}//${u.hostname}:${port}/harvest.min.js`;
-    } catch { return `${haBase}:${port}/harvest.min.js`; }
-  };
-  const altPortCommitted = altPortUrl(externalPort);
+  const altPortCommitted = externalPort > 0
+    ? resolveWidgetConnectionUrls(haBase, "", externalPort).scriptUrl
+    : "";
 
   const activeUrl = uiMode === "custom" ? value.trim() : uiMode === "alt-port" ? altPortCommitted : haPreview;
   const reachUrl = uiMode === "alt-port" ? altPortCommitted : activeUrl;
@@ -354,7 +350,7 @@ function WidgetScriptSourceField({ value, overrideHost, externalPort, onScriptUr
             />
             <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
               <div className="row gap-8" style={{ alignItems: "center" }}>
-                <span>Alternate port</span>
+                <span>Alternate widget transport port</span>
                 {uiMode === "alt-port" && (
                   <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                     <input
@@ -374,6 +370,9 @@ function WidgetScriptSourceField({ value, overrideHost, externalPort, onScriptUr
                     )}
                   </div>
                 )}
+              </div>
+              <div className="settings-field-hint">
+                Serves the widget script, WebSocket connection, and runtime assets. Plain HTTP requires a trusted network or TLS reverse proxy.
               </div>
             </div>
           </label>

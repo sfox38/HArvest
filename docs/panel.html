@@ -167,7 +167,7 @@
         <p>Each row shows a domain icon, the entity ID, and an alias badge (if set). Click a row to select it. Only primary entities appear here; companion entities are managed inside the selected entity's settings card. Use the search input at the top to add new entities with fuzzy matching.</p>
 
         <h4>Theme card</h4>
-        <p>The theme picker is always visible at the top of the right panel, even when no entity is selected. It shows a horizontal scrollable strip of theme thumbnails. A text filter below the strip narrows the list by theme name or ID. Themes that include a renderer override are marked with a <span class="badge badge-amber">☆</span> badge. Selecting a theme applies it to the widget and updates the live preview immediately.</p>
+        <p>The theme picker is always visible at the top of the right panel, even when no entity is selected. It shows a horizontal scrollable strip of theme thumbnails. A text filter below the strip narrows the list by theme name or ID. Themes that include a renderer override are marked with a <span class="badge badge-amber">★</span> badge (shown as <span class="badge badge-amber">⚠</span> if the renderer JS file is missing), and themes that bundle a custom font are marked with an <span class="badge badge-grey">F</span> badge (hovering shows the font family names). Selecting a theme applies it to the widget and updates the live preview immediately.</p>
 
         <h4>Live preview</h4>
         <p>When an entity is selected, a live preview card appears below the theme picker. It renders the selected entity using the current theme and all applied settings. The preview updates automatically as you change settings, switch themes, or modify display options. It also respects the entity's forced color scheme setting (Auto, Light, or Dark).</p>
@@ -228,7 +228,7 @@
 
         <h4>Entities block settings</h4>
         <p>When a widget is configured as an entities block, the entity list shows a virtual "Entities Block" header row at the top. Selecting it shows block-level settings that apply to the entire block:</p>
-        <p>Gestures are unavailable in entities block mode. Existing gesture settings remain stored but inactive, and become active again if entities block mode is disabled. The API rejects attempts to add or change gestures while entities block mode is enabled.</p>
+        <p>Gestures are unavailable in entities block mode. Existing gesture settings remain stored but inactive, and become active again if entities block mode is disabled.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Setting</th><th>Options</th><th>Notes</th></tr></thead>
@@ -351,7 +351,7 @@
 
         <h2 id="settings">Settings</h2>
 
-        <p>The Settings screen has collapsible sections for every global configuration option.</p>
+        <p>The Settings screen has collapsible sections for every global configuration option. The server validates all updates before saving them, including nested settings and numeric ranges. Invalid updates are rejected without changing the current configuration. If malformed values exist because storage was edited manually or migrated from an older version, HArvest ignores them at runtime and uses documented defaults; malformed sensitive-domain settings remain blocked.</p>
 
         <h3>Allowed origins</h3>
         <p>A registry of websites that widgets can reference. Rather than typing a URL each time you create a widget, you add sites here once with a friendly name. These then appear as options in the wizard and widget detail screen. You can add origins directly from the widget editor too - they sync to this registry.</p>
@@ -362,7 +362,7 @@
             <thead><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
             <tbody>
               <tr><td>Override host</td><td>(empty)</td><td>The public URL the panel uses when generating embed snippets and the HA-served widget URL. Leave empty to use the URL of whatever HA host the admin is currently visiting. Set this if admins access HA via a different domain than visitors.</td></tr>
-              <tr><td>Widget script source</td><td>HA-served</td><td>Three options: <strong>HA-served</strong> (snippet uses <code>{HA URL}/harvest_assets/harvest.min.js</code>; always matches the running integration version), <strong>Alternate port</strong> (starts a lightweight CORS-enabled server on a separate port, useful when HA's main port is blocked or proxied), or <strong>Custom URL</strong> (admin-supplied). HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration's own files.</td></tr>
+              <tr><td>Widget script source</td><td>HA-served</td><td>Three options: <strong>HA-served</strong> (snippet uses <code>{HA URL}/harvest_assets/harvest.min.js</code>; always matches the running integration version), <strong>Alternate port</strong> (starts a lightweight server for the widget script, WebSocket connection, and runtime assets, useful when HA's main port is not reachable from the embed site), or <strong>Custom URL</strong> (admin-supplied). The alternate server is plain HTTP unless placed behind a TLS proxy or secure tunnel. HA-served eliminates widget-vs-server version drift since the bundle ships inside the integration's own files.</td></tr>
               <tr><td>Auth timeout</td><td>10 seconds</td><td>Time to complete WebSocket auth before disconnect</td></tr>
               <tr><td>Keepalive interval</td><td>30 seconds</td><td>How often the server pings connected clients</td></tr>
               <tr><td>Client heartbeat timeout</td><td>60 seconds</td><td>Session dropped if no client message within this window</td></tr>
@@ -370,14 +370,14 @@
           </table>
         </div>
 
-        <p>Both URL fields show a live reachability indicator that probes the URL from your Home Assistant server (so it works regardless of browser-side CORS):</p>
+        <p>Both URL fields show a live reachability indicator that probes public HTTP and HTTPS URLs from your Home Assistant server (so it works regardless of browser-side CORS). For security, the check refuses to request private, loopback, link-local, or other internal network addresses. Every redirect destination is checked under the same rules.</p>
         <ul>
           <li><strong>✓ (green)</strong> - the URL responded with HTTP 2xx. Reachable.</li>
           <li><strong>⚠ (amber)</strong> - the URL did not respond, or returned a 4xx/5xx. Doesn't necessarily mean visitors will fail to load the widget: visitors may be on a different network than HA. Save anyway if you know the URL is correct.</li>
           <li><strong>ⓘ (amber)</strong> - the URL is a relative path or bare filename. Cannot be probed because it only resolves against the visitor's embed page; you'll need to verify it manually.</li>
-          <li><strong>✗ (red)</strong> - the URL is malformed or uses a disallowed scheme. The integration will refuse to use it.</li>
+          <li><strong>✗ (red)</strong> - the URL is malformed, uses a disallowed scheme, or resolves to an internal network address. Malformed URLs and disallowed schemes cannot be used. Internal URLs may still be saved, but the reachability check will not request them.</li>
         </ul>
-        <p>The check is informational only and never blocks save.</p>
+        <p>The check is informational only and never blocks save. Verify internal URLs from the network where widget visitors will use them.</p>
 
         <h3>Security</h3>
         <div class="table-wrap">

@@ -1,9 +1,9 @@
 """secondary_server.py - Optional alternate-port aiohttp HTTP server.
 
 When external_port is set in config, HArvest starts a second aiohttp
-application on 0.0.0.0:<port>. It serves the widget JS, theme assets,
-and WebSocket endpoint with CORS Access-Control-Allow-Origin: * so that
-pages on any origin can load the widget without touching HA's main port.
+application on 0.0.0.0:<port>. It serves the widget JS, runtime assets,
+and canonical WebSocket endpoint with CORS Access-Control-Allow-Origin: *
+so widgets can operate without touching HA's main port.
 
 Settings changes take effect immediately on Save - no HA restart needed.
 """
@@ -19,6 +19,8 @@ from aiohttp import web
 
 if TYPE_CHECKING:
     from .activity_store import ActivityStore
+    from .renderer_manager import RendererManager
+    from .theme_manager import ThemeManager
     from .ws_proxy import HarvestWsView
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,6 +31,11 @@ _CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+}
+
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
 }
 
 
@@ -48,6 +55,14 @@ async def _cors_middleware(
     return response
 
 
+async def _prepare_secure_response(
+    request: web.Request,
+    response: web.StreamResponse,
+) -> None:
+    response.headers.update(_SECURITY_HEADERS)
+    response.headers.pop("Server", None)
+
+
 class SecondaryServer:
     """Manages the lifecycle of the optional alternate-port aiohttp server.
 
@@ -59,14 +74,16 @@ class SecondaryServer:
     def __init__(
         self,
         widget_dir: Path,
-        themes_dir: Path,
         ws_view: "HarvestWsView",
         activity_store: "ActivityStore | None" = None,
+        theme_manager: "ThemeManager | None" = None,
+        renderer_manager: "RendererManager | None" = None,
     ) -> None:
         self._widget_dir = widget_dir
-        self._themes_dir = themes_dir
         self._ws_view = ws_view
         self._activity: "ActivityStore | None" = activity_store
+        self._theme_manager = theme_manager
+        self._renderer_manager = renderer_manager
         self._runner: web.AppRunner | None = None
         self._port: int | None = None
 
@@ -74,9 +91,17 @@ class SecondaryServer:
     def is_running(self) -> bool:
         return self._runner is not None
 
+    @property
+    def port(self) -> int | None:
+        return self._port
+
     async def start(self, port: int) -> None:
         """Start the server on 0.0.0.0:<port>."""
         await self.stop()
+        await self._start(port)
+
+    async def _start(self, port: int) -> None:
+        """Start without stopping an existing runner first."""
 
         if port <= 1023:
             _LOGGER.warning(
@@ -86,17 +111,33 @@ class SecondaryServer:
             )
 
         app = web.Application(middlewares=[_cors_middleware])
+        app.on_response_prepare.append(_prepare_secure_response)
         app.router.add_get("/harvest.min.js", self._serve_widget)
-        app.router.add_get(r"/harvest.min.{hash:[a-f0-9]+}.js", self._serve_widget)
-        app.router.add_get("/themes/{path:.+}", self._serve_theme)
-        app.router.add_get("/harvest/ws", self._serve_ws)
-        app.router.add_get("/ws", self._serve_ws)
+        app.router.add_get("/harvest_assets/harvest.min.js", self._serve_widget)
+        app.router.add_get("/harvest_assets/icon-sets/{filename}", self._serve_icon_set)
+        app.router.add_get(
+            "/api/harvest/themes/{theme_id}/fonts/{filename}",
+            self._serve_custom_font,
+        )
+        app.router.add_get(
+            "/api/harvest/renderers/{renderer_id}.js",
+            self._serve_renderer,
+        )
+        app.router.add_get("/api/harvest/ws", self._serve_ws)
 
-        self._runner = web.AppRunner(app, access_log=None)
-        await self._runner.setup()
-        site = web.TCPSite(self._runner, BIND_HOST, port)
-        await site.start()
+        runner = web.AppRunner(app, access_log=None)
+        try:
+            await runner.setup()
+            site = web.TCPSite(runner, BIND_HOST, port)
+            await site.start()
+        except Exception:
+            try:
+                await runner.cleanup()
+            except Exception:
+                _LOGGER.exception("Failed to clean up alternate-port server startup.")
+            raise
 
+        self._runner = runner
         self._port = port
         _LOGGER.info("HArvest alternate-port server started on %s:%s", BIND_HOST, port)
         if self._activity:
@@ -105,10 +146,7 @@ class SecondaryServer:
     async def stop(self) -> None:
         """Stop the server if running."""
         if self._runner is not None:
-            try:
-                await self._runner.cleanup()
-            except Exception:  # noqa: BLE001
-                pass
+            await self._runner.cleanup()
             self._runner = None
             stopped_port = self._port
             _LOGGER.info(
@@ -120,9 +158,23 @@ class SecondaryServer:
             self._port = None
 
     async def reconfigure(self, port: int) -> None:
-        """Stop (if running) then start on the new port."""
+        """Move to a new port, restoring the previous port on failure."""
+        if port == self._port:
+            return
+        previous_port = self._port
         await self.stop()
-        await self.start(port)
+        try:
+            await self._start(port)
+        except Exception:
+            if previous_port is not None:
+                try:
+                    await self._start(previous_port)
+                except Exception:
+                    _LOGGER.exception(
+                        "HArvest alternate-port server could not restore port %s.",
+                        previous_port,
+                    )
+            raise
 
     # --- Route handlers ---
 
@@ -137,30 +189,49 @@ class SecondaryServer:
             headers={"Cache-Control": "public, max-age=3600"},
         )
 
-    async def _serve_theme(self, request: web.Request) -> web.Response:
-        rel = request.match_info["path"]
-        try:
-            resolved_base = self._themes_dir.resolve()
-            target = (self._themes_dir / rel).resolve()
-            target.relative_to(resolved_base)  # raises ValueError on traversal
-        except (ValueError, OSError):
-            raise web.HTTPForbidden()
-        if not target.is_file():
+    async def _serve_icon_set(self, request: web.Request) -> web.Response:
+        filename = request.match_info["filename"]
+        if not filename.endswith(".js") or "/" in filename or "\\" in filename or ".." in filename:
             raise web.HTTPNotFound()
-        suffix = target.suffix.lower()
-        ctype_map = {
-            ".json":  "application/json",
-            ".js":    "application/javascript",
-            ".woff2": "font/woff2",
-            ".woff":  "font/woff",
-            ".png":   "image/png",
-        }
-        ctype = ctype_map.get(suffix, "application/octet-stream")
-        body = await asyncio.to_thread(target.read_bytes)
+        path = self._widget_dir / "icon-sets" / filename
+        if not path.is_file():
+            raise web.HTTPNotFound()
+        body = await asyncio.to_thread(path.read_bytes)
         return web.Response(
             body=body,
-            content_type=ctype,
-            headers={"Cache-Control": "public, max-age=3600"},
+            content_type="application/javascript",
+            headers={"Cache-Control": "public, max-age=604800"},
+        )
+
+    async def _serve_custom_font(self, request: web.Request) -> web.Response:
+        if self._theme_manager is None:
+            raise web.HTTPNotFound()
+        filename = request.match_info["filename"]
+        path = self._theme_manager.get_custom_font_path(
+            request.match_info["theme_id"],
+            filename,
+        )
+        if path is None:
+            raise web.HTTPNotFound()
+        body = await asyncio.to_thread(path.read_bytes)
+        content_type = "font/woff2" if filename.lower().endswith(".woff2") else "font/woff"
+        return web.Response(
+            body=body,
+            content_type=content_type,
+            headers={"Cache-Control": "public, max-age=604800"},
+        )
+
+    async def _serve_renderer(self, request: web.Request) -> web.Response:
+        if self._renderer_manager is None:
+            raise web.HTTPNotFound()
+        path = self._renderer_manager.get_renderer_path(request.match_info["renderer_id"])
+        if path is None:
+            raise web.HTTPNotFound()
+        body = await asyncio.to_thread(path.read_bytes)
+        return web.Response(
+            body=body,
+            content_type="application/javascript",
+            headers={"Cache-Control": "no-store"},
         )
 
     async def _serve_ws(self, request: web.Request) -> web.Response:

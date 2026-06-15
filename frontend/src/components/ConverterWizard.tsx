@@ -18,6 +18,7 @@ import {
   type ViewData,
 } from "../lovelaceParser";
 import { renderPage } from "../lovelaceHtml";
+import { resolveWidgetConnectionUrls } from "../connectionUrls";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -501,6 +502,8 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
   const [widgetScriptUrl, setWidgetScriptUrl] = useState("");
   const [externalPort, setExternalPort] = useState(0);
   const generateLockRef = useRef(false);
+  const wizardRef = useRef<HTMLDivElement>(null);
+  const closeRequestRef = useRef<() => void>(() => {});
 
   const [state, setState] = useState<ConverterState>({
     dashboards: null,
@@ -529,6 +532,39 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
       setWidgetScriptUrl(c.widget_script_url ?? "");
       setExternalPort(c.external_port ?? 0);
     }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const dialog = wizardRef.current;
+    if (!dialog) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    dialog.querySelector<HTMLElement>(selector)?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeRequestRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(selector));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        last.focus();
+        event.preventDefault();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        first.focus();
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
   }, []);
 
   const selectedViews = state.parsedViews.filter((_, i) => state.selectedViewIndices.has(i));
@@ -577,12 +613,12 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
         return;
       }
 
-      const haUrl = overrideHost || window.location.origin;
-      const trimmedCustom = widgetScriptUrl.trim();
-      const scriptUrl = trimmedCustom
-        || (externalPort > 0
-          ? (() => { try { const u = new URL(haUrl); return `${u.protocol}//${u.hostname}:${externalPort}/harvest.min.js`; } catch { return `${haUrl.replace(/\/+$/, "")}:${externalPort}/harvest.min.js`; } })()
-          : `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`);
+      const baseHaUrl = overrideHost || window.location.origin;
+      const { haUrl, scriptUrl } = resolveWidgetConnectionUrls(
+        baseHaUrl,
+        widgetScriptUrl,
+        externalPort,
+      );
       const tokenMap: Record<string, string[]> = {};
 
       // Fetch existing labels so we can deduplicate like macOS (Fans, Fans (2), ...)
@@ -697,6 +733,7 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
       setConfirmClose(true);
     }
   };
+  closeRequestRef.current = handleCloseRequest;
 
   const isDone = step === 4;
 
@@ -705,6 +742,7 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
   return (
     <div className="overlay" role="presentation">
       <div
+        ref={wizardRef}
         role="dialog"
         aria-modal="true"
         aria-label="Convert Dashboard"

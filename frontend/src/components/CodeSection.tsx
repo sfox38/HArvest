@@ -12,6 +12,7 @@ import type { Token } from "../types";
 import { api } from "../api";
 import { Card, Hint } from "./Shared";
 import { Toggle } from "./Toggle";
+import { resolveWidgetConnectionUrls } from "../connectionUrls";
 
 // ---------------------------------------------------------------------------
 // Clipboard hook (works in non-secure contexts)
@@ -209,13 +210,13 @@ export function CodeSection({ token, setToken, setError, hmacSecret, bare }: { t
     }).catch(() => {});
   }, []);
 
-  const haUrl = overrideHost || window.location.origin;
+  const baseHaUrl = overrideHost || window.location.origin;
   const isPage = cardMode === "page";
-  const trimmedCustom = widgetScriptUrl.trim();
-  const scriptUrl = trimmedCustom
-    || (externalPort > 0
-      ? (() => { try { const u = new URL(haUrl); return `${u.protocol}//${u.hostname}:${externalPort}/harvest.min.js`; } catch { return `${haUrl.replace(/\/+$/, "")}:${externalPort}/harvest.min.js`; } })()
-      : `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`);
+  const { haUrl, scriptUrl } = resolveWidgetConnectionUrls(
+    baseHaUrl,
+    widgetScriptUrl,
+    externalPort,
+  );
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
   if (isPage && hmacSecret) pageConfigParts.push(`tokenSecret: "${hmacSecret}"`);

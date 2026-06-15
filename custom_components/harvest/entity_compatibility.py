@@ -154,13 +154,13 @@ def is_companion_allowed(domain: str) -> bool:
 
 def get_custom_domains(hass) -> list[dict]:
     """Read the custom_domains allowlist from the live config entry."""
-    from .const import DOMAIN, DEFAULTS
+    from .config_validation import normalize_global_config
+    from .const import DOMAIN
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
         return []
     entry = entries[0]
-    merged = {**DEFAULTS, **entry.data, **entry.options}
-    return merged.get("custom_domains", [])
+    return normalize_global_config(entry.data, entry.options)["custom_domains"]
 
 
 def get_blocked_reason(domain: str) -> str | None:
@@ -177,10 +177,10 @@ def is_sensitive_domain_blocked(domain: str, sensitive_config: dict) -> bool:
 
 def get_sensitive_domains(hass) -> dict:
     """Read the sensitive_domains config from the live config entry."""
+    from .config_validation import normalize_global_config
     from .const import DOMAIN, DEFAULTS
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
         return dict(DEFAULTS[CONF_SENSITIVE_DOMAINS])
     entry = entries[0]
-    merged = {**DEFAULTS, **entry.data, **entry.options}
-    return merged.get(CONF_SENSITIVE_DOMAINS, dict(DEFAULTS[CONF_SENSITIVE_DOMAINS]))
+    return normalize_global_config(entry.data, entry.options)[CONF_SENSITIVE_DOMAINS]

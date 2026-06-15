@@ -5,6 +5,7 @@ sessions; clients reconnect automatically via the widget's reconnect logic.
 """
 from __future__ import annotations
 
+import asyncio
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -43,6 +44,7 @@ class Session:
     last_message_at: datetime
     outgoing_ids: dict[str, str] = field(default_factory=dict)
     last_sent_attributes: dict[str, dict] = field(default_factory=dict)
+    deferred_state_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
     # Client identity reported via the auth message's `client` block (SPEC.md
     # Section 5.1, Section 12 Client/Server Compatibility). Defaults below
     # match the "old client that omits the client field" behavior so any

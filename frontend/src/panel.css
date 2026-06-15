@@ -627,6 +627,7 @@ a.nav-item { text-decoration: none; color: var(--ink-3); }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: left;
   cursor: pointer;
   transition: border-color 0.15s;
   color: var(--ink);

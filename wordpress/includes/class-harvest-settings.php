@@ -363,7 +363,7 @@ class Harvest_Settings {
                             >
                             <p class="description">
                                 <?php esc_html_e(
-                                    'Required. The external URL of your Home Assistant instance. Used by every widget on your site.',
+                                    'Required. The public widget transport origin used by every widget on your site. To use HArvest alternate-port transport, enter that origin here, including its port.',
                                     'harvest'
                                 ); ?>
                             </p>
@@ -429,7 +429,7 @@ class Harvest_Settings {
                                     >
                                     <span id="harvest-custom-url-indicator" class="harvest-url-indicator" data-status="idle"></span>
                                     <p class="description" style="margin-top:6px;max-width:640px;">
-                                        <?php esc_html_e( 'Paste the full widget script URL here. In Home Assistant, open the HArvest panel, go to the Settings tab, and under "Widget script source" copy the Custom URL or Alternate port URL shown there.', 'harvest' ); ?>
+                                        <?php esc_html_e( 'Paste the full URL of a trusted self-hosted or staging widget script. To use HArvest alternate-port transport, keep HA-served selected and enter the alternate origin in the Home Assistant URL field above.', 'harvest' ); ?>
                                     </p>
                                 </span>
                             </div>
@@ -630,7 +630,7 @@ class Harvest_Settings {
                             </script>
                             <p class="description">
                                 <?php esc_html_e(
-                                    'HA-served loads the widget bundle directly from your Home Assistant instance, so it always matches the running integration version. Custom URL is for fully trusted self-hosted or staging builds: that JavaScript executes with the page privileges of every visitor. The HA-served option requires the Home Assistant URL above to be set; if it is empty, no widget script is enqueued at all.',
+                                    'HA-served loads the widget bundle directly from the Home Assistant URL above, so it always matches the running integration version. To use HArvest alternate-port transport, enter the alternate origin in the Home Assistant URL field. Custom URL is for fully trusted self-hosted or staging builds: that JavaScript executes with the page privileges of every visitor. If the Home Assistant URL is empty, no widget script is enqueued at all.',
                                     'harvest'
                                 ); ?>
                             </p>

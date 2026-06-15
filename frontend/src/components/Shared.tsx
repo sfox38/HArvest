@@ -190,11 +190,11 @@ export function CopyablePre({ text, label = "Copy" }: CopyablePreProps) {
 
   return (
     <div className="code-wrap">
-      <pre className="code" onClick={doCopy} title="Click to copy">{text}</pre>
+      <pre className="code">{text}</pre>
       <button
         onClick={doCopy}
         className={`copy-btn${copied ? " copied" : ""}`}
-        aria-label={copied ? "Copied to clipboard" : `Copy ${label}`}
+        aria-label={copied ? "Copied to clipboard" : label}
       >
         {copied ? "Copied!" : label}
       </button>

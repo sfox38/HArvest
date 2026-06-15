@@ -20,6 +20,7 @@ import { resolveEntityIcon } from "../iconResolve";
 import { IconSetSelect, iconSetAsset } from "./IconPicker";
 import { loadKnownOrigins, addKnownOrigin, removeKnownOrigin, validateOriginUrl, displayOriginLabel } from "./originMemory";
 import { READ_ONLY_DOMAINS } from "../lovelaceParser";
+import { resolveWidgetConnectionUrls } from "../connectionUrls";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1191,16 +1192,16 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
     }).catch(() => {});
   }, [token.token_id]);
 
-  const haUrl = overrideHost || window.location.origin;
+  const baseHaUrl = overrideHost || window.location.origin;
   // SPEC.md Section 12: empty widget_script_url means HA-served. Compute
   // {haUrl}/harvest_assets/harvest.min.js so the wizard's preview snippet
   // matches what the integration actually serves at runtime, instead of
   // emitting <script src=""></script>.
-  const trimmedCustom = widgetScriptUrl.trim();
-  const scriptUrl = trimmedCustom
-    || (externalPort > 0
-      ? (() => { try { const u = new URL(haUrl); return `${u.protocol}//${u.hostname}:${externalPort}/harvest.min.js`; } catch { return `${haUrl.replace(/\/+$/, "")}:${externalPort}/harvest.min.js`; } })()
-      : `${haUrl.replace(/\/+$/, "")}/harvest_assets/harvest.min.js`);
+  const { haUrl, scriptUrl } = resolveWidgetConnectionUrls(
+    baseHaUrl,
+    widgetScriptUrl,
+    externalPort,
+  );
   const isPage = cardMode === "page";
   const scriptTag = `<script src="${scriptUrl}"></script>`;
   const pageConfigParts = [`haUrl: "${haUrl}"`, `token: "${token.token_id}"`];
@@ -1333,7 +1334,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
 function freshState(): WizardState {
   const mem = loadMemory();
   return {
-    mode: "single",
+    mode: "group",
     entitiesBlock: false,
     entities: [],
     label: "",

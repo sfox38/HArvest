@@ -209,10 +209,14 @@ function _resolveFontUrl(fontUrl, themeBaseUrl) {
  * @param {string} [fontStyle="normal"] - CSS font-style value
  */
 function _injectFontFace(family, url, weight, fontStyle) {
-  const w = weight || "normal";
-  const s = fontStyle || "normal";
+  if (typeof family !== "string" || typeof url !== "string") return;
+  const w = String(weight || "normal").trim().toLowerCase();
+  const s = String(fontStyle || "normal").trim().toLowerCase();
+  const validWeight = /^(?:normal|bold|(?:[1-9]\d{0,2}|1000)(?: (?:[1-9]\d{0,2}|1000))?)$/;
+  if (!validWeight.test(w) || !["normal", "italic", "oblique"].includes(s)) return;
   const key = `${family.toLowerCase().replace(/\s+/g, "-")}-${w}-${s}`;
-  if (document.head.querySelector(`[data-hrv-font="${CSS.escape(key)}"]`)) return;
+  if ([...document.head.querySelectorAll("[data-hrv-font]")]
+    .some((element) => element.getAttribute("data-hrv-font") === key)) return;
   const style = document.createElement("style");
   style.setAttribute("data-hrv-font", key);
   style.textContent = `@font-face{font-family:${JSON.stringify(family)};src:url(${JSON.stringify(url)}) format("woff2");font-weight:${w};font-style:${s};font-display:swap}`;

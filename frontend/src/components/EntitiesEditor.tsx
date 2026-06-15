@@ -1174,7 +1174,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
 
             {!token.entities_block && (
             <div className="entity-snippet-row">
-              <pre
+              <button
+                type="button"
                 className="entity-snippet-code"
                 onClick={ev => {
                   copyEntitySnippet();
@@ -1184,8 +1185,8 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                     if (sel) { const range = document.createRange(); range.selectNodeContents(target); sel.removeAllRanges(); sel.addRange(range); }
                   });
                 }}
-                title="Click to copy"
-              >{entitySnippet}</pre>
+                aria-label={`Copy snippet for ${selectedEntity.entity_id}`}
+              >{entitySnippet}</button>
               <div className="entity-snippet-alias">
                 <Toggle checked={entitySnippetAlias} onChange={setEntitySnippetAlias} disabled={!selectedEntity.alias} />
                 <span>Alias</span>
@@ -1519,6 +1520,34 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                     <div key={c.entity_id} className="chip" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, minWidth: 0 }}>
                       <span style={{ flex: 1, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }} className="mono" title={c.entity_id}>{c.entity_id}</span>
                       {c.alias && <span className="muted" style={{ fontSize: 10, flexShrink: 0 }}>alias: {c.alias}</span>}
+                      {NUMERIC_STATE_DOMAINS.has(c.entity_id.split(".")[0]) && (
+                      <label style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 4 }}>
+                        <span style={{ fontSize: 10, whiteSpace: "nowrap" }} className="muted">Decimals</span>
+                        <input
+                          type="number"
+                          className="input"
+                          style={{ width: 48, textAlign: "center", padding: "1px 4px", fontSize: 11 }}
+                          min={0}
+                          max={6}
+                          step={1}
+                          placeholder="None"
+                          aria-label={`Decimal rounding for ${c.entity_id}`}
+                          value={(c.display_hints?.decimal_places as number | undefined) ?? ""}
+                          onChange={ev => {
+                            const raw = ev.target.value;
+                            if (raw === "") {
+                              updateDisplayHint(c.entity_id, "decimal_places", null);
+                              return;
+                            }
+                            const v = parseInt(raw, 10);
+                            if (isFinite(v) && v >= 0 && v <= 6) {
+                              updateDisplayHint(c.entity_id, "decimal_places", v);
+                            }
+                          }}
+                          disabled={!canEdit}
+                        />
+                      </label>
+                      )}
                       {selectedEntity.capabilities === "read-write" && COMPANION_INTERACTIVE_DOMAINS.has(c.entity_id.split(".")[0]) && (
                       <label style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 4 }}>
                         <Toggle

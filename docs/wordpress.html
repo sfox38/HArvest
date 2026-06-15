@@ -130,15 +130,15 @@
             <tbody>
               <tr>
                 <td>Home Assistant URL</td>
-                <td>Required. The HA URL reachable by your WordPress visitors, for example <code>https://myhome.duckdns.org</code> or a private HTTP LAN address. Public and HTTPS-hosted pages must use an HTTPS HA URL. The plugin uses this value to set the <code>connect-src</code> Content-Security-Policy directive automatically and as the default HA URL for shortcodes.</td>
+                <td>Required. The public widget transport origin reachable by your WordPress visitors, for example <code>https://myhome.duckdns.org</code>. To use HArvest alternate-port transport, enter the alternate origin including its port, for example <code>https://ha.example.com:9050</code>. Public and HTTPS-hosted pages must use an HTTPS origin. The plugin uses this value for shortcode WebSocket connections, HA-served widget assets, preconnect, and Content-Security-Policy directives.</td>
               </tr>
               <tr>
                 <td>Widget JS source</td>
-                <td>Three options:
+                <td>Two script-source options, plus alternate-port transport configured through the Home Assistant URL:
                   <ul>
                     <li><strong>HA-served (recommended, default)</strong> - the widget JS is fetched from your Home Assistant instance at <code>{your-HA-URL}/harvest_assets/harvest.min.js</code>. Updating HArvest via HACS automatically updates the widget on every WordPress page. Requires the Home Assistant URL field above to be set (the radio is disabled otherwise).</li>
-                    <li><strong>Alternate port</strong> - use a lightweight secondary server on a separate port with its own CORS headers. Useful when the main HA port is behind a reverse proxy that blocks cross-origin requests from the embed site.</li>
-                    <li><strong>Custom URL</strong> - point at a self-hosted copy of <code>harvest.min.js</code>. For staging environments or your own CDN. Accepts full URLs (<code>https://example.com/harvest.min.js</code>), absolute paths (<code>/harvest.min.js</code>), and relative paths or bare filenames (<code>harvest.min.js</code>) for HTML files served alongside the script.</li>
+                    <li><strong>Alternate-port transport</strong> - keep HA-served selected and enter the alternate origin, including its port, in the Home Assistant URL field. The alternate server carries the widget script, WebSocket connection, and runtime assets. It is plain HTTP unless placed behind a TLS proxy or secure tunnel.</li>
+                    <li><strong>Custom URL</strong> - point only the widget script at a trusted self-hosted copy of <code>harvest.min.js</code>. The live WebSocket transport still uses the Home Assistant URL field. Accepts full URLs (<code>https://example.com/harvest.min.js</code>), absolute paths (<code>/harvest.min.js</code>), and relative paths or bare filenames (<code>harvest.min.js</code>) for HTML files served alongside the script.</li>
                   </ul>
                 </td>
               </tr>
@@ -147,14 +147,14 @@
         </div>
 
         <h3>Live URL reachability check</h3>
-        <p>As you type or change either URL field, the plugin probes the URL from the WordPress server and shows a small status indicator next to the field:</p>
+        <p>As you type or change either URL field, the plugin probes public HTTP and HTTPS URLs from the WordPress server and shows a small status indicator next to the field. For security, the check refuses to request private, loopback, link-local, or other internal network addresses. Every redirect destination is checked under the same rules.</p>
         <ul>
           <li><strong>✓ (green)</strong> - the URL responded with HTTP 2xx. Reachable.</li>
           <li><strong>⚠ (amber)</strong> - the URL did not respond, or returned a 4xx/5xx. Doesn't necessarily mean the widget will fail for visitors: your visitors may be on a different network than your WordPress server (e.g. a LAN-hosted Home Assistant). Save anyway if you know the URL is correct from a visitor's perspective.</li>
           <li><strong>ⓘ (amber)</strong> - the URL is a relative path or bare filename. Cannot be probed from the server side because it only resolves against the visitor's embed page; you'll need to verify it manually.</li>
-          <li><strong>✗ (red)</strong> - the URL is malformed or uses a disallowed scheme (<code>javascript:</code>, <code>data:</code>, etc.). The plugin will refuse to enqueue it.</li>
+          <li><strong>✗ (red)</strong> - the URL is malformed, uses a disallowed scheme (<code>javascript:</code>, <code>data:</code>, etc.), or resolves to an internal network address. Malformed URLs and disallowed schemes cannot be used. Internal URLs may still be saved, but the reachability check will not request them.</li>
         </ul>
-        <p>The check is informational only and never blocks save.</p>
+        <p>The check is informational only and never blocks save. Verify internal URLs from the network where widget visitors will use them.</p>
         </section>
 
         <section>

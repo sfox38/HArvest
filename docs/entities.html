@@ -356,7 +356,7 @@
 
         <div class="callout callout-warn">
           <span class="callout-label">Important</span>
-          <p>A permitted custom-domain command must pass every HArvest check: the entity must belong to the token, its access must be Control, the service must be selected in Custom Domains, and the command must remain within the token's rate limits. HArvest filters service data against the service schema registered in HA and silently removes unknown data keys.</p>
+          <p>A permitted custom-domain command must pass every HArvest check: the entity must belong to the token, its access must be Control, the service must be selected in Custom Domains, and the command must remain within the token's rate limits. HArvest filters service data against the service schema registered in HA and silently removes unknown data keys. Target selectors such as <code>entity_id</code>, <code>device_id</code>, <code>area_id</code>, <code>floor_id</code>, and <code>label_id</code> are always removed so a command cannot expand beyond the token-authorized entity.</p>
         </div>
 
         <div class="callout callout-tip">

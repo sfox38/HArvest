@@ -19,7 +19,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from ._utils import close_ws as _close_ws, close_ws_with_auth_failed as _close_ws_with_auth_failed, slugify
-from .const import CONF_KILL_SWITCH, DEFAULTS
+from .const import CONF_KILL_SWITCH
 from .session_manager import SessionManager
 from .token_manager import TokenManager
 
@@ -137,8 +137,8 @@ class HarvestKillSwitch(SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        merged = {**DEFAULTS, **self._entry.data, **self._entry.options}
-        return bool(merged.get(CONF_KILL_SWITCH, False))
+        from .config_validation import normalize_global_config
+        return normalize_global_config(self._entry.data, self._entry.options)[CONF_KILL_SWITCH]
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._set(True)

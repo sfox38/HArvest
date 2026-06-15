@@ -169,14 +169,17 @@
 
         <p>Widgets connect directly from the visitor's browser to the configured HA host and port. Public and HTTPS-hosted pages normally use HTTPS/WSS on port 443. Private HTTP pages can use HTTP/WS on a trusted network. No separate WebSocket port or relay server is required.</p>
 
-        <p>If you use a reverse proxy (nginx, Caddy, Traefik, etc.), it needs to forward WebSocket upgrade headers. Most configurations already do this if HA is working normally. If not, add these to your nginx config:</p>
+        <p>Public widgets require a publicly reachable HTTPS/WSS endpoint. A reverse proxy such as nginx, Caddy, or Traefik is a common way to provide TLS on port 443 and a clean hostname, but it is not the only option. Native Home Assistant TLS, Nabu Casa, or a secure tunnel can also provide the required endpoint. If an intermediary proxy or tunnel sits between visitors and HArvest, configure it to preserve WebSocket traffic and forward the real visitor IP before relying on HArvest IP restrictions or per-IP rate limiting.</p>
+
+        <p>A reverse proxy needs to forward WebSocket upgrade headers and the client IP chain. A minimal nginx location includes:</p>
 
         <pre><code class="language-text">proxy_set_header Upgrade $http_upgrade;
 proxy_set_header Connection "upgrade";
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 proxy_read_timeout 3600s;
 proxy_send_timeout 3600s;</code></pre>
 
-        <p>Caddy and Traefik handle WebSocket upgrades automatically with no extra config. Cloudflare Tunnel works with a 100-second idle timeout - HArvest's 30-second keepalive interval keeps the connection alive.</p>
+        <p>After enabling forwarded client IPs, add only the nginx peer IP or narrowly scoped proxy subnet to HArvest's <code>trusted_proxies</code> setting. Caddy and Traefik handle WebSocket upgrades automatically, but their direct peer addresses must still be trusted in HArvest before forwarded IPs are used. Cloudflare Tunnel supports WebSockets; HArvest's keepalive traffic prevents the connection from being completely idle.</p>
 
         <div class="callout callout-warn">
           <span class="callout-label">Visitors behind restrictive corporate networks</span>
@@ -184,11 +187,11 @@ proxy_send_timeout 3600s;</code></pre>
         </div>
 
         <h3>Alternate port (optional)</h3>
-        <p>If HA's main port is blocked by a firewall or shared with other services, you can start a lightweight server on a separate port. In the HArvest panel under <strong>Settings > Connection > Widget script source</strong>, select <strong>Alternate port</strong> and enter a port number (e.g. <code>9050</code>). The server binds to all interfaces (0.0.0.0) and includes permissive CORS headers so any origin can load the widget. Changes take effect immediately without restarting HA.</p>
-        <p>When alternate port is enabled, the widget URL points at the alternate address (e.g. <code>http://192.168.1.5:9050/harvest.min.js</code>). Widgets on the main HA port continue to work as well.</p>
+        <p>If HA's main port is blocked by a firewall or shared with other services, you can start a lightweight widget transport server on a separate port. In the HArvest panel under <strong>Settings > Connection > Widget script source</strong>, select <strong>Alternate port</strong> and enter a port number (e.g. <code>9050</code>). The server binds to all interfaces (0.0.0.0) and includes permissive CORS headers so any configured origin can load the widget. Changes take effect immediately without restarting HA.</p>
+        <p>When alternate port is enabled, generated snippets use the alternate address for the widget script, WebSocket connection, icon sets, custom fonts, and renderer scripts. Widgets configured for the main HA port continue to work as well.</p>
         <div class="callout callout-warn">
           <span class="callout-label">Security warning</span>
-          <p>The alternate-port server uses plain HTTP, binds to all interfaces, and permits any browser origin. Use it only on a trusted private network or place it behind a TLS reverse proxy before exposing it externally.</p>
+          <p>The alternate-port server uses plain HTTP, binds to all interfaces, and permits cross-origin asset requests. WebSocket token and origin validation still applies. Use it only on a trusted private network or place it behind a TLS proxy or secure tunnel before exposing it externally. HTTPS pages require an HTTPS/WSS frontend because browsers block plain HTTP and WebSocket content on secure pages.</p>
         </div>
         </section>
 

@@ -400,11 +400,15 @@ export const api = {
     reloadById: (themeId: string): Promise<{ status: string; theme: ThemeDefinition }> =>
       _post<{ status: string; theme: ThemeDefinition }>(`/themes/${themeId}/reload`, {}),
 
-    importZip: async (file: File, overwrite = false): Promise<ThemeImportResult> => {
+    importZip: async (file: File, overwrite = false, rendererConfirmed = false): Promise<ThemeImportResult> => {
       const token = _hass?.auth?.data?.access_token;
       const form = new FormData();
       form.append("file", file);
-      const url = overwrite ? `${BASE}/themes/import?overwrite=true` : `${BASE}/themes/import`;
+      const params = new URLSearchParams();
+      if (overwrite) params.set("overwrite", "true");
+      if (rendererConfirmed) params.set("renderer_confirmed", "true");
+      const query = params.toString();
+      const url = `${BASE}/themes/import${query ? `?${query}` : ""}`;
       const res = await fetch(url, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
