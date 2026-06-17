@@ -4,12 +4,32 @@ Lives separately from const.py so functions and constants do not mix.
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, ERR_TOKEN_INACTIVE
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def log_send_failure(exc: BaseException, context: str) -> None:
+    """Log a best-effort WebSocket send failure at the right severity.
+
+    Sends to widget clients are best-effort: a client can disconnect at any
+    moment, including mid-broadcast. Those disconnects (ConnectionError /
+    RuntimeError "transport closing") are expected and logged at debug.
+    Anything else, notably a TypeError from a non-serialisable payload, is a
+    bug we want visible, so it is logged at warning with a traceback. This
+    replaces the silent ``except Exception: pass`` that hid serialization
+    bugs and broken sessions alike.
+    """
+    if isinstance(exc, (ConnectionError, RuntimeError)):
+        _LOGGER.debug("HArvest %s send skipped: client disconnected", context)
+    else:
+        _LOGGER.warning("HArvest %s send failed unexpectedly", context, exc_info=True)
 
 
 def get_entry_data(hass: HomeAssistant, entry_id: str) -> dict:
