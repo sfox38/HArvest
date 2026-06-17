@@ -90,36 +90,35 @@
         <p>Connection settings have three levels. A card inherits its Home Assistant URL, token, and optional HMAC secret from the nearest configured level:</p>
 
         <figure class="hrv-diagram">
-          <svg viewBox="0 0 460 252" role="img" aria-labelledby="cfg-hierarchy-title cfg-hierarchy-desc" xmlns="http://www.w3.org/2000/svg">
+          <svg viewBox="0 0 560 252" role="img" aria-labelledby="cfg-hierarchy-title cfg-hierarchy-desc" xmlns="http://www.w3.org/2000/svg">
             <title id="cfg-hierarchy-title">Configuration hierarchy</title>
-            <desc id="cfg-hierarchy-desc">Connection settings cascade through three levels. Page level calls HArvest.config with haUrl and token. The optional group level uses an hrv-group element. The card level uses an hrv-card element. Each card inherits its settings from the nearest configured level above it.</desc>
+            <desc id="cfg-hierarchy-desc">Connection settings cascade through three levels. The page level calls HArvest.config with haUrl and token. The group level uses an hrv-group element with ha-url and token attributes. The card level uses an hrv-card element with ha-url and token attributes. Each card inherits its settings from the nearest configured level above it.</desc>
 
             <!-- Page level -->
-            <rect class="hrv-dg-box" x="10" y="8" width="440" height="56" rx="10"/>
+            <rect class="hrv-dg-box" x="10" y="8" width="540" height="56" rx="10"/>
             <rect class="hrv-dg-pill" x="22" y="24" width="56" height="24" rx="12"/>
             <text class="hrv-dg-pill-text" x="50" y="40" text-anchor="middle">Page</text>
-            <text class="hrv-dg-code" x="92" y="40">HArvest.config({ haUrl, token })</text>
+            <text class="hrv-dg-code" x="92" y="40">HArvest.config({ haUrl: "...", token: "..." })</text>
 
             <!-- inherits -->
-            <line class="hrv-dg-flow" x1="230" y1="66" x2="230" y2="86"/>
-            <polygon class="hrv-dg-arrow" points="224,84 236,84 230,94"/>
+            <line class="hrv-dg-flow" x1="280" y1="66" x2="280" y2="86"/>
+            <polygon class="hrv-dg-arrow" points="274,84 286,84 280,94"/>
 
-            <!-- Group level (optional) -->
-            <rect class="hrv-dg-box hrv-dg-box--optional" x="10" y="98" width="440" height="56" rx="10"/>
+            <!-- Group level -->
+            <rect class="hrv-dg-box" x="10" y="98" width="540" height="56" rx="10"/>
             <rect class="hrv-dg-pill" x="22" y="114" width="56" height="24" rx="12"/>
             <text class="hrv-dg-pill-text" x="50" y="130" text-anchor="middle">Group</text>
-            <text class="hrv-dg-code" x="92" y="130">&lt;hrv-group&gt;</text>
-            <text class="hrv-dg-note" x="438" y="130" text-anchor="end">optional</text>
+            <text class="hrv-dg-code" x="92" y="130">&lt;hrv-group ha-url="..." token="..."&gt;</text>
 
             <!-- inherits -->
-            <line class="hrv-dg-flow" x1="230" y1="156" x2="230" y2="176"/>
-            <polygon class="hrv-dg-arrow" points="224,174 236,174 230,184"/>
+            <line class="hrv-dg-flow" x1="280" y1="156" x2="280" y2="176"/>
+            <polygon class="hrv-dg-arrow" points="274,174 286,174 280,184"/>
 
             <!-- Card level -->
-            <rect class="hrv-dg-box" x="10" y="188" width="440" height="56" rx="10"/>
+            <rect class="hrv-dg-box" x="10" y="188" width="540" height="56" rx="10"/>
             <rect class="hrv-dg-pill" x="22" y="204" width="56" height="24" rx="12"/>
             <text class="hrv-dg-pill-text" x="50" y="220" text-anchor="middle">Card</text>
-            <text class="hrv-dg-code" x="92" y="220">&lt;hrv-card entity="..."&gt;</text>
+            <text class="hrv-dg-code" x="92" y="220">&lt;hrv-card ha-url="..." token="..."&gt;</text>
           </svg>
           <figcaption>Settings cascade downward, so each card uses the nearest level configured above it.</figcaption>
         </figure>

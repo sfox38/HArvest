@@ -521,13 +521,13 @@ pre[data-lang]::after {
 .hrv-diagram svg {
   display: block;
   width: 100%;
-  max-width: 460px;
+  max-width: 560px;
   height: auto;
   margin: 0 auto;
 }
 
 .hrv-diagram figcaption {
-  max-width: 460px;
+  max-width: 560px;
   margin: 10px auto 0;
   font-size: 13px;
   line-height: 1.5;
@@ -540,10 +540,6 @@ pre[data-lang]::after {
   fill: var(--surface);
   stroke: var(--border);
   stroke-width: 1;
-}
-
-.hrv-dg-box--optional {
-  stroke-dasharray: 5 4;
 }
 
 .hrv-dg-pill {
@@ -561,12 +557,6 @@ pre[data-lang]::after {
   fill: var(--text);
   font-family: var(--font-mono);
   font-size: 14px;
-}
-
-.hrv-dg-note {
-  fill: var(--text-3);
-  font-family: var(--font-sans);
-  font-size: 11.5px;
 }
 
 .hrv-dg-flow {
