@@ -11,7 +11,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 import aiohttp
 from aiohttp.web import Request, WebSocketResponse
@@ -19,7 +19,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
-from ._utils import get_entry_data
+from ._utils import get_entry_data, log_send_failure
 from .activity_store import ActivityStore, AuthEvent, CommandEvent, ErrorEvent, SessionEvent
 from .compatibility import (
     check_protocol_compatibility,
@@ -75,11 +75,15 @@ from .event_bus import EventBus
 from .rate_limiter import RateLimiter
 from .session_manager import Session, SessionManager
 from .renderer_manager import RendererManager
+from .protocol import (
+    ALLOWED_DATA_KEYS as _ALLOWED_DATA_KEYS,
+    TARGET_SELECTOR_KEYS as _TARGET_SELECTOR_KEYS,
+    normalize_forecast as _normalize_forecast,
+    round_state as _round_state,
+    safe_json_value as _safe_json_value,
+)
 from .theme_manager import ThemeManager, theme_url_to_id
 from .token_manager import EntityAccess, Token, TokenManager
-
-if TYPE_CHECKING:
-    pass
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,45 +91,6 @@ _LOGGER = logging.getLogger(__name__)
 FLOOD_LIMIT = 10
 FLOOD_WINDOW_SECONDS = 5
 
-
-def _normalize_forecast(entries: list | None) -> list | None:
-    """Ensure forecast entries have temperature/templow keys.
-
-    Some HA integrations return native_temperature/native_templow without
-    the converted temperature/templow keys. This adds the fallback so the
-    widget always finds the expected keys.
-    """
-    if not entries:
-        return entries
-    out = []
-    for entry in entries:
-        e = dict(entry)
-        if "temperature" not in e and "native_temperature" in e:
-            e["temperature"] = e["native_temperature"]
-        if "templow" not in e and "native_templow" in e:
-            e["templow"] = e["native_templow"]
-        out.append(e)
-    return out
-
-
-def _safe_json_value(val: object) -> object:
-    """Convert a value to a JSON-safe type.
-
-    HA entity attributes may contain datetime objects, sets, or other
-    non-serializable types. This recursively converts them so
-    ws.send_json (which uses stdlib json.dumps) does not raise TypeError.
-    """
-    if isinstance(val, datetime):
-        return val.isoformat()
-    if isinstance(val, dict):
-        return {k: _safe_json_value(v) for k, v in val.items()}
-    if isinstance(val, (list, tuple)):
-        return [_safe_json_value(v) for v in val]
-    if isinstance(val, (set, frozenset)):
-        return [_safe_json_value(v) for v in sorted(val, key=str)]
-    if isinstance(val, (str, int, float, bool)) or val is None:
-        return val
-    return str(val)
 
 # Warn the client this many seconds before session expiry.
 _SESSION_EXPIRING_WARN_BEFORE = 600  # 10 minutes
@@ -154,37 +119,6 @@ def _fire(coro: object) -> None:
     task = asyncio.create_task(_wrap(coro))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
-
-
-# Allowed data keys per domain for command forwarding.
-# Unknown keys are stripped before the call reaches HA.
-_ALLOWED_DATA_KEYS: dict[str, set[str]] = {
-    "light": {
-        "brightness", "brightness_pct", "color_temp", "color_temp_kelvin",
-        "rgb_color", "rgbw_color", "rgbww_color", "hs_color", "xy_color",
-        "color_mode", "effect", "flash", "transition",
-    },
-    "fan": {"percentage", "oscillating", "direction", "preset_mode"},
-    "cover": {"position", "tilt_position"},
-    "climate": {
-        "temperature", "target_temp_low", "target_temp_high",
-        "hvac_mode", "fan_mode", "preset_mode", "swing_mode", "aux_heat",
-    },
-    "input_number": {"value"},
-    "input_select": {"option"},
-    "media_player": {
-        "volume_level", "media_content_id", "media_content_type",
-        "source", "sound_mode",
-    },
-    "remote": {"command", "device", "num_repeats", "delay_secs", "hold_secs", "activity"},
-}
-
-# HA entity-service schemas accept these selectors alongside service-specific
-# data. HArvest always supplies the one authorized entity as the target, so
-# client-provided selectors must never be forwarded.
-_TARGET_SELECTOR_KEYS: frozenset[str] = frozenset({
-    "entity_id", "device_id", "area_id", "floor_id", "label_id",
-})
 
 
 class HarvestWsView(HomeAssistantView):
@@ -298,10 +232,19 @@ class HarvestWsView(HomeAssistantView):
         max_bytes = self._config.get(CONF_MAX_INBOUND_BYTES, DEFAULTS[CONF_MAX_INBOUND_BYTES])
         ws = WebSocketResponse(heartbeat=keepalive, max_msg_size=max_bytes)
         # aiohttp derives pong_heartbeat from heartbeat/2 with no separate parameter.
-        # Override directly so CONF_KEEPALIVE_TIMEOUT is honoured.
-        ws._pong_heartbeat = float(
-            self._config.get(CONF_KEEPALIVE_TIMEOUT, DEFAULTS[CONF_KEEPALIVE_TIMEOUT])
-        )
+        # Override the private attribute directly so CONF_KEEPALIVE_TIMEOUT is
+        # honoured. This reaches into aiohttp internals, so guard it: if a
+        # future aiohttp drops the attribute, fall back to its heartbeat/2
+        # default rather than crashing, and log so the regression is visible.
+        if hasattr(ws, "_pong_heartbeat"):
+            ws._pong_heartbeat = float(
+                self._config.get(CONF_KEEPALIVE_TIMEOUT, DEFAULTS[CONF_KEEPALIVE_TIMEOUT])
+            )
+        else:
+            _LOGGER.warning(
+                "aiohttp WebSocketResponse no longer exposes _pong_heartbeat; "
+                "keepalive timeout falls back to aiohttp's heartbeat/2 default."
+            )
         await ws.prepare(request)
         await self._handle_connection(ws, request)
         return ws
@@ -1477,8 +1420,8 @@ class HarvestWsView(HomeAssistantView):
             )
             try:
                 await ws.send_json(update)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_send_failure(exc, "state_update")
         finally:
             if session.deferred_state_tasks.get(entity_id) is asyncio.current_task():
                 session.deferred_state_tasks.pop(entity_id, None)
@@ -1814,8 +1757,8 @@ class HarvestWsView(HomeAssistantView):
                 await ws.send_json({"type": "keepalive", "msg_id": None})
         except (asyncio.CancelledError, ConnectionResetError):
             pass
-        except Exception:
-            pass
+        except Exception as exc:
+            log_send_failure(exc, "keepalive")
 
     async def _send_session_expiring(self, ws: WebSocketResponse, session: Session) -> None:
         """Send session_expiring warning 10 minutes before expiry."""
@@ -1831,8 +1774,8 @@ class HarvestWsView(HomeAssistantView):
                     "expires_at": session.expires_at.isoformat(),
                     "msg_id": None,
                 })
-        except Exception:
-            pass
+        except Exception as exc:
+            log_send_failure(exc, "session_expiring")
 
     def _resolve_entity_ref(self, ref: str, token: Token) -> EntityAccess | None:
         """Resolve an entity ref (alias or real entity_id) to its EntityAccess.
@@ -2079,23 +2022,6 @@ def _find_entity_access(entity_id: str, token: Token) -> EntityAccess | None:
         if ea.entity_id == entity_id:
             return ea
     return None
-
-
-def _round_state(state_val: str, ea: EntityAccess | None) -> str:
-    """Round a numeric state value if decimal_places is set in display_hints."""
-    if ea is None:
-        return state_val
-    dp = ea.display_hints.get("decimal_places")
-    if dp is None:
-        return state_val
-    try:
-        n = int(dp)
-        rounded = round(float(state_val), n)
-        if n <= 0:
-            return str(int(rounded))
-        return f"{rounded:.{n}f}"
-    except (ValueError, TypeError, OverflowError):
-        return state_val
 
 
 def _get_companion_ids(primary_entity_id: str, token: Token) -> list[str]:
