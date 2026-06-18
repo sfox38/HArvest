@@ -12,3 +12,9 @@
 #
 # Note: homeassistant 2026.6.2 requires Python >= 3.14.2.
 pytest-homeassistant-custom-component==0.13.338
+
+# The integration imports aiosqlite (activity_store.py). It is not a HA core
+# dependency and is not pulled in by phacc, so a clean environment lacks it and
+# conftest import fails (pytest exit code 4). Real HA installs have it present,
+# but CI does not, so it must be installed explicitly here.
+aiosqlite==0.22.1
