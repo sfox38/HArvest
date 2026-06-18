@@ -1,5 +1,7 @@
 # HArvest
 
+[![Tests](https://github.com/sfox38/HArvest/actions/workflows/tests.yml/badge.svg)](https://github.com/sfox38/HArvest/actions/workflows/tests.yml)
+
 Securely share and control your Home Assistant smart home devices on any HTML or WordPress page
 
 ![HArvest widget cards embedded on a webpage](https://raw.githubusercontent.com/sfox38/HArvest/main/docs/hero.jpg)
