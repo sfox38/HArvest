@@ -14,7 +14,6 @@ import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from ipaddress import AddressValueError, ip_address, ip_network
-from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -40,9 +39,6 @@ from .const import (
     TOKEN_ID_LENGTH,
     TOKEN_PREFIX,
 )
-
-if TYPE_CHECKING:
-    from .session_manager import SessionManager
 
 STORAGE_KEY = "harvest_tokens"
 STORAGE_VERSION = 1
