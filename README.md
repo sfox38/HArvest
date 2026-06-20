@@ -1,6 +1,6 @@
 # HArvest
 
-[![Tests](https://github.com/sfox38/HArvest/actions/workflows/tests.yml/badge.svg)](https://github.com/sfox38/HArvest/actions/workflows/tests.yml)
+[![Tests](https://github.com/sfox38/HArvest/actions/workflows/tests.yml/badge.svg)](https://github.com/sfox38/HArvest/actions/workflows/tests.yml) [![Validate](https://github.com/sfox38/HArvest/actions/workflows/validate.yml/badge.svg)](https://github.com/sfox38/HArvest/actions/workflows/validate.yml)
 
 Securely share and control your Home Assistant smart home devices on any HTML or WordPress page
 
