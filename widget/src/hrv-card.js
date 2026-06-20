@@ -481,6 +481,7 @@ export class HrvCard extends HTMLElement {
   receiveTokenConfig(config) {
     this.#config.lang = config.lang ?? "auto";
     this.#config.a11y = config.a11y ?? "standard";
+    this.#config.haptics = config.haptics ?? false;
     this.#tokenIconSet = config.iconSet ?? null;
     this.#updateIconSet();
     this.#config.onOffline = config.onOffline ?? "last-state";
@@ -790,8 +791,20 @@ export class HrvCard extends HTMLElement {
    */
   _sendCompanionCommand(entityId, action, data) {
     if (!this.#client) return;
+    this.#haptic();
     const msgId = this.#client.nextMsgId();
     this.#client.sendCommand(entityId, action, data ?? {}, msgId);
+  }
+
+  /**
+   * Brief haptic confirmation on control activation. No-op on desktop and iOS
+   * (the Vibration API is Android-only); suppressed when this token's haptics
+   * preference is off or the visitor's OS reduce-motion setting is on.
+   */
+  #haptic() {
+    if (!this.#config.haptics) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    navigator.vibrate?.(10);
   }
 
   /**
@@ -815,6 +828,7 @@ export class HrvCard extends HTMLElement {
     }
 
     if (!this.#client) return;
+    this.#haptic();
     const msgId = this.#client.nextMsgId();
 
     // Optimistic UI.
@@ -910,6 +924,7 @@ export class HrvCard extends HTMLElement {
       period:       10,
       animate:      false,
       a11y:         "standard",
+      haptics:      false,
       iconSet:      null,
       companions:   this.#companions,
       card:         this,

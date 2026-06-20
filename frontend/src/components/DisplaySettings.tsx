@@ -91,6 +91,7 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
   const saveLang = (val: string) => patchToken({ lang: val } as Partial<Token>);
   const saveIconSet = (val: string | null) => patchToken({ icon_set: val } as Partial<Token>);
   const saveA11y = (val: string) => patchToken({ a11y: val } as Partial<Token>);
+  const saveHaptics = (val: boolean) => patchToken({ haptics: val } as Partial<Token>);
   const saveColorScheme = (val: string) => patchToken({ color_scheme: val } as Partial<Token>);
   const saveOnOffline = (val: string) => patchToken({ on_offline: val } as Partial<Token>);
   const saveOnError = (val: string) => patchToken({ on_error: val } as Partial<Token>);
@@ -151,6 +152,17 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
             themeDefaultSetId={themeIconSet}
             className="input display-settings-select"
           />
+        </div>
+
+        <div className="divider" />
+
+        {/* Haptic feedback */}
+        <div className="display-settings-row" style={{ cursor: canEdit ? "pointer" : "default" }}>
+          <div>
+            <div className="display-settings-label">Haptic feedback</div>
+            <div className="settings-field-hint">Brief vibration when a control is tapped. Android touch devices only; respects the visitor's reduce-motion setting.</div>
+          </div>
+          <Toggle checked={token.haptics} onChange={saveHaptics} disabled={!canEdit} />
         </div>
 
         <div className="divider" />

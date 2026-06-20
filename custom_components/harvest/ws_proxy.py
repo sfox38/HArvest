@@ -581,6 +581,7 @@ class HarvestWsView(HomeAssistantView):
             "type": "token_config",
             "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
             "a11y": token.a11y if token.a11y != "standard" else gcfg.get("default_a11y", "standard"),
+            "haptics": token.haptics,
             "color_scheme": token.color_scheme,
             "icon_set": token.icon_set,
             "on_offline": token.on_offline if use_custom else gcfg.get("default_on_offline", "last-state"),

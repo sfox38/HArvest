@@ -1095,6 +1095,7 @@ class HarvestTokenDetailView(_HarvestView):
         return {
             "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
             "a11y": token.a11y if token.a11y != "standard" else gcfg.get("default_a11y", "standard"),
+            "haptics": token.haptics,
             "color_scheme": token.color_scheme,
             "icon_set": token.icon_set,
             "on_offline": token.on_offline if use_custom else gcfg.get("default_on_offline", "last-state"),
@@ -1248,6 +1249,10 @@ class HarvestTokenDetailView(_HarvestView):
             if val not in ("standard", "enhanced"):
                 raise web.HTTPBadRequest(reason="a11y must be standard or enhanced.")
             updates["a11y"] = val
+        if "haptics" in body:
+            if not isinstance(body["haptics"], bool):
+                raise web.HTTPBadRequest(reason="haptics must be a boolean.")
+            updates["haptics"] = body["haptics"]
         if "color_scheme" in body:
             val = str(body["color_scheme"])
             if val not in ("auto", "light", "dark"):
@@ -1354,7 +1359,7 @@ class HarvestTokenDetailView(_HarvestView):
             await self._push_theme_to_sessions(token_id)
             await self._push_renderer_to_sessions(token_id)
 
-        _TOKEN_CONFIG_FIELDS = {"lang", "a11y", "color_scheme", "icon_set", "custom_messages", "on_offline", "on_error", "offline_text", "error_text"}
+        _TOKEN_CONFIG_FIELDS = {"lang", "a11y", "haptics", "color_scheme", "icon_set", "custom_messages", "on_offline", "on_error", "offline_text", "error_text"}
         if _TOKEN_CONFIG_FIELDS & updates.keys():
             await self._push_token_config_to_sessions(token_id)
 
@@ -1464,7 +1469,7 @@ class HarvestTokenDuplicateView(_HarvestView):
             "block_label", "block_icon", "block_show_label",
             "block_highlight_rows", "block_show_icons", "block_widget_border",
             "block_access_mode", "block_color_mode", "renderer_pack",
-            "lang", "a11y", "color_scheme", "custom_messages",
+            "lang", "a11y", "haptics", "color_scheme", "custom_messages",
             "on_offline", "on_error", "offline_text", "error_text",
         ):
             val = getattr(source, field_name)

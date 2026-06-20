@@ -158,6 +158,7 @@ class Token:
     renderer_pack: str = ""                # "" = none; derived from theme_id when theme has a pack
     lang: str = "auto"                     # BCP 47 language tag or "auto"
     a11y: str = "standard"                 # "standard" or "enhanced"
+    haptics: bool = False                   # opt-in brief vibration on control tap (Android touch only)
     color_scheme: str = "auto"             # "auto" | "light" | "dark"
     icon_set: str | None = None            # global icon set ("fa", "ph-duotone", ...);
                                            # None means follow the theme's icon_set (or MDI)
@@ -480,7 +481,7 @@ class TokenManager:
             "block_label", "block_icon", "block_show_label", "block_highlight_rows",
             "block_show_icons", "block_widget_border",
             "block_access_mode", "block_color_mode", "theme_url",
-            "renderer_pack", "lang", "a11y", "color_scheme", "icon_set",
+            "renderer_pack", "lang", "a11y", "haptics", "color_scheme", "icon_set",
             "custom_messages", "on_offline", "on_error", "offline_text", "error_text",
         }
         for field_name, value in updates.items():
@@ -926,6 +927,7 @@ class TokenManager:
             renderer_pack=d.get("renderer_pack", ""),
             lang=d.get("lang", "auto"),
             a11y=d.get("a11y", "standard"),
+            haptics=d.get("haptics", False),
             color_scheme=d.get("color_scheme", "auto"),
             icon_set=d.get("icon_set"),
             custom_messages=d.get("custom_messages", False),
