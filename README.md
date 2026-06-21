@@ -4,7 +4,12 @@
 
 Securely share and control your Home Assistant smart home devices on any HTML or WordPress page
 
-![HArvest widget cards embedded on a webpage](https://raw.githubusercontent.com/sfox38/HArvest/main/docs/hero.jpg)
+<video
+  src="https://github.com/user-attachments/assets/a2b08f56-99d4-4f36-b5c9-1d846b50c037"
+  controls
+  width="900">
+</video>
+
 ## What it does
 
 HArvest creates a secure bridge between your Home Assistant instance and any webpage. You create a widget token in the HArvest panel, pick the entities you want to expose, paste a snippet into your page, and visitors see live entity states updated in real time. Where you allow it, they can control things too - toggle lights, adjust temperature, play media, and more. Each token has its own access rules, origin restrictions, expiry, and activity log.
