@@ -398,7 +398,7 @@ Attributes arrive on every state update. HArvest uses a blocklist, so almost eve
 | `direction` | `string` | `"forward"` or `"reverse"` |
 | `preset_mode` | `string` | Active preset |
 | `preset_modes` | `string[]` | Also in `feature_config` |
-| `assumed_state` | `boolean` | `true` for fans whose state HA cannot confirm (RF / Bond / assumed-state platforms). Use to suppress visual reflection of attributes on buttons - see lesson #35. Available on switches, covers, lights, etc. wherever HA flags the entity as assumed. |
+| `assumed_state` | `boolean` | `true` for fans whose state HA cannot confirm (RF / Bond / assumed-state platforms). Use to suppress visual reflection of attributes on buttons - see "State detection" under "Pitfalls and lessons". Available on switches, covers, lights, etc. wherever HA flags the entity as assumed. |
 
 ### climate
 | Attribute | Type | Notes |
@@ -1370,3 +1370,103 @@ User Contributed Themes/<name>/renderer.js
 ```
 
 Use the repository's current build, validation, and import process. The minifier choice is not part of the renderer contract. Whatever process is used must preserve the standalone IIFE, the `document.currentScript.dataset.rendererId` lookup, and the hardcoded fallback ID.
+
+---
+
+## Pitfalls and lessons
+
+Practical issues from converting real HA cards into renderer overrides, grouped by topic. Each item is a rule plus the reason it exists. Detailed mechanics live in the relevant section above; this is the deduplicated checklist.
+
+General: attribute availability is never the bottleneck. HArvest forwards every HA attribute except the small blocklist, so if a value exists in HA it is available to the renderer. The panel preview is the primary testing tool, and it has no server, so all visible feedback comes from `predictState()`.
+
+### Gestures and interaction
+
+- Never use `addEventListener("click", ...)` for a primary card action (toggle, trigger). Direct listeners bypass admin-configured tap/hold/double-tap gestures entirely; this is the single most common renderer bug. Use `_attachGestureHandlers()` (two patterns in "Gesture support").
+- Fixed-behavior, non-primary controls (d-pad buttons, steppers, transport, mode pills) may use direct `addEventListener` because gestures do not apply to them.
+- Never attach both a click listener and a gesture handler to the same element; the click listener fires independently and bypasses gesture logic.
+
+### Features and capabilities
+
+- A feature-flag name is not a command name. Check the server's `FEATURE_FLAGS`, not command names: fan `set_speed` (feature) vs `set_percentage` (command); fan `direction` vs `set_direction`. For media_player the server sends `play_pause` and `previous_track` while the preview sends `play` and `previous`; check both `volume_set` and `volume_step`.
+- Gate controls on `supported_features`, not only on `isWritable`, or the preview feature toggles have no effect.
+- Every writable entity needs at least a toggle, even with no advanced features. Never fall back to a read-only display for a writable entity that merely lacks brightness/color/etc.
+- Give every command a `predictState` entry, or the control looks broken in the (serverless) preview.
+- `predictState` attributes are passed verbatim to `applyState`, not merged. If `applyState` reads list attributes (`options`, `source_list`, `effect_list`, `preset_modes`, `hvac_modes`), either populate them in `predictState` or preserve the previous value when missing/empty; otherwise the card body briefly empties on each click.
+- `device_class` registration keys (e.g. `sensor.temperature`) let one renderer specialize per device class within a domain.
+
+### Dynamic choice lists
+
+- Read dynamic lists (`options`, `source_list`, `sound_mode_list`, `effect_list`, `preset_modes`) from the `attributes` argument in `applyState`, not from `feature_config`. Only fixed lists (e.g. `hvac_modes`) come from `feature_config`.
+- Build an empty container in `render()` and rebuild its children in `applyState()` only when the list actually changes (compare a cached join key) to avoid DOM churn on every update.
+
+### Sliders and numeric input
+
+- Guard slider/input writes with `isFocused()` / `isSliderActive()` so `applyState` never clobbers a value mid-drag.
+- For thick branded sliders, layer a transparent native `<input type="range">` over visual track-fill divs (see "Custom slider implementation"). `role="slider"` alone is not accessible: a custom slider also needs focusability, full value ARIA, keyboard handling, visible focus, and matching units across min/max/now.
+- Send EXACT fractional step values, computed from `feature_config` (`(i+1) * percentage_step`, `temp_step`, etc.); round only for display labels. A 6-speed fan's step is `16.666...`; a rounded `17` snaps HA to the wrong bucket.
+- Read range values with `Number(slider.value)`, not `parseInt` (which truncates the fractional step the browser snapped to). Use `parseInt` only when the step is an integer.
+
+### Icons
+
+- `renderIcon(name, partName)` only injects into `[part=...]` elements. For icons inside button content use inline SVG strings; if the icon is general-purpose (chevrons, cog, volume), add its path to `widget/src/icons.js` so other packs share it.
+- Add any missing MDI icon to `widget/src/icons.js` before referencing it, or it silently falls back to `mdi:help-circle`. Verify with `grep` and rebuild the widget.
+- Re-render state-dependent icons in `applyState` from `def.icon_state_map` (`{"on": "...", "*": "..."}`), not just once in `render()`; otherwise an off-state glyph never updates. `renderIcon` caches by part name, so calling it every `applyState` is safe.
+- Flex-center icon containers (`display:flex; align-items:center; justify-content:center`) to fix the baseline offset of inline icons inside flex buttons.
+
+### Animation and motion
+
+- A `prefers-reduced-motion` override is mandatory for every animation and transition, even when motion is core to the source card's identity; provide a static cue (see "Animation patterns").
+- Keep press feedback immediate and restrained. A short `:active` transform or color change usually suffices; use a JS-driven class only when the feedback must persist beyond the native active state.
+- For a JS-driven animation class on repeat presses, remove the class, force a reflow with `void el.getBoundingClientRect()`, then re-add it, or the second trigger does nothing.
+- Add `pointer-events: none` to any collapsed/hidden control set; controls hidden only by `opacity`/`max-height: 0` still receive clicks.
+- Track the previous on/off state (initialized to `null` so the first `applyState` skips animating) to drive power-up/down, glow, and collapse transitions.
+- Collapse controls when the entity is off for clarity, but do NOT pre-collapse in `render()` based on assumed-off. Initialize open and let `applyState` collapse only when a real off-state arrives; otherwise a delayed first update makes the card lie about state.
+- Give a toggle-view container a `min-height` matching its tallest view so swapping views (slider vs buttons) does not resize the card.
+- Use entry staggering only for a short group appearing; keep the total delay under 200ms and remove it under reduced motion.
+- A CSS `display` rule overrides the `hidden` attribute. To hide via `el.hidden`, also add `[hidden] { display: none }`.
+- A toggleable disclosure panel can hide secondary controls: keep content in stable DOM, expose state with `aria-expanded`, prefer opacity/transform, and make the final state immediate under reduced motion.
+
+### Color and state-driven appearance
+
+- Use `color-mix(in srgb, var(--accent) X%, var(--base))` for dynamic semi-transparent accents instead of string-building `rgba()` per channel.
+- Dynamic backgrounds need a foreground-color strategy (a CSS variable or a computed color) so text and icons stay readable.
+- Drive state appearance from data attributes plus CSS (`card.dataset.state = isOn ? "on" : "off"`, then `[part=card][data-state=on] { ... }`), not inline `style.background`. This lets theme JSON and dark mode compose and keeps `color-mix` recipes working.
+- For mode-swap on a single slider DOM, set one CSS progress variable per mode (`--brightness-progress`, `--temp-progress`) and `data-mode` on the shell; JS only flips the attribute and updates the relevant variable, so the DOM stays stable.
+- Position slider thumbs with `clamp(<half-width>, calc(var(--progress) * 1%), <100% - half-width>)` so they do not overshoot the track ends. No JS positioning needed.
+- Darken near-white light colors for slider visibility: check luminance (`0.299*R + 0.587*G + 0.114*B`) and, when above ~0.85, multiply channels by 0.75-0.8. Daylight color temps (5000-6500K) need cooler, more saturated blues to read against white.
+- A slider's unfilled-portion overlay needs opposite tones per scheme: a white `rgba` in light mode, a black `rgba` in dark mode. Define both in `variables` and `dark_variables`.
+- Hide the brightness shading overlay for non-brightness slider modes (color temp / hue), or it muddies the gradient.
+- A color picker captures source colors accurately, but treat them as a visual starting point, not an accessibility exemption. Validate contrast in both modes (see "Contrast requirements").
+
+### State detection
+
+- Stateless entities (RF / Bond / button-only platforms) carry `assumed_state: true`. In `applyState`, treat their commands as fire-and-forget and do not reflect attribute values on buttons; a slider may still follow state echoes but must not fight a mid-drag value. Applies cross-domain (fan, switch, cover, light). HArvest: `assumed_state` must not be in `BLOCKED_ATTRIBUTES` (`entity_definition.py`) or it will not reach the widget.
+
+### Layout and responsiveness
+
+- Use `:host([data-layout=vertical])` selectors plus a shared `_applyLayout(card)` helper (reading `display_hints.layout`) for card-wide layout modes; this keeps logic in CSS. Scope such cross-cutting helpers inside the renderer's own IIFE; never share a runtime library across packs.
+- A `ResizeObserver` on `[part=card]` inside shadow DOM gives container-query-like behavior: toggle width-threshold classes and disconnect the observer in `destroy()`.
+- For scrollable horizontal strips (forecast rows, source lists), `grid-auto-flow: column` with `grid-auto-columns: minmax(Xpx, 1fr)` is more predictable than flexbox. Add `overflow-x: auto` and hide the scrollbar.
+- Do not put `scroll-behavior: smooth` on a container you drag-scroll; it animates every `scrollLeft` write and lags the cursor (desktop only, since native touch scroll bypasses it). Use `element.scrollTo({ behavior: "smooth" })` at programmatic call sites instead.
+- For dropdowns, either detect drop-up via `getBoundingClientRect()` and `window.innerHeight`, or use the Popover API (`popover="manual"`) to escape shadow-DOM stacking while keeping shadow ownership. Popovers need `aria-haspopup`/`aria-expanded`, roles, Escape/Arrow/Enter handling, focus restoration, repositioning on scroll/resize, and listener cleanup.
+- For several "pick exactly one" attributes (climate fan/swing/preset; media source/sound_mode), a single labeled pill showing the current value plus an on-demand dropdown beats rows of chips: less vertical space and the active value stays visible. Use the Popover pattern so it never clips.
+
+### SVG dials
+
+- Build a circular dial from one `<circle>` track plus one progress circle sharing `stroke-dasharray` and a `rotate` transform; vary fill with `stroke-dasharray: var(--progress-length) <circumference>`. Compute thumb position from `cos`/`sin` into CSS variables (`--thumb-left`/`--thumb-top`). No SVG path math.
+- A drag-to-set dial that also has centre buttons needs an inner dead zone: return null from the pointer-to-value function inside ~42% of the outer radius so a centre tap falls through to the button.
+
+### Theming and host isolation
+
+- Never clear the host's inline styles (`host.style.cssText = ""`). That destroys dimensions, display rules, and custom properties owned by the embedding page; `ThemeLoader` already tracks and restores the properties it applies.
+- When porting an HA-native renderer, treat HA tokens (`--ha-card-background`, `--primary-text-color`, `--warning-color`) as the contract, not the values. Map them to `--hrv-*` roles at the theme JSON layer and rename mechanically in CSS; `color-mix` recipes carry over unchanged.
+- Renderer CSS is self-contained. It may ignore the `--hrv-*` variables for card internals and define its own internal variables; theme variables matter most for the wrapper (radius, shadow, padding) and companion pills.
+- `color_scheme: "auto"` must keep reacting to OS changes. Track page/token/entity scheme sources separately, recompute the effective value on change, and pass `"auto"` through unchanged; never stamp the resolved OS preference as a fixed `data-color-scheme`.
+
+### Companions, history, and build
+
+- The companion system is a data pipeline: the framework delivers companion state, the renderer decides how (or whether) to show it. Default pills are opt-in via `renderCompanions()`; override `updateCompanionState()` to customize.
+- There is no per-card companion limit. Primaries and companions both count toward the 250-entity safety cap per token.
+- Forgetting `renderHistoryZoneHTML()` in the template makes the preview graph toggle do nothing for sensor, binary_sensor, and input_number.
+- The initial WebSocket `renderer` URL must carry a cache-buster (`?v={mtime}`); without it browsers may serve a stale renderer even with `Cache-Control: no-store`. The reload and push paths already include it; the initial-connection path is easy to miss.
+- Any build or minifier is acceptable, but it must preserve the IIFE, the `document.currentScript.dataset.rendererId` lookup, and the hardcoded fallback ID. Syntax-check the standalone source and run its contract tests.
