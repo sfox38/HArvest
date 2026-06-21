@@ -1,0 +1,114 @@
+/*
+ * Kitchen Kiosk demo - this demo's own widgets and kiosk size/surface only.
+ *
+ * Shared chrome (backdrop, left caption, prev/next nav, the rounded scrolling
+ * panel frame) lives in ../assets/showcase.css. HArvest cards come from
+ * ../assets/harvest-cards.css. Everything below is the "host website": the
+ * clock, weather, forecast and reminder widgets that surround the live cards.
+ */
+
+/* ---- This kiosk: a portrait phone display, dark ------------------------- */
+.kiosk {
+  width: 404px;
+  height: 800px;
+  overflow: hidden;   /* clip the inner scrollbar back inside the rounded corners */
+  background: linear-gradient(180deg, #1c1f26 0%, #181b22 55%, #14161c 100%);
+  color: #e5e7eb;
+}
+
+/*
+ * Scrolling lives on an inner wrapper so .kiosk keeps its rounded corners:
+ * a classic always-visible scrollbar would otherwise paint square top/bottom
+ * corners on the right edge. overflow:hidden on .kiosk clips the bar to the
+ * 38px radius. scrollbar-width stays auto so Chrome honours the styled
+ * ::-webkit-scrollbar (a classic, always-shown bar) instead of its auto-hiding
+ * overlay; scrollbar-color keeps Firefox in step.
+ */
+.kiosk-scroll {
+  height: 100%;
+  padding: 28px 20px 36px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(255,255,255,0.28) transparent;
+}
+.kiosk-scroll::-webkit-scrollbar { width: 7px; }
+.kiosk-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.28); border-radius: 4px; }
+.kiosk-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.42); }
+.kiosk-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- The page's own clock + weather ------------------------------------- */
+.kiosk-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+.clock { line-height: 1; }
+.clock .time {
+  font-size: 56px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  color: #f0f2f5;
+}
+.clock .time .ampm { font-size: 22px; font-weight: 500; margin-left: 4px; color: #9aa3b2; }
+.clock .date {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #9aa3b2;
+}
+.weather-chip { text-align: right; }
+.weather-chip .wx-temp {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 30px;
+  font-weight: 400;
+  color: #f0f2f5;
+}
+.weather-chip .wx-temp svg { width: 30px; height: 30px; color: #e0a93f; }
+.weather-chip .wx-desc { font-size: 13px; color: #9aa3b2; margin-top: 2px; }
+
+/* ---- Forecast strip ----------------------------------------------------- */
+.forecast {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 26px;
+}
+.forecast .cell {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 10px 6px;
+  text-align: center;
+}
+.forecast .cell .lbl { font-size: 11px; color: #8b93a2; font-weight: 600; letter-spacing: 0.03em; }
+.forecast .cell svg { width: 22px; height: 22px; color: #aab2c0; margin: 6px 0 4px; }
+.forecast .cell .t  { font-size: 15px; font-weight: 600; color: #e5e7eb; }
+
+/* ---- Urgent reminder banner (pinned above the controls) ----------------- */
+.reminder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 30px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fbe7c2, #f6d79c);
+  color: #6b4a17;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.reminder svg { width: 26px; height: 26px; flex-shrink: 0; color: #b9791f; }
+.reminder .txt b { display: block; font-size: 14px; }
+.reminder .txt span { font-size: 12.5px; opacity: 0.85; }
+
+/* ---- The HArvest control grid ------------------------------------------- */
+.controls {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.controls .span-2 { grid-column: span 2; }

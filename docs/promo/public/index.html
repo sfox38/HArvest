@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HArvest demo - Public Board</title>
+  <link rel="stylesheet" href="../assets/harvest-cards.css">
+  <link rel="stylesheet" href="../assets/showcase.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="../assets/demos.js" defer></script>
+</head>
+<body>
+
+  <!-- Showcase caption (demo gallery, not part of the kiosk) -->
+  <aside class="showcase-note">
+    <h1>Public Board</h1>
+    <p>
+      A counter display anyone can touch, so the token exposes only safe
+      things: a read-only "now playing" and two lighting scenes the customer
+      can nudge. It cannot pause or skip the music, unlock a door, or reach
+      anything else, by design. The logo and Today's Special are the page's
+      own HTML. Shown in the Glass theme.
+    </p>
+    <nav class="demo-nav" id="demo-nav"></nav>
+  </aside>
+
+  <div class="kiosk">
+
+    <!-- Page widget: logo header -->
+    <div class="cafe-top">
+      <div class="cafe-brand">
+        <img src="../assets/a-logo.jpg" alt="Cafe">
+      </div>
+      <div class="cafe-hours">
+        <div class="open">Open till 6:00 PM</div>
+        <div class="wifi">Free Wi-Fi &middot; CafeGuest</div>
+      </div>
+    </div>
+
+    <!-- Page widget: Today's Special hero -->
+    <div class="special">
+      <div>
+        <div class="label">Today's Special</div>
+        <div class="dish">Pineapple upside down cake slice + coffee of your choice</div>
+      </div>
+      <div class="price">$9.99</div>
+    </div>
+
+    <!-- Body -->
+    <div class="cafe-grid">
+
+      <!-- Live: now playing -->
+      <div class="col">
+        <p class="col-title">Now playing</p>
+
+        <!-- media_player.cafe : playing (live HArvest card, in-card album art) -->
+        <div class="hrv-card theme-glass" data-domain="media_player" data-harvest-state="live">
+          <div part="card">
+            <div part="card-header">
+              <span part="card-icon" aria-hidden="true"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M1,18V21H4C4,19.34 2.66,18 1,18M1,14V16C3.76,16 6,18.24 6,21H8C8,17.13 4.87,14 1,14M1,10V12C5.97,12 10,16.03 10,21H12C12,14.92 7.07,10 1,10M21,3H3C1.89,3 1,3.89 1,5V8H3V5H21V19H14V21H21A2,2 0 0,0 23,19V5C23,3.89 22.1,3 21,3M18,7H6V9H18V7Z" fill="currentColor"/></svg></span>
+              <span part="card-name">Now Playing</span>
+            </div>
+            <div part="card-body">
+              <div class="hrv-media-hero">
+                <div part="media-art" data-has-art="true">
+                  <img part="media-art-img" src="../assets/albumart.jpg" alt="">
+                  <span part="media-art-icon" aria-hidden="true"></span>
+                </div>
+                <div class="hrv-media-text">
+                  <span part="media-title">Diving In a Sea of Light</span>
+                  <span part="media-artist">Secret Friend</span>
+                  <span part="media-source"></span>
+                  <span part="state-label">Playing</span>
+                </div>
+              </div>
+            </div>
+            <div part="companion-zone"></div>
+            <div part="stale-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Live: lighting scenes the customer can nudge -->
+      <div class="col">
+        <p class="col-title">Set the vibe</p>
+        <div class="vibe-scenes">
+
+          <!-- script.scene_chill -->
+          <div class="hrv-card theme-glass" data-domain="script" data-harvest-state="live">
+            <div part="card">
+              <div part="card-header">
+                <span part="card-icon" aria-hidden="true"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M13.8 22H5C3.3 22 2 20.7 2 19V18H13.1C13 18.3 13 18.7 13 19C13 20.1 13.3 21.1 13.8 22M13.8 16H5V5C5 3.3 6.3 2 8 2H19C20.7 2 22 3.3 22 5V6H20V5C20 4.4 19.6 4 19 4S18 4.4 18 5V13.1C16.2 13.4 14.7 14.5 13.8 16M8 8H15V6H8V8M8 12H14V10H8V12M17 16V22L22 19L17 16Z" fill="currentColor"/></svg></span>
+                <span part="card-name">Chill</span>
+                <span part="row-control"><button part="row-run-btn" type="button" aria-label="Chill">Run</button></span>
+              </div>
+              <div part="card-body">
+                <button part="run-button" type="button" aria-label="Chill">Run</button>
+                <span part="state-label"></span>
+              </div>
+              <div part="companion-zone"></div>
+              <div part="stale-indicator" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- script.scene_lively -->
+          <div class="hrv-card theme-glass" data-domain="script" data-harvest-state="live">
+            <div part="card">
+              <div part="card-header">
+                <span part="card-icon" aria-hidden="true"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M13.8 22H5C3.3 22 2 20.7 2 19V18H13.1C13 18.3 13 18.7 13 19C13 20.1 13.3 21.1 13.8 22M13.8 16H5V5C5 3.3 6.3 2 8 2H19C20.7 2 22 3.3 22 5V6H20V5C20 4.4 19.6 4 19 4S18 4.4 18 5V13.1C16.2 13.4 14.7 14.5 13.8 16M8 8H15V6H8V8M8 12H14V10H8V12M17 16V22L22 19L17 16Z" fill="currentColor"/></svg></span>
+                <span part="card-name">Lively</span>
+                <span part="row-control"><button part="row-run-btn" type="button" aria-label="Lively">Run</button></span>
+              </div>
+              <div part="card-body">
+                <button part="run-button" type="button" aria-label="Lively">Run</button>
+                <span part="state-label"></span>
+              </div>
+              <div part="companion-zone"></div>
+              <div part="stale-indicator" aria-hidden="true"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- sensor.indoor_temp : read-only badge -->
+        <div class="vibe-extra">
+          <div class="hrv-card theme-glass" data-domain="badge" data-harvest-state="live">
+            <div part="badge" aria-label="Inside" title="Inside: 22 deg">
+              <span part="badge-icon" aria-hidden="true" style="color: var(--hrv-color-primary); opacity: 1;"><svg part="badge-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M15,13V5A3,3 0 0,0 9,5V13A5,5 0 1,0 15,13M12,4A1,1 0 0,1 13,5V14.17C14.17,14.58 15,15.71 15,17A3,3 0 0,1 9,17C9,15.71 9.83,14.58 11,14.17V5A1,1 0 0,1 12,4Z" fill="currentColor"/></svg></span>
+              <span part="badge-text" class="">
+                <span part="badge-name" class="">Inside</span>
+                <span part="badge-state" class="" aria-live="polite">22&deg;</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Page widget: outside weather summary -->
+    <div class="wx-bar glass-panel">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.74,5.47C15.1,6.5 16.35,9.03 15.92,11.46C17.19,12.56 18,14.19 18,16V16.17C18.31,16.06 18.65,16 19,16A3,3 0 0,1 22,19A3,3 0 0,1 19,22H6A4,4 0 0,1 2,18A4,4 0 0,1 6,14H6.27C5,12.45 4.6,10.24 5.5,8.26C6.72,5.5 9.97,4.24 12.74,5.47M11.93,7.3C10.16,6.5 8.09,7.31 7.31,9.07C6.85,10.09 6.93,11.22 7.41,12.13C8.5,10.83 10.16,10 12,10C12.7,10 13.38,10.12 14,10.34C13.94,9.06 13.18,7.86 11.93,7.3M13.55,3.64C13,3.4 12.45,3.23 11.88,3.12L14.37,1.82L15.27,4.71C14.76,4.29 14.19,3.93 13.55,3.64M6.09,4.44C5.6,4.79 5.17,5.19 4.8,5.63L4.91,2.82L7.87,3.5C7.25,3.71 6.65,4.03 6.09,4.44M18,9.71C17.91,9.12 17.78,8.55 17.59,8L19.97,9.5L17.92,11.73C18.03,11.08 18.05,10.4 18,9.71M3.04,11.3C3.11,11.9 3.24,12.47 3.43,13L1.06,11.5L3.1,9.28C3,9.93 2.97,10.61 3.04,11.3M19,18H16V16A4,4 0 0,0 12,12A4,4 0 0,0 8,16H6A2,2 0 0,0 4,18A2,2 0 0,0 6,20H19A1,1 0 0,0 20,19A1,1 0 0,0 19,18Z"/></svg>
+      <span class="wx-t">18&deg;</span>
+      <span class="wx-d">Partly cloudy outside &middot; light breeze from the west &middot; sunset 8:42 PM</span>
+    </div>
+
+    <!-- Page widgets: community feed + local sports -->
+    <div class="bottom-row">
+
+      <div class="social-feed glass-panel">
+        <div class="feed-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22.46,6C21.69,6.35 20.86,6.58 20,6.69C20.88,6.16 21.56,5.32 21.88,4.31C21.05,4.81 20.13,5.16 19.16,5.36C18.37,4.5 17.26,4 16,4C13.65,4 11.73,5.92 11.73,8.29C11.73,8.63 11.77,8.96 11.84,9.27C8.28,9.09 5.11,7.38 3,4.79C2.63,5.42 2.42,6.16 2.42,6.94C2.42,8.43 3.17,9.75 4.33,10.5C3.62,10.5 2.96,10.3 2.38,10C2.38,10 2.38,10 2.38,10.03C2.38,12.11 3.86,13.85 5.82,14.24C5.46,14.34 5.08,14.39 4.69,14.39C4.42,14.39 4.15,14.36 3.89,14.31C4.43,16 6,17.26 7.89,17.29C6.43,18.45 4.58,19.13 2.56,19.13C2.22,19.13 1.88,19.11 1.54,19.07C3.44,20.29 5.7,21 8.12,21C16,21 20.33,14.46 20.33,8.79C20.33,8.6 20.33,8.42 20.32,8.23C21.16,7.63 21.88,6.87 22.46,6Z"/></svg>
+          Around Town
+        </div>
+        <div class="sf-list">
+          <div class="tweet">
+            <div class="tw-av" style="background:#e0567a">E</div>
+            <div class="tw-body">
+              <div class="tw-handle">@Elle9339<span class="tw-time">12m</span></div>
+              <div class="tw-text">LOST DOG - 'Fergie' is a 2 year old minature schnauzer, last seen this morning running out my door chasing a bird @ Spring and 17th. <span class="tag">#schnauzer</span> <span class="tag">#lostdog</span></div>
+            </div>
+          </div>
+          <div class="tweet">
+            <div class="tw-av" style="background:#3f9d6d">N</div>
+            <div class="tw-body">
+              <div class="tw-handle">@dr_nevin_li<span class="tw-time">1h</span></div>
+              <div class="tw-text">Free live music therapy for cats, every Saturday at <span class="tag">#donsveggieburgers</span></div>
+            </div>
+          </div>
+          <div class="tweet">
+            <div class="tw-av" style="background:#4a7fd0">M</div>
+            <div class="tw-body">
+              <div class="tw-handle">@Mark_freedom<span class="tw-time">2h</span></div>
+              <div class="tw-text">Does anyone have a spare abacus? Hit me up - I need to count a lot of things urgently <span class="tag">#helpwanted</span></div>
+            </div>
+          </div>
+          <div class="tweet">
+            <div class="tw-av" style="background:#c98a2b">B</div>
+            <div class="tw-body">
+              <div class="tw-handle">@bin_chicken_22<span class="tw-time">3h</span></div>
+              <div class="tw-text">psa the tip is open till 4 today, not 2. learned this the hard way <span class="tag">#localnews</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sports glass-panel">
+        <div class="feed-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18,2H6V4H4V8A4,4 0 0,0 8,12V14A4,4 0 0,0 11,17.86V20H7V22H17V20H13V17.86A4,4 0 0,0 16,14V12A4,4 0 0,0 20,8V4H18V2M6,8V6H8V10A2,2 0 0,1 6,8M16,8V6H18V8A2,2 0 0,1 16,8Z"/></svg>
+          Local Sports
+        </div>
+        <div class="sp-list">
+          <div class="sp-game"><span class="sp-league">SOC</span><span class="sp-match">City FC <b>2</b> &middot; United <b>1</b></span><span class="sp-status">FT</span></div>
+          <div class="sp-game"><span class="sp-league">BKB</span><span class="sp-match">Rivers <b>98</b> &middot; Hawks <b>91</b></span><span class="sp-status">Final</span></div>
+          <div class="sp-game"><span class="sp-league">BSB</span><span class="sp-match">Bears <b>5</b> &middot; Otters <b>3</b></span><span class="sp-status">F/9</span></div>
+          <div class="sp-game"><span class="sp-league">SOC</span><span class="sp-match">Rovers <b>1</b> &middot; Athletic <b>1</b></span><span class="sp-status live">67'</span></div>
+          <div class="sp-game"><span class="sp-league">HKY</span><span class="sp-match">Frost <b>3</b> &middot; Blades <b>2</b></span><span class="sp-status">OT</span></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

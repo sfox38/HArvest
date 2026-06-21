@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HArvest demo - Office</title>
+  <link rel="stylesheet" href="../assets/harvest-cards.css">
+  <link rel="stylesheet" href="../assets/showcase.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="../assets/demos.js" defer></script>
+</head>
+<body>
+
+  <!-- Showcase caption (demo gallery, not part of the kiosk) -->
+  <aside class="showcase-note">
+    <h1>Office Controller</h1>
+    <p>
+      A wall tablet by the office door: lights, AC, the projector and a
+      couple of scene buttons, with door, lock and air-quality status. The
+      clock and meeting agenda are the page's own HTML. Shown in the
+      Material Eww theme (Material 3 palette, Nunito font, Phosphor icons).
+    </p>
+    <nav class="demo-nav" id="demo-nav"></nav>
+  </aside>
+
+  <div class="kiosk">
+
+    <!-- Page widgets: clock + meeting agenda -->
+    <div class="office-top">
+      <div class="clock">
+        <div class="time">2:18<span class="ampm">PM</span></div>
+        <div class="date">Saturday, June 20</div>
+        <div class="greeting">Studio North &middot; 4 in today</div>
+      </div>
+      <div class="agenda">
+        <h3>Next up</h3>
+        <ul>
+          <li><span class="when">2:30 PM</span><div class="what"><b>Design sync</b><span>Room A</span></div></li>
+          <li><span class="when">4:00 PM</span><div class="what"><b>1:1 with Sam</b><span>Quiet booth</span></div></li>
+          <li><span class="when">5:30 PM</span><div class="what"><b>Sprint review</b><span>Room A &middot; remote</span></div></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- HArvest badges: read-only status -->
+    <div class="badge-row">
+
+      <!-- lock.front_door : locked -->
+      <div class="hrv-card theme-material-eww" data-domain="badge" data-harvest-state="live">
+        <div part="badge" aria-label="Front Door" title="Front Door: Locked">
+          <span part="badge-icon" aria-hidden="true" style="color: #9ca3af; opacity: 1;"><svg part="badge-icon-svg" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M208 84h-36V56a44 44 0 0 0-88 0v28H48a12 12 0 0 0-12 12v112a12 12 0 0 0 12 12h160a12 12 0 0 0 12-12V96a12 12 0 0 0-12-12M92 56a36 36 0 0 1 72 0v28H92Zm120 152a4 4 0 0 1-4 4H48a4 4 0 0 1-4-4V96a4 4 0 0 1 4-4h160a4 4 0 0 1 4 4Zm-76-56a8 8 0 1 1-8-8a8 8 0 0 1 8 8"/></svg></span>
+          <span part="badge-text" class="">
+            <span part="badge-name" class="">Front Door</span>
+            <span part="badge-state" class="" aria-live="polite">Locked</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- binary_sensor.reception_door : closed -->
+      <div class="hrv-card theme-material-eww" data-domain="badge" data-harvest-state="live">
+        <div part="badge" aria-label="Reception Door" title="Reception Door: Closed">
+          <span part="badge-icon" aria-hidden="true" style="color: #9ca3af; opacity: 1;"><svg part="badge-icon-svg" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M232 220h-28V40a12 12 0 0 0-12-12H64a12 12 0 0 0-12 12v180H24a4 4 0 0 0 0 8h208a4 4 0 0 0 0-8M60 40a4 4 0 0 1 4-4h128a4 4 0 0 1 4 4v180H60Zm104 92a8 8 0 1 1-8-8a8 8 0 0 1 8 8"/></svg></span>
+          <span part="badge-text" class="">
+            <span part="badge-name" class="">Reception Door</span>
+            <span part="badge-state" class="" aria-live="polite">Closed</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- sensor.air_quality : good (active) -->
+      <div class="hrv-card theme-material-eww" data-domain="badge" data-harvest-state="live">
+        <div part="badge" aria-label="Air Quality" title="Air Quality: Good">
+          <span part="badge-icon" aria-hidden="true" style="color: var(--hrv-color-primary); opacity: 1;"><svg part="badge-icon-svg" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M204.23 75.5A107.37 107.37 0 0 0 127.62 44C68.28 44.21 20 93.16 20 153.13V176a12 12 0 0 0 12 12h192a12 12 0 0 0 12-12v-24a107.25 107.25 0 0 0-31.77-76.5M228 176a4 4 0 0 1-4 4H111.85l59.38-81.65a4 4 0 1 0-6.46-4.7L102 180H32a4 4 0 0 1-4-4v-22.87a103 103 0 0 1 .84-13.13H56a4 4 0 0 0 0-8H30.21C39.59 87.66 77.84 53.93 124 52.09V80a4 4 0 0 0 8 0V52.08A100.08 100.08 0 0 1 226 132h-26a4 4 0 0 0 0 8h27.29a102 102 0 0 1 .71 12Z"/></svg></span>
+          <span part="badge-text" class="">
+            <span part="badge-name" class="">Air Quality</span>
+            <span part="badge-state" class="" aria-live="polite">Good</span>
+          </span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- HArvest cards: one scoped token, Material Eww theme -->
+    <div class="controls">
+
+      <!-- light.open_plan : on, 70% -->
+      <div class="hrv-card theme-material-eww" data-domain="light" data-harvest-state="live">
+        <div part="card">
+          <div part="card-header">
+            <span part="card-icon" aria-hidden="true" data-on="true"><svg part="card-icon-svg" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M172 232a4 4 0 0 1-4 4H88a4 4 0 0 1 0-8h80a4 4 0 0 1 4 4m40-128a83.59 83.59 0 0 1-32.11 66.06A20.2 20.2 0 0 0 172 186v6a12 12 0 0 1-12 12H96a12 12 0 0 1-12-12v-6a20 20 0 0 0-7.76-15.81A83.58 83.58 0 0 1 44 104.47C43.75 59 80.52 21.09 126 20a84 84 0 0 1 86 84m-8 0a76 76 0 0 0-77.83-76C85 29 51.77 63.27 52 104.43a75.62 75.62 0 0 0 29.17 59.43A28 28 0 0 1 92 186v6a4 4 0 0 0 4 4h64a4 4 0 0 0 4-4v-6a28.14 28.14 0 0 1 10.94-22.2A75.62 75.62 0 0 0 204 104m-67.34-51.94a4 4 0 0 0-1.32 7.88C153.53 63 169 78.45 172.06 96.67A4 4 0 0 0 176 100a4 4 0 0 0 .67-.06a4 4 0 0 0 3.27-4.61a53.51 53.51 0 0 0-43.28-43.27"/></svg></span>
+            <span part="card-name">Open Plan Lights</span>
+            <span part="row-control"><button part="row-toggle" type="button" aria-pressed="true" aria-label="Open Plan Lights"></button></span>
+          </div>
+          <div part="card-body">
+            <button part="toggle-button" type="button" aria-pressed="true">On</button>
+            <div>
+              <div class="hrv-slider-label"><span>Brightness</span><span part="brightness-value">70%</span></div>
+              <input part="brightness-slider" type="range" min="0" max="255" value="179" aria-label="Open Plan Lights - Brightness">
+            </div>
+          </div>
+          <div part="companion-zone"></div>
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- light.reception : off -->
+      <div class="hrv-card theme-material-eww" data-domain="light" data-harvest-state="live">
+        <div part="card">
+          <div part="card-header">
+            <span part="card-icon" aria-hidden="true" data-on="false"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M12,2C9.76,2 7.78,3.05 6.5,4.68L16.31,14.5C17.94,13.21 19,11.24 19,9A7,7 0 0,0 12,2M3.28,4L2,5.27L5.04,8.3C5,8.53 5,8.76 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H14.73L18.73,22L20,20.72L3.28,4M9,20V21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9Z" fill="currentColor"/></svg></span>
+            <span part="card-name">Reception Lights</span>
+            <span part="row-control"><button part="row-toggle" type="button" aria-pressed="false" aria-label="Reception Lights"></button></span>
+          </div>
+          <div part="card-body">
+            <button part="toggle-button" type="button" aria-pressed="false">Off</button>
+          </div>
+          <div part="companion-zone"></div>
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- climate.office_ac : cool, current 23, target 21 -->
+      <div class="hrv-card theme-material-eww" data-domain="climate" data-harvest-state="live">
+        <div part="card">
+          <div part="card-header">
+            <span part="card-icon" aria-hidden="true"><svg part="card-icon-svg" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M212 60a24 24 0 1 0 24 24a24 24 0 0 0-24-24m0 40a16 16 0 1 1 16-16a16 16 0 0 1-16 16m-88 56.29V88a4 4 0 0 0-8 0v68.29a28 28 0 1 0 8 0M120 204a20 20 0 1 1 20-20a20 20 0 0 1-20 20m36-68V48a36 36 0 0 0-72 0v88a60 60 0 1 0 72 0m-36 100a52 52 0 0 1-29.71-94.68A4 4 0 0 0 92 138V48a28 28 0 0 1 56 0v90a4 4 0 0 0 1.71 3.28A52 52 0 0 1 120 236"/></svg></span>
+            <span part="card-name">Office AC</span>
+          </div>
+          <div part="card-body">
+            <div class="hrv-climate-row">
+              <span class="hrv-climate-label">Current</span>
+              <span part="current-temp" class="hrv-climate-temp">23&deg;</span>
+            </div>
+            <div class="hrv-climate-row">
+              <span class="hrv-climate-label">Mode</span>
+              <select part="mode-select" aria-label="Office AC - Mode">
+                <option value="off">Off</option>
+                <option value="heat">Heat</option>
+                <option value="cool" selected>Cool</option>
+                <option value="heat_cool">Heat / cool</option>
+                <option value="auto">Auto</option>
+                <option value="dry">Dry</option>
+                <option value="fan_only">Fan only</option>
+              </select>
+            </div>
+            <div class="hrv-climate-row">
+              <span class="hrv-climate-label">Target</span>
+              <input part="target-temp-input" type="number" min="7" max="35" step="0.5" value="21" aria-label="Office AC - Target">
+            </div>
+          </div>
+          <div part="companion-zone"></div>
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- switch.projector : on -->
+      <div class="hrv-card theme-material-eww" data-domain="switch" data-harvest-state="live">
+        <div part="card">
+          <div part="card-header">
+            <span part="card-icon" aria-hidden="true"><svg part="card-icon-svg" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M176 60H80a68 68 0 0 0 0 136h96a68 68 0 0 0 0-136m0 128H80a60 60 0 0 1 0-120h96a60 60 0 0 1 0 120m0-96a36 36 0 1 0 36 36a36 36 0 0 0-36-36m0 64a28 28 0 1 1 28-28a28 28 0 0 1-28 28"/></svg></span>
+            <span part="card-name">Projector</span>
+            <span part="row-control"><button part="row-toggle" type="button" aria-pressed="true" aria-label="Projector"></button></span>
+          </div>
+          <div part="card-body">
+            <button part="toggle-button" type="button" aria-pressed="true">On</button>
+          </div>
+          <div part="companion-zone"></div>
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- script.presentation_mode -->
+      <div class="hrv-card theme-material-eww" data-domain="script" data-harvest-state="live">
+        <div part="card">
+          <div part="card-header">
+            <span part="card-icon" aria-hidden="true"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M13.8 22H5C3.3 22 2 20.7 2 19V18H13.1C13 18.3 13 18.7 13 19C13 20.1 13.3 21.1 13.8 22M13.8 16H5V5C5 3.3 6.3 2 8 2H19C20.7 2 22 3.3 22 5V6H20V5C20 4.4 19.6 4 19 4S18 4.4 18 5V13.1C16.2 13.4 14.7 14.5 13.8 16M8 8H15V6H8V8M8 12H14V10H8V12M17 16V22L22 19L17 16Z" fill="currentColor"/></svg></span>
+            <span part="card-name">Presentation Mode</span>
+            <span part="row-control"><button part="row-run-btn" type="button" aria-label="Presentation Mode">Run</button></span>
+          </div>
+          <div part="card-body">
+            <button part="run-button" type="button" aria-label="Presentation Mode">Run</button>
+            <span part="state-label"></span>
+          </div>
+          <div part="companion-zone"></div>
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <!-- script.end_of_day -->
+      <div class="hrv-card theme-material-eww" data-domain="script" data-harvest-state="live">
+        <div part="card">
+          <div part="card-header">
+            <span part="card-icon" aria-hidden="true"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M13.8 22H5C3.3 22 2 20.7 2 19V18H13.1C13 18.3 13 18.7 13 19C13 20.1 13.3 21.1 13.8 22M13.8 16H5V5C5 3.3 6.3 2 8 2H19C20.7 2 22 3.3 22 5V6H20V5C20 4.4 19.6 4 19 4S18 4.4 18 5V13.1C16.2 13.4 14.7 14.5 13.8 16M8 8H15V6H8V8M8 12H14V10H8V12M17 16V22L22 19L17 16Z" fill="currentColor"/></svg></span>
+            <span part="card-name">End of Day</span>
+            <span part="row-control"><button part="row-run-btn" type="button" aria-label="End of Day">Run</button></span>
+          </div>
+          <div part="card-body">
+            <button part="run-button" type="button" aria-label="End of Day">Run</button>
+            <span part="state-label"></span>
+          </div>
+          <div part="companion-zone"></div>
+          <div part="stale-indicator" aria-hidden="true"></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

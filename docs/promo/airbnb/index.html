@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HArvest demo - Guest Stay</title>
+  <link rel="stylesheet" href="../assets/harvest-cards.css">
+  <link rel="stylesheet" href="../assets/showcase.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="../assets/demos.js" defer></script>
+</head>
+<body>
+
+  <!-- Showcase caption (demo gallery, not part of the kiosk) -->
+  <aside class="showcase-note">
+    <h1>Guest Stay</h1>
+    <p>
+      A wall tablet for holiday-rental guests. They control only their own
+      space, lights and blinds, and see door, window and lock status at a
+      glance, all from one scoped token. The garbage reminder and "What's On"
+      feed are the page's own HTML. Shown in the Shrooms theme.
+    </p>
+    <nav class="demo-nav" id="demo-nav"></nav>
+  </aside>
+
+  <div class="kiosk">
+
+    <!-- Page widget: guest header -->
+    <div class="guest-header">
+      <h2>Welcome to Seaside Cottage</h2>
+      <div class="sub">Your stay &middot; checkout Sunday, 11 AM &middot; Wi-Fi: CottageGuest</div>
+    </div>
+
+    <!-- HArvest badges: read-only status (one scoped token) -->
+    <div class="badge-row">
+
+      <!-- binary_sensor.front_door : closed (inactive) -->
+      <div class="hrv-card theme-shrooms" data-domain="badge" data-harvest-state="live">
+        <div part="badge" aria-label="Front Door" title="Front Door: Closed">
+          <span part="badge-icon" aria-hidden="true" style="color: #9ca3af; opacity: 1;"><svg part="badge-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M9,3L15,3L15,21L9,21M12,15A1,1 0 0,0 13,14A1,1 0 0,0 12,13A1,1 0 0,0 11,14A1,1 0 0,0 12,15Z" fill="currentColor"/></svg></span>
+          <span part="badge-text" class="">
+            <span part="badge-name" class="">Front Door</span>
+            <span part="badge-state" class="" aria-live="polite">Closed</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- binary_sensor.patio_door : open (active) -->
+      <div class="hrv-card theme-shrooms" data-domain="badge" data-harvest-state="live">
+        <div part="badge" aria-label="Patio Door" title="Patio Door: Open">
+          <span part="badge-icon" aria-hidden="true" style="color: var(--hrv-color-primary); opacity: 1;"><svg part="badge-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M19,3C20.11,3 21,3.89 21,5V19A2,2 0 0,1 19,21H5C3.9,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H19M19,19V5H5V19H19M14,17H12V7H14V17Z" fill="currentColor"/></svg></span>
+          <span part="badge-text" class="">
+            <span part="badge-name" class="">Patio Door</span>
+            <span part="badge-state" class="" aria-live="polite">Open</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- binary_sensor.bedroom_window : closed (inactive) -->
+      <div class="hrv-card theme-shrooms" data-domain="badge" data-harvest-state="live">
+        <div part="badge" aria-label="Bedroom Window" title="Bedroom Window: Closed">
+          <span part="badge-icon" aria-hidden="true" style="color: #9ca3af; opacity: 1;"><svg part="badge-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M6,11H10V9H14V11H18V4H6V11M18,13H6V20H18V13M6,2H18A2,2 0 0,1 20,4V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z" fill="currentColor"/></svg></span>
+          <span part="badge-text" class="">
+            <span part="badge-name" class="">Bedroom Window</span>
+            <span part="badge-state" class="" aria-live="polite">Closed</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- lock.front_door : locked (read-only badge) -->
+      <div class="hrv-card theme-shrooms" data-domain="badge" data-harvest-state="live">
+        <div part="badge" aria-label="Front Lock" title="Front Lock: Locked">
+          <span part="badge-icon" aria-hidden="true" style="color: #9ca3af; opacity: 1;"><svg part="badge-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z" fill="currentColor"/></svg></span>
+          <span part="badge-text" class="">
+            <span part="badge-name" class="">Front Lock</span>
+            <span part="badge-state" class="" aria-live="polite">Locked</span>
+          </span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Two columns: live controls (left) + page info (right) -->
+    <div class="guest-grid">
+
+      <div class="col">
+        <p class="col-title">Your space</p>
+        <div class="controls-stack">
+
+          <!-- light.living_room : on, 80% -->
+          <div class="hrv-card theme-shrooms" data-pack="shrooms" data-domain="light" data-harvest-state="live">
+            <div part="card">
+              <div class="shroom-state-item" data-tappable="true" role="button" tabindex="0" aria-pressed="true" aria-label="Living Room Lights - Toggle">
+                <span class="shroom-icon-shape" part="card-icon" aria-hidden="true" style="background: color-mix(in srgb, var(--hrv-ex-shroom-light, #ff9800) 20%, transparent); color: var(--hrv-ex-shroom-light, #ff9800);"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z" fill="currentColor"/></svg></span>
+                <div class="shroom-info">
+                  <span class="shroom-primary">Living Room Lights</span>
+                  <span class="shroom-secondary">80%</span>
+                </div>
+              </div>
+              <div class="shroom-controls-shell" data-collapsed="false">
+                <div class="shroom-light-controls-row">
+                  <div class="shroom-slider-wrap shroom-light-slider-wrap" style="--shroom-light-accent: var(--hrv-ex-shroom-light, #ff9800);">
+                    <div class="shroom-slider-bg shroom-brightness-bg"></div>
+                    <div class="shroom-slider-cover" style="left:80%"></div>
+                    <div class="shroom-slider-edge" style="left:80%;display:none"></div>
+                    <input type="range" class="shroom-slider-input" min="0" max="100" step="1" value="80" aria-label="Living Room Lights level" aria-valuetext="80%">
+                    <div class="shroom-slider-focus-ring"></div>
+                  </div>
+                </div>
+              </div>
+              <div part="companion-zone"></div>
+              <div part="stale-indicator" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- light.bedroom : off -->
+          <div class="hrv-card theme-shrooms" data-pack="shrooms" data-domain="light" data-harvest-state="live">
+            <div part="card">
+              <div class="shroom-state-item" data-tappable="true" role="button" tabindex="0" aria-pressed="false" aria-label="Bedroom Lights - Toggle">
+                <span class="shroom-icon-shape" part="card-icon" aria-hidden="true" style="background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05)); color: var(--hrv-color-icon, #757575);"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M12,2C9.76,2 7.78,3.05 6.5,4.68L16.31,14.5C17.94,13.21 19,11.24 19,9A7,7 0 0,0 12,2M3.28,4L2,5.27L5.04,8.3C5,8.53 5,8.76 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H14.73L18.73,22L20,20.72L3.28,4M9,20V21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9Z" fill="currentColor"/></svg></span>
+                <div class="shroom-info">
+                  <span class="shroom-primary">Bedroom Lights</span>
+                  <span class="shroom-secondary">Off</span>
+                </div>
+              </div>
+              <div class="shroom-controls-shell" data-collapsed="true">
+                <div class="shroom-light-controls-row">
+                  <div class="shroom-slider-wrap shroom-light-slider-wrap" style="--shroom-light-accent: var(--hrv-ex-shroom-light, #ff9800);">
+                    <div class="shroom-slider-bg shroom-brightness-bg"></div>
+                    <div class="shroom-slider-cover" style="left:0%"></div>
+                    <div class="shroom-slider-edge" style="left:0%;display:none"></div>
+                    <input type="range" class="shroom-slider-input" min="0" max="100" step="1" value="0" aria-label="Bedroom Lights level" aria-valuetext="0%">
+                    <div class="shroom-slider-focus-ring"></div>
+                  </div>
+                </div>
+              </div>
+              <div part="companion-zone"></div>
+              <div part="stale-indicator" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- cover.bedroom_blinds : open, 60% -->
+          <div class="hrv-card theme-shrooms" data-pack="shrooms" data-domain="cover" data-harvest-state="live">
+            <div part="card">
+              <div class="shroom-state-item">
+                <span class="shroom-icon-shape" part="card-icon" aria-hidden="true" style="background: color-mix(in srgb, var(--hrv-ex-shroom-cover, #5389ec) 20%, transparent); color: var(--hrv-ex-shroom-cover, #5389ec);"><svg part="card-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M3,3H21V5H3V3M3,6H5V21H3V6M6,6H21V21H6V6M8,8V10H10V8H8M11,8V10H13V8H11M14,8V10H16V8H14M17,8V10H19V8H17M8,11V13H10V11H8M11,11V13H13V11H11M14,11V13H16V11H14M17,11V13H19V11H17M8,14V16H10V14H8M11,14V16H13V14H11M14,14V16H16V14H14M17,14V16H19V14H17M8,17V19H10V17H8M11,17V19H13V17H11M14,17V19H16V17H14M17,17V19H19V17H17Z" fill="currentColor"/></svg></span>
+                <div class="shroom-info">
+                  <span class="shroom-primary">Bedroom Blinds</span>
+                  <span class="shroom-secondary">Open - 60%</span>
+                </div>
+              </div>
+              <div class="shroom-cover-bar">
+                <div class="shroom-cover-slider-view">
+                  <div class="shroom-slider-wrap">
+                    <div class="shroom-slider-bg shroom-cover-slider-bg"></div>
+                    <div class="shroom-slider-cover" style="left:60%"></div>
+                    <div class="shroom-slider-edge" style="left:60%"></div>
+                    <input part="position-slider" type="range" class="shroom-slider-input" min="0" max="100" step="1" value="60" aria-label="Bedroom Blinds position" aria-valuetext="60%">
+                    <div class="shroom-slider-focus-ring"></div>
+                  </div>
+                </div>
+              </div>
+              <div part="companion-zone"></div>
+              <div part="stale-indicator" aria-hidden="true"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="col">
+        <p class="col-title">Good to know</p>
+
+        <!-- Page widget: garbage reminder -->
+        <div class="reminder">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z"/></svg>
+          <div class="txt">
+            <b>Take the garbage out tomorrow</b>
+            <span>Wednesday morning &middot; black bin to the lane</span>
+          </div>
+        </div>
+
+        <!-- Page widget: "What's On" local-events feed -->
+        <div class="whats-on">
+          <div class="wo-head">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.18,15.64A2.18,2.18 0 0,1 8.36,17.82C8.36,19 7.38,20 6.18,20C5,20 4,19 4,17.82A2.18,2.18 0 0,1 6.18,15.64M4,4.44A15.56,15.56 0 0,1 19.56,20H16.73A12.73,12.73 0 0,0 4,7.27V4.44M4,10.1A9.9,9.9 0 0,1 13.9,20H11.07A7.07,7.07 0 0,0 4,12.93V10.1Z"/></svg>
+            What's On nearby
+          </div>
+          <ul class="wo-list">
+            <li>
+              <span class="wo-when">Tonight</span>
+              <div class="wo-body"><b>Live jazz at The Anchor</b><span>Harbourside &middot; 8:00 PM</span></div>
+            </li>
+            <li>
+              <span class="wo-when">Sat</span>
+              <div class="wo-body"><b>Harbour farmers market</b><span>Old Town Square &middot; 9:00 AM</span></div>
+            </li>
+            <li>
+              <span class="wo-when">Sat</span>
+              <div class="wo-body"><b>Coastal art walk</b><span>Lighthouse path &middot; 2:00 PM</span></div>
+            </li>
+            <li>
+              <span class="wo-when">Sun</span>
+              <div class="wo-body"><b>Seafood festival</b><span>The Pier &middot; 12:00 PM</span></div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

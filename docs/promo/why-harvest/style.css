@@ -1,0 +1,185 @@
+/*
+ * "Why HArvest" closing page - a standalone marketing piece.
+ *
+ * Deliberately NOT bound to the product design system (DESIGN.md / brand.md):
+ * this is a sales document, so it has its own type, palette and layout. The
+ * direction is "golden hour / harvest": a deep warm hero panel with a
+ * sunrise-gold accent that nods to the logo (not the product's forest green).
+ * Type is Bricolage Grotesque, whose @font-face now lives in showcase.css
+ * (shared by every page). Shares only the gallery shell (body layout + nav)
+ * from ../assets/showcase.css; the left nav is recoloured here so the warm
+ * page stays cohesive.
+ */
+
+.pitch-page {
+  --pg-panel:      #1b1510;
+  --pg-gold:       #f0b24a;
+  --pg-gold-deep:  #d99432;
+  --pg-gold-soft:  rgba(240, 178, 74, 0.13);
+  --pg-ink:        #f7f0e2;
+  --pg-body:       #d9ccb4;
+  --pg-muted:      #a99c83;
+  --pg-font: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: var(--pg-font);
+}
+
+/* ---- Left column: show the logo for real (suppress the shared watermark) -- */
+.pitch-aside { max-width: 340px; }
+.pitch-aside::before { display: none; }
+.pitch-logo {
+  width: 312px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto 28px;
+}
+
+/* Recolour the shared nav from blue to a warm tone for this page only. */
+.pitch-page .demo-nav-link {
+  color: #8c5b18;
+  background: rgba(176, 122, 30, 0.10);
+}
+.pitch-page .demo-nav-link:hover { background: rgba(176, 122, 30, 0.18); }
+.pitch-page .demo-dot { background: rgba(80, 60, 28, 0.22); }
+.pitch-page .demo-dot:hover { background: rgba(80, 60, 28, 0.45); }
+.pitch-page .demo-dot.is-current { background: var(--pg-gold-deep); }
+.pitch-page .demo-dot.is-current:hover { background: var(--pg-gold-deep); }
+/* The panel's "Learn more" CTA already links to the docs, so drop the
+   duplicate nav docs link under the logo on this page. */
+.pitch-page .demo-docs { display: none; }
+
+/* ---- Right panel: the warm marketing hero ------------------------------- */
+.pitch {
+  position: relative;
+  flex-shrink: 0;
+  width: 580px;
+  max-width: 100%;
+  padding: 50px 52px 46px;
+  border-radius: 30px;
+  overflow: hidden;
+  background: var(--pg-panel);
+  color: var(--pg-body);
+  box-shadow:
+    0 1px 0 0 rgba(255, 224, 170, 0.10) inset,
+    0 40px 80px -30px rgba(20, 12, 4, 0.7),
+    0 0 0 1px rgba(255, 210, 150, 0.06);
+}
+/* Sunrise glow bleeding in from the top, echoing the logo. */
+.pitch::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 78% -8%, rgba(240, 178, 74, 0.20), transparent 58%),
+    radial-gradient(80% 50% at 10% 0%, rgba(225, 120, 60, 0.10), transparent 60%);
+}
+.pitch > * { position: relative; }
+
+.pitch-title {
+  margin: 0;
+  font-size: clamp(50px, 5vw, 62px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 0.96;
+  color: var(--pg-ink);
+  text-wrap: balance;
+}
+.pitch-title .ha { color: var(--pg-gold); }
+
+.pitch-tagline {
+  margin: 14px 0 34px;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--pg-muted);
+}
+
+.pitch-points {
+  list-style: none;
+  margin: 0 0 38px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 19px;
+}
+.pitch-points li {
+  display: flex;
+  gap: 15px;
+  font-size: 15.5px;
+  line-height: 1.5;
+  color: var(--pg-body);
+  text-wrap: pretty;
+}
+.pitch-points .chk {
+  flex-shrink: 0;
+  width: 25px;
+  height: 25px;
+  margin-top: 1px;
+  padding: 4px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--pg-gold-soft);
+  color: var(--pg-gold);
+}
+.pitch-points b {
+  font-weight: 600;
+  color: var(--pg-ink);
+}
+
+/* ---- Docs link (bottom call to action) --------------------------------- */
+.pitch-docs {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 26px;
+  border-radius: 13px;
+  background: var(--pg-gold);
+  color: #2a1c06;
+  font-family: var(--pg-font);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 10px 24px -10px rgba(240, 178, 74, 0.6);
+}
+.pitch-docs svg { width: 18px; height: 18px; }
+.pitch-docs:hover {
+  background: #f6c062;
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px -12px rgba(240, 178, 74, 0.7);
+}
+.pitch-docs:active { transform: translateY(0); }
+.pitch-docs:focus-visible { outline: 2px solid var(--pg-gold); outline-offset: 3px; }
+
+/* ---- Entrance motion (enhances an already-visible default) -------------- */
+@keyframes pgRise {
+  from { opacity: 0; transform: translateY(15px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Motion-graphics pop for the logo: grow from 80% past 120%, then settle to
+   100%. Ease-out into the overshoot, ease-in-out back down to rest. */
+@keyframes pgLogoPop {
+  0%   { opacity: 0; transform: scale(0.8); animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  55%  { opacity: 1; transform: scale(1.2); animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pitch-page .reveal { opacity: 0; animation: pgRise 0.62s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .pitch-logo.reveal    { animation: pgLogoPop 0.9s 60ms both; transform-origin: center; }
+  .pitch-title.reveal   { animation-delay: 150ms; }
+  .pitch-tagline.reveal { animation-delay: 230ms; }
+  .pitch-points li.reveal:nth-child(1) { animation-delay: 310ms; }
+  .pitch-points li.reveal:nth-child(2) { animation-delay: 375ms; }
+  .pitch-points li.reveal:nth-child(3) { animation-delay: 440ms; }
+  .pitch-points li.reveal:nth-child(4) { animation-delay: 505ms; }
+  .pitch-points li.reveal:nth-child(5) { animation-delay: 570ms; }
+  .pitch-points li.reveal:nth-child(6) { animation-delay: 635ms; }
+  .pitch-docs.reveal    { animation-delay: 720ms; }
+}
+
+@media (max-width: 860px) {
+  .pitch { width: 100%; padding: 36px 26px 32px; }
+  .pitch-title { font-size: clamp(42px, 12vw, 54px); }
+  .pitch-tagline { margin-bottom: 26px; }
+}
