@@ -7,7 +7,13 @@ Securely share and control your Home Assistant smart home devices on any HTML or
 <video
   src="https://github.com/user-attachments/assets/a2b08f56-99d4-4f36-b5c9-1d846b50c037"
   controls
-  width="900">
+  autoplay
+  playsinline
+  muted
+  width="1024"
+  height="768"
+  preload="auto"
+  poster="docs/video_poster_.png"
 </video>
 
 ## What it does
