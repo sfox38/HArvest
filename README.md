@@ -4,7 +4,7 @@
 
 Securely share and control your Home Assistant smart home devices on any HTML or WordPress page
 
-<video>
+<video
   src="https://github.com/user-attachments/assets/a2b08f56-99d4-4f36-b5c9-1d846b50c037"
   controls
   autoplay
@@ -13,7 +13,7 @@ Securely share and control your Home Assistant smart home devices on any HTML or
   width="1024"
   height="768"
   preload="auto"
-  poster="docs/video_poster_.png"
+  poster="docs/video_poster_.png">
 </video>
 
 ## What it does
