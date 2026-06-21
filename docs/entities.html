@@ -176,7 +176,7 @@
         <p><strong>Optimistic UI:</strong> the card predicts the transitioning state immediately after a command, then reverts to the server-confirmed state when the real update arrives.</p>
 
         <h3><span class="mdi mdi-cast"></span> media_player</h3>
-        <p>Power, play/pause, previous track, next track, mute, volume down, volume up, volume slider, and source selector controls appear independently when supported by the entity. The state-aware power button is disabled when the entity does not support the required turn-on or turn-off direction. Current track title, artist, and playback state are displayed when available. Album art is not supported in v1.</p>
+        <p>Power, play/pause, previous track, next track, mute, volume down, volume up, volume slider, and source selector controls appear independently when supported by the entity. The state-aware power button is disabled when the entity does not support the required turn-on or turn-off direction. Current track title, artist, playback state, and album art are displayed when available. A seek/progress bar appears when the entity reports track position and duration; it is interactive (drag to seek) on read-write cards and display-only on read-only cards.</p>
         <p><strong>Display settings:</strong> transport controls, volume, and source selector can be individually toggled.</p>
 
         <h3><span class="mdi mdi-numeric"></span> number</h3>
@@ -315,7 +315,7 @@
               <tr><td class="col-narrow"><span class="mdi mdi-format-list-bulleted"></span> <code>input_select</code></td><td><code>select_option</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-lightbulb"></span> <code>light</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>toggle</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-lock"></span> <code>lock</code></td><td><code>lock</code>, <code>unlock</code>, <code>open</code> (advanced unlatch action for configured gestures and custom renderers; not a built-in card button)</td></tr>
-              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> <code>media_player</code></td><td><code>media_play_pause</code>, <code>media_next_track</code>, <code>media_previous_track</code>, <code>volume_up</code>, <code>volume_down</code>, <code>volume_set</code>, <code>volume_mute</code>, <code>select_source</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
+              <tr><td class="col-narrow"><span class="mdi mdi-cast"></span> <code>media_player</code></td><td><code>media_play_pause</code>, <code>media_next_track</code>, <code>media_previous_track</code>, <code>media_seek</code>, <code>volume_up</code>, <code>volume_down</code>, <code>volume_set</code>, <code>volume_mute</code>, <code>select_source</code>, <code>turn_on</code>, <code>turn_off</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-numeric"></span> <code>number</code></td><td><code>set_value</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-remote"></span> <code>remote</code></td><td><code>turn_on</code>, <code>turn_off</code>, <code>send_command</code></td></tr>
               <tr><td class="col-narrow"><span class="mdi mdi-script-text"></span> <code>script</code></td><td><code>turn_on</code></td></tr>

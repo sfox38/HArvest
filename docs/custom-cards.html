@@ -116,6 +116,11 @@
           <p>Custom cards intended for production are saved as <code>renderer.js</code> (this exact filename is required) and bundled alongside <code>theme.json</code> inside a <code>.zip</code> file. The zip itself can be named anything (e.g. <code>my-vacuum-theme.zip</code>). Import the zip through the HArvest panel - the renderer is activated automatically for any token using that theme. The person embedding the widget does not need to add any extra <code>&lt;script&gt;</code> tags.</p>
           <p>During development, you can use <code>HArvest.registerRenderer()</code> with a local <code>&lt;script&gt;</code> tag for faster iteration. This guide covers both approaches.</p>
         </div>
+
+        <div class="callout callout-tip">
+          <span class="callout-label">Porting an existing Home Assistant card?</span>
+          <p>If you are converting an existing Home Assistant Lovelace card design into a renderer override, the repository includes a deep reference guide specifically intended to be fed to an AI agent assisting with the conversion, <a href="https://github.com/sfox38/HArvest/blob/main/THEME-RENDERER-CONVERTING.md" target="_blank" rel="noopener noreferrer">THEME-RENDERER-CONVERTING.md</a>. It maps HA card concepts to HArvest equivalents and collects the practical pitfalls and lessons learned from converting real cards. This page covers the essentials; that guide goes further.</p>
+        </div>
         </section>
 
         <!-- ============================================================ -->
