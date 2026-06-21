@@ -15,6 +15,7 @@ import { CopyablePre, CopyButton, Spinner, ErrorBanner, ConfirmDialog, EntityAut
 import { Icon, WidgetIcon } from "./Icon";
 import { Toggle } from "./Toggle";
 import { loadWidgetScript, loadRendererScript, loadIconSetScript } from "./WidgetPreview";
+import { mediaPreviewState, useMediaPreviewPoll } from "./mediaPreview";
 import { getEntityCache, loadEntityCache, useEntityCache } from "../entityCache";
 import { resolveEntityIcon } from "../iconResolve";
 import { IconSetSelect, iconSetAsset } from "./IconPicker";
@@ -448,6 +449,10 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [], ico
         forecast: _MOCK_WEATHER_FORECAST_DAILY,
         forecast_hourly: _MOCK_WEATHER_FORECAST_HOURLY,
       };
+    } else if (domain === "media_player") {
+      const mp = mediaPreviewState(serverDef.state, serverDef.attributes);
+      previewState = mp.state;
+      attrs = mp.attributes;
     } else {
       attrs = serverDef.attributes;
     }
@@ -477,6 +482,10 @@ function WizardEntityPreview({ entityId, capability, theme, companions = [], ico
     if (!card?.applyPreviewTheme) return;
     card.applyPreviewTheme(themeObj);
   }, [themeJson]);
+
+  // Keep a media_player preview tracking the live player (and falling back to
+  // the demo mock when nothing is playing).
+  useMediaPreviewPoll(entityId, entityId.split(".")[0], ready && !!serverDef, cardRef);
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   if (!ready && !cardRef.current) return <div style={{ display: "flex", justifyContent: "center", padding: 12 }}><Spinner size={20} /></div>;

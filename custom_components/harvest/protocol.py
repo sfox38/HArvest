@@ -89,8 +89,8 @@ ALLOWED_DATA_KEYS: dict[str, set[str]] = {
     "input_number": {"value"},
     "input_select": {"option"},
     "media_player": {
-        "volume_level", "media_content_id", "media_content_type",
-        "source", "sound_mode",
+        "volume_level", "is_volume_muted", "media_content_id",
+        "media_content_type", "source", "sound_mode", "seek_position",
     },
     "remote": {"command", "device", "num_repeats", "delay_secs", "hold_secs", "activity"},
 }

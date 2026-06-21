@@ -3550,8 +3550,38 @@
       padding: var(--hrv-spacing-s, 8px) var(--hrv-spacing-m, 16px) var(--hrv-spacing-m, 16px);
     }
 
+    .hrv-mp-hero {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hrv-mp-art {
+      position: relative;
+      width: 56px;
+      height: 56px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--hrv-ex-glass-bg, rgba(255,255,255,0.15));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--hrv-color-text-secondary, rgba(255,255,255,0.6));
+    }
+    .hrv-mp-art-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .hrv-mp-art[data-has-art=true] .hrv-mp-art-icon { display: none; }
+    .hrv-mp-art[data-has-art=false] .hrv-mp-art-img { display: none; }
+    .hrv-mp-art-icon svg { width: 24px; height: 24px; display: block; }
+
     .hrv-mp-info {
-      text-align: center;
+      flex: 1;
+      min-width: 0;
+      text-align: left;
       min-height: 32px;
     }
     .hrv-mp-artist {
@@ -3561,6 +3591,15 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .hrv-mp-source {
+      font-size: 11px;
+      color: var(--hrv-color-text-secondary, rgba(255,255,255,0.6));
+      opacity: 0.75;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .hrv-mp-source:empty { display: none; }
     .hrv-mp-title {
       font-size: 14px;
       font-weight: 600;
@@ -3568,6 +3607,21 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .hrv-mp-seek {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hrv-mp-seek[hidden] { display: none; }
+    .hrv-mp-seek .hrv-mp-slider-wrap { flex: 1; }
+    .hrv-mp-time {
+      font-size: 11px;
+      color: var(--hrv-color-text-secondary, rgba(255,255,255,0.6));
+      min-width: 32px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
     }
 
     .hrv-mp-controls {
@@ -3681,6 +3735,18 @@
     /** @type {HTMLElement|null}        */ #sliderThumb  = null;
     /** @type {HTMLElement|null}        */ #artistEl     = null;
     /** @type {HTMLElement|null}        */ #titleEl      = null;
+    /** @type {HTMLElement|null}        */ #artEl        = null;
+    /** @type {string}                  */ #lastArtUrl   = "";
+    /** @type {HTMLElement|null}        */ #progRow      = null;
+    /** @type {HTMLElement|null}        */ #seekTrack    = null;
+    /** @type {HTMLElement|null}        */ #seekFill     = null;
+    /** @type {HTMLElement|null}        */ #seekThumb    = null;
+    /** @type {HTMLElement|null}        */ #progElapsed  = null;
+    /** @type {HTMLElement|null}        */ #progDuration = null;
+    /** @type {HTMLElement|null}        */ #sourceEl     = null;
+    /** @type {number}                  */ #duration     = 0;
+    /** @type {boolean}                 */ #seeking      = false;
+    /** @type {number}                  */ #seekFrac     = 0;
     /** @type {boolean}                 */ #isMuted      = false;
     /** @type {number}                  */ #volume       = 0;
     /** @type {boolean}                 */ #dragging     = false;
@@ -3702,6 +3768,8 @@
       const hasPrevious   = features.includes("previous_track");
       const hasNext       = features.includes("next_track");
       const hasVolumeSet  = hints.show_volume !== false && features.includes("volume_set");
+      // Mute only appears when the player actually supports volume_mute (a
+      // volume_set-only player cannot be muted, so no dead button).
       const hasMute       = hints.show_volume !== false && features.includes("volume_mute");
       const hasVolume     = hasVolumeSet || hasMute;
 
@@ -3712,9 +3780,26 @@
             <span part="card-name">${_esc(this.def.friendly_name)}</span>
           </div>
           <div part="card-body">
-            <div class="hrv-mp-info">
-              <div class="hrv-mp-artist" title="Artist"></div>
-              <div class="hrv-mp-title" title="Title"></div>
+            <div class="hrv-mp-hero">
+              <div class="hrv-mp-art" part="media-art" data-has-art="false">
+                <img class="hrv-mp-art-img" part="media-art-img" alt="">
+                <span class="hrv-mp-art-icon" part="media-art-icon" aria-hidden="true"></span>
+              </div>
+              <div class="hrv-mp-info">
+                <div class="hrv-mp-title" title="Title"></div>
+                <div class="hrv-mp-artist" title="Artist"></div>
+                <div class="hrv-mp-source" title="Source"></div>
+              </div>
+            </div>
+            <div class="hrv-mp-seek" part="progress-row" hidden>
+              <span class="hrv-mp-time" part="progress-elapsed">0:00</span>
+              <div class="hrv-mp-slider-wrap">
+                <div class="hrv-mp-slider-track" ${!isWritable ? 'data-readonly="true"' : ""}>
+                  <div class="hrv-mp-slider-fill hrv-mp-seek-fill" style="width:0%"></div>
+                  <div class="hrv-mp-slider-thumb hrv-mp-seek-thumb" style="left:0%"></div>
+                </div>
+              </div>
+              <span class="hrv-mp-time" part="progress-duration">0:00</span>
             </div>
             ${isWritable && showTransport && (hasPlay || hasPrevious || hasNext) ? /* html */`
               <div class="hrv-mp-controls">
@@ -3736,15 +3821,13 @@
                 ` : ""}
               </div>
             ` : ""}
-            ${hasVolume ? /* html */`
-              <div class="hrv-mp-volume" title="${isWritable ? "Volume" : "Read-only"}">
-                ${hasMute ? `<button class="hrv-mp-mute" type="button"
-                  title="${isWritable ? "Mute" : "Read-only"}"
-                  ${!isWritable ? "disabled" : ""}>
+            ${isWritable && hasVolume ? /* html */`
+              <div class="hrv-mp-volume" title="Volume">
+                ${hasMute ? `<button class="hrv-mp-mute" type="button" title="Mute">
                   <span part="mute-icon" aria-hidden="true"></span>
                 </button>` : ""}
                 ${hasVolumeSet ? `<div class="hrv-mp-slider-wrap">
-                  <div class="hrv-mp-slider-track" ${!isWritable ? 'data-readonly="true"' : ""}>
+                  <div class="hrv-mp-slider-track">
                     <div class="hrv-mp-slider-fill" style="width:0%"></div>
                     <div class="hrv-mp-slider-thumb" style="left:0%"></div>
                   </div>
@@ -3762,16 +3845,25 @@
       this.#prevBtn     = this.root.querySelector("[data-role=prev]");
       this.#nextBtn     = this.root.querySelector("[data-role=next]");
       this.#muteBtn     = this.root.querySelector(".hrv-mp-mute");
-      this.#sliderTrack = this.root.querySelector(".hrv-mp-slider-track");
-      this.#sliderFill  = this.root.querySelector(".hrv-mp-slider-fill");
-      this.#sliderThumb = this.root.querySelector(".hrv-mp-slider-thumb");
+      this.#sliderTrack = this.root.querySelector(".hrv-mp-volume .hrv-mp-slider-track");
+      this.#sliderFill  = this.root.querySelector(".hrv-mp-volume .hrv-mp-slider-fill");
+      this.#sliderThumb = this.root.querySelector(".hrv-mp-volume .hrv-mp-slider-thumb");
       this.#artistEl    = this.root.querySelector(".hrv-mp-artist");
       this.#titleEl     = this.root.querySelector(".hrv-mp-title");
+      this.#sourceEl    = this.root.querySelector(".hrv-mp-source");
+      this.#artEl       = this.root.querySelector(".hrv-mp-art");
+      this.#progRow     = this.root.querySelector("[part=progress-row]");
+      this.#seekTrack   = this.root.querySelector(".hrv-mp-seek .hrv-mp-slider-track");
+      this.#seekFill    = this.root.querySelector(".hrv-mp-seek-fill");
+      this.#seekThumb   = this.root.querySelector(".hrv-mp-seek-thumb");
+      this.#progElapsed = this.root.querySelector("[part=progress-elapsed]");
+      this.#progDuration = this.root.querySelector("[part=progress-duration]");
 
       this.renderIcon("mdi:play", "play-icon");
       this.renderIcon("mdi:skip-previous", "prev-icon");
       this.renderIcon("mdi:skip-next", "next-icon");
       this.renderIcon("mdi:volume-high", "mute-icon");
+      this.renderIcon("mdi:cast", "media-art-icon");
 
       if (isWritable) {
         this.#playBtn?.addEventListener("click", () => {
@@ -3824,6 +3916,36 @@
           this.#sliderThumb.addEventListener("pointerup", onUp);
           this.#sliderThumb.addEventListener("pointercancel", onUp);
         }
+
+        if (this.#seekTrack && this.#seekThumb) {
+          const onSeekDown = (e) => {
+            this.#seeking = true;
+            this.beginMediaSeek();
+            this.#seekThumb.style.transition = "none";
+            this.#seekFill.style.transition = "none";
+            this.#updateSeekFromPointer(e);
+            this.#seekThumb.setPointerCapture(e.pointerId);
+          };
+          this.#seekThumb.addEventListener("pointerdown", onSeekDown);
+          this.#seekTrack.addEventListener("pointerdown", (e) => {
+            if (e.target === this.#seekThumb) return;
+            onSeekDown(e);
+          });
+          this.#seekThumb.addEventListener("pointermove", (e) => {
+            if (!this.#seeking) return;
+            this.#updateSeekFromPointer(e);
+          });
+          const onSeekUp = () => {
+            if (!this.#seeking) return;
+            this.#seeking = false;
+            this.endMediaSeek();
+            this.#seekThumb.style.transition = "";
+            this.#seekFill.style.transition = "";
+            this.config.card?.sendCommand("media_seek", { seek_position: this.#seekFrac * this.#duration });
+          };
+          this.#seekThumb.addEventListener("pointerup", onSeekUp);
+          this.#seekThumb.addEventListener("pointercancel", onSeekUp);
+        }
       }
 
       this.renderCompanions();
@@ -3839,8 +3961,55 @@
       this.#sliderThumb.style.left = `${this.#volume}%`;
     }
 
+    #updateSeekFromPointer(e) {
+      const rect = this.#seekTrack.getBoundingClientRect();
+      this.#seekFrac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const pct = this.#seekFrac * 100;
+      this.#seekFill.style.width = `${pct}%`;
+      this.#seekThumb.style.left = `${pct}%`;
+      if (this.#progElapsed) this.#progElapsed.textContent = this.formatMediaTime(this.#seekFrac * this.#duration);
+    }
+
+    // Render the seek row from the latest attributes. Driven by state updates
+    // and by the shared 1 Hz media ticker while playing.
+    #renderProgress() {
+      const p = this.mediaProgress(this.#lastAttrs, this.#lastState === "playing");
+      if (this.#progRow) this.#progRow.hidden = !p;
+      if (!p) return;
+      this.#duration = p.duration;
+      if (this.#progDuration) this.#progDuration.textContent = this.formatMediaTime(p.duration);
+      if (this.isMediaSeekActive()) return;
+      const pct = p.fraction * 100;
+      if (this.#seekFill) this.#seekFill.style.width = `${pct}%`;
+      if (this.#seekThumb) this.#seekThumb.style.left = `${pct}%`;
+      if (this.#progElapsed) this.#progElapsed.textContent = this.formatMediaTime(p.elapsed);
+    }
+
+    destroy() {
+      this.stopMediaTicker();
+    }
+
     #doSendVolume() {
       this.config.card?.sendCommand("volume_set", { volume_level: this.#volume / 100 });
+    }
+
+    #updateArt(rawUrl) {
+      if (!this.#artEl) return;
+      const url = this.resolveAssetUrl(rawUrl);
+      if (url === this.#lastArtUrl) return;
+      this.#lastArtUrl = url;
+      const img = this.#artEl.querySelector(".hrv-mp-art-img");
+      if (url && img) {
+        img.onerror = () => {
+          this.#lastArtUrl = "";
+          this.#artEl.setAttribute("data-has-art", "false");
+        };
+        img.src = url;
+        this.#artEl.setAttribute("data-has-art", "true");
+      } else {
+        if (img) img.removeAttribute("src");
+        this.#artEl.setAttribute("data-has-art", "false");
+      }
     }
 
     applyState(state, attributes) {
@@ -3858,6 +4027,20 @@
         const title = attributes.media_title ?? "";
         this.#titleEl.textContent = title;
         this.#titleEl.title = title || "Title";
+      }
+      if (this.#sourceEl) {
+        const src = this.mediaSourceText(attributes);
+        this.#sourceEl.textContent = src;
+        this.#sourceEl.title = src || "Source";
+      }
+
+      this.#updateArt(attributes.entity_picture);
+
+      this.#renderProgress();
+      if (isPlaying && this.mediaProgress(attributes, true)) {
+        this.startMediaTicker(() => this.#renderProgress());
+      } else {
+        this.stopMediaTicker();
       }
 
       if (this.#playBtn) {

@@ -3483,6 +3483,41 @@
     ${SHROOM_BUTTONS}
     ${SHROOM_COMPANIONS}
 
+    .shroom-mp-icon-wrap {
+      position: relative;
+      flex-shrink: 0;
+      display: flex;
+    }
+    .shroom-mp-art {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
+      display: none;
+    }
+    .shroom-mp-icon-wrap[data-has-art=true] .shroom-mp-art { display: block; }
+    :host([data-layout=vertical]) .shroom-mp-art,
+    :host([layout=row]) .shroom-mp-art { border-radius: 50%; }
+
+    .shroom-mp-seek {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: var(--hrv-ex-shroom-spacing, 12px);
+    }
+    .shroom-mp-seek[hidden] { display: none; }
+    .shroom-mp-seek .shroom-slider-wrap { flex: 1; height: 28px; }
+    .shroom-mp-seek-cover { transition: none; }
+    .shroom-mp-time {
+      font-size: 11px;
+      color: var(--hrv-color-text-secondary, #757575);
+      min-width: 32px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
     .shroom-mp-bar {
       display: flex;
       flex-direction: column;
@@ -3563,6 +3598,16 @@
 
   class MediaPlayerCard extends BaseCard {
     #iconEl = null;
+    #artWrap = null;
+    #lastArtUrl = "";
+    #progRow = null;
+    #seekInput = null;
+    #seekCover = null;
+    #progElapsed = null;
+    #progDuration = null;
+    #duration = 0;
+    #seeking = false;
+    #muteBtn = null;
     #primaryEl = null;
     #secondaryEl = null;
     #transportView = null;
@@ -3599,16 +3644,34 @@
       const hasVolumeSet = hints.show_volume !== false && features.includes("volume_set");
       const hasVolumeStep = hints.show_volume !== false && features.includes("volume_step");
       const hasVolume = hasVolumeSet || hasVolumeStep;
+      // Mute only when the player actually supports volume_mute.
+      const hasMute = hints.show_volume !== false && features.includes("volume_mute");
 
       this.root.innerHTML = /* html */`
         <style>${MEDIA_PLAYER_STYLES}</style>
         <div part="card">
           <div class="shroom-state-item">
-            <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
+            <span class="shroom-mp-icon-wrap" data-has-art="false">
+              <span class="shroom-icon-shape" part="card-icon" aria-hidden="true"></span>
+              <img class="shroom-mp-art" part="media-art-img" alt="">
+            </span>
             <div class="shroom-info">
               <span class="shroom-primary">${_esc(this.def.friendly_name)}</span>
               <span class="shroom-secondary">-</span>
             </div>
+          </div>
+          <div class="shroom-mp-seek" part="progress-row" hidden>
+            <span class="shroom-mp-time" part="progress-elapsed">0:00</span>
+            <div class="shroom-slider-wrap">
+              <div class="shroom-slider-bg shroom-mp-slider-bg"></div>
+              <div class="shroom-slider-cover shroom-mp-seek-cover" style="left:0%"></div>
+              <input type="range" class="shroom-slider-input shroom-mp-seek-input"
+                min="0" max="1000" step="1" value="0"
+                aria-label="${_esc(this.def.friendly_name)} seek"
+                ${!isWritable ? "disabled" : ""}>
+              <div class="shroom-slider-focus-ring"></div>
+            </div>
+            <span class="shroom-mp-time" part="progress-duration">0:00</span>
           </div>
           ${isWritable ? /* html */`
             <div class="shroom-mp-bar" hidden>
@@ -3634,6 +3697,9 @@
                 </button>` : ""}
               </div>
               <div class="shroom-mp-volume-view" hidden>
+                  ${hasMute ? `<button class="shroom-mp-btn" data-role="mute" type="button" title="Mute" aria-label="Mute" aria-pressed="false">
+                    <span part="mute-icon" aria-hidden="true"></span>
+                  </button>` : ""}
                   ${hasVolumeStep ? `<button class="shroom-mp-btn" data-role="vol-down" type="button" title="Volume down" aria-label="Volume down">
                     <svg viewBox="0 0 24 24"><path d="M3,9H7L12,4V20L7,15H3V9M14,11H22V13H14V11Z"/></svg>
                   </button>` : ""}
@@ -3662,6 +3728,12 @@
       `;
 
       this.#iconEl = this.root.querySelector(".shroom-icon-shape");
+      this.#artWrap = this.root.querySelector(".shroom-mp-icon-wrap");
+      this.#progRow = this.root.querySelector("[part=progress-row]");
+      this.#seekInput = this.root.querySelector(".shroom-mp-seek-input");
+      this.#seekCover = this.root.querySelector(".shroom-mp-seek-cover");
+      this.#progElapsed = this.root.querySelector("[part=progress-elapsed]");
+      this.#progDuration = this.root.querySelector("[part=progress-duration]");
       this.#primaryEl = this.root.querySelector(".shroom-primary");
       this.#secondaryEl = this.root.querySelector(".shroom-secondary");
       this.#barEl = this.root.querySelector(".shroom-mp-bar");
@@ -3672,8 +3744,12 @@
       this.#nextBtn = this.root.querySelector("[data-role=next]");
       this.#powerBtn = this.root.querySelector("[data-role=power]");
       this.#volumeBtn = this.root.querySelector("[data-role=volume]");
-      this.#slider = this.root.querySelector(".shroom-slider-input");
-      this.#sliderCover = this.root.querySelector(".shroom-slider-cover");
+      // Scope to the volume view: the seek bar reuses .shroom-slider-input /
+      // .shroom-slider-cover and renders first, so an unscoped query would grab
+      // the seek elements (the cause of the broken volume / 686% slider).
+      this.#slider = this.root.querySelector(".shroom-mp-volume-view .shroom-slider-input");
+      this.#sliderCover = this.root.querySelector(".shroom-mp-volume-view .shroom-slider-cover");
+      this.#muteBtn = this.root.querySelector("[data-role=mute]");
 
       this.renderIcon(this.resolveIcon(this.def.icon, "mdi:cast"), "card-icon");
       this.renderIcon("mdi:play", "play-icon");
@@ -3681,6 +3757,7 @@
       this.renderIcon("mdi:skip-next", "next-icon");
       this.renderIcon("mdi:power", "power-icon");
       this.renderIcon("mdi:volume-high", "vol-icon");
+      this.renderIcon("mdi:volume-high", "mute-icon");
 
       if (isWritable) {
         this.#playBtn?.addEventListener("click", () => {
@@ -3712,6 +3789,9 @@
         volUp?.addEventListener("click", () => {
           this.config.card?.sendCommand("volume_up", {});
         });
+        this.#muteBtn?.addEventListener("click", () => {
+          this.config.card?.sendCommand("volume_mute", { is_volume_muted: !this.#isMuted });
+        });
       }
 
       if (this.#slider) {
@@ -3721,6 +3801,22 @@
           this.#sendDebounce();
         });
         this.guardSlider(this.#slider, this.#sendDebounce);
+      }
+
+      if (this.#seekInput && isWritable) {
+        this.#seekInput.addEventListener("input", () => {
+          this.#seeking = true;
+          this.beginMediaSeek();
+          const frac = parseInt(this.#seekInput.value, 10) / 1000;
+          if (this.#seekCover) this.#seekCover.style.left = `${frac * 100}%`;
+          if (this.#progElapsed) this.#progElapsed.textContent = this.formatMediaTime(frac * this.#duration);
+        });
+        this.#seekInput.addEventListener("change", () => {
+          this.#seeking = false;
+          this.endMediaSeek();
+          const frac = parseInt(this.#seekInput.value, 10) / 1000;
+          this.config.card?.sendCommand("media_seek", { seek_position: frac * this.#duration });
+        });
       }
 
       this._attachGestureHandlers(this.root.querySelector("[part=card]"));
@@ -3733,8 +3829,47 @@
       if (this.#volumeView) this.#volumeView.hidden = !this.#showingVolume;
     }
 
+    // Render the seek row from the latest attributes. Driven by state updates
+    // and by the shared 1 Hz media ticker while playing.
+    #renderProgress() {
+      const p = this.mediaProgress(this.#lastAttrs, this.#lastState === "playing");
+      if (this.#progRow) this.#progRow.hidden = !p;
+      if (!p) return;
+      this.#duration = p.duration;
+      if (this.#progDuration) this.#progDuration.textContent = this.formatMediaTime(p.duration);
+      if (this.isMediaSeekActive() || this.isFocused(this.#seekInput)) return;
+      if (this.#seekInput) this.#seekInput.value = String(Math.round(p.fraction * 1000));
+      if (this.#seekCover) this.#seekCover.style.left = `${p.fraction * 100}%`;
+      if (this.#progElapsed) this.#progElapsed.textContent = this.formatMediaTime(p.elapsed);
+    }
+
+    destroy() {
+      this.stopMediaTicker();
+    }
+
     #doSendVolume() {
       this.config.card?.sendCommand("volume_set", { volume_level: this.#volume / 100 });
+    }
+
+    // Album art overlays the chip icon tile; data-has-art toggles the cast icon
+    // below. resolveAssetUrl handles the relative-to-haUrl entity_picture path.
+    #updateArt(rawUrl) {
+      if (!this.#artWrap) return;
+      const url = this.resolveAssetUrl(rawUrl);
+      if (url === this.#lastArtUrl) return;
+      this.#lastArtUrl = url;
+      const img = this.#artWrap.querySelector(".shroom-mp-art");
+      if (url && img) {
+        img.onerror = () => {
+          this.#lastArtUrl = "";
+          this.#artWrap.setAttribute("data-has-art", "false");
+        };
+        img.src = url;
+        this.#artWrap.setAttribute("data-has-art", "true");
+      } else {
+        if (img) img.removeAttribute("src");
+        this.#artWrap.setAttribute("data-has-art", "false");
+      }
     }
 
     applyState(state, attributes) {
@@ -3744,6 +3879,14 @@
       const isActive = isPlaying || state === "paused";
 
       _applyIconColor(this.#iconEl, "media_player", isActive);
+      this.#updateArt(attributes.entity_picture);
+
+      this.#renderProgress();
+      if (isPlaying && this.mediaProgress(attributes, true)) {
+        this.startMediaTicker(() => this.#renderProgress());
+      } else {
+        this.stopMediaTicker();
+      }
 
       if (this.#barEl) {
         this.#barEl.hidden = !isActive && !this.def.supported_features?.includes("turn_on");
@@ -3758,8 +3901,9 @@
 
       if (this.#secondaryEl) {
         if (isActive) {
+          const src = this.mediaSourceText(attributes);
           const volStr = this.#volume > 0 ? `${this.#volume}%` : "";
-          const parts = [artist, volStr].filter(Boolean);
+          const parts = [artist, src, volStr].filter(Boolean);
           this.#secondaryEl.textContent = parts.join(" - ") || _capitalize(state);
         } else {
           this.#secondaryEl.textContent = _capitalize(state);
@@ -3783,9 +3927,12 @@
       }
 
       this.#isMuted = !!attributes.is_volume_muted;
-      if (this.#volumeBtn) {
-        const iconName = this.#isMuted ? "mdi:volume-off" : "mdi:volume-high";
-        this.renderIcon(iconName, "vol-icon");
+      const volIconName = this.#isMuted ? "mdi:volume-off" : "mdi:volume-high";
+      if (this.#volumeBtn) this.renderIcon(volIconName, "vol-icon");
+      if (this.#muteBtn) {
+        this.renderIcon(volIconName, "mute-icon");
+        this.#muteBtn.setAttribute("aria-pressed", String(this.#isMuted));
+        this.#muteBtn.title = this.#isMuted ? "Unmute" : "Mute";
       }
 
       this.announceState(

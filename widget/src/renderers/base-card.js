@@ -501,6 +501,9 @@ export class BaseCard {
   /** @type {object} */ config;
   /** @type {object} */ i18n;
   /** @type {Map<string,string>} */ #iconCache = new Map();
+  /** @type {ReturnType<typeof setInterval>|number} */ #mediaTicker = 0;
+  /** @type {boolean} */ #mediaSeekDragging = false;
+  /** @type {number} */ #mediaSeekGraceUntil = 0;
 
   /** True when layout="row" is set on the containing hrv-card. */
   get isRow() {
@@ -582,6 +585,121 @@ export class BaseCard {
 
   predictState(_action, _data) {
     return null;
+  }
+
+  // -------------------------------------------------------------------------
+  // Media helpers (album art + seek/progress)
+  //
+  // Layout-independent logic shared by every media_player renderer (built-in
+  // and theme packs). Renderers keep their own markup but route URL
+  // resolution, time formatting, progress extrapolation, and the 1 Hz seek
+  // ticker through these so the logic lives in one place.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Resolve a possibly-relative HA asset path (e.g. an entity_picture like
+   * "/api/media_player_proxy/...") against the configured HA base URL so it
+   * loads when the widget is embedded on a different origin. Absolute URLs
+   * (http/https) are returned unchanged; falsy input returns "".
+   *
+   * @param {string|null|undefined} rawUrl
+   * @returns {string}
+   */
+  resolveAssetUrl(rawUrl) {
+    if (!rawUrl) return "";
+    return rawUrl.startsWith("http") ? rawUrl : (this.config?.haUrl ?? "") + rawUrl;
+  }
+
+  /**
+   * Format a number of seconds as m:ss, or h:mm:ss once past an hour.
+   *
+   * @param {number} seconds
+   * @returns {string}
+   */
+  formatMediaTime(seconds) {
+    const s = Math.max(0, Math.floor(seconds));
+    const m = Math.floor(s / 60);
+    const h = Math.floor(m / 60);
+    const mm = String(m % 60).padStart(h ? 2 : 1, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  }
+
+  /**
+   * Compute playback progress from media_player attributes. When `playing`,
+   * the elapsed time since media_position_updated_at is added to
+   * media_position so the bar advances smoothly between state updates.
+   * Returns null when there is no usable duration/position to display.
+   *
+   * @param {object} attributes
+   * @param {boolean} playing
+   * @returns {{ duration: number, elapsed: number, fraction: number }|null}
+   */
+  mediaProgress(attributes, playing) {
+    const duration = attributes?.media_duration;
+    const position = attributes?.media_position;
+    if (duration == null || position == null || duration <= 0) return null;
+    let elapsed = position;
+    const updated = attributes.media_position_updated_at;
+    if (playing && updated) {
+      elapsed += (Date.now() - new Date(updated).getTime()) / 1000;
+    }
+    const clamped = Math.max(0, Math.min(elapsed, duration));
+    return { duration, elapsed: clamped, fraction: clamped / duration };
+  }
+
+  /**
+   * Start (or restart) a 1 Hz ticker that invokes `cb` so a seek bar can
+   * advance once per second while playing. Replaces any existing ticker.
+   * The renderer must call stopMediaTicker() from its destroy().
+   *
+   * @param {() => void} cb
+   */
+  startMediaTicker(cb) {
+    this.stopMediaTicker();
+    this.#mediaTicker = setInterval(cb, 1000);
+  }
+
+  /** Stop the seek ticker started by startMediaTicker(). */
+  stopMediaTicker() {
+    if (this.#mediaTicker) {
+      clearInterval(this.#mediaTicker);
+      this.#mediaTicker = 0;
+    }
+  }
+
+  /**
+   * Seek-drag state guard. A media seek bar must not be overwritten by an
+   * incoming state_update (or the 1 Hz ticker) while the user is dragging, nor
+   * for a short grace window after release - the server has not applied the
+   * seek yet and would briefly report the OLD position, causing the thumb to
+   * jump back then forward. Renderers call beginMediaSeek() on drag start,
+   * endMediaSeek() on release, and skip slider writes while isMediaSeekActive().
+   */
+  beginMediaSeek() {
+    this.#mediaSeekDragging = true;
+  }
+
+  /** @param {number} graceMs - how long after release to keep ignoring updates */
+  endMediaSeek(graceMs = 1500) {
+    this.#mediaSeekDragging = false;
+    this.#mediaSeekGraceUntil = Date.now() + graceMs;
+  }
+
+  /** True while dragging the seek bar or within the post-release grace window. */
+  isMediaSeekActive() {
+    return this.#mediaSeekDragging || Date.now() < this.#mediaSeekGraceUntil;
+  }
+
+  /**
+   * Current media source label for a media_player: the active `source`
+   * (e.g. "Spotify"), falling back to `app_name` (e.g. "YouTube Music").
+   *
+   * @param {object} attributes
+   * @returns {string}
+   */
+  mediaSourceText(attributes) {
+    return attributes?.source || attributes?.app_name || "";
   }
 
   // -------------------------------------------------------------------------
