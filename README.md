@@ -13,7 +13,7 @@ Securely share and control your Home Assistant smart home devices on any HTML or
   width="1024"
   height="768"
   preload="auto"
-  poster="docs/video_poster_.png">
+  poster="docs/video_poster.png">
 </video>
 
 ## What it does
