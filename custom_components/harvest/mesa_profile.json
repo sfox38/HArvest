@@ -1,0 +1,18 @@
+{
+  "semantic_profile": {
+    "schema_version": "1.0",
+    "semantic_tags": ["security.access_control", "harvest.external_sharing"],
+    "operational_boundaries": {
+      "control_mode": "confirm",
+      "enforcement_mode": "advisory",
+      "reversible": true,
+      "reversibility_cost": "trivial",
+      "side_effect_scope": "deployment_wide",
+      "control_reason": "HArvest's switches and buttons govern external widget access to the home (the kill switch, per-token pause switches, and the close-all-sessions button). Changing them affects who can reach the home's devices from outside, so an agent should get human confirmation before acting on them."
+    },
+    "metadata_origin": {
+      "source": "developer",
+      "confidence": 0.95
+    }
+  }
+}

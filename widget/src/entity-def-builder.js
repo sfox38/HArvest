@@ -428,7 +428,7 @@ const TOGGLE_TO_FEATURE = {
   },
   media_player: {
     transport: ["play_pause", "next_track", "previous_track"],
-    volume:    ["volume_set"],
+    volume:    ["volume_set", "volume_mute"],
   },
   input_number: {
     slider: [],

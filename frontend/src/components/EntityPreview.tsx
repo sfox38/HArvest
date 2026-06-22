@@ -13,6 +13,7 @@ import { api } from "../api";
 import { usePanelDark } from "../panelTheme";
 import { Spinner } from "./Shared";
 import { loadWidgetScript, loadRendererScript, loadIconSetScript, isRendererLoaded, generateMockHistory } from "./WidgetPreview";
+import { mediaPreviewState, useMediaPreviewPoll } from "./mediaPreview";
 import { iconSetAsset } from "./IconPicker";
 
 const _MOCK_WEATHER_FORECAST_DAILY = [
@@ -142,6 +143,10 @@ export function EntityPreview({
           forecast_hourly: _MOCK_WEATHER_FORECAST_HOURLY,
         } : {}),
       };
+    } else if (domain === "media_player") {
+      const mp = mediaPreviewState(serverDef.state, serverDef.attributes);
+      previewState = mp.state;
+      attrs = mp.attributes;
     } else {
       attrs = serverDef.attributes;
     }
@@ -192,6 +197,9 @@ export function EntityPreview({
     return () => { container.innerHTML = ""; cardRef.current = null; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, cardKey, serverDef, themeJson, onReady]);
+
+  // Keep a media_player preview tracking the live player (with mock fallback).
+  useMediaPreviewPoll(entity.entity_id, entity.entity_id.split(".")[0], ready && !!serverDef, cardRef);
 
   if (loadError) return <div className="muted" style={{ fontSize: 12, padding: "8px 0" }}>Preview unavailable.</div>;
   return (

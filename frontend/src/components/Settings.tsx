@@ -81,6 +81,7 @@ function NumberField({ label, value: initial, suffix, min, max, onChange, hint }
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <input
               type="number"
+              aria-label={label}
               value={localVal}
               min={min}
               max={max}
@@ -156,6 +157,7 @@ function TextField({ label, value: initial, placeholder, hint, validate, onChang
         <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
           <input
             type="text"
+            aria-label={label}
             value={localVal}
             placeholder={placeholder}
             onChange={e => handleChange(e.target.value)}
@@ -356,6 +358,7 @@ function WidgetScriptSourceField({ value, overrideHost, externalPort, onScriptUr
                     <input
                       type="text"
                       inputMode="numeric"
+                      aria-label="Alternate widget transport port"
                       value={localPort}
                       placeholder={String(haPort)}
                       onChange={e => { setLocalPort(e.target.value); setPortState("idle"); }}
@@ -438,6 +441,7 @@ function WidgetScriptUrlInput({ value, onChange }: { value: string; onChange: (v
       <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
         <input
           type="text"
+          aria-label="Custom widget script URL"
           value={localVal}
           placeholder="https://example.com/harvest.min.js, /harvest.min.js, or harvest.min.js"
           onChange={e => handleChange(e.target.value)}
@@ -531,6 +535,7 @@ function SelectField({ label, value, options, onChange, hint }: SelectFieldProps
           onChange={e => commit(e.target.value)}
           disabled={saving}
           className="input fs-13"
+          aria-label={label}
         >
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
@@ -605,6 +610,7 @@ function TrustedProxiesField({ value, onChange }: TrustedProxiesFieldProps) {
         <div style={{ position: "relative" }}>
           <textarea
             value={localVal}
+            aria-label="Trusted proxies"
             placeholder={"192.168.1.1\n10.0.0.0/8"}
             rows={3}
             onChange={e => { setLocalVal(e.target.value); setSaveState("idle"); }}
@@ -719,6 +725,7 @@ function CustomDomainsField({ value, availableDomains, onChange }: CustomDomains
           className="input fs-13"
           value={selectedDomain}
           onChange={e => onDomainSelect(e.target.value)}
+          aria-label="Add domain"
         >
           <option value="">
             {eligibleDomains.length ? "Select a domain..." : "No custom domains available"}

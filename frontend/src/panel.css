@@ -2243,7 +2243,7 @@ button.entity-setting-group-title:focus-visible {
 
 @media (hover: hover) {
   .settings-field-hint {
-    opacity: 0.3;
+    opacity: 0.8;
     transition: opacity 0.2s ease;
   }
   .settings-field-hint:hover {

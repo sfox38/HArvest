@@ -1,0 +1,180 @@
+/*
+ * Public Board (cafe) demo - this demo's own widgets and kiosk size/surface.
+ *
+ * Shared chrome: ../assets/showcase.css. HArvest cards + the Glass theme:
+ * ../assets/harvest-cards.css. Everything below is the "host website": the
+ * cafe logo header and the Today's Special hero. A landscape counter display.
+ *
+ * The kiosk background is intentionally warm and blobby so the frosted-glass
+ * cards have something colourful to blur over.
+ */
+
+/* ---- This kiosk: a landscape counter display, warm + glassy ------------- */
+.kiosk {
+  width: 920px;
+  height: auto;
+  padding: 24px 28px 28px;
+  color: #2a2622;
+  background:
+    radial-gradient(560px 380px at 12% 4%,  rgba(232,150,60,0.42), transparent 60%),
+    radial-gradient(560px 440px at 92% 100%, rgba(33,110,99,0.36), transparent 58%),
+    radial-gradient(420px 300px at 78% 6%,  rgba(214,90,55,0.22),  transparent 60%),
+    linear-gradient(160deg, #f4ead7 0%, #ecdfc6 55%, #e7ddca 100%);
+}
+
+/* Shared frosted-glass surface for the page-HTML widgets (matches glass cards) */
+.glass-panel {
+  background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.18) 100%);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  color: #1a1a1a;
+}
+
+/* ---- Logo header -------------------------------------------------------- */
+.cafe-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.cafe-brand { display: flex; align-items: center; gap: 14px; }
+.cafe-brand img {
+  height: 76px;
+  width: auto;
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(120,70,20,0.18);
+}
+.cafe-hours { text-align: right; line-height: 1.5; }
+.cafe-hours .open { font-size: 16px; font-weight: 700; color: #2f5d52; }
+.cafe-hours .wifi { font-size: 13px; color: #7a6448; }
+
+/* ---- Today's Special hero (page content) -------------------------------- */
+.special {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+  padding: 16px 24px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #ec8a2c 0%, #d2691e 100%);
+  color: #fff5e6;
+  box-shadow: 0 10px 26px rgba(170,85,20,0.30);
+}
+.special .label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+.special .dish { font-size: 19px; font-weight: 700; margin-top: 3px; }
+.special .price { font-size: 34px; font-weight: 800; flex-shrink: 0; }
+
+/* ---- Body: now playing + set the vibe ----------------------------------- */
+.cafe-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.col-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7a6448;
+  margin: 0 0 12px;
+}
+.vibe-scenes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.vibe-extra { margin-top: 12px; }
+
+/* ---- Weather summary bar (page content) --------------------------------- */
+.wx-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 12px 18px;
+}
+.wx-bar svg { width: 30px; height: 30px; color: #5b6473; flex-shrink: 0; }
+.wx-bar .wx-t { font-size: 24px; font-weight: 700; color: #1a1a1a; }
+.wx-bar .wx-d { font-size: 14px; color: #4f5560; }
+
+/* ---- Bottom row: community feed + sports -------------------------------- */
+.bottom-row {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 20px;
+  align-items: start;
+  margin-top: 18px;
+}
+.feed-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #232323;
+  margin-bottom: 12px;
+}
+.feed-head svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* Community / Twitter feed */
+.social-feed { padding: 16px 18px; }
+.social-feed .feed-head svg { color: #1d9bf0; }
+.sf-list { display: flex; flex-direction: column; gap: 13px; }
+.tweet { display: flex; gap: 10px; }
+.tw-av {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+.tw-body { min-width: 0; }
+.tw-handle { font-size: 13px; font-weight: 700; color: #15181c; }
+.tw-handle .tw-time { font-weight: 400; color: #6a6f78; font-size: 12px; margin-left: 5px; }
+.tw-text { font-size: 12.5px; color: #2f343b; line-height: 1.38; margin-top: 1px; }
+.tw-text .tag { color: #1d9bf0; }
+
+/* Sports ticker */
+.sports { padding: 16px 18px; }
+.sports .feed-head svg { color: #c0392b; }
+.sp-list { display: flex; flex-direction: column; }
+.sp-game {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  font-size: 13px;
+}
+.sp-game:first-child { border-top: none; }
+.sp-league {
+  flex-shrink: 0;
+  width: 40px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6a6f78;
+  letter-spacing: 0.04em;
+}
+.sp-match { flex: 1; color: #15181c; }
+.sp-match b { font-weight: 700; }
+.sp-status {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: #2f7d57;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sp-status.live { color: #c0392b; }

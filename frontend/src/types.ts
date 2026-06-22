@@ -98,6 +98,8 @@ export interface Token {
   renderer_pack: string;
   lang: string;
   a11y: "standard" | "enhanced";
+  /** Brief vibration on control tap (Android touch devices only). */
+  haptics: boolean;
   color_scheme: "auto" | "light" | "dark";
   /** Global icon set ("fa", "ph-duotone", ...); null follows the theme's icon_set. */
   icon_set: string | null;

@@ -170,7 +170,8 @@ DATA_TIER_COMPANION_RW = "companion_rw"
 # state_update messages. Domains not listed receive state + uom only.
 DISPLAY_TIER_ATTRIBUTES: dict[str, frozenset[str]] = {
     "media_player": frozenset({
-        "media_artist", "media_title", "media_album_name",
+        "media_artist", "media_title", "media_album_name", "entity_picture",
+        "media_duration", "media_position", "media_position_updated_at",
     }),
     "climate": frozenset({
         "current_temperature", "hvac_action",

@@ -13,6 +13,7 @@ import { Toggle } from "./Toggle";
 import { EntityAutocomplete } from "./Shared";
 import { Icon } from "./Icon";
 import { iconSetAsset } from "./IconPicker";
+import { MEDIA_PREVIEW_MOCK_ATTRS, mediaPreviewState, useMediaPreviewPoll } from "./mediaPreview";
 import buildVersion from "../buildVersion.json";
 
 // ---------------------------------------------------------------------------
@@ -146,7 +147,7 @@ export const MOCK_ENTITIES: Record<string, MockEntity> = {
   input_boolean:  { domain: "input_boolean",  label: "Input Boolean",  friendly_name: "Guest Mode",       state: "on",       attributes: {} },
   input_number:   { domain: "input_number",   label: "Input Number",   friendly_name: "Target Humidity",  state: "42",       unit: "%",  attributes: { min: 0, max: 100, step: 1 } },
   input_select:   { domain: "input_select",   label: "Input Select",   friendly_name: "Scene Mode",       state: "Option B", attributes: { options: ["Option A", "Option B", "Option C"] } },
-  media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { media_title: "Starting Today", media_artist: "Secret Friend", volume_level: 0.7, source: "Spotify", source_list: ["Spotify", "AirPlay", "Bluetooth"], media_duration: 237, media_position: 42, media_position_updated_at: new Date().toISOString() } },
+  media_player:   { domain: "media_player",   label: "Media Player",   friendly_name: "Speaker",          state: "playing",  attributes: { ...MEDIA_PREVIEW_MOCK_ATTRS, media_position_updated_at: new Date().toISOString() } },
   number:         { domain: "number",         label: "Number",         friendly_name: "LED Brightness",   state: "75",       unit: "%",  attributes: { min: 0, max: 100, step: 1 } },
   lock:           { domain: "lock",           label: "Lock",           friendly_name: "Front Door",       state: "locked",   attributes: {} },
   person:         { domain: "person",         label: "Person",         friendly_name: "Alice",            state: "home",     attributes: {} },
@@ -391,23 +392,60 @@ function RealWidget({ mock, themeObj, capability, features, graphType, rendererI
     load().catch(() => setLoadError(true));
   }, [rendererId, iconSetPrefix]);
 
+  // When a real custom entity is chosen, build the definition server-side
+  // (api.entities.getDefinition) exactly like the Wizard and TokenDetail
+  // previews, so its controls, tiers, and layout match. Pure mock previews
+  // (theme design with no custom entity) keep using the client buildEntityDef.
+  const realEntityId = (mock.attributes._entity_id as string | undefined) ?? null;
+  const [serverDef, setServerDef] = useState<{ definition: Record<string, unknown>; state: string; attributes: Record<string, unknown> } | null>(null);
+  useEffect(() => {
+    if (!realEntityId) { setServerDef(null); return; }
+    let cancelled = false;
+    api.entities.getDefinition(realEntityId, { capabilities: capability })
+      .then(r => { if (!cancelled) setServerDef(r); })
+      .catch(() => { if (!cancelled) setServerDef(null); });
+    return () => { cancelled = true; };
+  }, [realEntityId, capability]);
+  const usingServer = !!realEntityId && !!serverDef && serverDef.definition?.entity_id === realEntityId;
+
   const featKey = Object.entries(features).filter(([, v]) => v).map(([k]) => k).sort().join(",");
-  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${rendererId ?? ""}:${colorScheme ?? "auto"}:${themeObj.icon_set ?? ""}`;
+  const cardKey = `${mock.domain}:${mock.friendly_name}:${capability}:${featKey}:${graphType}:${rendererId ?? ""}:${colorScheme ?? "auto"}:${themeObj.icon_set ?? ""}:${usingServer ? "srv" : "mock"}`;
 
   useEffect(() => {
     if (!ready || !containerRef.current || !window.HArvest) return;
+    // For a real entity, wait for its server definition before rendering.
+    if (realEntityId && !usingServer) return;
 
     const container = containerRef.current;
     container.innerHTML = "";
     cardRef.current = null;
 
-    const entityDef = window.HArvest.buildEntityDef(
-      { domain: mock.domain, state: mock.state, friendly_name: mock.friendly_name,
-        attributes: mock.attributes, unit: mock.unit },
-      { capabilities: capability, features, colorScheme: colorScheme ?? "auto",
-        ...(mock.domain === "weather" && features.forecast ? { displayHints: { show_forecast: true } } : {}) },
-    );
-    const attrs = window.HArvest.filterAttributes(mock.attributes);
+    let entityDef: Record<string, unknown>;
+    let previewState = mock.state;
+    let attrs: Record<string, unknown>;
+    if (usingServer && serverDef) {
+      entityDef = { ...serverDef.definition, capabilities: capability, color_scheme: colorScheme ?? "auto" };
+      previewState = serverDef.state;
+      attrs = serverDef.attributes;
+      if (mock.domain === "media_player") {
+        const mp = mediaPreviewState(serverDef.state, serverDef.attributes);
+        previewState = mp.state;
+        attrs = mp.attributes;
+      }
+    } else {
+      entityDef = window.HArvest.buildEntityDef(
+        { domain: mock.domain, state: mock.state, friendly_name: mock.friendly_name,
+          attributes: mock.attributes, unit: mock.unit },
+        { capabilities: capability, features, colorScheme: colorScheme ?? "auto",
+          ...(mock.domain === "weather" && features.forecast ? { displayHints: { show_forecast: true } } : {}) },
+      );
+      attrs = window.HArvest.filterAttributes(mock.attributes);
+      // Refresh the demo track position so the seek bar starts mid-track and
+      // advances, rather than sitting at a stale module-load timestamp.
+      if (mock.domain === "media_player") {
+        attrs = { ...attrs, media_position_updated_at: new Date().toISOString() };
+      }
+    }
 
     const graphOpts: Record<string, unknown> = {};
     if (graphType !== "none") {
@@ -419,7 +457,7 @@ function RealWidget({ mock, themeObj, capability, features, graphType, rendererI
     if (features.animate) graphOpts.animate = true;
     const opts = Object.keys(graphOpts).length > 0 ? graphOpts : undefined;
 
-    const card = window.HArvest.preview(container, entityDef, mock.state, attrs, themeObj as any, opts as any);
+    const card = window.HArvest.preview(container, entityDef, previewState, attrs, themeObj as any, opts as any);
     cardRef.current = card;
 
     return () => {
@@ -438,11 +476,18 @@ function RealWidget({ mock, themeObj, capability, features, graphType, rendererI
   const stateKey = useMemo(() => `${mock.state}:${JSON.stringify(mock.attributes)}`, [mock.state, mock.attributes]);
   useEffect(() => {
     if (!window.HArvest) return;
+    // media_player previews are driven by the initial render + live poll
+    // (useMediaPreviewPoll); skip here so a stale fetched-once frame does not
+    // overwrite the mock fallback.
+    if (mock.domain === "media_player") return;
     const card = cardRef.current as (HTMLElement & { updatePreviewState?: (s: string, a: Record<string, unknown>) => void }) | null;
     if (!card?.updatePreviewState) return;
     const attrs = window.HArvest.filterAttributes(mock.attributes);
     card.updatePreviewState(mock.state, attrs);
   }, [stateKey]);
+
+  // Track a live custom media_player (with mock fallback when nothing plays).
+  useMediaPreviewPoll(realEntityId, mock.domain, ready && (!realEntityId || usingServer), cardRef);
 
   if (loadError) {
     return <div className="muted" style={{ padding: 16, textAlign: "center" }}>Failed to load widget preview.</div>;
@@ -590,6 +635,7 @@ export function WidgetPreview({ variables, darkVariables, rendererId, iconSet }:
           value={renderer}
           onChange={e => handleRendererChange(e.target.value)}
           style={{ flex: 1, minWidth: 140 }}
+          aria-label="Renderer"
         >
           {RENDERER_OPTIONS.filter(o => o.value !== "custom" || realEntity).map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>

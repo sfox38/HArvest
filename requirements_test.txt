@@ -1,0 +1,20 @@
+# Test dependencies for the HArvest integration test suite.
+#
+# Pinned to the versions the suite is developed and verified against. The
+# pytest-homeassistant-custom-component pin is the important one: it pulls a
+# matching homeassistant, pytest, pytest-asyncio, aiohttp, and aiosqlite
+# transitively, so the mock HA harness matches the HA core API the integration
+# targets. Bump this pin when moving to a newer HA core.
+#
+# Run from the repo root:
+#   python -m pip install -r requirements_test.txt
+#   python -m pytest
+#
+# Note: homeassistant 2026.6.2 requires Python >= 3.14.2.
+pytest-homeassistant-custom-component==0.13.338
+
+# The integration imports aiosqlite (activity_store.py). It is not a HA core
+# dependency and is not pulled in by phacc, so a clean environment lacks it and
+# conftest import fails (pytest exit code 4). Real HA installs have it present,
+# but CI does not, so it must be installed explicitly here.
+aiosqlite==0.22.1

@@ -1088,6 +1088,7 @@ export class HarvestClient {
     const config = {
       lang: msg.lang ?? "auto",
       a11y: msg.a11y ?? "standard",
+      haptics: msg.haptics ?? false,
       colorScheme: msg.color_scheme ?? "auto",
       iconSet: msg.icon_set ?? null,
       onOffline: msg.on_offline ?? "last-state",

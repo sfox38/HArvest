@@ -71,6 +71,7 @@ ALLOWED_SERVICES: dict[str, set[str]] = {
     "select":         {"select_option"},
     "timer":          {"start", "pause", "cancel", "finish"},
     "media_player":   {"media_play_pause", "media_next_track", "media_previous_track",
+                       "media_seek",
                        "volume_up", "volume_down", "volume_set", "volume_mute",
                        "select_source", "turn_on", "turn_off"},
     "remote":         {"turn_on", "turn_off", "send_command"},

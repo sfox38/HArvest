@@ -333,6 +333,7 @@ function Step2Configure({
             )}
             <input
               type="url"
+              aria-label="Origin URL"
               className="input"
               placeholder="https://example.com"
               value={state.originUrl}
@@ -348,6 +349,7 @@ function Step2Configure({
         <div className="row gap-10" style={{ alignItems: "center" }}>
           <input
             type="number"
+            aria-label="Max cards per group"
             className="input converter-max-input"
             min={5}
             max={100}
@@ -359,6 +361,7 @@ function Step2Configure({
           />
           <input
             type="range"
+            aria-label="Max cards per group"
             className="converter-max-slider"
             min={5}
             max={100}

@@ -1,0 +1,31 @@
+name: Validate
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  # Hassfest and HACS rules change over time; a daily run catches drift even
+  # when the integration itself hasn't changed.
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # 'harvest' is not yet in the home-assistant/brands repo. Suppress the
+          # brands check until it is submitted, so the rest of HACS validation
+          # still runs and reports.
+          ignore: brands

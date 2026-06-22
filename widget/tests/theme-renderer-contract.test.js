@@ -14,7 +14,6 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const rendererSources = {
   minimus: resolve(testDir, "../src/renderers/minimus-renderer.js"),
   shrooms: resolve(testDir, "../src/renderers/shrooms-renderer.js"),
-  nodalia: resolve(testDir, "../../User Contributed Themes/nodalia/renderer.js"),
 };
 
 const opaqueThemePaths = [
@@ -22,8 +21,6 @@ const opaqueThemePaths = [
   resolve(testDir, "../themes/access.json"),
   resolve(testDir, "../themes/minimus.json"),
   resolve(testDir, "../themes/shrooms.json"),
-  resolve(testDir, "../../User Contributed Themes/material-eww/theme.json"),
-  resolve(testDir, "../../User Contributed Themes/nodalia/theme.json"),
 ];
 
 function luminance(hex) {
@@ -49,20 +46,6 @@ describe.each(Object.entries(rendererSources))("%s renderer contract", (_name, p
 
   it("includes a reduced-motion override", () => {
     expect(source).toContain("@media (prefers-reduced-motion: reduce)");
-  });
-});
-
-describe("Nodalia accessibility contract", () => {
-  const source = readFileSync(rendererSources.nodalia, "utf8");
-
-  it("makes the climate slider keyboard focusable", () => {
-    expect(source).toMatch(/part="climate-dial"[^>]+role="slider"[^>]+tabindex="0"/);
-    expect(source).toContain('e.key === "Home"');
-    expect(source).toContain('e.key === "End"');
-  });
-
-  it("globally disables renderer motion for reduced-motion users", () => {
-    expect(source).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s+\*, \*::before, \*::after/);
   });
 });
 

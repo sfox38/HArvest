@@ -1,0 +1,1748 @@
+/*
+ * harvest-cards.css - Static, light-DOM reproduction of HArvest widget cards
+ * for the demonstration mockup pages.
+ *
+ * This is NOT a re-design. Every rule is lifted verbatim from the widget
+ * source so the demos are pixel-faithful to the real cards:
+ *   - base variables + card shell : widget/src/renderers/base-card.js
+ *       (SHARED_CSS_VARS + CARD_BASE_CSS, adopted once per shadow root)
+ *   - per-domain card CSS         : widget/src/renderers/<domain>-card.js
+ *   - theme tokens                : widget/themes/<name>.json
+ *
+ * Translation rules applied (shadow DOM -> light DOM):
+ *   :host                -> .hrv-card                 (the host element)
+ *   :host([attr])        -> .hrv-card[attr]
+ *   [part=x]             -> .hrv-card [part=x]         (scoped to a card)
+ *   per-renderer rules   -> scoped under [data-domain=<domain>] so two card
+ *                           types on one page cannot collide (in the real
+ *                           widget each card is its own shadow root).
+ *
+ * Deliberate, visual-no-op omissions:
+ *   - content-visibility / contain-intrinsic-size (perf hints only)
+ *   - the base OS-dark fallback blocks (@media prefers-color-scheme and
+ *     [data-color-scheme=dark]); demos bake an explicit theme + mode via
+ *     the .theme-* / .theme-*.dark classes so they never flip with the
+ *     viewer's OS setting.
+ *
+ * A card is markup of the form:
+ *   <div class="hrv-card theme-default" data-domain="light" data-harvest-state="live">
+ *     <div part="card"> ... </div>
+ *   </div>
+ */
+
+/* ==========================================================================
+ * SHARED_CSS_VARS  (base-card.js :host block)
+ * ====================================================================== */
+.hrv-card {
+  /* Layout */
+  --hrv-spacing-xs: 4px;
+  --hrv-spacing-s:  8px;
+  --hrv-spacing-m:  16px;
+  --hrv-spacing-l:  24px;
+
+  /* Border radius */
+  --hrv-radius-s: 4px;
+  --hrv-radius-m: 8px;
+  --hrv-radius-l: 12px;
+
+  /* Typography */
+  --hrv-font-size-xs: 11px;
+  --hrv-font-size-s:  13px;
+  --hrv-font-size-m:  15px;
+  --hrv-font-size-l:  18px;
+  --hrv-font-weight-normal: 400;
+  --hrv-font-weight-medium: 500;
+  --hrv-font-weight-bold:   700;
+  --hrv-font-family: system-ui, -apple-system, sans-serif;
+
+  /* Colours - light mode defaults */
+  --hrv-color-primary:        #6366f1;
+  --hrv-color-primary-dim:    #e0e7ff;
+  --hrv-color-on-primary:     #ffffff;
+  --hrv-color-surface:        #ffffff;
+  --hrv-color-surface-alt:    #f3f4f6;
+  --hrv-color-border:         #e5e7eb;
+  --hrv-color-text:           #111827;
+  --hrv-color-text-secondary: #6b7280;
+  --hrv-color-text-inverse:   #ffffff;
+  --hrv-color-warning:        #f59e0b;
+  --hrv-color-error:          #ef4444;
+  --hrv-color-success:        #22c55e;
+  --hrv-color-icon:           #374151;
+
+  /* State colours */
+  --hrv-color-state-on:          var(--hrv-color-primary);
+  --hrv-color-state-off:         #9ca3af;
+  --hrv-color-state-unavailable: #d1d5db;
+
+  /* Card */
+  --hrv-card-padding:    var(--hrv-spacing-m);
+  --hrv-card-radius:     var(--hrv-radius-l);
+  --hrv-card-shadow:     0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --hrv-card-background: var(--hrv-color-surface);
+
+  /* Icon */
+  --hrv-icon-size: 24px;
+
+  /* Transition */
+  --hrv-transition-speed: 150ms;
+
+  /* Glass effects (defaults: off) */
+  --hrv-card-backdrop-filter: none;
+  --hrv-card-border:          none;
+
+  display: block;
+  width: 100%;
+  position: relative;
+  min-width: min(var(--hrv-card-min-width, 180px), 100%);
+  overflow: hidden;
+  border-radius: var(--hrv-card-radius);
+  box-sizing: border-box;
+  contain: inline-size;
+  font-family: var(--hrv-font-family);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hrv-card *, .hrv-card *::before, .hrv-card *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.hrv-card :where(button, input, select, textarea, [role=button], [role=slider]):focus-visible {
+  outline: 2px solid var(--hrv-color-primary) !important;
+  outline-offset: 3px !important;
+}
+
+/* ==========================================================================
+ * CARD_BASE_CSS  (base-card.js card shell)
+ * ====================================================================== */
+.hrv-card [part=card] {
+  background: var(--hrv-card-background);
+  border-radius: var(--hrv-card-radius);
+  box-shadow: var(--hrv-card-shadow);
+  padding: var(--hrv-card-padding);
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+  -webkit-backdrop-filter: var(--hrv-card-backdrop-filter);
+  backdrop-filter: var(--hrv-card-backdrop-filter);
+  border: var(--hrv-card-border);
+}
+
+.hrv-card [part=card-header] {
+  display: flex;
+  align-items: center;
+  gap: var(--hrv-spacing-s);
+  margin-bottom: var(--hrv-spacing-s);
+}
+
+.hrv-card [part=card-icon] {
+  width: var(--hrv-icon-size);
+  height: var(--hrv-icon-size);
+  flex-shrink: 0;
+  color: var(--hrv-color-icon);
+  display: var(--hrv-icon-display, flex);
+  align-items: center;
+  justify-content: center;
+}
+
+.hrv-card [part=card-icon] svg {
+  width: 100%;
+  height: 100%;
+}
+
+.hrv-card [part=card-name] {
+  font-size: var(--hrv-font-size-m);
+  font-weight: var(--hrv-font-weight-medium);
+  color: var(--hrv-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.hrv-card [part=state-label] {
+  font-size: var(--hrv-font-size-s);
+  color: var(--hrv-color-text-secondary);
+}
+
+.hrv-card [part=companion-zone] {
+  margin-top: var(--hrv-spacing-s);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hrv-spacing-xs);
+  border-top: 1px solid var(--hrv-color-border);
+  padding-top: var(--hrv-spacing-s);
+}
+
+.hrv-card [part=companion-zone]:empty { display: none; }
+
+.hrv-card .hrv-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.hrv-card [part=stale-indicator] { display: none; }
+
+/* Row layout mode (layout=row) */
+.hrv-card[layout=row] {
+  min-width: unset;
+  border-radius: 0;
+  overflow: visible;
+}
+.hrv-card[layout=row] [part=card] {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--hrv-spacing-xs) var(--hrv-spacing-s);
+  min-height: var(--hrv-row-height, 40px);
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.hrv-card[layout=row][data-color-scheme] [part=card] { background: var(--hrv-color-surface); }
+.hrv-card[layout=row][data-color-scheme][data-highlight=even] [part=card] { background: var(--hrv-color-surface-alt); }
+.hrv-card[layout=row] [part=card-header] {
+  display: flex;
+  align-items: center;
+  gap: var(--hrv-spacing-s);
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+.hrv-card[layout=row] [part=card-name] { flex: 1; font-size: var(--hrv-font-size-s); }
+.hrv-card[layout=row] [part=card-body],
+.hrv-card[layout=row] [part=companion-zone],
+.hrv-card[layout=row] [part=stale-indicator] { display: none !important; }
+
+.hrv-card [part=row-control] {
+  display: none;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--hrv-spacing-xs);
+}
+.hrv-card[layout=row] [part=row-control] { display: flex; }
+
+.hrv-card [part=row-toggle] {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border: none;
+  border-radius: 10px;
+  padding: 0;
+  font-size: 0;
+  color: transparent;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.hrv-card [part=row-toggle]::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  pointer-events: none;
+}
+.hrv-card [part=row-toggle][aria-pressed=true]  { background: var(--hrv-color-state-on, #22c55e); }
+.hrv-card [part=row-toggle][aria-pressed=false] { background: var(--hrv-color-state-off, #d1d5db); }
+.hrv-card [part=row-toggle][aria-pressed=true]::after { transform: translateX(16px); }
+.hrv-card [part=row-toggle]:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.hrv-card [part=row-state],
+.hrv-card [part=row-value] {
+  font-size: var(--hrv-font-size-xs, 12px);
+  color: var(--hrv-color-text-secondary);
+}
+
+/* Unavailable / unknown overlay */
+.hrv-card[data-harvest-avail=unavailable] [part=card],
+.hrv-card[data-harvest-avail=unknown] [part=card] {
+  pointer-events: none;
+  user-select: none;
+}
+.hrv-card[data-harvest-avail=unavailable] [part=card]::after,
+.hrv-card[data-harvest-avail=unknown] [part=card]::after {
+  content: attr(data-avail-label);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--hrv-font-size-s, 13px);
+  color: var(--hrv-color-overlay-text, #ffffff);
+  background: var(--hrv-color-overlay, rgba(0, 0, 0, 0.7));
+  border-radius: inherit;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+ * light-card.js  (LIGHT_CARD_STYLES)
+ * ====================================================================== */
+.hrv-card[data-domain=light] [part=card-body] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=light] [part=toggle-button] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+  font-size: var(--hrv-font-size-s);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--hrv-transition-speed);
+}
+.hrv-card[data-domain=light] [part=toggle-button]:hover { opacity: 0.88; }
+.hrv-card[data-domain=light] [part=toggle-button]:active,
+.hrv-card[data-domain=light] [part=toggle-button][data-pressing=true] { opacity: 0.65; filter: brightness(1.15); }
+.hrv-card[data-domain=light] [part=toggle-button][aria-pressed=true]  { background: var(--hrv-color-primary); }
+.hrv-card[data-domain=light] [part=toggle-button][aria-pressed=false] {
+  background: var(--hrv-color-state-off);
+  color: var(--hrv-color-text);
+}
+.hrv-card[data-domain=light] [part=brightness-slider],
+.hrv-card[data-domain=light] [part=color-temp-slider] {
+  width: 100%;
+  accent-color: var(--hrv-color-primary);
+  cursor: pointer;
+}
+.hrv-card[data-domain=light] .hrv-slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--hrv-font-size-xs);
+  color: var(--hrv-color-text-secondary);
+  margin-bottom: 2px;
+}
+.hrv-card[data-domain=light] [part=color-slider] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  border-radius: 8px;
+  background: linear-gradient(
+    to right,
+    hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%),
+    hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%),
+    hsl(360,100%,50%)
+  );
+  cursor: pointer;
+  border: 1px solid var(--hrv-color-border, rgba(0,0,0,0.1));
+  outline: none;
+}
+.hrv-card[data-domain=light] [part=color-slider]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0,0,0,0.3);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.hrv-card[data-domain=light] [part=color-slider]::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(0,0,0,0.3);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.hrv-card[data-domain=light] [part=card-icon] svg { transition: color var(--hrv-transition-speed); }
+.hrv-card[data-domain=light] [part=card][data-readonly=true] [part=card-body] {
+  align-items: center;
+  justify-content: center;
+}
+.hrv-card[data-domain=light] [part=card][data-readonly=true] [part=state-label] {
+  font-size: var(--hrv-font-size-l);
+  font-weight: var(--hrv-font-weight-medium);
+  color: var(--hrv-color-text);
+  text-align: center;
+}
+.hrv-card[data-domain=light][data-harvest-state=live] [part=card-icon][data-on=true]  { color: var(--hrv-color-state-on); }
+.hrv-card[data-domain=light][data-harvest-state=live] [part=card-icon][data-on=false] { color: var(--hrv-color-text-secondary); }
+
+/* ==========================================================================
+ * fan-card.js  (FAN_CARD_STYLES)
+ * ====================================================================== */
+.hrv-card[data-domain=fan] [part=card-body] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=fan] [part=toggle-button] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  font-size: var(--hrv-font-size-s);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
+}
+.hrv-card[data-domain=fan] [part=toggle-button][aria-pressed=true] {
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+}
+.hrv-card[data-domain=fan] [part=toggle-button][aria-pressed=false] {
+  background: var(--hrv-color-state-off);
+  color: var(--hrv-color-text);
+}
+.hrv-card[data-domain=fan] [part=toggle-button]:hover { opacity: 0.88; }
+.hrv-card[data-domain=fan] [part=toggle-button]:active,
+.hrv-card[data-domain=fan] [part=toggle-button][data-pressing=true] { opacity: 0.65; filter: brightness(1.15); }
+.hrv-card[data-domain=fan] [part=toggle-button]:disabled { opacity: 0.4; cursor: not-allowed; }
+.hrv-card[data-domain=fan] [part=speed-slider] {
+  width: 100%;
+  accent-color: var(--hrv-color-primary);
+  cursor: pointer;
+}
+.hrv-card[data-domain=fan] .hrv-slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--hrv-font-size-xs);
+  color: var(--hrv-color-text-secondary);
+  margin-bottom: 2px;
+}
+.hrv-card[data-domain=fan] [part=cycle-button] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+  font-size: var(--hrv-font-size-s);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
+}
+.hrv-card[data-domain=fan] [part=cycle-button]:hover { opacity: 0.88; }
+.hrv-card[data-domain=fan] [part=cycle-button]:active,
+.hrv-card[data-domain=fan] [part=cycle-button][data-pressing=true] { opacity: 0.65; filter: brightness(1.15); }
+.hrv-card[data-domain=fan] [part=cycle-button]:disabled { opacity: 0.4; cursor: not-allowed; }
+.hrv-card[data-domain=fan] [part=oscillate-button],
+.hrv-card[data-domain=fan] [part=preset-button] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-surface-alt);
+  color: var(--hrv-color-text);
+  font-size: var(--hrv-font-size-s);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
+}
+.hrv-card[data-domain=fan] [part=oscillate-button][aria-pressed=true],
+.hrv-card[data-domain=fan] [part=preset-button][aria-pressed=true] {
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+}
+.hrv-card[data-domain=fan] [part=oscillate-button]:hover,
+.hrv-card[data-domain=fan] [part=preset-button]:hover { opacity: 0.88; }
+.hrv-card[data-domain=fan] [part=oscillate-button]:active,
+.hrv-card[data-domain=fan] [part=oscillate-button][data-pressing=true],
+.hrv-card[data-domain=fan] [part=preset-button]:active,
+.hrv-card[data-domain=fan] [part=preset-button][data-pressing=true] { opacity: 0.65; filter: brightness(1.15); }
+.hrv-card[data-domain=fan] [part=oscillate-button]:disabled,
+.hrv-card[data-domain=fan] [part=preset-button]:disabled { opacity: 0.4; cursor: not-allowed; }
+.hrv-card[data-domain=fan] [part=direction-select] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-surface);
+  color: var(--hrv-color-text);
+  font-size: var(--hrv-font-size-s);
+  font-family: inherit;
+  cursor: pointer;
+}
+.hrv-card[data-domain=fan] [part=card][data-readonly=true] [part=card-body] {
+  align-items: center;
+  justify-content: center;
+}
+.hrv-card[data-domain=fan] [part=card][data-readonly=true] [part=state-label] {
+  font-size: var(--hrv-font-size-l);
+  font-weight: var(--hrv-font-weight-medium);
+  color: var(--hrv-color-text);
+  text-align: center;
+}
+.hrv-card[data-domain=fan] [part=card-icon][data-on=true][data-animate=true] svg {
+  animation: hrv-fan-spin 2s linear infinite;
+  transform-origin: center;
+}
+@keyframes hrv-fan-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hrv-card[data-domain=fan] [part=card-icon][data-on=true][data-animate=true] svg { animation: none; }
+}
+
+/* ==========================================================================
+ * script-card.js  (SCRIPT_CARD_STYLES + SCRIPT_ROW_STYLES)
+ * ====================================================================== */
+.hrv-card[data-domain=script] [part=card-body] { margin-top: var(--hrv-spacing-xs); }
+.hrv-card[data-domain=script] [part=run-button] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+  font-size: var(--hrv-font-size-s);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--hrv-transition-speed), transform 80ms;
+}
+.hrv-card[data-domain=script] [part=run-button]:hover  { opacity: 0.88; }
+.hrv-card[data-domain=script] [part=run-button]:active { opacity: 0.75; transform: scale(0.98); }
+.hrv-card[data-domain=script] [part=run-button]:disabled { opacity: 0.45; cursor: not-allowed; }
+.hrv-card[data-domain=script] [part=run-button][data-running=true] {
+  background: var(--hrv-color-state-on);
+  animation: hrv-script-pulse 1.2s ease-in-out infinite;
+}
+@keyframes hrv-script-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hrv-card[data-domain=script] [part=run-button][data-running=true] { animation: none; }
+}
+.hrv-card[data-domain=script] [part=state-label] {
+  font-size: var(--hrv-font-size-xs);
+  color: var(--hrv-color-text-secondary);
+  margin-top: var(--hrv-spacing-xs);
+  display: block;
+  text-align: center;
+}
+.hrv-card[data-domain=script] [part=card][data-readonly=true] [part=state-label] {
+  font-size: var(--hrv-font-size-l);
+  font-weight: var(--hrv-font-weight-medium);
+  color: var(--hrv-color-text);
+  margin-top: 0;
+}
+.hrv-card[data-domain=script] [part=row-run-btn] {
+  padding: 2px var(--hrv-spacing-s);
+  border: none;
+  border-radius: var(--hrv-radius-s);
+  font-size: var(--hrv-font-size-xs);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+  transition: opacity var(--hrv-transition-speed);
+}
+.hrv-card[data-domain=script] [part=row-run-btn]:hover  { opacity: 0.88; }
+.hrv-card[data-domain=script] [part=row-run-btn]:active { opacity: 0.75; }
+.hrv-card[data-domain=script] [part=row-run-btn]:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ==========================================================================
+ * button-card.js  (BUTTON_CARD_STYLES + BUTTON_ROW_STYLES) - momentary press.
+ * Scoped under [data-domain=button]. A scene activation is a momentary tap,
+ * so scenes are shown as button-domain cards (HArvest v1 cannot expose the
+ * scene domain itself).
+ * ====================================================================== */
+.hrv-card[data-domain=button] [part=card-body] {
+  margin-top: var(--hrv-spacing-xs);
+}
+.hrv-card[data-domain=button] [part=press-button] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+  font-size: var(--hrv-font-size-s);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--hrv-transition-speed), transform 80ms;
+}
+.hrv-card[data-domain=button] [part=press-button]:hover  { opacity: 0.88; }
+.hrv-card[data-domain=button] [part=press-button]:active { opacity: 0.75; transform: scale(0.98); }
+.hrv-card[data-domain=button] [part=press-button]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.hrv-card[data-domain=button] [part=press-button][data-pressed=true] {
+  opacity: 0.55;
+}
+.hrv-card[data-domain=button] [part=state-label] {
+  display: none;
+}
+.hrv-card[data-domain=button] [part=card][data-readonly=true] [part=card-body] {
+  display: flex;
+  justify-content: center;
+}
+.hrv-card[data-domain=button] [part=card][data-readonly=true] [part=state-label] {
+  display: block;
+  font-size: var(--hrv-font-size-l);
+  font-weight: var(--hrv-font-weight-medium);
+  color: var(--hrv-color-text);
+  text-align: center;
+}
+.hrv-card[data-domain=button] [part=row-press-btn] {
+  padding: 2px var(--hrv-spacing-s);
+  border: none;
+  border-radius: var(--hrv-radius-s);
+  font-size: var(--hrv-font-size-xs);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+  transition: opacity var(--hrv-transition-speed);
+}
+.hrv-card[data-domain=button] [part=row-press-btn]:hover  { opacity: 0.88; }
+.hrv-card[data-domain=button] [part=row-press-btn]:active { opacity: 0.75; }
+.hrv-card[data-domain=button] [part=row-press-btn]:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ==========================================================================
+ * THEME TOKENS  (widget/themes/*.json) - declared last so a theme class
+ * overrides the .hrv-card base defaults on the same element.
+ * ====================================================================== */
+
+/* themes/default.json */
+.theme-default {
+  --hrv-card-min-width:          260px;
+  --hrv-color-primary:           #3b73c7;
+  --hrv-color-primary-dim:       #f2f2f2;
+  --hrv-color-on-primary:        #ffffff;
+  --hrv-color-surface:           #ffffff;
+  --hrv-color-surface-alt:       #f5f5f5;
+  --hrv-color-border:            #e0e0e0;
+  --hrv-color-text:              #1a1a1a;
+  --hrv-color-text-secondary:    #727272;
+  --hrv-color-icon:              #1a1a1a;
+  --hrv-color-state-on:          #3b73c7;
+  --hrv-color-state-off:         #e0e0e0;
+  --hrv-color-state-unavailable: #bdbdbd;
+  --hrv-color-error:             #b71c1c;
+  --hrv-card-radius:             12px;
+  --hrv-card-shadow:             0 2px 8px rgba(0,0,0,0.08);
+  --hrv-card-padding:            16px;
+  --hrv-icon-size:               24px;
+  --hrv-font-family:             system-ui, -apple-system, sans-serif;
+  --hrv-transition-speed:        150ms;
+}
+.theme-default.dark {
+  --hrv-color-primary:           #375eab;
+  --hrv-color-on-primary:        #ffffff;
+  --hrv-color-primary-dim:       #1e3a6e;
+  --hrv-color-surface:           #303030;
+  --hrv-color-surface-alt:       #2a2a2c;
+  --hrv-color-border:            #383838;
+  --hrv-color-text:              #e1e1e1;
+  --hrv-color-text-secondary:    #9e9e9e;
+  --hrv-color-icon:              #9e9e9e;
+  --hrv-color-state-on:          #375eab;
+  --hrv-color-state-off:         #2a2a2a;
+  --hrv-color-state-unavailable: #4a4a4a;
+  --hrv-color-error:             #ef5350;
+  --hrv-card-shadow:             0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* themes/shrooms.json */
+.theme-shrooms {
+  --hrv-card-min-width:          260px;
+  --hrv-color-primary:           #ff9800;
+  --hrv-color-primary-dim:       rgba(255,152,0,0.12);
+  --hrv-color-on-primary:        #1a1a1a;
+  --hrv-color-surface:           #ffffff;
+  --hrv-color-surface-alt:       #f5f5f5;
+  --hrv-color-border:            rgba(0,0,0,0.06);
+  --hrv-color-text:              #212121;
+  --hrv-color-text-secondary:    #757575;
+  --hrv-color-text-inverse:      #ffffff;
+  --hrv-color-icon:              #757575;
+  --hrv-color-state-on:          #ff9800;
+  --hrv-color-state-off:         #bdbdbd;
+  --hrv-color-state-unavailable: #e0e0e0;
+  --hrv-color-warning:           #ff9800;
+  --hrv-color-error:             #f44336;
+  --hrv-color-success:           #4caf50;
+  --hrv-card-radius:             12px;
+  --hrv-card-shadow:             none;
+  --hrv-card-padding:            12px;
+  --hrv-card-background:         #ffffff;
+  --hrv-card-border:             1px solid rgba(0,0,0,0.10);
+  --hrv-icon-size:               24px;
+  --hrv-font-family:             system-ui, -apple-system, 'Roboto', sans-serif;
+  --hrv-transition-speed:        280ms;
+  --hrv-ex-shroom-icon-size:        36px;
+  --hrv-ex-shroom-icon-bg-opacity:  0.2;
+  --hrv-ex-shroom-slider-height:    42px;
+  --hrv-ex-shroom-slider-radius:    12px;
+  --hrv-ex-shroom-spacing:          12px;
+  --hrv-ex-shroom-btn-bg:           rgba(0,0,0,0.05);
+  --hrv-ex-shroom-btn-bg-active:    rgba(0,0,0,0.10);
+  --hrv-ex-shroom-slider-track:     rgba(255,255,255,0.55);
+  --hrv-ex-shroom-light:            #ff9800;
+  --hrv-ex-shroom-switch:           #2196f3;
+  --hrv-ex-shroom-fan:              #4caf50;
+  --hrv-ex-shroom-climate:          #ff5722;
+  --hrv-ex-shroom-cover:            #5389ec;
+  --hrv-ex-shroom-media:            #e91e63;
+  --hrv-ex-shroom-sensor:           #03a9f4;
+  --hrv-ex-shroom-binary:           #8bc34a;
+  --hrv-ex-shroom-input:            #00bcd4;
+  --hrv-ex-shroom-timer:            #673ab7;
+  --hrv-ex-shroom-remote:           #607d8b;
+  --hrv-ex-shroom-weather:          #ff9800;
+  --hrv-ex-shroom-action:           #9c27b0;
+}
+
+/* ==========================================================================
+ * SHROOMS RENDERER PACK  (widget/src/renderers/shrooms-renderer.js)
+ * Mushroom-style horizontal cards. Scoped under [data-pack=shrooms] so these
+ * rules win over the default card CSS where part names overlap, and never
+ * leak onto default-pack cards. Use: data-pack="shrooms" on the .hrv-card.
+ * (Horizontal layout only; vertical/row variants omitted as unused.)
+ * ====================================================================== */
+
+/* SHROOM_STATE_ITEM */
+.hrv-card[data-pack=shrooms] .shroom-state-item {
+  display: flex;
+  align-items: center;
+  gap: var(--hrv-ex-shroom-spacing, 12px);
+  cursor: default;
+}
+.hrv-card[data-pack=shrooms] .shroom-state-item[data-tappable=true] { cursor: pointer; }
+.hrv-card[data-pack=shrooms] .shroom-icon-shape {
+  width: var(--hrv-ex-shroom-icon-size, 42px);
+  height: var(--hrv-ex-shroom-icon-size, 42px);
+  min-width: var(--hrv-ex-shroom-icon-size, 42px);
+  border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 280ms ease-out, color 280ms ease-out;
+  background: var(--hrv-ex-shroom-btn-bg, rgba(0,0,0,0.05));
+  color: var(--hrv-color-icon, #757575);
+}
+.hrv-card[data-pack=shrooms] .shroom-icon-shape svg { width: 20px; height: 20px; fill: currentColor; }
+.hrv-card[data-pack=shrooms] .shroom-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hrv-card[data-pack=shrooms] .shroom-primary {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--hrv-color-text, #212121);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.hrv-card[data-pack=shrooms] .shroom-secondary {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--hrv-color-text-secondary, #757575);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+/* SHROOM_CONTROLS */
+.hrv-card[data-pack=shrooms] .shroom-controls-shell {
+  overflow: hidden;
+  transition: max-height 0.45s cubic-bezier(0.22, 0.84, 0.26, 1),
+              margin-top 0.45s cubic-bezier(0.22, 0.84, 0.26, 1),
+              opacity 0.35s ease;
+}
+.hrv-card[data-pack=shrooms] .shroom-controls-shell[data-collapsed=true] {
+  max-height: 0 !important;
+  margin-top: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+.hrv-card[data-pack=shrooms] .shroom-controls-shell[data-collapsed=false] {
+  max-height: 400px;
+  margin-top: var(--hrv-ex-shroom-spacing, 12px);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hrv-card[data-pack=shrooms] .shroom-controls-shell { transition: none; }
+}
+
+/* SHROOM_SLIDER */
+.hrv-card[data-pack=shrooms] .shroom-slider-wrap {
+  position: relative;
+  width: 100%;
+  height: var(--hrv-ex-shroom-slider-height, 42px);
+  border-radius: var(--hrv-ex-shroom-slider-radius, 12px);
+  overflow: hidden;
+}
+.hrv-card[data-pack=shrooms] .shroom-slider-bg { position: absolute; inset: 0; pointer-events: none; }
+.hrv-card[data-pack=shrooms] .shroom-slider-cover {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  background: var(--hrv-ex-shroom-slider-track, rgba(0,0,0,0.35));
+  pointer-events: none;
+  transition: left 180ms ease-in-out;
+}
+.hrv-card[data-pack=shrooms] .shroom-slider-edge {
+  position: absolute;
+  top: 4px; bottom: 4px;
+  width: 3px;
+  border-radius: 1.5px;
+  background: rgba(255,255,255,0.8);
+  pointer-events: none;
+  transition: left 180ms ease-in-out;
+  transform: translateX(-50%);
+  box-shadow: 0 0 4px rgba(0,0,0,0.15);
+}
+.hrv-card[data-pack=shrooms] .shroom-slider-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  z-index: 1;
+}
+.hrv-card[data-pack=shrooms] .shroom-slider-focus-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: box-shadow 150ms ease;
+}
+
+/* LIGHT_STYLES (brightness-only essentials) */
+.hrv-card[data-pack=shrooms] .shroom-light-controls-row { display: flex; align-items: center; gap: 8px; }
+.hrv-card[data-pack=shrooms] .shroom-light-controls-row .shroom-slider-wrap { flex: 1; }
+.hrv-card[data-pack=shrooms] .shroom-slider-wrap.shroom-light-slider-wrap { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
+.hrv-card[data-pack=shrooms] .shroom-slider-bg.shroom-brightness-bg {
+  background: var(--shroom-light-accent, var(--hrv-ex-shroom-light, #ff9800));
+}
+
+/* COVER_STYLES (position-slider essentials) */
+.hrv-card[data-pack=shrooms] .shroom-cover-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--hrv-ex-shroom-spacing, 12px);
+  min-height: var(--hrv-ex-shroom-slider-height, 42px);
+}
+.hrv-card[data-pack=shrooms] .shroom-cover-slider-view { display: flex; align-items: center; flex: 1; gap: 8px; }
+.hrv-card[data-pack=shrooms] .shroom-cover-slider-view .shroom-slider-wrap { flex: 1; }
+.hrv-card[data-pack=shrooms] .shroom-cover-slider-bg { background: var(--hrv-ex-shroom-cover, #5389ec); }
+
+/* ==========================================================================
+ * BADGE CARD  (widget/src/renderers/badge-card.js) - compact status pill.
+ * Capability-routed: badge entities use this regardless of domain or pack.
+ * Use: data-domain="badge" on the .hrv-card.
+ * ====================================================================== */
+.hrv-card[data-domain=badge] {
+  width: auto !important;
+  min-width: unset !important;
+  display: inline-flex !important;
+  contain: none !important;
+  vertical-align: top !important;
+  overflow: visible !important;
+  line-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.hrv-card[data-domain=badge] [part=badge] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--hrv-badge-height, 42px);
+  padding: 0 12px 0 8px;
+  border-radius: var(--hrv-badge-radius, 14px);
+  background: var(--hrv-card-background, var(--hrv-color-surface, #fff));
+  box-shadow: var(--hrv-card-shadow, 0 1px 3px rgba(0,0,0,0.1));
+  border: var(--hrv-card-border, 1px solid var(--hrv-color-border, #e5e7eb));
+  font-family: var(--hrv-font-family, system-ui, -apple-system, sans-serif);
+  color: var(--hrv-color-text, #111827);
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: default;
+  transition: box-shadow var(--hrv-transition-speed, 150ms);
+  -webkit-backdrop-filter: var(--hrv-card-backdrop-filter, none);
+  backdrop-filter: var(--hrv-card-backdrop-filter, none);
+}
+.hrv-card[data-domain=badge] [part=badge-icon] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--hrv-transition-speed, 150ms);
+}
+.hrv-card[data-domain=badge] [part=badge-icon] svg { width: 100%; height: 100%; }
+.hrv-card[data-domain=badge] [part=badge-text] { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hrv-card[data-domain=badge] [part=badge-name] {
+  font-size: 11px;
+  font-weight: var(--hrv-font-weight-medium, 500);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+.hrv-card[data-domain=badge] [part=badge-state] {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--hrv-color-text-secondary, #6b7280);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+.hrv-card[data-domain=badge] [part=badge-text].single [part=badge-name],
+.hrv-card[data-domain=badge] [part=badge-text].single [part=badge-state] { font-size: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  .hrv-card[data-domain=badge] [part=badge],
+  .hrv-card[data-domain=badge] [part=badge-icon] { transition: none; }
+}
+
+/* ==========================================================================
+ * climate-card.js  (CLIMATE_STYLES) - vertical card: current temp, mode,
+ * target temp. Standard renderer; scoped under [data-domain=climate].
+ * ====================================================================== */
+.hrv-card[data-domain=climate] [part=card-body] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=climate] .hrv-climate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=climate] .hrv-climate-label {
+  font-size: var(--hrv-font-size-xs);
+  color: var(--hrv-color-text-secondary);
+}
+.hrv-card[data-domain=climate] .hrv-climate-temp {
+  font-size: var(--hrv-font-size-l);
+  font-weight: var(--hrv-font-weight-bold);
+  color: var(--hrv-color-text);
+}
+.hrv-card[data-domain=climate] [part=mode-select],
+.hrv-card[data-domain=climate] [part=fan-mode-select],
+.hrv-card[data-domain=climate] [part=preset-select],
+.hrv-card[data-domain=climate] [part=swing-select] {
+  flex: 1;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-surface-alt);
+  color: var(--hrv-color-text);
+  font-size: var(--hrv-font-size-s);
+  font-family: inherit;
+  cursor: pointer;
+}
+.hrv-card[data-domain=climate] [part=target-temp-input],
+.hrv-card[data-domain=climate] [part=target-temp-low-input],
+.hrv-card[data-domain=climate] [part=target-temp-high-input] {
+  width: 72px;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-s);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-surface-alt);
+  color: var(--hrv-color-text);
+  font-size: var(--hrv-font-size-s);
+  font-family: inherit;
+  text-align: center;
+}
+.hrv-card[data-domain=climate] [part=state-label] {
+  font-size: var(--hrv-font-size-s);
+  color: var(--hrv-color-text-secondary);
+}
+
+/* ==========================================================================
+ * switch-card.js  (SWITCH_CARD_STYLES) - toggle button card.
+ * Scoped under [data-domain=switch].
+ * ====================================================================== */
+.hrv-card[data-domain=switch] [part=card-body] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=switch] [part=toggle-button] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  font-size: var(--hrv-font-size-s);
+  font-weight: var(--hrv-font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
+}
+.hrv-card[data-domain=switch] [part=toggle-button][aria-pressed=true] {
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+}
+.hrv-card[data-domain=switch] [part=toggle-button][aria-pressed=false] {
+  background: var(--hrv-color-state-off);
+  color: var(--hrv-color-text);
+}
+.hrv-card[data-domain=switch] [part=toggle-button]:hover { opacity: 0.88; }
+.hrv-card[data-domain=switch] [part=toggle-button]:active { opacity: 0.75; }
+.hrv-card[data-domain=switch] [part=toggle-button]:disabled { opacity: 0.4; cursor: not-allowed; }
+.hrv-card[data-domain=switch] [part=state-label] {
+  font-size: var(--hrv-font-size-s);
+  color: var(--hrv-color-text-secondary);
+}
+
+/* ==========================================================================
+ * THEME: Material Eww  (User Contributed Themes/material-eww/theme.json)
+ * Material Design 3 palette, 28px rounded surfaces, Nunito font, Phosphor
+ * Thin icons (ph-thin). Theme-only - uses the standard renderers above.
+ * ====================================================================== */
+@font-face {
+  font-family: 'Nunito';
+  src: url('nunito.woff2') format('woff2');
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+}
+.theme-material-eww {
+  --hrv-card-min-width:          260px;
+  --hrv-color-primary:           #4c5c92;
+  --hrv-color-primary-dim:       #dce1ff;
+  --hrv-color-on-primary:        #ffffff;
+  --hrv-color-surface:           #f4f3fa;
+  --hrv-color-surface-alt:       #eeedf4;
+  --hrv-color-border:            #c6c6d0;
+  --hrv-color-text:              #1a1b21;
+  --hrv-color-text-secondary:    #6b6b75;
+  --hrv-color-text-inverse:      #ffffff;
+  --hrv-color-icon:              #595e72;
+  --hrv-color-state-on:          #4c5c92;
+  --hrv-color-state-off:         #6b6b75;
+  --hrv-color-state-unavailable: #c6c6d0;
+  --hrv-color-warning:           #ffa600;
+  --hrv-color-error:             #ba1a1a;
+  --hrv-color-success:           #43a047;
+  --hrv-color-overlay:           rgba(18, 19, 24, 0.7);
+  --hrv-color-overlay-text:      #e3e1e9;
+  --hrv-card-background:         #f4f3fa;
+  --hrv-card-radius:             28px;
+  --hrv-card-shadow:             0 1px 2px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.10);
+  --hrv-card-padding:            16px;
+  --hrv-card-border:             1px solid transparent;
+  --hrv-font-family:             'Nunito', system-ui, sans-serif;
+  --hrv-font-size-xs:            11px;
+  --hrv-font-size-s:             12px;
+  --hrv-font-size-m:             14px;
+  --hrv-font-size-l:             16px;
+  --hrv-radius-s:                8px;
+  --hrv-radius-m:                12px;
+  --hrv-radius-l:                28px;
+  --hrv-icon-size:               24px;
+  --hrv-transition-speed:        200ms;
+}
+.theme-material-eww.dark {
+  --hrv-color-primary:           #b5c4ff;
+  --hrv-color-primary-dim:       #344479;
+  --hrv-color-on-primary:        #1c2d61;
+  --hrv-color-surface:           #1a1b21;
+  --hrv-color-surface-alt:       #2e2f38;
+  --hrv-color-border:            #45464f;
+  --hrv-color-text:              #e3e1e9;
+  --hrv-color-text-secondary:    #8f909a;
+  --hrv-color-text-inverse:      #1a1b21;
+  --hrv-color-icon:              #c1c5dd;
+  --hrv-color-state-on:          #b5c4ff;
+  --hrv-color-state-off:         #8f909a;
+  --hrv-color-state-unavailable: #45464f;
+  --hrv-color-error:             #ffb4ab;
+  --hrv-color-success:           #81c784;
+  --hrv-color-overlay:           rgba(13, 14, 19, 0.85);
+  --hrv-color-overlay-text:      #e3e1e9;
+  --hrv-card-background:         #212229;
+  --hrv-card-shadow:             0 1px 2px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.20);
+}
+
+/* themes/shrooms.json - dark */
+.theme-shrooms.dark {
+  --hrv-color-primary:           #ffb74d;
+  --hrv-color-primary-dim:       rgba(255,183,77,0.15);
+  --hrv-color-on-primary:        #1a1a1a;
+  --hrv-color-surface:           #2d2d2d;
+  --hrv-color-surface-alt:       #383838;
+  --hrv-color-border:            rgba(255,255,255,0.08);
+  --hrv-color-text:              #e0e0e0;
+  --hrv-color-text-secondary:    #9e9e9e;
+  --hrv-color-text-inverse:      #1a1a1a;
+  --hrv-color-icon:              #9e9e9e;
+  --hrv-color-state-on:          #ffb74d;
+  --hrv-color-state-off:         #616161;
+  --hrv-color-state-unavailable: #424242;
+  --hrv-color-error:             #ef5350;
+  --hrv-card-background:         #2d2d2d;
+  --hrv-card-shadow:             none;
+  --hrv-card-border:             1px solid rgba(255,255,255,0.10);
+  --hrv-ex-shroom-btn-bg:        rgba(255,255,255,0.08);
+  --hrv-ex-shroom-btn-bg-active: rgba(255,255,255,0.15);
+  --hrv-ex-shroom-slider-track:  rgba(0,0,0,0.40);
+  --hrv-ex-shroom-light:         #ffb74d;
+  --hrv-ex-shroom-cover:         #ce93d8;
+}
+
+/* ==========================================================================
+ * media-player-card.js  (MEDIA_STYLES) - now-playing, transport, volume.
+ * Scoped under [data-domain=media_player].
+ * ====================================================================== */
+.hrv-card[data-domain=media_player] [part=card-body] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=media_player] .hrv-media-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--hrv-spacing-m);
+}
+.hrv-card[data-domain=media_player] [part=media-art] {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: var(--hrv-radius-m);
+  overflow: hidden;
+  background: var(--hrv-color-surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hrv-color-icon);
+}
+.hrv-card[data-domain=media_player] [part=media-art] img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hrv-card[data-domain=media_player] [part=media-art][data-has-art="true"] [part=media-art-icon] { display: none; }
+.hrv-card[data-domain=media_player] [part=media-art][data-has-art="false"] img { display: none; }
+.hrv-card[data-domain=media_player] [part=media-art-icon] svg { width: 28px; height: 28px; }
+.hrv-card[data-domain=media_player] .hrv-media-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hrv-card[data-domain=media_player] [part=media-artist] {
+  font-size: var(--hrv-font-size-xs);
+  color: var(--hrv-color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hrv-card[data-domain=media_player] [part=media-source] {
+  font-size: var(--hrv-font-size-xs);
+  color: var(--hrv-color-text-secondary);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hrv-card[data-domain=media_player] [part=media-source]:empty { display: none; }
+.hrv-card[data-domain=media_player] [part=media-title] {
+  font-size: var(--hrv-font-size-s);
+  font-weight: var(--hrv-font-weight-medium);
+  color: var(--hrv-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hrv-card[data-domain=media_player] .hrv-seek-row {
+  display: flex;
+  align-items: center;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=media_player] .hrv-seek-row[hidden] { display: none; }
+.hrv-card[data-domain=media_player] [part=progress-elapsed],
+.hrv-card[data-domain=media_player] [part=progress-duration] {
+  font-size: var(--hrv-font-size-xs);
+  color: var(--hrv-color-text-secondary);
+  min-width: 34px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.hrv-card[data-domain=media_player] [part=progress-slider] {
+  flex: 1;
+  accent-color: var(--hrv-color-primary);
+  cursor: pointer;
+}
+.hrv-card[data-domain=media_player] [part=progress-slider]:disabled { cursor: default; }
+.hrv-card[data-domain=media_player] .hrv-media-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=media_player] .hrv-media-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--hrv-color-surface-alt);
+  color: var(--hrv-color-text);
+  cursor: pointer;
+  transition: opacity var(--hrv-transition-speed), background var(--hrv-transition-speed);
+  padding: 0;
+}
+.hrv-card[data-domain=media_player] .hrv-media-btn:hover  { opacity: 0.8; }
+.hrv-card[data-domain=media_player] .hrv-media-btn:active { opacity: 0.6; }
+.hrv-card[data-domain=media_player] .hrv-media-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.hrv-card[data-domain=media_player] [part=play-button] {
+  width: 44px;
+  height: 44px;
+  background: var(--hrv-color-primary);
+  color: var(--hrv-color-on-primary);
+}
+.hrv-card[data-domain=media_player] .hrv-media-btn svg { width: 20px; height: 20px; }
+.hrv-card[data-domain=media_player] [part=play-button] svg { width: 24px; height: 24px; }
+.hrv-card[data-domain=media_player] .hrv-volume-row {
+  display: flex;
+  align-items: center;
+  gap: var(--hrv-spacing-s);
+}
+.hrv-card[data-domain=media_player] .hrv-volume-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--hrv-color-icon);
+  flex-shrink: 0;
+}
+.hrv-card[data-domain=media_player] [part=volume-slider] {
+  flex: 1;
+  accent-color: var(--hrv-color-primary);
+  cursor: pointer;
+}
+.hrv-card[data-domain=media_player] [part=source-select] {
+  width: 100%;
+  padding: var(--hrv-spacing-s) var(--hrv-spacing-m);
+  border: none;
+  border-radius: var(--hrv-radius-m);
+  background: var(--hrv-color-surface-alt);
+  color: var(--hrv-color-text);
+  font-size: var(--hrv-font-size-xs);
+  font-family: inherit;
+  cursor: pointer;
+}
+.hrv-card[data-domain=media_player] [part=state-label] {
+  font-size: var(--hrv-font-size-xs);
+  color: var(--hrv-color-text-secondary);
+}
+
+/* ==========================================================================
+ * THEME: Glass  (widget/themes/glass.json) - frosted translucent surfaces.
+ * Needs a colorful background behind the cards for the blur to show.
+ * ====================================================================== */
+.theme-glass {
+  --hrv-card-min-width:          260px;
+  --hrv-color-primary:           #6200ea;
+  --hrv-color-primary-dim:       rgba(98,0,234,0.1);
+  --hrv-color-on-primary:        #ffffff;
+  --hrv-color-surface:           rgba(255,255,255,0.18);
+  --hrv-color-surface-alt:       rgba(255,255,255,0.25);
+  --hrv-color-border:            rgba(0,0,0,0.12);
+  --hrv-color-text:              #1a1a1a;
+  --hrv-color-text-secondary:    #757575;
+  --hrv-color-icon:              #1a1a1a;
+  --hrv-color-state-on:          #6200ea;
+  --hrv-color-state-off:         #9e9e9e;
+  --hrv-color-state-unavailable: #bdbdbd;
+  --hrv-color-error:             #b71c1c;
+  --hrv-card-radius:             16px;
+  --hrv-card-shadow:             0 8px 32px rgba(0,0,0,0.12);
+  --hrv-card-padding:            18px;
+  --hrv-card-background:         linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.18) 100%);
+  --hrv-menu-background:         rgba(245,245,250,0.82);
+  --hrv-card-backdrop-filter:    blur(12px) saturate(1.4);
+  --hrv-card-border:             1px solid rgba(255,255,255,0.4);
+  --hrv-icon-size:               24px;
+  --hrv-font-family:             system-ui, -apple-system, sans-serif;
+  --hrv-transition-speed:        200ms;
+}
+.theme-glass.dark {
+  --hrv-color-primary:           #bb86fc;
+  --hrv-color-on-primary:        #1a1a1a;
+  --hrv-color-text-inverse:      #1a1a1a;
+  --hrv-color-surface:           rgba(30,30,46,0.55);
+  --hrv-color-surface-alt:       rgba(42,42,78,0.5);
+  --hrv-color-border:            rgba(255,255,255,0.12);
+  --hrv-color-text:              #e0e0ff;
+  --hrv-color-text-secondary:    #9e9eb8;
+  --hrv-color-icon:              #e0e0ff;
+  --hrv-color-state-on:          #bb86fc;
+  --hrv-color-state-off:         #6b6b8a;
+  --hrv-color-state-unavailable: #7878a0;
+  --hrv-color-error:             #ef5350;
+  --hrv-card-background:         linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.08) 100%);
+  --hrv-menu-background:         rgba(26,26,40,0.88);
+  --hrv-card-backdrop-filter:    blur(14px) saturate(1.5);
+  --hrv-card-border:             1px solid rgba(255,255,255,0.15);
+  --hrv-card-shadow:             0 8px 32px rgba(0,0,0,0.3);
+}
+
+/* ==========================================================================
+ * HISTORY GRAPH  (base-card.js HISTORY_CSS) - 24h sparkline zone, used by
+ * sensor cards. The <svg part="history-svg"> is generated per the
+ * #renderLineGraph format (280x60 viewBox, primary-coloured fill + line).
+ * ====================================================================== */
+.hrv-card [part=history-graph] {
+  margin-top: var(--hrv-spacing-s);
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hrv-card [part=history-graph]:empty { display: none; }
+.hrv-card [part=history-svg] { width: 100%; height: 48px; display: block; }
+
+/* ==========================================================================
+ * THEME: Neu  (User Contributed Themes/Neu/theme.json) + neumorphic pack
+ * (Neu/renderer.js). Grey-only palette, dual box-shadows (convex/concave).
+ * IMPORTANT: the kiosk background must equal --hrv-ex-neu-bg so the shadows
+ * read as extruded. Pack CSS scoped under [data-pack=neu]. Sensor subset for
+ * now; more card types to follow. icon_set is ph-duotone.
+ * ====================================================================== */
+.theme-neu {
+  --hrv-card-min-width:          280px;
+  --hrv-color-primary:           #6b7280;
+  --hrv-color-primary-dim:       #d1d5db;
+  --hrv-color-on-primary:        #ffffff;
+  --hrv-color-surface:           #e0e5ec;
+  --hrv-color-surface-alt:       #e0e5ec;
+  --hrv-color-border:            transparent;
+  --hrv-color-text:              #374151;
+  --hrv-color-text-secondary:    #6b7280;
+  --hrv-color-text-inverse:      #ffffff;
+  --hrv-color-icon:              #4b5563;
+  --hrv-color-state-on:          #4b5563;
+  --hrv-color-state-off:         #9ca3af;
+  --hrv-color-state-unavailable: #d1d5db;
+  --hrv-color-warning:           #9ca3af;
+  --hrv-color-error:             #6b7280;
+  --hrv-color-success:           #6b7280;
+  --hrv-color-overlay:           rgba(0,0,0,0.6);
+  --hrv-color-overlay-text:      #ffffff;
+  --hrv-card-background:         #e0e5ec;
+  --hrv-card-radius:             20px;
+  --hrv-card-shadow:             4px 4px 8px #b8bec7, -4px -4px 8px #ffffff;
+  --hrv-card-padding:            18px;
+  --hrv-card-border:             none;
+  --hrv-card-backdrop-filter:    none;
+  --hrv-radius-s:                6px;
+  --hrv-radius-m:                12px;
+  --hrv-radius-l:                20px;
+  --hrv-icon-size:               22px;
+  --hrv-font-family:             system-ui, -apple-system, sans-serif;
+  --hrv-transition-speed:        250ms;
+  --hrv-ex-neu-bg:               #e0e5ec;
+  --hrv-ex-neu-shadow-light:     #ffffff;
+  --hrv-ex-neu-shadow-dark:      #b8bec7;
+  --hrv-ex-neu-convex:           4px 4px 8px #b8bec7, -4px -4px 8px #ffffff;
+  --hrv-ex-neu-concave:          inset 2px 2px 5px #b8bec7, inset -2px -2px 5px #ffffff;
+  --hrv-ex-neu-convex-sm:        2px 2px 4px #b8bec7, -2px -2px 4px #ffffff;
+  --hrv-ex-neu-concave-sm:       inset 1px 1px 3px #b8bec7, inset -1px -1px 3px #ffffff;
+}
+.theme-neu.dark {
+  --hrv-color-primary:           #9ca3af;
+  --hrv-color-primary-dim:       #374151;
+  --hrv-color-on-primary:        #1f2937;
+  --hrv-color-surface:           #2d2d3a;
+  --hrv-color-surface-alt:       #2d2d3a;
+  --hrv-color-border:            transparent;
+  --hrv-color-text:              #d1d5db;
+  --hrv-color-text-secondary:    #9ca3af;
+  --hrv-color-text-inverse:      #1f2937;
+  --hrv-color-icon:              #9ca3af;
+  --hrv-color-state-on:          #d1d5db;
+  --hrv-color-state-off:         #4b5563;
+  --hrv-color-state-unavailable: #374151;
+  --hrv-card-background:         #2d2d3a;
+  --hrv-card-shadow:             4px 4px 8px #1a1a24, -4px -4px 8px #404050;
+  --hrv-ex-neu-bg:               #2d2d3a;
+  --hrv-ex-neu-shadow-light:     #404050;
+  --hrv-ex-neu-shadow-dark:      #1a1a24;
+  --hrv-ex-neu-convex:           4px 4px 8px #1a1a24, -4px -4px 8px #404050;
+  --hrv-ex-neu-concave:          inset 2px 2px 5px #1a1a24, inset -2px -2px 5px #404050;
+  --hrv-ex-neu-convex-sm:        2px 2px 4px #1a1a24, -2px -2px 4px #404050;
+  --hrv-ex-neu-concave-sm:       inset 1px 1px 3px #1a1a24, inset -1px -1px 3px #404050;
+}
+
+/* Neu pack - NEU_BASE (sensor subset). Scoped under [data-pack=neu]. */
+.hrv-card[data-pack=neu] {
+  background: transparent !important;
+  border-radius: var(--hrv-card-radius, 20px) !important;
+  overflow: visible !important;
+}
+.hrv-card[data-pack=neu] *,
+.hrv-card[data-pack=neu] *::before,
+.hrv-card[data-pack=neu] *::after { box-sizing: border-box; }
+.hrv-card[data-pack=neu] [part=card] {
+  position: relative;
+  background: var(--hrv-ex-neu-bg, var(--hrv-card-background));
+  border-radius: var(--hrv-card-radius, 20px);
+  border: none;
+  box-shadow: none !important;
+  padding: var(--hrv-card-padding, 18px);
+  font-family: var(--hrv-font-family, system-ui, -apple-system, sans-serif);
+  color: var(--hrv-color-text, #374151);
+  transition: box-shadow 0.3s ease;
+  overflow: hidden;
+}
+.hrv-card[data-pack=neu] [part=card][data-border=outer] {
+  box-shadow: var(--hrv-ex-neu-convex, 4px 4px 8px #b8bec7, -4px -4px 8px #ffffff) !important;
+}
+.hrv-card[data-pack=neu] [part=card][data-border=inner] {
+  box-shadow: var(--hrv-ex-neu-concave, inset 2px 2px 5px #b8bec7, inset -2px -2px 5px #ffffff) !important;
+}
+.hrv-card[data-pack=neu] [part=card][data-border=none] { box-shadow: none !important; }
+.hrv-card[data-pack=neu] [part=card-header] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.hrv-card[data-pack=neu] [part=card][data-show-icon=false] [part=card-icon] { display: none; }
+.hrv-card[data-pack=neu] [part=card][data-show-name=false] [part=card-name] { display: none; }
+.hrv-card[data-pack=neu] [part=card] [part=card-icon] {
+  width: 40px !important;
+  height: 40px !important;
+  display: var(--hrv-icon-display, flex);
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-concave-sm);
+  color: var(--hrv-color-icon, #4b5563);
+  flex-shrink: 0;
+  transition: color 0.25s ease;
+}
+.hrv-card[data-pack=neu] [part=card] [part=card-icon] svg {
+  width: var(--hrv-icon-size, 22px);
+  height: var(--hrv-icon-size, 22px);
+  fill: currentColor;
+}
+.hrv-card[data-pack=neu] [part=card-icon][data-on=true]  { color: var(--hrv-color-text, #374151); }
+.hrv-card[data-pack=neu] [part=card-icon][data-on=false] { color: var(--hrv-color-text-secondary, #6b7280); }
+.hrv-card[data-pack=neu] [part=card-name] {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--hrv-font-size-m, 15px);
+  font-weight: var(--hrv-font-weight-medium, 500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hrv-card[data-pack=neu] [part=card-body] { display: flex; flex-direction: column; gap: 12px; }
+.hrv-card[data-pack=neu] [part=card-body]:empty { display: none; }
+.hrv-card[data-pack=neu] [part=state-label] {
+  font-size: var(--hrv-font-size-m, 15px);
+  color: var(--hrv-color-text-secondary);
+  text-align: center;
+  padding: 8px 0;
+}
+.hrv-card[data-pack=neu] .neu-value-well {
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-concave-sm);
+  width: fit-content;
+  min-width: 96px;
+  max-width: 150px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  padding: 12px;
+  margin: 2px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  overflow: hidden;
+}
+.hrv-card[data-pack=neu] .neu-sensor-value {
+  font-size: 2rem;
+  font-weight: var(--hrv-font-weight-bold, 700);
+  line-height: 1;
+  color: var(--hrv-color-text);
+}
+.hrv-card[data-pack=neu] .neu-sensor-unit {
+  font-size: var(--hrv-font-size-m, 15px);
+  color: var(--hrv-color-text-secondary);
+  margin-left: 4px;
+}
+
+/* Neu pack - control CSS (toggle, slider, button, pill) + per-card bits. */
+.hrv-card[data-pack=neu] .neu-slider-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--hrv-font-size-s, 13px);
+  color: var(--hrv-color-text-secondary);
+  margin-bottom: 6px;
+}
+
+/* NEU_TOGGLE_CSS */
+.hrv-card[data-pack=neu] .neu-toggle {
+  position: relative;
+  width: 60px;
+  height: 30px;
+  border-radius: 15px;
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-concave-sm);
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  outline: none;
+  transition: box-shadow 0.3s ease-out, background 0.3s ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.hrv-card[data-pack=neu] .neu-toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-convex-sm);
+  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out, background 0.3s ease-out;
+}
+.hrv-card[data-pack=neu] .neu-toggle[aria-pressed=true] {
+  box-shadow: var(--hrv-ex-neu-concave);
+  background: var(--hrv-ex-neu-shadow-dark);
+}
+.hrv-card[data-pack=neu] .neu-toggle[aria-pressed=true]::after {
+  transform: translateX(30px);
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.12);
+  background: var(--hrv-ex-neu-shadow-light);
+}
+.hrv-card[data-pack=neu] .neu-toggle:disabled { opacity: 0.4; cursor: default; }
+
+/* NEU_SLIDER_CSS */
+.hrv-card[data-pack=neu] .neu-slider-wrap { position: relative; width: 100%; height: 28px; }
+.hrv-card[data-pack=neu] .neu-slider-track {
+  position: absolute;
+  inset: 4px 0;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-concave-sm);
+  overflow: hidden;
+}
+.hrv-card[data-pack=neu] .neu-slider-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--neu-fill, 0%);
+  border-radius: 10px;
+  background: var(--hrv-color-text-secondary, #6b7280);
+  opacity: 0.18;
+  transition: width 0.15s ease;
+}
+.hrv-card[data-pack=neu] .neu-slider-wrap input[type="range"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+.hrv-card[data-pack=neu] .neu-slider-thumb {
+  position: absolute;
+  top: 2px;
+  left: var(--neu-thumb-offset, -12px);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-convex-sm);
+  transition: left 0.15s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* NEU_BUTTON_CSS */
+.hrv-card[data-pack=neu] .neu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--hrv-radius-m, 12px);
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-convex-sm);
+  color: var(--hrv-color-text, #374151);
+  font-size: var(--hrv-font-size-s, 13px);
+  font-weight: var(--hrv-font-weight-medium, 500);
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 0.2s ease, transform 0.15s ease, color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.hrv-card[data-pack=neu] .neu-btn[aria-pressed=true] {
+  box-shadow: var(--hrv-ex-neu-concave-sm);
+  color: var(--hrv-color-text);
+}
+.hrv-card[data-pack=neu] .neu-btn:disabled { opacity: 0.4; cursor: default; }
+.hrv-card[data-pack=neu] .neu-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+/* NEU_SELECT_CSS (pills) */
+.hrv-card[data-pack=neu] .neu-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.hrv-card[data-pack=neu] .neu-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--hrv-radius-m, 12px);
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-convex-sm);
+  color: var(--hrv-color-text-secondary);
+  font-size: var(--hrv-font-size-s, 13px);
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 0.25s ease, color 0.2s ease, transform 0.15s ease;
+}
+.hrv-card[data-pack=neu] .neu-pill[aria-pressed=true],
+.hrv-card[data-pack=neu] .neu-pill.is-active {
+  box-shadow: var(--hrv-ex-neu-concave-sm);
+  color: var(--hrv-color-text);
+  font-weight: var(--hrv-font-weight-medium, 500);
+}
+
+/* Per-card: light */
+.hrv-card[data-pack=neu] .neu-light-sliders > div { display: none; }
+.hrv-card[data-pack=neu] .neu-light-sliders > div.is-active { display: block; }
+.hrv-card[data-pack=neu] .neu-light-modes { display: flex; gap: 8px; justify-content: center; }
+.hrv-card[data-pack=neu] [part=card-body][data-off=true] .neu-light-sliders,
+.hrv-card[data-pack=neu] [part=card-body][data-off=true] .neu-light-modes {
+  opacity: 0.35;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* Per-card: fan */
+.hrv-card[data-pack=neu] .neu-fan-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.hrv-card[data-pack=neu] [part=card-icon][data-on=true][data-animate=true] svg {
+  animation: neu-fan-spin 2s linear infinite;
+  transform-origin: center;
+}
+@keyframes neu-fan-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .hrv-card[data-pack=neu] [part=card-icon][data-on=true][data-animate=true] svg { animation: none; }
+}
+
+/* Per-card: cover */
+.hrv-card[data-pack=neu] .neu-cover-controls { display: flex; gap: 8px; }
+.hrv-card[data-pack=neu] .neu-cover-controls .neu-btn { flex: 1; }
+
+/* Per-card: timer */
+.hrv-card[data-pack=neu] .neu-timer-display {
+  font-size: 2rem;
+  font-weight: var(--hrv-font-weight-bold, 700);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1;
+}
+.hrv-card[data-pack=neu] .neu-timer-actions { display: flex; gap: 8px; }
+.hrv-card[data-pack=neu] .neu-timer-actions .neu-btn { flex: 1; }
+
+/* NEU_SELECT_CSS (dropdown trigger) - used by climate mode selector */
+.hrv-card[data-pack=neu] .neu-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--hrv-radius-m, 12px);
+  background: var(--hrv-ex-neu-bg);
+  box-shadow: var(--hrv-ex-neu-convex-sm);
+  color: var(--hrv-color-text);
+  font-size: var(--hrv-font-size-s, 13px);
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.hrv-card[data-pack=neu] .neu-dropdown-trigger[data-expanded=true] { box-shadow: var(--hrv-ex-neu-concave-sm); }
+.hrv-card[data-pack=neu] .neu-dropdown-trigger::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 0.5;
+  transition: transform 0.2s ease;
+}
+.hrv-card[data-pack=neu] .neu-dropdown-menu:not(:popover-open) { display: none; }
+
+/* Per-card: climate */
+.hrv-card[data-pack=neu] .neu-climate-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.hrv-card[data-pack=neu] .neu-climate-label {
+  font-size: var(--hrv-font-size-s, 13px);
+  color: var(--hrv-color-text-secondary);
+}
+.hrv-card[data-pack=neu] .neu-climate-temp {
+  font-size: var(--hrv-font-size-l, 18px);
+  font-weight: var(--hrv-font-weight-bold, 700);
+}

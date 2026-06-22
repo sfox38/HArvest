@@ -26,7 +26,7 @@ from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 from yarl import URL
 
-from ._utils import close_ws_with_auth_failed as _close_ws_with_auth_failed, get_entry_data
+from ._utils import close_ws_with_auth_failed as _close_ws_with_auth_failed, get_entry_data, log_send_failure
 from .activity_store import ActivityStore, TokenLifecycleEvent
 from .const import ALIAS_LENGTH, BASE62_ALPHABET, ICON_NAME_PREFIXES
 from .control_entities import ControlEntities
@@ -38,6 +38,12 @@ from .entity_definition import (
     resolve_data_tier,
 )
 from .event_bus import EventBus
+from .protocol import (
+    ALLOWED_DATA_KEYS as _ALLOWED_DATA_KEYS,
+    TARGET_SELECTOR_KEYS as _TARGET_SELECTOR_KEYS,
+    normalize_forecast as _normalize_forecast,
+    round_state as _round_state,
+)
 from .session_manager import SessionManager
 from .renderer_manager import RendererManager, renderer_to_api_dict
 from .theme_manager import (
@@ -116,6 +122,26 @@ def register_views(hass: HomeAssistant, entry_id: str) -> None:
 # ---------------------------------------------------------------------------
 # Serialisation helpers
 # ---------------------------------------------------------------------------
+
+def _require_admin(request: web.Request, *, anon_status: type = web.HTTPForbidden):
+    """Return the authenticated admin user or raise.
+
+    Panel HTTP endpoints are admin-only. This centralises the check: it raises
+    HTTPForbidden when the user is authenticated but not an admin, and raises
+    anon_status (HTTPForbidden by default, HTTPUnauthorized for the token/theme
+    mutation endpoints) when no HA user is attached to the request.
+
+    The anon_status split preserves the existing per-endpoint behaviour. Making
+    every endpoint return 401 for anonymous would be more correct but is locked
+    in by tests; unifying it is a separate, test-touching change.
+    """
+    user = request.get("hass_user")
+    if user is None:
+        raise anon_status()
+    if not user.is_admin:
+        raise web.HTTPForbidden()
+    return user
+
 
 def _token_to_dict(token: Token) -> dict:
     """Serialise a Token to a JSON-safe dict."""
@@ -717,9 +743,7 @@ class HarvestTokensView(_HarvestView):
 
     async def get(self, request: web.Request) -> web.Response:
         """Return all tokens with their active session counts."""
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         tokens = self._token_manager.get_all()
         result = []
         for t in tokens:
@@ -730,11 +754,7 @@ class HarvestTokensView(_HarvestView):
 
     async def post(self, request: web.Request) -> web.Response:
         """Create a new token. Body: full token spec JSON."""
-        user = request.get("hass_user")
-        if user is None:
-            raise web.HTTPUnauthorized()
-        if not user.is_admin:
-            raise web.HTTPForbidden()
+        user = _require_admin(request, anon_status=web.HTTPUnauthorized)
 
         try:
             body = await request.json()
@@ -831,8 +851,8 @@ class HarvestTokenDetailView(_HarvestView):
             if not session.ws.closed:
                 try:
                     await session.ws.send_json(msg)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log_send_failure(exc, "theme update")
 
     async def _push_renderer_to_sessions(self, token_id: str) -> None:
         """Push renderer URL to all active sessions for a token."""
@@ -852,8 +872,8 @@ class HarvestTokenDetailView(_HarvestView):
             if not session.ws.closed:
                 try:
                     await session.ws.send_json(msg)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log_send_failure(exc, "renderer update")
 
     def _filtered_push_attrs(
         self,
@@ -944,8 +964,8 @@ class HarvestTokenDetailView(_HarvestView):
                             "entity_id": out_id,
                             "msg_id": None,
                         })
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log_send_failure(exc, "entity_removed")
 
             # Decide which entities to push.
             push_ids = set(session.subscribed_entity_ids)
@@ -983,8 +1003,8 @@ class HarvestTokenDetailView(_HarvestView):
                 defn["msg_id"] = None
                 try:
                     await session.ws.send_json(defn)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log_send_failure(exc, "entity_definition")
 
                 state = self._hass.states.get(real_id)
                 if state is not None:
@@ -999,7 +1019,6 @@ class HarvestTokenDetailView(_HarvestView):
                                 filtered["forecast_daily"] = fc["daily"]
                             if fc.get("hourly"):
                                 filtered["forecast_hourly"] = fc["hourly"]
-                    from .ws_proxy import _round_state
                     try:
                         await session.ws.send_json({
                             "type": "state_update",
@@ -1026,7 +1045,6 @@ class HarvestTokenDetailView(_HarvestView):
                 filtered = self._filtered_push_attrs(
                     comp_id, tier, token, dict(state.attributes)
                 )
-                from .ws_proxy import _round_state
                 update: dict[str, Any] = {
                     "type": "state_update",
                     "entity_id": out_id,
@@ -1041,8 +1059,8 @@ class HarvestTokenDetailView(_HarvestView):
                 }
                 try:
                     await session.ws.send_json(update)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log_send_failure(exc, "state_update")
 
     async def _try_fetch_forecast(self, entity_id: str) -> dict[str, list | None] | None:
         """Fetch daily and hourly forecast for a weather entity."""
@@ -1054,7 +1072,6 @@ class HarvestTokenDetailView(_HarvestView):
             if entity is None:
                 return None
             from homeassistant.components.weather import WeatherEntityFeature
-            from .ws_proxy import _normalize_forecast
             features = entity.supported_features or 0
             result: dict[str, list | None] = {}
             if features & WeatherEntityFeature.FORECAST_DAILY:
@@ -1078,6 +1095,7 @@ class HarvestTokenDetailView(_HarvestView):
         return {
             "lang": token.lang if token.lang != "auto" else gcfg.get("default_lang", "auto"),
             "a11y": token.a11y if token.a11y != "standard" else gcfg.get("default_a11y", "standard"),
+            "haptics": token.haptics,
             "color_scheme": token.color_scheme,
             "icon_set": token.icon_set,
             "on_offline": token.on_offline if use_custom else gcfg.get("default_on_offline", "last-state"),
@@ -1098,13 +1116,11 @@ class HarvestTokenDetailView(_HarvestView):
                 continue
             try:
                 await session.ws.send_json(msg)
-            except Exception:
-                pass
+            except Exception as exc:
+                log_send_failure(exc, "token_config")
 
     async def get(self, request: web.Request, token_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         token = self._token_manager.get(token_id)
         if token is None:
             raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
@@ -1120,9 +1136,7 @@ class HarvestTokenDetailView(_HarvestView):
 
     async def patch(self, request: web.Request, token_id: str) -> web.Response:
         """Partially update a token. Accepts any subset of token fields."""
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         token = self._token_manager.get(token_id)
         if token is None:
             raise web.HTTPNotFound(reason=f"Token not found: {token_id}")
@@ -1235,6 +1249,10 @@ class HarvestTokenDetailView(_HarvestView):
             if val not in ("standard", "enhanced"):
                 raise web.HTTPBadRequest(reason="a11y must be standard or enhanced.")
             updates["a11y"] = val
+        if "haptics" in body:
+            if not isinstance(body["haptics"], bool):
+                raise web.HTTPBadRequest(reason="haptics must be a boolean.")
+            updates["haptics"] = body["haptics"]
         if "color_scheme" in body:
             val = str(body["color_scheme"])
             if val not in ("auto", "light", "dark"):
@@ -1341,7 +1359,7 @@ class HarvestTokenDetailView(_HarvestView):
             await self._push_theme_to_sessions(token_id)
             await self._push_renderer_to_sessions(token_id)
 
-        _TOKEN_CONFIG_FIELDS = {"lang", "a11y", "color_scheme", "icon_set", "custom_messages", "on_offline", "on_error", "offline_text", "error_text"}
+        _TOKEN_CONFIG_FIELDS = {"lang", "a11y", "haptics", "color_scheme", "icon_set", "custom_messages", "on_offline", "on_error", "offline_text", "error_text"}
         if _TOKEN_CONFIG_FIELDS & updates.keys():
             await self._push_token_config_to_sessions(token_id)
 
@@ -1356,11 +1374,7 @@ class HarvestTokenDetailView(_HarvestView):
         Query param action=revoke: revokes an active token.
         No action param: deletes a revoked/expired token permanently.
         """
-        user = request.get("hass_user")
-        if user is None:
-            raise web.HTTPUnauthorized()
-        if not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request, anon_status=web.HTTPUnauthorized)
         action = request.query.get("action")
 
         if action == "revoke":
@@ -1413,11 +1427,7 @@ class HarvestTokenDuplicateView(_HarvestView):
     name = "api:harvest:token_duplicate"
 
     async def post(self, request: web.Request, token_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None:
-            raise web.HTTPUnauthorized()
-        if not user.is_admin:
-            raise web.HTTPForbidden()
+        user = _require_admin(request, anon_status=web.HTTPUnauthorized)
 
         source = self._token_manager.get(token_id)
         if source is None:
@@ -1459,7 +1469,7 @@ class HarvestTokenDuplicateView(_HarvestView):
             "block_label", "block_icon", "block_show_label",
             "block_highlight_rows", "block_show_icons", "block_widget_border",
             "block_access_mode", "block_color_mode", "renderer_pack",
-            "lang", "a11y", "color_scheme", "custom_messages",
+            "lang", "a11y", "haptics", "color_scheme", "custom_messages",
             "on_offline", "on_error", "offline_text", "error_text",
         ):
             val = getattr(source, field_name)
@@ -1496,9 +1506,7 @@ class HarvestSessionsView(_HarvestView):
     name = "api:harvest:sessions"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         token_id = request.query.get("token_id")
         if token_id:
             sessions = self._session_manager.get_all_for_token(token_id)
@@ -1508,9 +1516,7 @@ class HarvestSessionsView(_HarvestView):
 
     async def delete(self, request: web.Request) -> web.Response:
         """Terminate all sessions, optionally filtered to one token."""
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         token_id = request.query.get("token_id")
         if token_id:
             ws_list = self._session_manager.terminate_all_for_token(token_id)
@@ -1534,9 +1540,7 @@ class HarvestSessionTerminateView(_HarvestView):
     name = "api:harvest:sessions:terminate"
 
     async def delete(self, _request: web.Request, session_id: str) -> web.Response:
-        user = _request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(_request)
         session = self._session_manager.get(session_id)
         if session is None:
             raise web.HTTPNotFound(reason=f"Session not found: {session_id}")
@@ -1562,9 +1566,7 @@ class HarvestActivityView(_HarvestView):
     name = "api:harvest:activity"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         token_id = request.query.get("token_id") or None
         # Accept both singular (frontend) and plural (legacy) param names.
         display_type = request.query.get("event_type") or request.query.get("event_types") or None
@@ -1607,9 +1609,7 @@ class HarvestActivityExportView(_HarvestView):
     name = "api:harvest:activity_export"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         token_id = request.query.get("token_id") or None
         display_type = request.query.get("event_type") or request.query.get("event_types") or None
         search = request.query.get("search") or None
@@ -1640,9 +1640,7 @@ class HarvestAggregatesView(_HarvestView):
     name = "api:harvest:activity_aggregates"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         try:
             hours = max(1, min(8760, int(request.query.get("hours", "24"))))
         except ValueError:
@@ -1693,9 +1691,7 @@ class HarvestThemesView(_HarvestView):
         return counts
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         counts = self._usage_counts()
         result = []
         for theme in self._theme_manager.get_all():
@@ -1710,11 +1706,7 @@ class HarvestThemesView(_HarvestView):
         return self.json(result)
 
     async def post(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None:
-            raise web.HTTPUnauthorized()
-        if not user.is_admin:
-            raise web.HTTPForbidden()
+        user = _require_admin(request, anon_status=web.HTTPUnauthorized)
 
         try:
             body = await request.json()
@@ -1783,9 +1775,7 @@ class HarvestThemeImportView(_HarvestView):
         import json as _json
         import zipfile
 
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        user = _require_admin(request)
 
         # Read the zip body (multipart or raw bytes).
         ct = request.headers.get("Content-Type", "")
@@ -2034,9 +2024,7 @@ class HarvestThemeExportView(_HarvestView):
         import json as _json
         import zipfile
 
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         theme = self._theme_manager.get(theme_id)
         if theme is None:
@@ -2117,9 +2105,7 @@ class HarvestThemeReloadView(_HarvestView):
     name = "api:harvest:themes:reload"
 
     async def post(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         load_results = await self._theme_manager.load()
         errors = {tid: err for tid, err in load_results.items() if err is not None}
         ts = int(datetime.now(timezone.utc).timestamp())
@@ -2139,8 +2125,8 @@ class HarvestThemeReloadView(_HarvestView):
                         await session.ws.send_json(theme_msg)
                         if token.renderer_pack:
                             await session.ws.send_json(renderer_msg)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log_send_failure(exc, "theme/renderer update")
         if errors:
             return self.json({"status": "partial", "errors": errors})
         return self.json({"status": "ok"})
@@ -2165,13 +2151,11 @@ class HarvestThemeDetailView(_HarvestView):
                 if not session.ws.closed:
                     try:
                         await session.ws.send_json(msg)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log_send_failure(exc, "theme reload")
 
     async def get(self, request: web.Request, theme_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         theme = self._theme_manager.get(theme_id)
         if theme is None:
             raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
@@ -2189,9 +2173,7 @@ class HarvestThemeDetailView(_HarvestView):
         return self.json(d)
 
     async def patch(self, request: web.Request, theme_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         try:
             body = await request.json()
@@ -2254,9 +2236,7 @@ class HarvestThemeDetailView(_HarvestView):
         return self.json(d)
 
     async def delete(self, request: web.Request, theme_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         try:
             await self._theme_manager.delete(theme_id)
@@ -2281,8 +2261,8 @@ class HarvestThemeDetailView(_HarvestView):
                             self._theme_manager.build_runtime_message(theme_id, None)
                         )
                         await session.ws.send_json({"type": "renderer"})
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log_send_failure(exc, "theme delete")
 
         if self._renderer_manager:
             try:
@@ -2318,9 +2298,7 @@ class HarvestThemeThumbnailView(_HarvestView):
         )
 
     async def post(self, request: web.Request, theme_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         reader = await request.multipart()
         field = await reader.next()
         if field is None or field.name != "file":
@@ -2349,9 +2327,7 @@ class HarvestThemeThumbnailView(_HarvestView):
         return self.json({"ok": True, "has_thumbnail": True})
 
     async def delete(self, request: web.Request, theme_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         self._theme_manager.delete_thumbnail(theme_id)
         return web.Response(status=204)
 
@@ -2393,9 +2369,7 @@ class HarvestThemeReloadByIdView(_HarvestView):
     name = "api:harvest:theme_reload_by_id"
 
     async def post(self, request: web.Request, theme_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         theme = self._theme_manager.get(theme_id)
         if theme is None:
             raise web.HTTPNotFound(reason=f"Theme not found: {theme_id}")
@@ -2422,8 +2396,8 @@ class HarvestThemeReloadByIdView(_HarvestView):
                         await session.ws.send_json(theme_msg)
                         if token.renderer_pack:
                             await session.ws.send_json({"type": "renderer", "url": renderer_url})
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log_send_failure(exc, "theme reload")
 
         _cf_urls = self._theme_manager.build_custom_font_urls(theme_id, theme)
         d = theme_to_api_dict(theme, custom_font_urls=_cf_urls)
@@ -2446,9 +2420,7 @@ class HarvestRenderersView(_HarvestView):
     name = "api:harvest:renderers"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         renderers = self._renderer_manager.get_all()
         return self.json({
             "agreed": self._renderer_manager.agreed,
@@ -2463,9 +2435,7 @@ class HarvestRendererAgreeView(_HarvestView):
     name = "api:harvest:renderers:agree"
 
     async def post(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         try:
             body = await request.json()
         except Exception:
@@ -2504,9 +2474,7 @@ class HarvestRendererDetailView(_HarvestView):
     name = "api:harvest:renderer_detail"
 
     async def get(self, request: web.Request, renderer_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         renderer = self._renderer_manager.get(renderer_id)
         if renderer is None:
             raise web.HTTPNotFound(reason=f"Renderer not found: {renderer_id}")
@@ -2526,9 +2494,7 @@ class HarvestRendererCodeView(_HarvestView):
     name = "api:harvest:renderer_code"
 
     async def get(self, request: web.Request, renderer_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         if not self._renderer_manager.get_renderer_path(renderer_id):
             raise web.HTTPNotFound()
         code = await self._hass.async_add_executor_job(
@@ -2537,9 +2503,7 @@ class HarvestRendererCodeView(_HarvestView):
         return self.json({"renderer_id": renderer_id, "code": code or ""})
 
     async def post(self, request: web.Request, renderer_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         try:
             body = await request.json()
         except Exception:
@@ -2569,9 +2533,7 @@ class HarvestConfigView(_HarvestView):
     name = "api:harvest:config"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         from .const import DOMAIN, MAX_ENTITIES_HARD_CAP, PLATFORM_VERSION
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
@@ -2605,9 +2567,7 @@ class HarvestConfigView(_HarvestView):
         tears down the panel registration and leaves the Settings screen blank.
         Settings take effect on the next relevant action (new connection, etc.).
         """
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         from .const import DOMAIN
         entries = self._hass.config_entries.async_entries(DOMAIN)
         if not entries:
@@ -2711,9 +2671,7 @@ class HarvestStatsView(_HarvestView):
     name = "api:harvest:stats"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         today = await self._activity_store.count_today()
         db_size = await self._activity_store.get_db_size_bytes()
         return self.json({
@@ -2743,9 +2701,7 @@ class HarvestWarningsView(_HarvestView):
     name = "api:harvest:warnings"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         from .const import PLATFORM_VERSION
         store = self._warnings_store
         # During the brief gap between unload and re-setup, _warnings_store
@@ -2769,9 +2725,7 @@ class HarvestWarningsDismissView(_HarvestView):
     name = "api:harvest:warnings:dismiss"
 
     async def post(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         store = self._warnings_store
         if store is None:
             raise web.HTTPServiceUnavailable(
@@ -2979,9 +2933,7 @@ class HarvestCheckUrlView(_HarvestView):
     name = "api:harvest:check_url"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         raw = (request.query.get("url") or "").strip()
         if not raw:
@@ -3097,9 +3049,7 @@ class HarvestEntitiesView(_HarvestView):
     name = "api:harvest:entities"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         from homeassistant.helpers import entity_registry as er
         from .entity_compatibility import get_support_tier, get_sensitive_domains, is_sensitive_domain_blocked
         from .entity_definition import build_icon_state_map
@@ -3148,9 +3098,7 @@ class HarvestEntityDefinitionView(_HarvestView):
     name = "api:harvest:preview:definition"
 
     async def get(self, request: web.Request, entity_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         state = self._hass.states.get(entity_id)
         if state is None:
@@ -3198,7 +3146,6 @@ class HarvestEntityDefinitionView(_HarvestView):
         filtered_attrs = filter_attributes(dict(state.attributes))
         definition["capabilities"] = entity_access.capabilities
 
-        from .ws_proxy import _round_state
         return self.json({
             "definition": definition,
             "state": _round_state(state.state, entity_access),
@@ -3225,9 +3172,7 @@ class HarvestPreviewHistoryView(_HarvestView):
     name = "api:harvest:preview:history"
 
     async def get(self, request: web.Request, entity_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         if self._hass.states.get(entity_id) is None:
             raise web.HTTPNotFound(text=f"Entity {entity_id} not found")
@@ -3275,9 +3220,7 @@ class HarvestScriptFieldsView(_HarvestView):
     name = "api:harvest:script:fields"
 
     async def get(self, request: web.Request, entity_id: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         state = self._hass.states.get(entity_id)
         if state is None:
@@ -3312,9 +3255,7 @@ class HarvestServiceFieldsView(_HarvestView):
     name = "api:harvest:service:fields"
 
     async def get(self, request: web.Request, domain: str, service: str) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         from .entity_compatibility import ALLOWED_SERVICES, TIER3_DOMAINS
 
@@ -3358,7 +3299,6 @@ class HarvestServiceFieldsView(_HarvestView):
 
         raw_fields = svc_desc.get("fields", {})
 
-        from .ws_proxy import _ALLOWED_DATA_KEYS, _TARGET_SELECTOR_KEYS
         allowed_keys = _ALLOWED_DATA_KEYS.get(domain)
 
         def _filter_fields(fields: dict) -> dict:
@@ -3400,9 +3340,7 @@ class HarvestRegistriesView(_HarvestView):
     name = "api:harvest:registries"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
 
         from homeassistant.helpers import (
             area_registry as ar,
@@ -3453,9 +3391,7 @@ class HarvestAliasView(_HarvestView):
     name = "api:harvest:alias"
 
     async def post(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         try:
             body = await request.json()
             entity_id = str(body.get("entity_id", ""))
@@ -3477,9 +3413,7 @@ class HarvestPreviewTokenView(_HarvestView):
     name = "api:harvest:token_preview"
 
     async def post(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        user = _require_admin(request)
 
         try:
             body = await request.json()
@@ -3507,9 +3441,7 @@ class HarvestLovelaceDashboardsView(_HarvestView):
     name = "api:harvest:lovelace:dashboards"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         from homeassistant.components.lovelace import LOVELACE_DATA
 
         lovelace_data = self._hass.data.get(LOVELACE_DATA)
@@ -3537,9 +3469,7 @@ class HarvestLovelaceConfigView(_HarvestView):
     name = "api:harvest:lovelace:config"
 
     async def get(self, request: web.Request) -> web.Response:
-        user = request.get("hass_user")
-        if user is None or not user.is_admin:
-            raise web.HTTPForbidden()
+        _require_admin(request)
         from homeassistant.components.lovelace import LOVELACE_DATA
 
         lovelace_data = self._hass.data.get(LOVELACE_DATA)
@@ -3561,18 +3491,20 @@ class HarvestLovelaceConfigView(_HarvestView):
 
 
 class HarvestPanelJsView(_HarvestView):
-    """GET /api/harvest/panel.js - serve panel bundle with no-store headers.
+    """GET /api/harvest/panel.js - serve the panel bundle.
 
-    Bypasses HA's static file caching so an updated panel.js is picked up
-    immediately on the next page load without an integration reload or HA
-    restart.
+    panel.py appends the build number as a ?v= query to js_url. A versioned
+    request is immutable for that build, so it is cached hard; the version
+    changes on the next build, busting the cache. A request without a version
+    (an unbuilt checkout or a direct hit) falls back to no-store so a rebuilt
+    bundle is still picked up immediately.
     """
 
     url = "/api/harvest/panel.js"
     name = "api:harvest:panel_js"
     requires_auth = False
 
-    async def get(self, _request: web.Request) -> web.Response:
+    async def get(self, request: web.Request) -> web.Response:
         panel_path = Path(self._hass.config.path(
             "custom_components", "harvest", "panel", "panel.js"
         ))
@@ -3580,8 +3512,13 @@ class HarvestPanelJsView(_HarvestView):
             content = await self._hass.async_add_executor_job(panel_path.read_bytes)
         except OSError:
             raise web.HTTPNotFound()
+        cache_control = (
+            "public, max-age=31536000, immutable"
+            if request.query.get("v")
+            else "no-store"
+        )
         return web.Response(
             body=content,
             content_type="application/javascript",
-            headers={"Cache-Control": "no-store"},
+            headers={"Cache-Control": cache_control},
         )

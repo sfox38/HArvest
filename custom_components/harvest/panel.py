@@ -21,6 +21,19 @@ from .const import DOMAIN, PANEL_PATH, PANEL_ASSETS_PATH
 _LOGGER = logging.getLogger(__name__)
 
 
+def _read_panel_version(panel_dir: str) -> str:
+    """Return the panel build number written by the frontend build.
+
+    The frontend build writes panel_version.txt next to panel.js (see
+    frontend/scripts/increment-build.js). It is used to cache-bust js_url.
+    Returns "" when the file is missing (e.g. an unbuilt checkout).
+    """
+    try:
+        return (Path(panel_dir) / "panel_version.txt").read_text().strip()
+    except OSError:
+        return ""
+
+
 async def register_panel(hass: HomeAssistant) -> None:
     """Register the HArvest sidebar panel.
 
@@ -29,8 +42,12 @@ async def register_panel(hass: HomeAssistant) -> None:
     Using a separate assets path avoids a 403 when the browser makes a direct
     GET to /{PANEL_PATH} on full page reload (directory listing is forbidden).
 
-    panel.js is served via HarvestPanelJsView (Cache-Control: no-store) so
-    an updated bundle is picked up on the next page load without an HA restart.
+    js_url carries the build number (panel_version.txt) as a ?v= query so the
+    bundle can be cached hard by the browser: HarvestPanelJsView serves a
+    versioned request with long immutable caching. The URL is recomputed each
+    time the panel is registered, so a new build (new version) is picked up
+    when the integration reloads on update or restart. Without a version (an
+    unbuilt checkout) the view falls back to no-store.
     """
     panel_dir = hass.config.path("custom_components", DOMAIN, "panel")
     panel_js = Path(panel_dir) / "panel.js"
@@ -56,6 +73,14 @@ async def register_panel(hass: HomeAssistant) -> None:
         ),
     ])
 
+    # Cache-bust the bundle URL with the build number written by the frontend
+    # build, so the browser can cache panel.js across panel opens yet still
+    # pick up a new build (the version, and thus the URL, changes).
+    panel_version = await hass.async_add_executor_job(_read_panel_version, panel_dir)
+    js_url = "/api/harvest/panel.js"
+    if panel_version:
+        js_url = f"{js_url}?v={panel_version}"
+
     # Remove any existing panel registration before re-registering (e.g. on
     # integration reload). Skipped on fresh startup: calling async_remove_panel
     # for a panel that is not registered logs a "Removing unknown panel"
@@ -71,7 +96,7 @@ async def register_panel(hass: HomeAssistant) -> None:
         frontend_url_path=PANEL_PATH,
         config={"_panel_custom": {
             "name": "ha-panel-harvest",
-            "js_url": "/api/harvest/panel.js",
+            "js_url": js_url,
             "embed_iframe": False,
             "trust_external": False,
         }},

@@ -1293,6 +1293,9 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
 
   const renderField = (key: string, field: ServiceFieldSchema) => {
     const sel = field.selector;
+    // Accessible name for the control, matching the visible label rendered by
+    // renderFieldRow (the field has no <label for> association).
+    const fieldLabel = field.name || key.replace(/_/g, " ");
 
     // No selector: infer type from example value.
     if (!sel) {
@@ -1311,7 +1314,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           }}
           disabled={disabled}
           style={{ fontSize: 12 }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1333,7 +1336,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
             }}
             disabled={disabled}
             style={{ fontSize: 12, flex: 1 }}
-          />
+           aria-label={fieldLabel}/>
           {n.mode === "slider" && data[key] != null && (
             <span className="mono fs-11">{String(data[key])}</span>
           )}
@@ -1368,6 +1371,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
+          aria-label={fieldLabel}
         >
           <option value="">--</option>
           {options.map(o => {
@@ -1396,7 +1400,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
               disabled={disabled}
               rows={3}
               style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical", flex: 1 }}
-            />
+             aria-label={fieldLabel}/>
             {suffix && <span className="muted fs-11" style={{ paddingTop: 4 }}>{suffix}</span>}
           </div>
         );
@@ -1417,7 +1421,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
             onChange={e => setField(key, e.target.value || undefined)}
             disabled={disabled}
             style={{ fontSize: 12, flex: 1 }}
-          />
+           aria-label={fieldLabel}/>
           {suffix && <span className="muted fs-11">{suffix}</span>}
         </div>
       );
@@ -1440,6 +1444,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
+          aria-label={fieldLabel}
         >
           <option value="">--</option>
           {filtered.map(e => (
@@ -1467,6 +1472,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
+          aria-label={fieldLabel}
         >
           <option value="">--</option>
           {filtered.map(e => (
@@ -1488,6 +1494,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
+          aria-label={fieldLabel}
         >
           <option value="">--</option>
           {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -1505,6 +1512,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
+          aria-label={fieldLabel}
         >
           <option value="">--</option>
           {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -1522,6 +1530,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
+          aria-label={fieldLabel}
         >
           <option value="">--</option>
           {floors.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -1539,6 +1548,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
+          aria-label={fieldLabel}
         >
           <option value="">--</option>
           {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -1557,7 +1567,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1572,7 +1582,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1586,7 +1596,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1600,7 +1610,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1614,7 +1624,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1648,7 +1658,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
               value={sign}
               onChange={e => setSign(e.target.value === "-")}
               disabled={disabled}
-            >
+             aria-label={`${fieldLabel} sign`}>
               <option value="+">+</option>
               <option value="-">-</option>
             </select>
@@ -1664,7 +1674,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
                 placeholder="0"
                 onChange={e => setDur(unit, e.target.value)}
                 disabled={disabled}
-              />
+               aria-label={`${fieldLabel} ${unit}`}/>
               <span className="svc-duration-label">{label}</span>
             </div>
           ))}
@@ -1684,7 +1694,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           disabled={disabled}
           rows={3}
           style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical" }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1706,7 +1716,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           disabled={disabled}
           rows={3}
           style={{ fontSize: 12, fontFamily: "var(--mono)", resize: "vertical" }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1729,7 +1739,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
             }}
             disabled={disabled}
             style={{ width: 32, height: 24, padding: 0, border: "1px solid var(--divider)", borderRadius: 4 }}
-          />
+           aria-label={fieldLabel}/>
           <span className="muted mono fs-11">{rgb ? `[${rgb.join(", ")}]` : ""}</span>
         </div>
       );
@@ -1752,7 +1762,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
             }}
             disabled={disabled}
             style={{ fontSize: 12, flex: 1 }}
-          />
+           aria-label={fieldLabel}/>
           <span className="muted fs-11">{ct.unit ?? "K"}</span>
         </div>
       );
@@ -1784,7 +1794,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
-        />
+         aria-label={fieldLabel}/>
       );
     }
 
@@ -1801,7 +1811,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
           onChange={e => setField(key, e.target.value || undefined)}
           disabled={disabled}
           style={{ fontSize: 12 }}
-        />
+         aria-label={fieldLabel}/>
       </div>
     );
   };

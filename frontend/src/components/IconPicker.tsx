@@ -332,6 +332,7 @@ export function IconPicker({ value, onPick, onClear, disabled, ariaLabel, defaul
           <input
             className="input icon-picker-filter"
             type="text"
+            aria-label="Filter icons"
             placeholder="Filter icons..."
             value={filter}
             onChange={ev => setFilter(ev.target.value)}
