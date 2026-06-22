@@ -3491,18 +3491,20 @@ class HarvestLovelaceConfigView(_HarvestView):
 
 
 class HarvestPanelJsView(_HarvestView):
-    """GET /api/harvest/panel.js - serve panel bundle with no-store headers.
+    """GET /api/harvest/panel.js - serve the panel bundle.
 
-    Bypasses HA's static file caching so an updated panel.js is picked up
-    immediately on the next page load without an integration reload or HA
-    restart.
+    panel.py appends the build number as a ?v= query to js_url. A versioned
+    request is immutable for that build, so it is cached hard; the version
+    changes on the next build, busting the cache. A request without a version
+    (an unbuilt checkout or a direct hit) falls back to no-store so a rebuilt
+    bundle is still picked up immediately.
     """
 
     url = "/api/harvest/panel.js"
     name = "api:harvest:panel_js"
     requires_auth = False
 
-    async def get(self, _request: web.Request) -> web.Response:
+    async def get(self, request: web.Request) -> web.Response:
         panel_path = Path(self._hass.config.path(
             "custom_components", "harvest", "panel", "panel.js"
         ))
@@ -3510,8 +3512,13 @@ class HarvestPanelJsView(_HarvestView):
             content = await self._hass.async_add_executor_job(panel_path.read_bytes)
         except OSError:
             raise web.HTTPNotFound()
+        cache_control = (
+            "public, max-age=31536000, immutable"
+            if request.query.get("v")
+            else "no-store"
+        )
         return web.Response(
             body=content,
             content_type="application/javascript",
-            headers={"Cache-Control": "no-store"},
+            headers={"Cache-Control": cache_control},
         )
