@@ -178,6 +178,7 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
             onChange={e => saveA11y(e.target.value)}
             disabled={!canEdit}
             className="input display-settings-select"
+            aria-label="Accessibility"
           >
             <option value="standard">Standard</option>
             <option value="enhanced">Enhanced</option>
@@ -197,6 +198,7 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
             onChange={e => saveLang(e.target.value)}
             disabled={!canEdit}
             className="input display-settings-select"
+            aria-label="Language"
           >
             {LANG_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -223,6 +225,7 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
                 onChange={e => saveOnOffline(e.target.value)}
                 disabled={!canEdit}
                 className="input display-settings-select"
+                aria-label="When offline"
               >
                 {ON_OFFLINE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
@@ -254,6 +257,7 @@ export function DisplaySettings({ token, readonly, saving, setSaving, setToken, 
                 onChange={e => saveOnError(e.target.value)}
                 disabled={!canEdit}
                 className="input display-settings-select"
+                aria-label="When error"
               >
                 {ON_ERROR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>

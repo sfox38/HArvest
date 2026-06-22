@@ -684,9 +684,9 @@ export function Themes({ onSelectToken }: ThemesProps) {
             )}
           </div>
         </div>
-        <input ref={fileRef} type="file" accept=".zip" style={{ display: "none" }} onChange={handleImport} />
-        <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" style={{ display: "none" }} onChange={handleThumbnailUpload} />
-        <input ref={rendererJsRef} type="file" accept=".js" style={{ display: "none" }} onChange={handleRendererJsUpload} />
+        <input ref={fileRef} type="file" accept=".zip" aria-label="Import theme file" style={{ display: "none" }} onChange={handleImport} />
+        <input ref={thumbRef} type="file" accept=".png,.jpg,.jpeg" aria-label="Upload thumbnail image" style={{ display: "none" }} onChange={handleThumbnailUpload} />
+        <input ref={rendererJsRef} type="file" accept=".js" aria-label="Upload renderer script" style={{ display: "none" }} onChange={handleRendererJsUpload} />
       </Card>
 
       {selectedTheme && (
@@ -722,6 +722,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 ) : (
                   <input
                     className="input"
+                    aria-label="Theme name"
                     defaultValue={selectedTheme.name}
                     style={{ fontSize: 16, fontWeight: 600, flex: 1 }}
                     onBlur={e => handleNameBlur(e.target.value)}
@@ -747,6 +748,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
                   <div className="row gap-8">
                     <input
                       className="input"
+                      aria-label="Author"
                       defaultValue={selectedTheme.author}
                       key={`author-${selectedTheme.theme_id}`}
                       placeholder="Author"
@@ -756,6 +758,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
                     />
                     <input
                       className="input"
+                      aria-label="Version"
                       defaultValue={selectedTheme.version}
                       key={`version-${selectedTheme.theme_id}`}
                       placeholder="Version"
@@ -766,6 +769,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
                   </div>
                   <input
                     className="input"
+                    aria-label="Description"
                     defaultValue={selectedTheme.description}
                     key={`desc-${selectedTheme.theme_id}`}
                     placeholder="Description (optional)"
@@ -846,6 +850,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
                 <div className="col gap-8">
                   <textarea
                     className={`theme-code-textarea${jsonError ? " error" : ""}`}
+                    aria-label="Theme JSON"
                     value={editedJson}
                     onChange={e => handleJsonChange(e.target.value)}
                     readOnly={selectedTheme.is_bundled}
@@ -884,6 +889,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
                         </div>
                         <textarea
                           className="theme-code-textarea"
+                          aria-label="Renderer source"
                           value={rendererCode}
                           readOnly
                           spellCheck={false}
@@ -908,6 +914,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
                       </div>
                       <textarea
                         className="theme-code-textarea"
+                        aria-label="Renderer source"
                         value={rendererCode}
                         onChange={e => { setRendererCode(e.target.value); setRendererCodeDirty(true); }}
                         readOnly={selectedTheme.is_bundled}
@@ -1025,6 +1032,7 @@ export function Themes({ onSelectToken }: ThemesProps) {
               <input
                 type="text"
                 className="input"
+                aria-label="Type AGREE to confirm"
                 value={agreeText}
                 onChange={e => setAgreeText(e.target.value)}
                 placeholder="Type AGREE"

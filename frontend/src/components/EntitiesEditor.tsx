@@ -912,6 +912,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
           <input
             type="text"
             className="input"
+            aria-label="Filter themes"
             value={themeFilter}
             onChange={e => setThemeFilter(e.target.value)}
             placeholder="Filter themes..."
@@ -992,6 +993,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 <input
                   type="text"
                   className="input flex-1"
+                  aria-label="Display name"
                   value={blockLabelInput}
                   onChange={ev => setBlockLabelInput(ev.target.value)}
                   onBlur={async () => {
@@ -1260,6 +1262,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 <input
                   type="text"
                   className="input flex-1"
+                  aria-label="Display name"
                   value={nameInput}
                   onChange={ev => setNameInput(ev.target.value)}
                   onBlur={saveNameOverride}
@@ -1330,6 +1333,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               <input
                 type="number"
                 className="input"
+                aria-label="Decimal rounding"
                 style={{ width: 96, marginLeft: "auto", textAlign: "center" }}
                 min={0}
                 max={6}
@@ -1677,6 +1681,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                 <div className="entity-setting-row" style={{ paddingTop: 4 }}>
                   <label className="entity-setting-label">Display mode</label>
                   <select
+                    aria-label="Display mode"
                     value={(selectedEntity.display_hints?.display_mode as string) ?? "auto"}
                     onChange={ev => updateDisplayHint(selectedEntity.entity_id, "display_mode", ev.target.value === "auto" ? null : ev.target.value)}
                     disabled={!canEdit}
@@ -1981,6 +1986,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         <span style={{ fontSize: 12, color: "var(--ink-3)", minWidth: 90 }}>{label}</span>
                         <select
+                          aria-label={`${label} action`}
                           value={currentAction}
                           onChange={ev => {
                             const val = ev.target.value;
@@ -2032,6 +2038,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
                             <summary className="muted fs-11" style={{ cursor: "pointer" }}>JSON</summary>
                             <textarea
                               className="input"
+                              aria-label="Action data JSON"
                               placeholder='{"brightness": 255}'
                               value={svcDataStr}
                               disabled={!canEdit}
@@ -2093,6 +2100,7 @@ export function EntitiesEditor({ token, readonly, saving, setSaving, setToken, s
               <input
                 type="text"
                 className="input"
+                aria-label="Type AGREE to confirm"
                 value={agreeText}
                 onChange={e => setAgreeText(e.target.value)}
                 placeholder="Type AGREE"

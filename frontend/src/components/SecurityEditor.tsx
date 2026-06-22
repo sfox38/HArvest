@@ -336,6 +336,7 @@ export function SecurityEditor({ token, readonly, saving, setSaving, setToken, s
                   {hasOriginDropdown && (
                     <div className="row" style={{ gap: 6 }}>
                       <select
+                        aria-label="Allowed URL"
                         value={usingCustom ? ORIGIN_CUSTOM : dropdownSel}
                         onChange={e => {
                           const v = e.target.value;
@@ -361,6 +362,7 @@ export function SecurityEditor({ token, readonly, saving, setSaving, setToken, s
                   {(usingCustom || !hasOriginDropdown) && (
                     <div className="row" style={{ gap: 6 }}>
                       <input
+                        aria-label="Custom allowed URL"
                         value={customInput}
                         onChange={e => setCustomInput(e.target.value)}
                         onKeyDown={e => { if (e.key === "Enter") addUrl(customInput); }}
@@ -398,6 +400,7 @@ export function SecurityEditor({ token, readonly, saving, setSaving, setToken, s
             <div className="col" style={{ gap: 4 }}>
               <input
                 type="date"
+                aria-label="Expiry date"
                 value={editExpiry}
                 min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
                 onChange={e => { setEditExpiry(e.target.value); saveExpiry(e.target.value); }}
@@ -504,6 +507,7 @@ export function SecurityEditor({ token, readonly, saving, setSaving, setToken, s
                 <label style={{ fontSize: 12, fontWeight: 500 }}>Timezone</label>
                 <select
                   value={schedTz}
+                  aria-label="Timezone"
                   onChange={e => { setSchedTz(e.target.value); markSchedDirty(); }}
                   disabled={!canEdit}
                   className="input"
@@ -533,12 +537,14 @@ export function SecurityEditor({ token, readonly, saving, setSaving, setToken, s
                 <label style={{ fontSize: 12, fontWeight: 500 }}>From</label>
                 <input
                   type="time" value={schedStart}
+                  aria-label="From"
                   onChange={e => { setSchedStart(e.target.value); markSchedDirty(); }}
                   disabled={!canEdit} className="input fs-12"
                 />
                 <label style={{ fontSize: 12, fontWeight: 500 }}>to</label>
                 <input
                   type="time" value={schedEnd}
+                  aria-label="to"
                   onChange={e => { setSchedEnd(e.target.value); markSchedDirty(); }}
                   disabled={!canEdit} className="input fs-12"
                 />

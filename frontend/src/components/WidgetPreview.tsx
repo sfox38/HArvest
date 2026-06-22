@@ -635,6 +635,7 @@ export function WidgetPreview({ variables, darkVariables, rendererId, iconSet }:
           value={renderer}
           onChange={e => handleRendererChange(e.target.value)}
           style={{ flex: 1, minWidth: 140 }}
+          aria-label="Renderer"
         >
           {RENDERER_OPTIONS.filter(o => o.value !== "custom" || realEntity).map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>

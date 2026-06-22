@@ -829,6 +829,7 @@ function Step1({ state, onChange, existingLabels, maxEntities, blockedDomains }:
             <div className="col" style={{ gap: 4, flex: 1, minWidth: 160 }}>
               <label className="label-strong">Widget name</label>
               <input
+                aria-label="Widget name"
                 value={state.label}
                 maxLength={100}
                 onChange={e => onChange({ label: e.target.value, labelAutoset: false })}
@@ -1262,6 +1263,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
           <div className="col" style={{ gap: 4 }}>
             <label className="label-strong">Widget name</label>
             <input
+              aria-label="Widget name"
               value={widgetName}
               maxLength={100}
               onChange={e => {
