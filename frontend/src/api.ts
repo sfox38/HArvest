@@ -20,6 +20,7 @@ import type {
   HAEntity,
   HAEntityDetail,
   ThemeDefinition,
+  GithubTheme,
   RenderersResponse,
   WarningsState,
   UrlCheckResult,
@@ -28,6 +29,15 @@ import type {
 } from "./types";
 
 const BASE = "/api/harvest";
+
+// User-contributed theme registry on GitHub. The Themes screen browses this
+// directory and downloads zips client-side (both api.github.com and
+// raw.githubusercontent.com send permissive CORS), then feeds them through the
+// normal import flow. No server proxy is involved.
+const GITHUB_THEMES_OWNER = "sfox38";
+const GITHUB_THEMES_REPO = "HArvest";
+const GITHUB_THEMES_BRANCH = "main";
+const GITHUB_THEMES_DIR = "User Contributed Themes";
 
 interface HassAuth {
   data?: { access_token?: string; expires?: number };
@@ -422,6 +432,46 @@ export const api = {
         throw new Error(`Import failed: ${res.status}${json.message ? ` - ${json.message}` : ""}`);
       }
       return json as ThemeDefinition;
+    },
+
+    // List theme .zip files published in the HArvest GitHub repo. Fetched
+    // directly from the GitHub contents API (no HA auth, cross-origin). Returns
+    // them sorted by name; throws a human-readable Error on failure.
+    githubList: async (): Promise<GithubTheme[]> => {
+      const url = `https://api.github.com/repos/${GITHUB_THEMES_OWNER}/${GITHUB_THEMES_REPO}/contents/${encodeURIComponent(GITHUB_THEMES_DIR)}?ref=${GITHUB_THEMES_BRANCH}`;
+      let res: Response;
+      try {
+        res = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+      } catch {
+        throw new Error("Could not reach GitHub. Check this device's internet connection.");
+      }
+      if (!res.ok) {
+        if (res.status === 403) throw new Error("GitHub rate limit reached. Please try again in a little while.");
+        throw new Error(`GitHub returned an error (HTTP ${res.status}).`);
+      }
+      const items = await res.json().catch(() => null);
+      if (!Array.isArray(items)) throw new Error("Unexpected response from GitHub.");
+      return items
+        .filter((i): i is { name: string; size: number; download_url: string } =>
+          i && i.type === "file" && typeof i.name === "string"
+          && i.name.toLowerCase().endsWith(".zip") && typeof i.download_url === "string")
+        .map(i => ({ name: i.name, size: i.size, download_url: i.download_url }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+
+    // Download one GitHub theme zip and wrap it as a File so it can flow
+    // through importZip exactly like a locally chosen file. download_url comes
+    // from githubList (GitHub's own raw URL), not user input.
+    githubDownload: async (downloadUrl: string, name: string): Promise<File> => {
+      let res: Response;
+      try {
+        res = await fetch(downloadUrl);
+      } catch {
+        throw new Error("Could not download the theme from GitHub. Check this device's internet connection.");
+      }
+      if (!res.ok) throw new Error(`Download failed (HTTP ${res.status}).`);
+      const blob = await res.blob();
+      return new File([blob], name, { type: "application/zip" });
     },
 
     exportZip: async (themeId: string): Promise<void> => {

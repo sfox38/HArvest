@@ -240,6 +240,13 @@ export interface ThemeDefinition {
   icon_set: string | null;
 }
 
+/** A theme .zip published in the HArvest GitHub "User Contributed Themes" dir. */
+export interface GithubTheme {
+  name: string;
+  size: number;
+  download_url: string;
+}
+
 // ---------------------------------------------------------------------------
 // Renderers
 // ---------------------------------------------------------------------------
