@@ -163,6 +163,14 @@ export function TokenList({ onOpenWizard, onOpenConverter, initialTokenId, onIni
     }
   }, [initialTokenId, onInitialTokenConsumed, load]);
 
+  // Persist the open token so the Widgets tab reopens it after a reload or
+  // navigating away and back. Cleared when returning to the list (App seeds
+  // this back as initialTokenId on the next load; see readStoredToken).
+  useEffect(() => {
+    if (selectedId) localStorage.setItem("hrv_widget_token", selectedId);
+    else localStorage.removeItem("hrv_widget_token");
+  }, [selectedId]);
+
   const filtered = tokens.filter(t => {
     const words = search.toLowerCase().split(/\s+/).filter(Boolean);
     const hay = `${t.label} ${primaryOrigin(t)} ${t.entities.map(e => e.entity_id).join(" ")}`.toLowerCase();
