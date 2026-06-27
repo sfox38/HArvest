@@ -334,7 +334,7 @@ class TestGetSourceIp:
         assert view._get_source_ip(req) == "10.0.0.1"
 
     def test_multi_hop_walks_back_through_trusted_chain(self):
-        # client (203.0.113.5) -> cloudflare (104.16.0.1) -> nginx (10.0.0.1) -> HA
+        # client (203.0.113.5), cloudflare (104.16.0.1), nginx (10.0.0.1), HA
         # Proxies append their incoming peer to XFF. Walking right to left
         # past the trusted proxies yields the real client.
         view = _make_view(config={**DEFAULTS, "trusted_proxies": ["10.0.0.1", "104.16.0.1"]})

@@ -80,7 +80,6 @@ class TestPanelJsView:
         etag_after = (await view.get(_request())).headers["ETag"]
 
         assert etag_before != etag_after
-        # The previously-cached ETag no longer matches, so the browser refetches.
         resp = await view.get(_request(if_none_match=etag_before))
         assert resp.status == 200
 

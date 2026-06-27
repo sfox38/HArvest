@@ -3,7 +3,7 @@
  *
  * Covers the history-graph data path end to end:
  *
- *   1. Renderer drawing       - BaseCard.receiveHistoryData() -> SVG in
+ *   1. Renderer drawing       - BaseCard.receiveHistoryData() creates SVG in
  *                               [part=history-graph].
  *   2. HrvCard hookup         - receiveDefinition() with display_hints.graph
  *                               builds the history zone and wires config.graph;
@@ -13,7 +13,7 @@
  *                               card registered under its entity ref, and
  *                               requestHistory() emits a well-formed request.
  *
- * These exercise the live path (server history_data -> card -> renderer),
+ * These exercise the live path from server history_data to card to renderer,
  * which is what makes the graph appear on hosted widgets. The panel preview
  * uses the same renderer drawing with mock points.
  */
@@ -144,7 +144,7 @@ describe("BaseCard.receiveHistoryData() drawing", () => {
       { t: new Date(Date.now() - 2 * 3600_000).toISOString(), s: "unavailable" },
       { t: new Date(Date.now() - 1 * 3600_000).toISOString(), s: "21" },
     ];
-    // Only one usable point survives -> nothing to draw.
+    // Only one usable point survives, so there is nothing to draw.
     c.receiveHistoryData(pts, 24, "line");
     expect(c.root.querySelector("[part=history-graph]").innerHTML).toBe("");
   });
@@ -293,7 +293,7 @@ describe("HarvestClient history routing", () => {
 
 // ---------------------------------------------------------------------------
 // 4. End-to-end live path on a real <hrv-card>
-//    server entity_definition (graph) -> requestHistory -> history_data -> SVG
+//    server entity_definition with graph, requestHistory, history_data, SVG
 // ---------------------------------------------------------------------------
 
 describe("HrvCard live history end-to-end", () => {

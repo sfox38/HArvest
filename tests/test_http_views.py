@@ -302,8 +302,7 @@ class TestParseSessionConfig:
             _parse_session_config({"max_lifetime_minutes": -10})
 
     def test_string_max_renewals_rejected(self):
-        # Untyped raw.get("max_renewals") previously stored the string and
-        # crashed when ws_proxy compared int >= str at renewal time.
+        # max_renewals must be numeric before renewal comparisons.
         with pytest.raises(ValueError):
             _parse_session_config({"max_renewals": "five"})
 
@@ -1617,7 +1616,7 @@ class TestHarvestAggregatesViewGet:
 
 
 # ---------------------------------------------------------------------------
-# HarvestTokenDetailView PATCH (previously uncovered)
+# HarvestTokenDetailView PATCH
 # ---------------------------------------------------------------------------
 
 class TestHarvestTokenDetailViewPatch:
@@ -1729,7 +1728,7 @@ class TestHarvestTokenDetailViewPatch:
 
 
 # ---------------------------------------------------------------------------
-# HarvestActivityExportView (previously uncovered)
+# HarvestActivityExportView
 # ---------------------------------------------------------------------------
 
 class TestHarvestActivityExportView:
@@ -1768,7 +1767,7 @@ class TestHarvestActivityExportView:
 
 
 # ---------------------------------------------------------------------------
-# Error paths in HarvestTokensView.post() (previously uncovered lines 201-219)
+# Error paths in HarvestTokensView.post()
 # ---------------------------------------------------------------------------
 
 class TestHarvestTokensViewPostErrors:
@@ -1798,7 +1797,7 @@ class TestHarvestTokensViewPostErrors:
 
 
 # ---------------------------------------------------------------------------
-# HarvestConfigView PATCH invalid JSON (previously uncovered)
+# HarvestConfigView PATCH invalid JSON
 # ---------------------------------------------------------------------------
 
 class TestHarvestConfigViewPatchErrors:

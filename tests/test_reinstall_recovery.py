@@ -1,25 +1,4 @@
-"""Regression tests for the uninstall+reinstall recovery path.
-
-HACS reinstall does not restart Home Assistant. The integration is
-unloaded, files are replaced, and a fresh config entry is created with
-a brand-new ``entry_id``. HA's HTTP layer has no API to unregister
-views, so the long-lived HTTP and WebSocket views from the first
-install survive into the second install with their captured
-``entry_id`` permanently stale.
-
-These tests guard against the regression where:
-
-  * ``_HarvestView``-derived views raised ``KeyError`` on every request
-    after reinstall (manifested as ``500 Server got itself in trouble``
-    on ``/api/harvest/stats``), because they read
-    ``hass.data[DOMAIN][OLD_entry_id]`` which had been popped on unload.
-  * The WebSocket view returned 503 forever, leaving every hosted widget
-    stuck in reconnect backoff.
-
-The fix routes all view manager lookups through ``get_entry_data``,
-which transparently falls back to whichever entry's data is currently
-live when the captured entry_id is stale.
-"""
+"""Regression tests for resolving live entry data after reinstall."""
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -58,11 +37,8 @@ class TestGetEntryDataAfterReinstall:
 
     def test_falls_back_to_live_entry_data(self):
         hass = MagicMock()
-        # entry_A was the first install (now unloaded - empty dict left
-        # behind would never happen because async_unload_entry pops, but
-        # we model the post-reinstall state where entry_B is the live one).
+        # Simulate a stale captured entry id with one live replacement entry.
         hass.data = {DOMAIN: {"entry_B_new": {"token_manager": "tm_B"}}}
-        # The view was constructed with entry_A's id (now stale forever).
         result = get_entry_data(hass, "entry_A_stale")
         assert result == {"token_manager": "tm_B"}
 
@@ -91,9 +67,7 @@ class TestGetEntryDataAfterReinstall:
 # ---------------------------------------------------------------------------
 
 class TestHarvestViewAfterReinstall:
-    """A view constructed against the OLD entry_id must serve requests
-    using the NEW entry's managers after a reinstall.
-    """
+    """A stale view resolves managers from the live entry."""
 
     def _stale_view_with_live_data(self):
         from custom_components.harvest.http_views import _HarvestView
@@ -105,7 +79,6 @@ class TestHarvestViewAfterReinstall:
         hass = MagicMock()
         hass.data = {
             DOMAIN: {
-                # Brand-new entry_id from the second install.
                 "entry_B_new": {
                     "token_manager": live_token_manager,
                     "session_manager": live_session_manager,
@@ -118,7 +91,6 @@ class TestHarvestViewAfterReinstall:
                 },
             }
         }
-        # View was registered during the FIRST install with entry_A's id.
         view = _HarvestView(hass, "entry_A_stale")
         return view, live_token_manager, live_session_manager, live_activity_store
 
@@ -136,9 +108,7 @@ class TestHarvestViewAfterReinstall:
 
     @pytest.mark.asyncio
     async def test_stats_endpoint_returns_200_after_reinstall(self):
-        """Repro of the user-visible bug: GET /api/harvest/stats returned
-        500 with 'Server got itself in trouble' after uninstall+reinstall.
-        """
+        """Stats endpoint returns a response after reinstall."""
         from custom_components.harvest.http_views import HarvestStatsView
 
         live_tm = MagicMock()
@@ -171,7 +141,7 @@ class TestHarvestViewAfterReinstall:
         admin.is_admin = True
         request.get = MagicMock(return_value=admin)
 
-        # Before the fix this raised KeyError -> aiohttp 500.
+        # Stale entry ids must not raise KeyError.
         response = await view.get(request)
         # response is an aiohttp.web.Response; success is body-bearing JSON,
         # not a raised exception.
@@ -183,9 +153,7 @@ class TestHarvestViewAfterReinstall:
 # ---------------------------------------------------------------------------
 
 class TestWsViewAfterReinstall:
-    """Hosted widgets reconnect to the WS view; after reinstall it must
-    accept connections using the new entry's managers, not 503 forever.
-    """
+    """WS view resolves the live entry after reinstall."""
 
     def test_ws_view_resolves_live_token_manager(self):
         from custom_components.harvest.ws_proxy import HarvestWsView
@@ -208,6 +176,5 @@ class TestWsViewAfterReinstall:
         }
         view = HarvestWsView(hass, "entry_A_stale")
         assert view._token_manager is live_tm
-        # Before the fix, view._data was {} -> WS handshake aborted with 503
-        # for every reconnect attempt. After the fix _data is the live dict.
+        # _data resolves to the live entry data.
         assert view._data
