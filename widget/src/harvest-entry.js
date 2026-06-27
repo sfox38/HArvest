@@ -2,7 +2,7 @@
  * harvest-entry.js - Build entry point for the HArvest widget bundle.
  *
  * Assembles the public window.HArvest API, registers custom elements,
- * and wires up cross-module references (StateCache -> HarvestClient).
+ * and wires up cross-module references between StateCache and HarvestClient.
  *
  * This file is the single entry point passed to esbuild. The output is
  * an IIFE that assigns window.HArvest and defines the <hrv-card> and

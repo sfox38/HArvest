@@ -54,7 +54,7 @@ class Harvest_Csp {
         }
 
         // Map HA URL scheme to its WebSocket equivalent for the CSP directive.
-        // The widget at harvest-client.js maps http -> ws and https -> wss.
+        // The widget at harvest-client.js maps http to ws and https to wss.
         // CSP must mirror that mapping or the WS handshake is blocked on
         // http:// HA installs (e.g. local LAN deployments).
         if ( strncmp( $ha_url, 'https://', 8 ) === 0 ) {

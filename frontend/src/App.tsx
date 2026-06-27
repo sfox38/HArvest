@@ -110,7 +110,6 @@ export function App() {
   // Subscribe to connectivity changes.
   useEffect(() => onConnectivityChange(setOffline), []);
 
-  // Fetch kill switch state on mount.
   useEffect(() => {
     api.config.get().then(c => setKillSwitch(c.kill_switch ?? false)).catch(() => {});
   }, []);

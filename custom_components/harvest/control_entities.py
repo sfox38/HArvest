@@ -152,7 +152,7 @@ class HarvestKillSwitch(SwitchEntity):
         )
         if value:
             # Send auth_failed before closing so widgets enter permanent
-            # failure (HRV_AUTH_FAILED -> "Widget unavailable") immediately,
+            # failure with "Widget unavailable" immediately,
             # rather than treating the close as a transient connectivity blip
             # and burning ~2 minutes of reconnect backoff before each retry
             # eventually hits the server-side kill-switch check. Matches the

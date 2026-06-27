@@ -2,7 +2,7 @@
  * renderers/index.js - Renderer registry and lookup function.
  *
  * Provides:
- *   lookupRenderer(domain, deviceClass) -> typeof BaseCard
+ *   lookupRenderer(domain, deviceClass) returns typeof BaseCard
  *   registerRenderer(key, rendererClass)  - public API for third-party renderers
  *
  * Lookup priority:

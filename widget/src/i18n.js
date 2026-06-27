@@ -6,11 +6,11 @@
  *   const i18n = new I18n("de");    // explicit language code
  *   i18n.t("state.on");             // "An"
  *
- * Fallback chain: requested language -> English -> raw key string.
+ * Fallback chain: requested language, English, raw key string.
  *
  * Language codes follow BCP 47 primary subtags (two-letter ISO 639-1).
  * When lang="auto", navigator.language is resolved with script-tag
- * awareness (e.g. "en-US" -> "en", "zh-TW" -> "zh-Hant", "zh-CN" -> "zh-Hans").
+ * awareness (e.g. "en-US" to "en", "zh-TW" to "zh-Hant", "zh-CN" to "zh-Hans").
  *
  * String keys are dot-separated namespaces:
  *   state.*        - entity state labels

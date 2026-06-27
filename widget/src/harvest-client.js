@@ -7,7 +7,7 @@
  * clients even when the haUrl is the same.
  *
  * Public exports:
- *   getOrCreateClient(haUrl, tokenId, tokenSecret) -> HarvestClient
+ *   getOrCreateClient(haUrl, tokenId, tokenSecret) returns HarvestClient
  *   destroyClient(haUrl, tokenId)
  */
 
@@ -102,7 +102,7 @@ export class HarvestClient {
   /** @type {number} */ #msgIdCounter = 0;
   /** @type {boolean} */ #authPending = false;
 
-  // entityId -> HrvCard (last-write-wins)
+  // entityId to HrvCard, last write wins.
   /** @type {Map<string, object>} */ #cards = new Map();
 
   // entity IDs collected during the 50ms debounce window
@@ -535,15 +535,7 @@ export class HarvestClient {
     if (this.#authPending) return;
     this.#authPending = true;
 
-    // Collect all entity refs currently known to this client. Each entry may
-    // be a real entity ID (from a card with `entity=`) or an alias (from a
-    // card with `alias=`); SPEC.md Section 5.1 explicitly accepts mixed
-    // arrays and the server resolves each ref against the token's entity
-    // list with alias-then-real-id lookup. There is no cross-token namespace
-    // risk here because clients are singletons keyed by (haUrl, tokenId), so
-    // every ref in #cards belongs to the same token's namespace; token swaps
-    // mid-element-life are not a supported code path (hrv-card's
-    // attributeChangedCallback does not swap the client).
+    // Collect current entity refs; each may be a real entity ID or alias.
     const entityIds = [...new Set([
       ...this.#pendingEntityIds,
       ...this.#cards.keys(),
@@ -557,10 +549,7 @@ export class HarvestClient {
       entity_ids: entityIds,
       page_path: window.location.pathname,
       msg_id: this.#nextMsgId(),
-      // Compatibility handshake (SPEC.md Section 5.1, Section 12).
-      // Server uses this block to detect version drift and surface
-      // banners in the panel; old servers ignore unknown fields, so
-      // including this on every connect is purely additive.
+      // Compatibility metadata for panel drift warnings.
       client: getClientInfo(),
     };
 
@@ -721,12 +710,7 @@ export class HarvestClient {
     const code = msg.code ?? "HRV_AUTH_FAILED";
     console.warn("[HArvest] Auth failed:", code);
 
-    // HRV_PROTOCOL_INCOMPATIBLE is its own permanent state, distinct
-    // from the generic auth-failed bucket. The visitor sees a clear
-    // "Widget version cannot connect to this server. Update your
-    // snippet" message rather than the generic "Widget unavailable",
-    // because the cause (stale cached snippet on a public page) is
-    // user-actionable. Server side: SPEC.md Section 5.3, Section 12.
+    // Protocol incompatibility is permanent and gets a distinct visitor message.
     if (code === "HRV_PROTOCOL_INCOMPATIBLE") {
       this.#permanentFailure = true;
       const serverInfo = msg.server || {};
@@ -869,9 +853,9 @@ export class HarvestClient {
     // HA's last_updated has microsecond precision in ISO form. Two genuine
     // updates within the same millisecond would round to equal Dates, so
     // using `<=` on Dates alone would silently drop the second.
-    //   - Byte-equal raw string -> true duplicate (e.g. reconnect resend); drop.
-    //   - Parsed Date strictly older -> out-of-order delivery; drop.
-    //   - Same parsed Date, different raw string -> distinct sub-millisecond
+    //   - Byte-equal raw string means true duplicate, such as reconnect resend; drop.
+    //   - Parsed Date strictly older means out-of-order delivery; drop.
+    //   - Same parsed Date, different raw string means distinct sub-millisecond
     //     update; let it through, applied in arrival order.
     if (
       existing

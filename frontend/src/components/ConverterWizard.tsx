@@ -649,7 +649,7 @@ export function ConverterWizard({ onClose }: ConverterWizardProps) {
           } catch { /* alias generation is best-effort */ }
         }
 
-        // Deduplicate label: "Converted: Fans" -> "Converted: Fans (2)" etc.
+        // Deduplicate label, for example "Converted: Fans" to "Converted: Fans (2)".
         let label = TOKEN_LABEL_PREFIX + spec.label;
         if (existingLabels.has(label)) {
           let n = 2;

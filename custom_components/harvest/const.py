@@ -7,11 +7,7 @@ from __future__ import annotations
 DOMAIN = "harvest"
 PLATFORM_VERSION = "1.0.0"              # must match manifest.json application version
 
-# WebSocket protocol versioning. See SPEC.md Section 12 (Client/Server
-# Compatibility). PROTOCOL_VERSION bumps only on breaking message-format
-# changes. MIN_CLIENT_PROTOCOL bumps only when the server stops accepting
-# an older protocol. The server accepts any client whose `protocol` falls
-# in [MIN_CLIENT_PROTOCOL, PROTOCOL_VERSION].
+# WebSocket protocol compatibility range accepted by the server.
 PROTOCOL_VERSION = 1
 MIN_CLIENT_PROTOCOL = 1
 
@@ -76,14 +72,14 @@ CONF_SENSITIVE_DOMAINS = "sensitive_domains"
 
 MAX_ENTITIES_HARD_CAP = 250
 
-# Default values matching SPEC.md Section 19
+# Default integration configuration values.
 DEFAULTS: dict[str, object] = {
     CONF_AUTH_TIMEOUT: 10,
     CONF_MAX_INBOUND_BYTES: 4096,
     CONF_KEEPALIVE_INTERVAL: 30,
     CONF_KEEPALIVE_TIMEOUT: 10,
     CONF_HEARTBEAT_TIMEOUT: 60,
-    CONF_ACTIVITY_RETENTION_DAYS: 30,       # matches security.md documented default
+    CONF_ACTIVITY_RETENTION_DAYS: 30,       # activity log retention in days
     CONF_ABSOLUTE_SESSION_LIFETIME: 72,     # hard cap on total cumulative session age across all renewals
                                             # distinct from max_lifetime_minutes which bounds individual sessions
     CONF_MAX_AUTH_PER_TOKEN: 10,
@@ -189,7 +185,7 @@ DISPLAY_TIER_ATTRIBUTES: dict[str, frozenset[str]] = {
     }),
 }
 
-# Error codes (subset used server-side; full list in SPEC.md Section 6)
+# Server-side error codes.
 ERR_TOKEN_INVALID = "HRV_TOKEN_INVALID"
 ERR_TOKEN_EXPIRED = "HRV_TOKEN_EXPIRED"
 ERR_TOKEN_REVOKED = "HRV_TOKEN_REVOKED"

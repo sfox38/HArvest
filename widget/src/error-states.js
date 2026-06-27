@@ -1,28 +1,4 @@
-/**
- * error-states.js - Error state management and visual treatment for HrvCard.
- *
- * Provides applyErrorState(), which is called by HrvCard.setErrorState()
- * whenever the connection state changes. It updates the card's data attribute
- * (for CSS targeting), applies skeleton/stale/overlay treatments, and respects
- * the on-offline and on-error configuration attributes.
- *
- * Error state codes (from SPEC.md Section 6):
- *   live              - Connected and receiving live data. Clears all overlays.
- *   HRV_CONNECTING    - Initial connection attempt. Shows skeleton pulse.
- *   HRV_STALE         - Disconnected but cached state is displayed. Shows
- *                       stale indicator banner over the card.
- *   HRV_OFFLINE       - No cached state available while disconnected.
- *   HRV_AUTH_FAILED   - Authentication permanently failed (token invalid,
- *                       expired, revoked, or 3 consecutive re-auth failures).
- *   HRV_ENTITY_MISSING  - Entity not found in HA or not in token scope.
- *   HRV_ENTITY_REMOVED  - Entity was removed from HA while connected.
- *   HRV_INCOMPATIBLE    - Widget speaks a WS protocol the server cannot
- *                       accept (cached snippet outliving an integration
- *                       update). Permanent; visitor sees a distinct
- *                       "Update your snippet" message rather than the
- *                       generic "Widget unavailable", because the cause
- *                       is admin-actionable. SPEC.md Section 5.3.
- */
+/** Apply HrvCard connection and auth error states. */
 
 /**
  * Offline-class states: transient, may recover on reconnect.
@@ -52,7 +28,6 @@ const AUTH_ERROR_STATES = new Set([
  * @param {object}      i18n          - I18n instance with a t() method.
  */
 export function applyErrorState(cardEl, shadowRoot, code, config, i18n) {
-  // Update data attribute so external CSS can target specific states.
   cardEl.setAttribute("data-harvest-state", code);
 
   // ------- live: remove all overlays and restore normal display -------
@@ -103,9 +78,7 @@ export function applyErrorState(cardEl, shadowRoot, code, config, i18n) {
   }
 
   // treatment === "message" or "last-state" - show message overlay.
-  // HRV_INCOMPATIBLE is admin-actionable so it gets its own distinct
-  // message (SPEC.md Section 6 visitor-facing display table) instead of
-  // the generic "Widget unavailable" used for the rest of AUTH_ERROR_STATES.
+  // HRV_INCOMPATIBLE gets a distinct update-snippet message.
   let defaultMsg;
   if (code === "HRV_INCOMPATIBLE") {
     defaultMsg = i18n.t("error.incompatible");

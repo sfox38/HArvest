@@ -15,22 +15,20 @@
  * Mount is idempotent: data-harv-mounted="true" is set on each processed
  * element so re-scanning never double-mounts.
  *
- * Attribute mapping (data-* -> hrv-card attribute):
- *   data-entity       -> entity       (priority over data-alias)
- *   data-alias        -> alias
- *   data-token        -> token
- *   data-ha-url       -> ha-url
- *   data-token-secret -> token-secret
- *   data-layout       -> layout
+ * Attribute mapping from data-* to hrv-card attributes:
+ *   data-entity maps to entity (priority over data-alias)
+ *   data-alias maps to alias
+ *   data-token maps to token
+ *   data-ha-url maps to ha-url
+ *   data-token-secret maps to token-secret
+ *   data-layout maps to layout
  *
  * Gesture configuration (tap/hold/double-tap actions) is managed server-side
  * per entity on the token and delivered via the entity_definition message.
  * There are no data-tap-action / data-hold-action / data-double-tap-action
  * attributes - use the HArvest panel to configure gestures.
  *
- * Per CLAUDE.md Open Question #3: mountCard() walks parentElement until
- * document.body to find a parent .hrv-group and inherit token/ha-url when
- * not set on the mount element itself.
+ * mountCard() inherits token and ha-url from the nearest parent .hrv-group.
  */
 
 // ---------------------------------------------------------------------------
@@ -128,8 +126,7 @@ function mountGroup(el) {
  *
  * entity= takes priority over alias= when both data attributes are set.
  *
- * Token and ha-url are inherited from a parent .hrv-group div if not set
- * directly on the mount element (per CLAUDE.md Open Question #3).
+   * Token and ha-url are inherited from a parent .hrv-group div if absent.
  *
  * @param {HTMLElement} el
  */

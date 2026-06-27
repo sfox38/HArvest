@@ -1,30 +1,5 @@
 <?php
-/**
- * class-harvest-assets.php - Widget JS script enqueuing.
- *
- * Enqueues the HArvest widget script in the page footer. Uses WordPress's
- * wp_enqueue_script() system to guarantee the script is loaded only once per
- * page, even when multiple [harvest] shortcodes appear on the same page.
- *
- * Two source modes are supported, selectable in the plugin settings:
- *
- *   ha     - HA-served (default, recommended). Loads the widget bundle from
- *            {harvest_ha_url}/harvest_assets/harvest.min.js. The integration
- *            serves this from its own files, so the widget always matches
- *            the running integration version. Eliminates widget-vs-server
- *            drift by construction. SPEC.md Section 12.
- *
- *   custom - Loads from a URL provided by the site administrator. Suitable
- *            for self-hosted or staged widget builds.
- *
- * Pre-1.9.0 stored value 'bundled' is silently migrated to 'ha' in
- * Harvest_Settings::get_widget_source(), so this class never sees 'bundled'.
- *
- * The script is loaded in the footer (last argument true to wp_enqueue_script)
- * to avoid render-blocking. The MutationObserver in hrv-mount.js handles
- * elements that exist in the DOM at script evaluation time as well as those
- * added dynamically.
- */
+/** Enqueues the HArvest widget script once per page. */
 
 defined( 'ABSPATH' ) || exit;
 
@@ -145,7 +120,7 @@ class Harvest_Assets {
 
         if ( $src === '' ) {
             // 'ha' mode (the default), or 'custom' with no URL configured.
-            // Load from the integration's static path. SPEC.md Section 12.
+            // Load from the integration's static path.
             $ha_url = Harvest_Settings::get_ha_url();
             if ( $ha_url === '' ) {
                 // No HA URL configured at all - we can't build any working
@@ -161,12 +136,7 @@ class Harvest_Assets {
             $ver = null;
         }
 
-        // Append the compatibility-handshake source marker so the widget
-        // can identify itself as WP-loaded and report its plugin version
-        // to the integration. The widget reads this via
-        // document.currentScript.src and includes it in the WS auth
-        // message's `client.source` / `client.source_version` fields.
-        // See SPEC.md Section 5.1 + Section 12 (Client/Server Compatibility).
+        // Add the WordPress source marker for widget compatibility reporting.
         $src = self::with_wp_query_param( $src );
 
         wp_enqueue_script(

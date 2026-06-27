@@ -155,15 +155,7 @@ def _token_to_dict(token: Token) -> dict:
 
 
 def _session_to_dict(session) -> dict:
-    """Serialise a Session to a JSON-safe dict (no WebSocket reference).
-
-    Includes the client/server compatibility fields (SPEC.md Section 12)
-    so the panel home banner can group sessions by their reported source
-    and surface version-drift warnings. Old widgets predating the auth
-    `client` block populate the defaults from session_manager.Session
-    (protocol=1, source="unknown", compatibility="ok"), which the panel
-    treats as "no warning to surface."
-    """
+    """Serialise a Session to a JSON-safe dict without its WebSocket."""
     return {
         "session_id": session.session_id,
         "token_id": session.token_id,
@@ -2685,7 +2677,7 @@ class HarvestStatsView(_HarvestView):
 
 
 # ---------------------------------------------------------------------------
-# Warnings (drift banner dismissal) - SPEC.md Section 12
+# Warnings and drift banner dismissal
 # ---------------------------------------------------------------------------
 
 class HarvestWarningsView(_HarvestView):
@@ -2905,29 +2897,7 @@ async def _probe_public_url(raw: str) -> int:
 
 
 class HarvestCheckUrlView(_HarvestView):
-    """GET /api/harvest/check_url?url=... - probe a URL from the HA server side.
-
-    Used by the panel Settings page to render live reachability
-    indicators for the Override Host field (which determines the
-    HA-served snippet URL) and the custom widget_script_url field.
-    The browser can't fetch arbitrary cross-origin URLs because of
-    CORS; this endpoint proxies the HEAD request from HA so the
-    same-origin restriction does not apply.
-
-    The reported reachability is ADVISORY ONLY. A "not reachable"
-    result does not necessarily mean visitors will fail to load the
-    widget: visitors may be on a different network than HA (LAN-only
-    custom hosts, internal proxies). The panel surfaces this nuance
-    with prose, not a blocking error. SPEC.md Section 12.
-
-    Response shape (always all four fields):
-      {
-        ok: bool,        # true on a 2xx HEAD response
-        status: int,     # HTTP status code, 0 if no response received
-        reason: str,     # "reachable" | "unreachable" | "relative" | "invalid"
-        message: str,    # human-readable, suitable for direct display
-      }
-    """
+    """Probe a URL from HA and return advisory reachability details."""
 
     url = "/api/harvest/check_url"
     name = "api:harvest:check_url"

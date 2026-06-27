@@ -76,7 +76,6 @@ class HaPanelHarvest extends HTMLElement {
     // Attach shadow DOM for style isolation.
     const shadow = this.attachShadow({ mode: "open" });
 
-    // Mount point inside shadow DOM.
     const container = document.createElement("div");
     container.id = "harvest-panel-root";
     shadow.appendChild(container);
@@ -111,7 +110,6 @@ class HaPanelHarvest extends HTMLElement {
   }
 }
 
-// Register only once.
 if (!customElements.get("ha-panel-harvest")) {
   customElements.define("ha-panel-harvest", HaPanelHarvest);
 }

@@ -1,21 +1,5 @@
 /**
- * theme-loader.js - Theme CSS variable injection.
- *
- * Theme JSON format (theming.md):
- * {
- *   "name": "...",
- *   "author": "...",          // optional
- *   "version": "...",         // optional
- *   "harvest_version": 1,
- *   "variables": {
- *     "--hrv-color-primary": "#6366f1",
- *     ...
- *   },
- *   "dark_variables": {       // optional, merged over variables when dark mode is active
- *     "--hrv-color-primary": "#818cf8",
- *     ...
- *   }
- * }
+ * Apply theme CSS variables to a card shadow host.
  *
  * apply() sets CSS custom properties on the shadow host element so they
  * cascade into the shadow DOM via the :host selector. Dark-mode overrides

@@ -123,12 +123,8 @@ class Token:
                                             # backups). The secret is NOT hashed - it must be retrievable
                                             # for HMAC verification.
                                             #
-                                            # NOTE: per SPEC.md, the secret is also embedded in the page
-                                            # HTML alongside the token_id (the widget needs both to sign
-                                            # auth messages). Both values are visible in page source.
-                                            # The HMAC security claim is that a leaked token_id ALONE
-                                            # (without the paired secret) cannot authenticate - not that
-                                            # the secret is hidden from page viewers.
+                                            # The widget needs the plaintext secret to sign auth messages;
+                                            # page viewers can see it in source.
     origins: OriginConfig
     entities: list[EntityAccess]
     rate_limits: RateLimitConfig
@@ -716,22 +712,7 @@ class TokenManager:
         nonce: str,
         signature: str,
     ) -> bool:
-        """Verify an HMAC-SHA256 signature.
-
-        Computes HMAC-SHA256 of '{token_id}:{timestamp}:{nonce}' using
-        token_secret as the key. The token_secret passed here is the stored
-        plaintext secret retrieved from HA's storage. The widget also uses
-        the plaintext to sign. Comparison uses hmac.compare_digest to prevent
-        timing attacks. Rejects timestamps older than 60 seconds or more than
-        5 seconds in the future (clock-skew tolerance) to prevent replay attacks.
-
-        Note: the secret is stored as plaintext in HA's local .storage/ file.
-        Previous documentation claiming it was stored as a hash was incorrect -
-        HMAC verification is impossible without the original secret.
-
-        Security: no nonce store - replay is possible within the 60s window.
-        Accepted tradeoff; see security.md section 5.14.
-        """
+        """Verify token HMAC and timestamp freshness using hmac.compare_digest()."""
         if not isinstance(timestamp, int) or isinstance(timestamp, bool):
             return False
         if not isinstance(nonce, str) or not isinstance(signature, str):

@@ -1,18 +1,4 @@
-"""Persistent storage for the panel's drift-warning dismiss state.
-
-Tracks a single field, ``dismissed_at_version``, which records the
-``PLATFORM_VERSION`` an admin was running when they last dismissed the
-home-screen drift banner. The banner is hidden iff this value equals
-the current ``PLATFORM_VERSION``; any integration release invalidates
-the dismissal so the next admin to load the panel re-evaluates the
-deployment with the new release in mind.
-
-Per SPEC.md Section 12 (Client/Server Compatibility), the dismiss is
-intentionally global within a server version (option A). There is no
-per-banner or per-origin dismissal; one click hides everything until
-the next release. This prevents accidentally-permanent silence after a
-one-time dismiss.
-"""
+"""Persist the panel drift-warning dismissal version."""
 from __future__ import annotations
 
 import logging

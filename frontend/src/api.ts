@@ -563,7 +563,7 @@ export const api = {
   },
 
   // ---------------------------------------------------------------------------
-  // Warnings (drift-banner dismissal) - SPEC.md Section 12
+  // Warning dismissal API
   // ---------------------------------------------------------------------------
 
   warnings: {

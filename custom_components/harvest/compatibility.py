@@ -1,16 +1,4 @@
-"""Client/server compatibility evaluation.
-
-Pure functions that compare a connecting client's reported version info
-against the server's own constants and decide whether to accept, accept
-with a soft warning, or reject the connection. See SPEC.md Section 12
-(Client/Server Compatibility) and Sections 5.1, 5.2, 5.3.
-
-The evaluator is deliberately separated from ws_proxy so the rules can
-be unit-tested exhaustively without spinning up a WebSocket. ws_proxy
-calls ``parse_client_block`` to validate the wire payload, then either
-``check_protocol_compatibility`` (hard accept/reject) followed by
-``evaluate`` (soft warning level).
-"""
+"""Evaluate client/server protocol and version compatibility."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -131,9 +119,7 @@ def evaluate(client: ClientInfo, server: ServerInfo) -> CompatibilityStatus:
     block report widget=None; for those we have nothing to compare and
     return "ok" since absence of information is not the same as drift.
     """
-    # Old clients that omit the client block carry no version info to
-    # compare against. SPEC.md: "Old clients that omit the client field
-    # auth normally with compatibility = 'ok'."
+    # Clients without version metadata are treated as compatible.
     if client.widget is None and client.source == "unknown":
         return "ok"
 
