@@ -119,8 +119,7 @@ describe("destroyClient", () => {
 
 describe("Singleton key format", () => {
   it("two tokens on the same HA instance produce separate clients (key is haUrl|tokenId)", () => {
-    // This is the canonical rule from CLAUDE.md:
-    // "HarvestClient singleton key is haUrl + '|' + tokenId - not just haUrl"
+    // Client keys include both HA URL and token ID.
     const haUrl   = "https://ha.example.com";
     const tokenA  = "hwt_tokenAAAAAAAAAAAAAAAA";
     const tokenB  = "hwt_tokenBBBBBBBBBBBBBBBB";

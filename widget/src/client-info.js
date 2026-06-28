@@ -1,25 +1,4 @@
-/**
- * client-info.js - Build the `client` block for the auth handshake.
- *
- * Captures `document.currentScript.src` at module load and parses its
- * query string to determine where the widget is being loaded from:
- *
- *   ?wp=<HARVEST_VERSION>   The WordPress plugin enqueued the script.
- *                           source = "wp", source_version = HARVEST_VERSION.
- *   ?panel=1                The HArvest panel preview injected the script.
- *                           source = "panel", source_version = null.
- *   (no query string)       Raw HTML embed (admin pasted snippet).
- *                           source = "html", source_version = null.
- *
- * Capture happens at module load because `document.currentScript` is
- * only valid while the script tag is being executed; by the time the
- * widget actually opens its WebSocket, the value is null. The IIFE
- * bundle runs at top-level synchronously so this import-time capture
- * works.
- *
- * See SPEC.md Section 5.1 (`client` field) and Section 12 for the
- * full compatibility model.
- */
+/** Build widget client metadata for the auth handshake. */
 import { PROTOCOL_VERSION, WIDGET_VERSION } from "./version.js";
 
 /** @type {{source: string, source_version: string | null}} */
@@ -65,10 +44,7 @@ function _captureFromScriptTag() {
 // Capture eagerly at module load - currentScript is only valid here.
 _captured = _captureFromScriptTag();
 
-/**
- * Return the `client` block to include in the auth message.
- * Shape matches SPEC.md Section 5.1.
- */
+/** Return auth-handshake client metadata. */
 export function getClientInfo() {
   return {
     protocol: PROTOCOL_VERSION,

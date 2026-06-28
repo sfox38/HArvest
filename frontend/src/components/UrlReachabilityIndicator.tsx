@@ -1,21 +1,4 @@
-/**
- * UrlReachabilityIndicator.tsx - Live URL reachability check.
- *
- * Probes a URL via the integration's /api/harvest/check_url endpoint
- * (which runs the actual HEAD request server-side because the browser
- * cannot fetch arbitrary cross-origin URLs). Renders a small status
- * glyph (✓ / ⚠ / ⓘ / ✗ / ⏳) next to the field plus an inline prose
- * message for non-OK states. SPEC.md Section 12.
- *
- * The indicator is ADVISORY only - never blocks save. A "not
- * reachable" result may simply mean the URL is on a network HA can't
- * see but visitors can. The prose explains this so admins are not
- * spooked into changing a URL that actually works.
- *
- * Debounced 500 ms after the last url change; also re-checks
- * immediately on a manual `triggerKey` bump (used by the parent when
- * the user blurs the underlying field).
- */
+/** Advisory URL reachability indicator for Settings fields. */
 
 import { useEffect, useRef, useState } from "react";
 import type { UrlCheckResult } from "../types";

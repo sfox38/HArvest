@@ -1,14 +1,4 @@
-/**
- * tests/compatibility-handshake.test.js
- *
- * Verifies the widget side of SPEC.md Section 12 (Client/Server
- * Compatibility):
- *  - getClientInfo() shape
- *  - source detection from query strings (wp / panel / html)
- *  - HRV_PROTOCOL_INCOMPATIBLE handling: permanent state, distinct
- *    error code, no reconnect, no card setErrorState fallback to
- *    HRV_AUTH_FAILED
- */
+/** Tests widget client metadata and incompatible-protocol handling. */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 

@@ -7,7 +7,7 @@
  */
 
 // ---------------------------------------------------------------------------
-// Domain -> bitmask bit -> feature string (matches entity_definition.py)
+// Domain to bitmask bit to feature string, matching entity_definition.py.
 // ---------------------------------------------------------------------------
 
 const FEATURE_FLAGS = {

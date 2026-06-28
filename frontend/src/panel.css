@@ -2293,10 +2293,7 @@ button.entity-setting-group-title:focus-visible {
   border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--paper));
 }
 
-/* URL reachability indicator - SPEC.md Section 12 (Widget Script URL Settings).
-   Live ✓/⚠/ⓘ/✗/⏳ glyph + inline prose for non-OK states next to the
-   Override Host and Custom Widget URL fields in Settings. Advisory only;
-   never blocks save. */
+/* URL reachability indicator. */
 .hrv-url-indicator {
   display: flex;
   align-items: center;
@@ -2319,10 +2316,7 @@ button.entity-setting-group-title:focus-visible {
 .hrv-url-indicator[data-status="warn"]     { color: var(--warn); }
 .hrv-url-indicator[data-status="error"]    { color: var(--danger); }
 
-/* Drift banner - SPEC.md Section 12 (Client/Server Compatibility).
-   Warning-tone (not danger): version drift is admin-actionable but never
-   blocking. One row per (origin, source, source_version, widget_version)
-   tuple; dismiss is global per PLATFORM_VERSION. */
+/* Client/server drift banner. */
 .drift-banner {
   background: var(--warn-weak);
   border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--paper));
@@ -2625,6 +2619,76 @@ button.entity-setting-group-title:focus-visible {
 }
 .theme-tray-action:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .theme-tray-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Import-source dropdown (local file vs HArvest GitHub) */
+.theme-import-dropdown { position: relative; }
+.theme-import-dropdown > .theme-tray-action { width: 100%; }
+
+.theme-import-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--paper);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.theme-import-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.theme-import-menu-item:hover { background: var(--bg-2); color: var(--accent); }
+
+/* GitHub theme picker dialog */
+.github-picker { max-width: 460px; }
+
+.github-theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.github-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.github-theme-row:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.github-theme-row:disabled { opacity: 0.6; cursor: default; }
+.github-theme-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.github-theme-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 .theme-strip {
   display: flex;
@@ -3340,15 +3404,7 @@ button.entity-setting-group-title:focus-visible {
   font-weight: 500;
 }
 
-/* ----------------------------------------------------------------------------
- * Utility classes
- *
- * Consolidates patterns that previously appeared as repeated inline styles
- * across panel components. New code should reach for these instead of inline
- * style={{ }} attributes (per feedback_css_external.md). Single-property
- * shorthands (.fs-*, .gap-*, .flex-1) are utility-style; the multi-property
- * ones (.divider, .error-msg, .center-spinner, .label-strong) are semantic.
- * --------------------------------------------------------------------------*/
+/* Shared panel utility classes. */
 
 /* Section divider: thin horizontal rule between settings groups. */
 .divider {

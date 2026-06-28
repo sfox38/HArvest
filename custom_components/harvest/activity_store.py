@@ -701,7 +701,7 @@ class ActivityStore:
             CREATE INDEX IF NOT EXISTS idx_lifecycle_timestamp ON token_lifecycle(timestamp);
         """)
 
-        # Migration: add referer column to existing databases (v1 -> v2).
+        # Migration: add referer column to existing databases, v1 to v2.
         # SQLite does not support ADD COLUMN IF NOT EXISTS; swallow OperationalError
         # when the column already exists (fresh installs won't hit this).
         for stmt in (

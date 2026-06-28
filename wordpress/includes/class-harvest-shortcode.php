@@ -61,20 +61,13 @@ class Harvest_Shortcode {
             );
         }
 
-        // Validate required: entity or alias
         if ( empty( $atts['entity'] ) && empty( $atts['alias'] ) ) {
             return self::render_error(
                 __( 'HArvest: missing required "entity" or "alias" attribute.', 'harvest' )
             );
         }
 
-        // entity takes priority over alias when both are present.
-        // Earlier revisions called _doing_it_wrong() here, but that API is
-        // intended for plugin developers calling deprecated WP APIs - it
-        // fires WP_DEBUG_LOG noise that is not actionable for the content
-        // editor who pasted both attributes. We instead emit an HTML comment
-        // breadcrumb (visible to anyone viewing the page source) and let the
-        // widget's own console.warn cover the browser dev-tools case.
+        // entity takes priority over alias; emit a page-source notice for invalid shortcode input.
         $double_attr_warning = '';
         if ( ! empty( $atts['entity'] ) && ! empty( $atts['alias'] ) ) {
             $double_attr_warning = '<!-- HArvest: both entity and alias attributes are set on this shortcode; entity takes priority. Remove alias to suppress this notice. -->';
@@ -88,7 +81,7 @@ class Harvest_Shortcode {
             );
         }
 
-        // Build data attributes. entity takes priority over alias.
+        // entity takes priority over alias.
         $data_attrs = [
             'data-token'  => $atts['token'],
             'data-ha-url' => $ha_url,

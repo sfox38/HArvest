@@ -314,7 +314,7 @@ class HarvestWsView(HomeAssistantView):
             await ws.close()
             return
         entity_refs: list[str] = raw_entity_refs
-        # Origin is spoofable by non-browser clients; see security.md scenario 3.
+        # Origin is spoofable by non-browser clients.
         origin: str = request.headers.get("Origin", "")
         page_path = msg.get("page_path")
         if page_path is not None and not isinstance(page_path, str):
@@ -334,14 +334,7 @@ class HarvestWsView(HomeAssistantView):
                 return
         msg_id = msg.get("msg_id")
 
-        # --- Step 2a: Protocol-compatibility hard check ---
-        # SPEC.md Section 5.3 + Section 12 (Client/Server Compatibility).
-        # If the client speaks a protocol the server cannot, reject before
-        # touching token validation: this is a structural mismatch, not an
-        # auth attempt against a specific token. The reply carries the
-        # `server` block so the widget can render HRV_INCOMPATIBLE rather
-        # than fall into reconnect backoff. Old widgets that omit `client`
-        # default to protocol=1 in parse_client_block and pass through.
+        # Reject incompatible client protocols before token validation.
         client_info = parse_client_block(msg.get("client"))
         srv = server_info()
         if not check_protocol_compatibility(client_info, srv):
@@ -437,8 +430,8 @@ class HarvestWsView(HomeAssistantView):
             return
 
         # --- Step 3: Create session ---
-        # Build the real entity_id list and outgoing_ids map (alias -> outgoing entity_id).
-        # outgoing_ids maps real_entity_id -> what to put in entity_id field of outgoing messages.
+        # Build the real entity_id list and outgoing_ids map.
+        # outgoing_ids maps real_entity_id to the outgoing entity_id value.
         real_entity_ids: list[str] = []
         outgoing_ids: dict[str, str] = {}  # real_entity_id -> outgoing id (alias or real)
 
@@ -548,7 +541,7 @@ class HarvestWsView(HomeAssistantView):
         if self._sensors is not None:
             self._sensors.push_token_update(token.token_id)
 
-        # Register HA state listeners. listener_unsubs maps real_entity_id -> unsub callable.
+        # Register HA state listeners. listener_unsubs maps real_entity_id to unsub callable.
         listener_unsubs: dict[str, Callable] = {}
         # Weather forecast subscription state (per-connection).
         # forecast_cache[entity_id] = {"daily": [...], "hourly": [...]}

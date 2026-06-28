@@ -225,7 +225,7 @@ function validateWidgetScriptUrl(v: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// WidgetScriptSourceField - SPEC.md Section 12 (Widget Script URL Settings)
+// Widget script source field
 // ---------------------------------------------------------------------------
 //
 // Three radios: HA-served, Alternate port, Custom URL.

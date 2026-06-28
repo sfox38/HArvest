@@ -1,16 +1,4 @@
-/**
- * DriftBanner.tsx - Home-screen banner for client/server version drift.
- *
- * Aggregates active sessions whose `compatibility !== "ok"` and surfaces
- * a single dismissible banner per (origin, source, source_version,
- * widget_version) tuple. Per SPEC.md Section 12, dismissal is global
- * within a server version: one click hides everything until the next
- * integration release bumps PLATFORM_VERSION (which the GET /warnings
- * endpoint reports), at which point all banners reappear.
- *
- * Loads independently of the rest of Dashboard so a slow / failed
- * /warnings or /sessions request doesn't block the stat grid.
- */
+/** Home-screen banner for client/server version drift. */
 
 import { useState, useEffect, useCallback } from "react";
 import type { Session, WarningsState } from "../types";

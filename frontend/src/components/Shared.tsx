@@ -1259,7 +1259,7 @@ export function ServiceDataFields({ domain, service, data, onChange, disabled, p
 
   // Pre-fill defaults for fields that have a default and no current value.
   // This effect must stay above the early returns below so the hook order is
-  // stable across renders (loading -> loaded), otherwise React error #310.
+  // stable across renders as loading becomes loaded, otherwise React error #310.
   const fieldsJson = JSON.stringify(fields);
   useEffect(() => {
     const defaults: Record<string, unknown> = {};

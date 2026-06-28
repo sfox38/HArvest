@@ -120,7 +120,6 @@ export class HrvCard extends HTMLElement {
     // Show connecting skeleton immediately.
     this.setErrorState("HRV_CONNECTING");
 
-    // Validate required config before connecting.
     if (!this.#config.haUrl || !this.#config.tokenId) {
       this.#waitForPageConfig();
       return;

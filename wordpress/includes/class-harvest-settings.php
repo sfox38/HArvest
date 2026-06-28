@@ -53,10 +53,7 @@ class Harvest_Settings {
         register_setting( 'harvest_settings_group', 'harvest_widget_source', [
             'type'              => 'string',
             'sanitize_callback' => [ self::class, 'sanitize_widget_source' ],
-            // 'ha' (HA-served) is the recommended default for new installs
-            // since it always loads a widget bundle that matches the running
-            // integration version. SPEC.md Section 12. Old installs that
-            // saved 'bundled' continue to work via sanitize_widget_source.
+            // 'ha' is the recommended default for new installs.
             'default'           => 'ha',
         ] );
 
@@ -78,12 +75,7 @@ class Harvest_Settings {
     }
 
     public static function sanitize_widget_source( ?string $source ): string {
-        // Only 'ha' (HA-served) and 'custom' are valid. Pre-1.9.0 installs
-        // that stored 'bundled' are silently migrated to 'ha' here, since
-        // the plugin no longer ships assets/harvest.min.js in the zip
-        // (the widget bundle is now ALWAYS loaded from the integration's
-        // /harvest_assets/ static path - SPEC.md Section 12). Unknown /
-        // blank values also collapse to 'ha'.
+        // Coerce invalid or obsolete source values to the HA-served default.
         $coerced = in_array( $source, [ 'ha', 'custom' ], true ) ? $source : 'ha';
 
         // Guard against the "custom selected but no URL provided" save
@@ -485,7 +477,7 @@ class Harvest_Settings {
                                 var haUrlField   = document.getElementById('harvest_ha_url');
                                 var noUrlMsg     = haPreview.getAttribute('data-no-url-msg');
 
-                                // Reachability-probe wiring (SPEC.md Section 12).
+                                // Reachability-probe wiring.
                                 // Use a relative URL so the AJAX request always stays
                                 // same-origin even if the WP siteurl canonical URL
                                 // differs from the URL the admin actually browsed to
@@ -730,11 +722,7 @@ class Harvest_Settings {
     }
 
     public static function get_widget_source(): string {
-        // Default for fresh installs: 'ha' (HA-served, SPEC.md Section 12).
-        // Pre-1.9.0 installs that stored 'bundled' are transparently
-        // migrated to 'ha' at read time too: the plugin no longer ships
-        // assets/harvest.min.js, so honoring 'bundled' would 404 the
-        // widget. The sanitizer also coerces this on next save.
+        // Default to HA-served widgets; obsolete stored values map to 'ha'.
         $stored = (string) get_option( 'harvest_widget_source', 'ha' );
         if ( $stored === 'bundled' ) {
             return 'ha';

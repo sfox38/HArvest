@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 # Most feature/data key names match the HA attribute name directly.  The maps
 # below cover the known cases where they differ.
 
-# state attribute -> feature name it belongs to (only where names differ).
+# State attribute to feature name it belongs to, only where names differ.
 # When any of these attributes is excluded, the mapped feature is suppressed.
 _ATTR_TO_FEATURE: dict[str, str] = {
     "color_temp_kelvin": "color_temp",
@@ -61,7 +61,7 @@ _ATTR_TO_FEATURE: dict[str, str] = {
     "volume_level": "volume_set",
 }
 
-# command data key -> state attribute it controls (only where names differ)
+# Command data key to state attribute it controls, only where names differ.
 _DATA_KEY_ATTR_NAME: dict[str, str] = {
     "brightness_pct": "brightness",
     "color_temp_kelvin": "color_temp",
@@ -75,7 +75,7 @@ _DATA_KEY_ATTR_NAME: dict[str, str] = {
     "tilt_position": "current_tilt_position",
 }
 
-# attribute -> extra feature_config keys to remove (only where the attribute
+# Attribute to extra feature_config keys to remove, only where the attribute
 # name does not appear as a substring of the config key)
 _ATTR_EXTRA_CONFIG_KEYS: dict[str, set[str]] = {
     "temperature": {"min_temp", "max_temp", "temp_step"},
@@ -127,7 +127,7 @@ def get_blocked_data_keys(exclude_attributes: list[str]) -> set[str]:
     return blocked
 
 
-# Maps (domain, bitmask_bit) -> feature string for translate_supported_features.
+# Maps (domain, bitmask_bit) to feature string for translate_supported_features.
 FEATURE_FLAGS: dict[str, dict[int, str]] = {
     "light": {
         int(LightEntityFeature.EFFECT): "effect",

@@ -1,12 +1,4 @@
-"""tests/test_compatibility.py
-
-Pure-function tests for the client/server compatibility evaluator.
-Covers SPEC.md Section 12 (Client/Server Compatibility) rules:
-  - protocol-range hard accept/reject
-  - widget-version drift comparison at minor-or-major granularity
-  - WordPress-plugin-version drift (only when source == "wp")
-  - graceful degradation for old / malformed clients
-"""
+"""Tests for client/server compatibility evaluation."""
 from __future__ import annotations
 
 import pytest
@@ -205,7 +197,7 @@ class TestEvaluateWpPluginDrift:
         # also defend against direct ClientInfo construction with stale data.
         monkeypatch.setattr(compat, "BUNDLED_WP_PLUGIN_VERSION", "0.9.3")
         c = ClientInfo(protocol=1, widget="0.9.3", source="html", source_version="0.1.0")
-        # source != "wp" -> source_version is ignored regardless.
+        # source values other than "wp" ignore source_version.
         assert evaluate(c, _server(version="0.9.3")) == "ok"
 
 

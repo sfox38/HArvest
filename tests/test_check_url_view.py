@@ -1,8 +1,4 @@
-"""Tests for HarvestCheckUrlView (the panel-side URL reachability probe).
-
-Mirrors the WP plugin's ajax_check_url. Same response shape, same
-defensive checks, same advisory-only semantics. SPEC.md Section 12.
-"""
+"""Tests for HarvestCheckUrlView reachability checks."""
 from __future__ import annotations
 
 import asyncio

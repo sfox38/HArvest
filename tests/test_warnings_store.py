@@ -1,9 +1,4 @@
-"""Tests for the warnings_store module and its HTTP endpoints.
-
-Covers SPEC.md Section 12 (Client/Server Compatibility) banner-dismissal
-semantics: dismissal is global per server PLATFORM_VERSION; an
-integration release invalidates the dismissal so banners reappear.
-"""
+"""Tests for warning dismissal storage and endpoints."""
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock

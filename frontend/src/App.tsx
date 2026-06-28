@@ -52,15 +52,34 @@ function readStoredTheme(): AppTheme {
   return "auto";
 }
 
+// Valid top-level tab ids, derived from the nav so it stays in sync if tabs change.
+const VALID_SCREENS = new Set<Screen>([...NAV_MAIN, ...NAV_FOOT].map(n => n.id));
+
+// Restore the last-selected tab so it survives a reload or navigating away and
+// back. Falls back to the dashboard for an empty or stale stored value.
+function readStoredScreen(): Screen {
+  const v = localStorage.getItem("hrv_screen");
+  if (v && VALID_SCREENS.has(v as Screen)) return v as Screen;
+  return "dashboard";
+}
+
+// The token whose detail was open in the Widgets tab, persisted by TokenList.
+// Used only to reopen it when the panel restores onto the Widgets tab.
+function readStoredToken(): string | null {
+  return localStorage.getItem("hrv_widget_token");
+}
+
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
 
 export function App() {
-  const [screen, setScreen]         = useState<Screen>("dashboard");
+  const [screen, setScreen]         = useState<Screen>(readStoredScreen);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [converterOpen, setConverterOpen] = useState(false);
-  const [initialTokenId, setInitialTokenId] = useState<string | null>(null);
+  const [initialTokenId, setInitialTokenId] = useState<string | null>(
+    () => (readStoredScreen() === "widgets" ? readStoredToken() : null),
+  );
   // Increment to reset (remount) the TokenList when Widgets nav is clicked
   // while already viewing a token detail.
   const [tokenListKey, setTokenListKey] = useState(0);
@@ -80,13 +99,17 @@ export function App() {
     localStorage.setItem("hrv_theme", theme);
   }, [theme]);
 
+  // Persist the selected tab so it survives reloads and navigation.
+  useEffect(() => {
+    localStorage.setItem("hrv_screen", screen);
+  }, [screen]);
+
   // Subscribe to HA dark mode changes for "auto" mode.
   useEffect(() => onHaDarkModeChange(setHaDark), []);
 
   // Subscribe to connectivity changes.
   useEffect(() => onConnectivityChange(setOffline), []);
 
-  // Fetch kill switch state on mount.
   useEffect(() => {
     api.config.get().then(c => setKillSwitch(c.kill_switch ?? false)).catch(() => {});
   }, []);

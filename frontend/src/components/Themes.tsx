@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { ThemeDefinition, Token, RenderersResponse } from "../types";
+import type { ThemeDefinition, Token, RenderersResponse, GithubTheme } from "../types";
 import { api } from "../api";
 import { Card, ConfirmDialog, Spinner, ErrorBanner, ThemeStrip, SearchInput, themeUrlToId } from "./Shared";
 import { Icon } from "./Icon";
@@ -84,6 +84,11 @@ function useCopy(text: string) {
   return { copied, copy };
 }
 
+// Round a byte count to a compact "N KB" label for the GitHub theme list.
+function formatKb(bytes: number): string {
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 // ---------------------------------------------------------------------------
 // Main Themes component
 // ---------------------------------------------------------------------------
@@ -137,6 +142,17 @@ export function Themes({ onSelectToken }: ThemesProps) {
   // Thumbnail state
   const [thumbKey, setThumbKey] = useState(0);
 
+  // Import source dropdown (local file vs HArvest GitHub)
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+
+  // GitHub theme picker
+  const [githubPickerOpen, setGithubPickerOpen] = useState(false);
+  const [githubThemes, setGithubThemes] = useState<GithubTheme[] | null>(null);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubBusy, setGithubBusy] = useState<string | null>(null);
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const thumbRef = useRef<HTMLInputElement>(null);
@@ -147,8 +163,10 @@ export function Themes({ onSelectToken }: ThemesProps) {
     setAgreeText("");
     setPendingAction(null);
   };
+  const closeGithubPicker = () => setGithubPickerOpen(false);
   const rendererReminderDialogRef = useDialogFocus(showRendererReminder, closeRendererReminder);
   const agreeDialogRef = useDialogFocus(showAgree, closeAgree);
+  const githubPickerDialogRef = useDialogFocus(githubPickerOpen, closeGithubPicker);
 
   const reload = useCallback(async () => {
     // allSettled: themes is the primary content; tokens is only used for
@@ -173,6 +191,28 @@ export function Themes({ onSelectToken }: ThemesProps) {
 
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { api.renderers.list().then(setRenderersData).catch(() => {}); }, []);
+
+  // Close the import-source dropdown on outside click or Escape.
+  useEffect(() => {
+    if (!importMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      // The panel renders inside a shadow root, so on a document-level listener
+      // e.target is retargeted to the host element. composedPath() keeps the
+      // real path through the shadow tree, so clicks on the menu are correctly
+      // seen as inside (otherwise the menu closes on mousedown before the
+      // item's click fires, and selecting an option does nothing).
+      if (importMenuRef.current && !e.composedPath().includes(importMenuRef.current)) {
+        setImportMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setImportMenuOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [importMenuOpen]);
 
   const selectedTheme = themes.find(t => t.theme_id === selected) ?? null;
 
@@ -409,29 +449,57 @@ export function Themes({ onSelectToken }: ThemesProps) {
     setReloading(false);
   };
 
+  // Import a theme from an in-memory zip File. Shared by the local-file picker
+  // and the GitHub picker (which downloads the zip into a File first), so both
+  // sources reuse the same renderer-consent and overwrite-conflict handling.
+  const importFile = async (file: File, rendererConfirmed = false) => {
+    try {
+      const result = await api.themes.importZip(file, false, rendererConfirmed);
+      if ("error" in result && result.error === "renderer_consent_required") {
+        requireConsent(() => importFile(file, true), true);
+        return;
+      }
+      if ("error" in result && result.error === "theme_already_exists") {
+        setPendingOverwriteFile(file);
+        setOverwriteConflict({ name: result.name, theme_id: result.theme_id });
+        return;
+      }
+      const updated = await reload();
+      if (updated) setSelected(result.theme_id);
+    } catch (err) {
+      setError(String(err));
+    }
+  };
+
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const doImport = async (rendererConfirmed = false) => {
-      try {
-        const result = await api.themes.importZip(file, false, rendererConfirmed);
-        if ("error" in result && result.error === "renderer_consent_required") {
-          requireConsent(() => doImport(true), true);
-          return;
-        }
-        if ("error" in result && result.error === "theme_already_exists") {
-          setPendingOverwriteFile(file);
-          setOverwriteConflict({ name: result.name, theme_id: result.theme_id });
-          return;
-        }
-        const updated = await reload();
-        if (updated) setSelected(result.theme_id);
-      } catch (err) {
-        setError(String(err));
-      }
-    };
-    await doImport();
+    await importFile(file);
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const openGithubPicker = async () => {
+    setGithubPickerOpen(true);
+    setGithubError(null);
+    setGithubLoading(true);
+    try {
+      setGithubThemes(await api.themes.githubList());
+    } catch (err) {
+      setGithubError(String(err).replace(/^Error:\s*/, ""));
+    }
+    setGithubLoading(false);
+  };
+
+  const handleGithubSelect = async (theme: GithubTheme) => {
+    setGithubBusy(theme.name);
+    try {
+      const file = await api.themes.githubDownload(theme.download_url, theme.name);
+      setGithubPickerOpen(false);
+      await importFile(file);
+    } catch (err) {
+      setGithubError(String(err).replace(/^Error:\s*/, ""));
+    }
+    setGithubBusy(null);
   };
 
   const handleOverwriteConfirm = async () => {
@@ -651,9 +719,35 @@ export function Themes({ onSelectToken }: ThemesProps) {
             <button className="theme-tray-action" onClick={handleCreate}>
               <Icon name="plus" size={14} /> New Theme
             </button>
-            <button className="theme-tray-action" onClick={() => fileRef.current?.click()}>
-              <Icon name="upload" size={14} /> Import .zip
-            </button>
+            <div className="theme-import-dropdown" ref={importMenuRef}>
+              <button
+                className="theme-tray-action"
+                onClick={() => setImportMenuOpen(v => !v)}
+                aria-haspopup="menu"
+                aria-expanded={importMenuOpen}
+              >
+                <Icon name="upload" size={14} /> Import .zip
+                <Icon name={importMenuOpen ? "chevron-up" : "chevron-down"} size={12} />
+              </button>
+              {importMenuOpen && (
+                <div className="theme-import-menu" role="menu">
+                  <button
+                    className="theme-import-menu-item"
+                    role="menuitem"
+                    onClick={() => { setImportMenuOpen(false); fileRef.current?.click(); }}
+                  >
+                    <Icon name="upload" size={14} /> Choose a local file...
+                  </button>
+                  <button
+                    className="theme-import-menu-item"
+                    role="menuitem"
+                    onClick={() => { setImportMenuOpen(false); openGithubPicker(); }}
+                  >
+                    <Icon name="globe" size={14} /> Download from HArvest GitHub...
+                  </button>
+                </div>
+              )}
+            </div>
             <button className="theme-tray-action" onClick={handleReload} disabled={reloading}>
               {reloading ? <Spinner size={14} /> : <Icon name="refresh" size={14} />}
               {reloading ? "Reloading..." : "Reload"}
@@ -977,6 +1071,45 @@ export function Themes({ onSelectToken }: ThemesProps) {
           onConfirm={handleOverwriteConfirm}
           onCancel={() => { setOverwriteConflict(null); setPendingOverwriteFile(null); }}
         />
+      )}
+
+      {githubPickerOpen && (
+        <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="github-picker-title" onClick={closeGithubPicker}>
+          <div ref={githubPickerDialogRef} className="dialog github-picker" onClick={e => e.stopPropagation()}>
+            <h3 id="github-picker-title" className="dialog-title">Import from HArvest GitHub</h3>
+            <div className="dialog-body">
+              {githubLoading && (
+                <div className="row" style={{ justifyContent: "center", padding: 16 }}><Spinner size={28} /></div>
+              )}
+              {githubError && <ErrorBanner message={githubError} onDismiss={() => setGithubError(null)} />}
+              {!githubLoading && !githubError && githubThemes && githubThemes.length === 0 && (
+                <div className="muted fs-13" style={{ padding: 8 }}>No themes are published yet.</div>
+              )}
+              {!githubLoading && !githubError && githubThemes && githubThemes.length > 0 && (
+                <div className="github-theme-list">
+                  {githubThemes.map(t => (
+                    <button
+                      key={t.name}
+                      className="github-theme-row"
+                      disabled={githubBusy !== null}
+                      onClick={() => handleGithubSelect(t)}
+                    >
+                      <span className="github-theme-name">{t.name.replace(/\.zip$/i, "")}</span>
+                      <span className="github-theme-meta">
+                        {githubBusy === t.name
+                          ? <Spinner size={14} />
+                          : <><span className="muted fs-11">{formatKb(t.size)}</span><Icon name="download" size={14} /></>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="dialog-actions">
+              <button className="btn" onClick={closeGithubPicker} disabled={githubBusy !== null}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {confirmDelete && selectedTheme && (

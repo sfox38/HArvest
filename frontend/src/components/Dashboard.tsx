@@ -121,9 +121,7 @@ export function Dashboard({ onOpenWizard: _onOpenWizard, onNavigate, onNavigateA
     <div className="content-narrow col" style={{ gap: 22 }}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      {/* Compatibility-handshake drift banner (SPEC.md Section 12).
-          Self-loading; renders nothing if no drift or if dismissed at
-          the current PLATFORM_VERSION. */}
+      {/* Client/server drift banner. */}
       <DriftBanner />
 
       {/* Stat grid */}

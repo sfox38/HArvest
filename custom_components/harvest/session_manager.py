@@ -45,11 +45,7 @@ class Session:
     outgoing_ids: dict[str, str] = field(default_factory=dict)
     last_sent_attributes: dict[str, dict] = field(default_factory=dict)
     deferred_state_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
-    # Client identity reported via the auth message's `client` block (SPEC.md
-    # Section 5.1, Section 12 Client/Server Compatibility). Defaults below
-    # match the "old client that omits the client field" behavior so any
-    # existing call site that constructs a Session without setting these
-    # behaves as if the connecting widget predates the handshake.
+    # Client identity reported by auth; defaults represent clients that omit the block.
     client_protocol: int = 1
     client_widget_version: str | None = None
     client_source: str = "unknown"  # "wp" | "html" | "panel" | "unknown"
@@ -62,9 +58,9 @@ class SessionManager:
 
     def __init__(self, config: dict) -> None:
         self._config = config
-        # Primary index: session_id -> Session
+        # Primary index: session_id to Session.
         self._sessions: dict[str, Session] = {}
-        # Secondary index: token_id -> set of session_ids (for O(1) token-level ops)
+        # Secondary index: token_id to set of session_ids.
         self._token_sessions: dict[str, set[str]] = {}
 
     # ------------------------------------------------------------------

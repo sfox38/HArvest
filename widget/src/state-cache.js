@@ -1,30 +1,4 @@
-/**
- * state-cache.js - localStorage state cache for offline grace rendering.
- *
- * Caches the last known state and attributes for each (tokenId, entityId)
- * pair so that cards can render stale-but-useful content while reconnecting.
- *
- * Cache key format: hrv_{djb2(tokenId + "|" + entityId).abs().hex().padStart(8)}
- *
- * The hash provides privacy-by-obscurity: the token ID and entity ID are not
- * directly visible in browser storage. This is not a cryptographic guarantee -
- * it is sufficient because the cache key is not a security boundary.
- *
- * crypto.subtle (async SHA-256) cannot be used here because this module is
- * called from synchronous paths such as connectedCallback. A fast djb2-style
- * integer hash is used instead, consistent with SPEC.md Section 9.
- *
- * Hash collisions: a 32-bit hash makes collisions astronomically unlikely in
- * practice (birthday-bound ~10^-7 at 50 entries) but not zero. Each cached
- * value carries the originating (tokenId, entityId) and read() rejects the
- * entry on mismatch so a colliding key never returns the wrong entity's state.
- * Last-write-wins handles which entity occupies a colliding slot; the loser
- * gets a cache miss and re-fetches from the server on next state_update.
- *
- * All localStorage operations are wrapped in try/catch. Failures are silently
- * ignored so that the cache degrades gracefully in environments where
- * localStorage is unavailable (Safari private browsing, sandboxed iframes).
- */
+/** localStorage cache for last known entity state and definitions. */
 /**
  * Compute a djb2-style hash of a string. Returns a 32-bit signed integer.
  * @param {string} str
@@ -112,9 +86,7 @@ export class StateCache {
       const raw = localStorage.getItem(key);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      // Integrity check: defends against djb2 collisions and pre-fix entries
-      // (older entries lack token_id and will fail this check, behaving as a
-      // one-time cache flush after upgrade).
+      // Integrity check: reject hash collisions or incomplete cache entries.
       if (parsed?.token_id !== tokenId || parsed?.entity_id !== entityId) {
         return null;
       }

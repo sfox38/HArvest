@@ -1203,10 +1203,7 @@ function Step4Done({ token, tokenSecret, originMode, originUrl, overrideHost, se
   }, [token.token_id]);
 
   const baseHaUrl = overrideHost || window.location.origin;
-  // SPEC.md Section 12: empty widget_script_url means HA-served. Compute
-  // {haUrl}/harvest_assets/harvest.min.js so the wizard's preview snippet
-  // matches what the integration actually serves at runtime, instead of
-  // emitting <script src=""></script>.
+  // Empty widget_script_url means the snippet uses the HA-served bundle.
   const { haUrl, scriptUrl } = resolveWidgetConnectionUrls(
     baseHaUrl,
     widgetScriptUrl,
@@ -1378,7 +1375,7 @@ export function Wizard({ onClose }: WizardProps) {
   const [secretAcknowledged, setSecretAcknowledged] = useState(false);
   const wizardRef = useRef<HTMLDivElement>(null);
   const closeRequestRef = useRef<() => void>(() => {});
-  // Synchronous re-entry guard for the Step 3 -> Generate path. The button's
+  // Synchronous re-entry guard for the Step 3 to Generate path. The button's
   // disabled={loading} attribute only takes effect on the next render, so a
   // rapid second click between setLoading(true) and the DOM flush would
   // otherwise fire a second tokens.create() and create duplicate tokens.
